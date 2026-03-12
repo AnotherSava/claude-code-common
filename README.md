@@ -30,6 +30,7 @@ Squashes a feature branch into a single Conventional Commit, pushes, and opens a
 - Reads the associated plan document and progress log for context
 - Drafts a commit message explaining motivation and key decisions
 - Asks for your approval before committing
+- Rebases onto main before pushing so pr-merge can fast-forward
 - Handles force-push when the branch was previously pushed with unsquashed commits
 
 ---
@@ -42,9 +43,9 @@ Merges a PR locally via fast-forward to preserve your GPG-signed commits.
 
 **Features:**
 - Avoids GitHub's merge UI, which re-signs commits with GitHub's own key
-- Rebases onto main and verifies signatures remain valid
-- Force-pushes the rebased branch so GitHub sees updated history
-- Cleans up remote and local branches after merge
+- Fast-forwards main to the PR branch (rebases as fallback if needed)
+- Stashes uncommitted changes and restores them after merge
+- Cleans up remote and local branches, prunes stale remote-tracking refs
 
 ---
 

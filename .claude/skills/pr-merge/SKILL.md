@@ -1,7 +1,7 @@
 ---
 name: pr-merge
 description: Merge a PR locally with fast-forward to preserve GPG-signed commits, then clean up.
-allowed-tools: Bash(git status*), Bash(git log*), Bash(git diff*), Bash(git fetch*), Bash(git checkout*), Bash(git rebase*), Bash(git merge*), Bash(git push*), Bash(git branch*), Bash(git rev-parse*), Bash(git symbolic-ref*), Bash(gh pr *), Read
+allowed-tools: Bash(git status*), Bash(git log*), Bash(git diff*), Bash(git fetch*), Bash(git checkout*), Bash(git rebase*), Bash(git merge*), Bash(git push*), Bash(git branch*), Bash(git rev-parse*), Bash(git symbolic-ref*), Bash(git stash*), Bash(git remote*), Bash(gh pr *), Read
 ---
 
 # Merge PR Locally (Preserving GPG Signatures)
@@ -55,7 +55,19 @@ branch or find the single open PR.
    `G` = good signature. Warn if any commit is unsigned (`N`) or has a bad
    signature (`B`).
 
-### Step 3: Rebase onto main
+### Step 3: Stash uncommitted changes
+
+If `git status` shows uncommitted changes (staged or unstaged), stash them
+before switching branches:
+```
+git stash
+```
+Remember to pop the stash at the end (Step 5).
+
+### Step 4: Fast-forward merge
+
+pr-create already rebases onto main before pushing, so the branch should
+be fast-forwardable. If not, rebase first.
 
 1. Ensure main is up to date:
    ```
@@ -64,35 +76,20 @@ branch or find the single open PR.
    git merge origin/main --ff-only
    ```
 
-2. Check out the PR branch and rebase onto main:
+2. Fast-forward merge the PR branch:
+   ```
+   git merge <branch-name> --ff-only
+   ```
+   If `--ff-only` fails, the branch needs rebasing:
    ```
    git checkout <branch-name>
    git rebase main
-   ```
-   If the rebase produces conflicts, stop and ask the user to resolve them.
-
-3. After rebase, verify the commit is still signed:
-   ```
-   git log main..HEAD --format="%h %G? %s"
-   ```
-   Rebase re-signs commits with the local GPG key, so they should remain `G`.
-
-4. Force-push the rebased branch so GitHub sees the updated history:
-   ```
    git push --force-with-lease origin <branch-name>
-   ```
-
-### Step 4: Fast-forward merge
-
-1. Switch to main and fast-forward:
-   ```
    git checkout main
    git merge <branch-name> --ff-only
    ```
-   If `--ff-only` fails, the rebase didn't work correctly — abort and
-   investigate.
 
-2. Push main:
+3. Push main:
    ```
    git push origin main
    ```
@@ -108,17 +105,37 @@ branch or find the single open PR.
    gh pr close <number>
    ```
 
-2. Delete the remote branch:
+2. Delete the remote PR branch:
    ```
    git push origin --delete <branch-name>
    ```
 
-3. Delete the local branch:
+3. Delete the local PR branch:
    ```
    git branch -d <branch-name>
    ```
 
-4. Report success: show the merged commit(s) on main with signature status:
+4. Prune stale remote-tracking references (branches deleted on GitHub but
+   still cached locally):
+   ```
+   git remote prune origin
+   ```
+
+5. Delete all other local branches that are fully merged into main:
+   ```
+   git branch --merged main
+   ```
+   Delete any listed branches other than `main` (or `* main`):
+   ```
+   git branch -d <stale-branch>
+   ```
+
+6. If changes were stashed in Step 3, restore them:
+   ```
+   git stash pop
+   ```
+
+7. Report success: show the merged commit(s) on main with signature status:
    ```
    git log --oneline --format="%h %G? %s" -5
    ```

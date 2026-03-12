@@ -1,7 +1,7 @@
 ---
 name: pr-create
 description: Squash ralphex commits into a single Conventional Commit, push, and create a PR to main.
-allowed-tools: Bash(git status*), Bash(git log*), Bash(git diff*), Bash(git reset*), Bash(git add*), Bash(git commit*), Bash(git push*), Bash(git symbolic-ref*), Bash(git rev-parse*), Bash(git branch*), Bash(git fetch*), Bash(git checkout*), Bash(git merge*), Bash(gh pr create*), Bash(ls *), Read, Glob, Grep
+allowed-tools: Bash(git status*), Bash(git log*), Bash(git diff*), Bash(git reset*), Bash(git add*), Bash(git commit*), Bash(git push*), Bash(git symbolic-ref*), Bash(git rev-parse*), Bash(git branch*), Bash(git fetch*), Bash(git checkout*), Bash(git merge*), Bash(git rebase*), Bash(gh pr create*), Bash(ls *), Read, Glob, Grep
 ---
 
 # Squash Ralphex Commits and Create PR
@@ -109,7 +109,17 @@ Display the full drafted commit message and ask the user to approve or revise it
    EOF
    ```
 
-### Step 5: Push and create PR
+### Step 5: Rebase onto main
+
+Ensure the squashed commit is based on the latest main so pr-merge can
+fast-forward without rebasing:
+```
+git fetch origin main
+git rebase main
+```
+If the rebase produces conflicts, stop and ask the user to resolve them.
+
+### Step 6: Push and create PR
 
 1. Push the branch:
    ```
