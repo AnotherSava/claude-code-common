@@ -26,7 +26,7 @@ Explore relevant files to understand:
 - Related existing functionality
 - Test patterns in use
 
-Read 2–3 completed plans from `docs/plans/completed/` to match the established format and level of detail.
+Read all sample plans from `.claude/skills/plan-ralphex/samples/` to learn the established format and level of detail. Then read 2–3 completed plans from `docs/plans/completed/` (if any exist) to pick up project-specific conventions.
 
 ## Step 3: Interactive design discussion
 
