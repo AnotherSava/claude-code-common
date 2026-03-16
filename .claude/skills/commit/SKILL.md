@@ -1,7 +1,7 @@
 ---
 name: commit
 description: Analyzes changes and generates Conventional Commit messages
-allowed-tools: Read, Bash(git diff:*), Bash(git add:*), Bash(git commit:*), Bash(git status:*), Bash(git log:*), Bash(git reset HEAD:*), Bash(git ls-files:*)
+allowed-tools: Read, Glob, Bash(git diff:*), Bash(git add:*), Bash(git commit:*), Bash(git status:*), Bash(git log:*), Bash(git reset HEAD:*), Bash(git ls-files:*)
 ---
 
 # Commit Changes
@@ -10,24 +10,29 @@ You are tasked with creating git commits for the changes made during this sessio
 
 Read `~/.claude/skills/shared/bash-rules.md` for bash command constraints.
 
+## CRITICAL CONSTRAINT
+
+**The ONLY file changes this skill may make are optimizing imports and updating stale documentation/comments.** Never move, rename, or delete files. Never restructure code. Never modify files to work around `.gitignore` rules. If a file is ignored, it stays ignored — warn the user if you think `.gitignore` needs updating, but do not change it yourself.
+
 ## Process:
 
-1. **Optimize imports in modified files**
+1. **Assess the current state of the repository:**
+   - Read `.gitignore` to know which files should be excluded — changes may come from external editors, IDEs, or other tools, not just this session
+   - Run `git status` to see current changes (staged, unstaged, and untracked)
+   - Run `git diff HEAD` to see the **total diff against the repo** — this is what actually gets committed
+   - Do NOT compare staged vs unstaged to understand changes — that only shows intermediate states. Always compare against HEAD (or the empty tree for new files) to understand the real content of the commit.
+   - Cross-check untracked files against `.gitignore` patterns — do not propose committing files that should be ignored (if `.gitignore` is missing entries, warn the user)
+   - Review the conversation history (if any) to understand what was accomplished — but do not assume all changes come from this session; the repo state is the source of truth
+   - Include ALL uncommitted changes in the plan — both staged and unstaged — unless they match `.gitignore` patterns
 
-2. **Update stale documentation and comments:**
+2. **Optimize imports in modified files**
+
+3. **Update stale documentation and comments:**
    - Read the project README.md (at the repo root) and check if any references to changed paths, APIs, or behavior are stale
    - Check comments and docstrings in source files that reference changed behavior, not just the modified files themselves
    - Fix any stale references before proceeding — do not commit code with outdated docs
 
-3. **Think about what changed:**
-   - Review the conversation history and understand what was accomplished
-   - Read `.gitignore` to know which files should be excluded
-   - Run `git status` to see current changes
-   - Run `git diff` for unstaged changes and `git diff --cached` for staged changes — review both
-   - Include ALL uncommitted changes in the plan — both staged and unstaged — unless they match `.gitignore` patterns
-   - Exclude any untracked files that match `.gitignore` patterns — do not propose committing them
-
-3. **Plan your commit(s):**
+4. **Plan your commit(s):**
    - Read `~/.claude/skills/shared/commit-message-rules.md` for commit message formatting and validation rules
    - Group into atomic commits by feature/fix/refactor, make sure that each element can be committed independently
    - Identify which files belong together
@@ -72,9 +77,11 @@ Read `~/.claude/skills/shared/bash-rules.md` for bash command constraints.
 - Do NOT push to remote
 - Do NOT amend existing commits
 - Do NOT create or switch branches
+- Do NOT move, rename, or delete files
+- Do NOT modify `.gitignore` or restructure code to avoid ignore rules
 
 ## Remember:
-- You have the full context of what was done in this session
+- Changes may come from outside this session (external editors, IDEs, other tools) — do not assume you know what changed; always inspect
 - Group related changes together
 - Keep commits focused and atomic when possible
 - The user trusts your judgment - they asked you to commit
