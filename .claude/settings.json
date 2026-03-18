@@ -1,0 +1,56 @@
+{
+  "hooks": {
+    "PreToolUse": [
+      {
+        "matcher": "Bash",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "python -c \"import sys,json,os;cmd=json.load(sys.stdin)['tool_input']['command'].strip();cwd=os.getcwd().replace(os.sep,'/').lower();unix='/'+cwd[0]+cwd[2:];cl=cmd.lower().replace(os.sep,'/');msg='Never prepend cd to commands.' if cmd.startswith('cd ') or cmd=='cd' else 'Use relative paths, not absolute.' if cwd in cl or unix in cl else '';(print(msg+' Working directory is already '+os.getcwd()+'.',file=sys.stderr) or sys.exit(2)) if msg else sys.exit(0)\""
+          }
+        ]
+      }
+    ],
+    "Notification": [
+      {
+        "hooks": [
+          {
+            "type": "command",
+            "command": "python3 D:/projects/claude/.claude/hooks/notifications/telegram.py",
+            "async": true
+          }
+        ]
+      }
+    ],
+    "UserPromptSubmit": [
+      {
+        "hooks": [
+          {
+            "type": "command",
+            "command": "python3 -c \"import sys,json; from pathlib import Path; Path('.claude/hooks/notifications/last_active').write_text(json.loads(sys.stdin.read()).get('prompt',''))\"",
+            "async": true
+          }
+        ]
+      }
+    ]
+  },
+  "enabledPlugins": {
+    "ralphex@ralphex": true,
+    "frontend-design@claude-plugins-official": true,
+    "plannotator@plannotator": true
+  },
+  "extraKnownMarketplaces": {
+    "claude-code-plugins": {
+      "source": {
+        "source": "github",
+        "repo": "anthropics/claude-code"
+      }
+    },
+    "plannotator": {
+      "source": {
+        "source": "github",
+        "repo": "backnotprop/plannotator"
+      }
+    }
+  }
+}
