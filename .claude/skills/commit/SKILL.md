@@ -24,6 +24,7 @@ Read `~/.claude/skills/shared/bash-rules.md` for bash command constraints.
    - Cross-check untracked files against `.gitignore` patterns — do not propose committing files that should be ignored (if `.gitignore` is missing entries, warn the user)
    - Review the conversation history (if any) to understand what was accomplished — but do not assume all changes come from this session; the repo state is the source of truth
    - Include ALL uncommitted changes in the plan — both staged and unstaged — unless they match `.gitignore` patterns
+   - **Scope guard:** Only commit files that belong to this repository. If earlier work in the conversation touched files in other projects, do not include those changes — each project's commits are handled separately.
 
 2. **Optimize imports in modified files**
 

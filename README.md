@@ -65,13 +65,13 @@ Analyzes plan-vs-implementation divergence before creating a PR.
 
 ### Update PR
 
-Squashes new local changes into a single commit and pushes to update an existing PR.
+Soft-resets unpushed commits and delegates to `/commit` for clean atomic commits, then pushes to update an existing PR.
 
 **Command:** `/pr-update`
 
 **Features:**
 - Detects new changes since the last push (unpushed commits + uncommitted changes)
-- Squashes them into a single GPG-signed Conventional Commit
+- Soft-resets unpushed commits and delegates to `/commit` for re-grouping
 - Rebases onto main and force-pushes with lease
 - Appends an update summary to the PR description
 
@@ -116,6 +116,19 @@ Summarizes a ralphex review — what was found, fixed, and dismissed.
 - Reads the most recent progress log from `.ralphex/progress/`
 - Identifies committed but unpushed changes against `origin/main`
 - Produces a concise summary: confirmed fixes, unaddressed concerns, and false positives
+
+---
+
+### Update Plannotator Plugin
+
+Force-updates the plannotator plugin by clearing stale caches and reinstalling.
+
+**Command:** `/plannotator-update`
+
+**Features:**
+- Removes the marketplace cache (stale git clone that prevents updates)
+- Removes the plugin cache
+- Guides through reinstallation after restart
 
 ---
 
