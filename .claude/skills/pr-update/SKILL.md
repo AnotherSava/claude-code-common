@@ -1,12 +1,12 @@
 ---
 name: pr-update
-description: Squash new local changes into a single commit and push to update an existing PR.
+description: Soft-reset unpushed commits and use /commit to create clean commits, then push to update an existing PR.
 allowed-tools: Bash(git status:*), Bash(git log:*), Bash(git diff:*), Bash(git reset --soft:*), Bash(git add:*), Bash(git commit:*), Bash(git push:*), Bash(git symbolic-ref:*), Bash(git rev-parse:*), Bash(git fetch:*), Bash(git rebase:*), Bash(gh pr view:*), Bash(gh pr edit:*), Read, Glob, Grep
 ---
 
 # Update Existing PR
 
-Squash all new local changes (uncommitted + unpushed commits) into a single Conventional Commit, push it to the remote branch, and update the PR description.
+Analyze new local changes, soft-reset unpushed commits, then delegate to `/commit` for clean atomic commits. Push the result and update the PR description.
 
 Read `~/.claude/skills/shared/bash-rules.md` for bash command constraints.
 
@@ -14,32 +14,26 @@ Read `~/.claude/skills/shared/bash-rules.md` for bash command constraints.
 
 ### Step 1: Gather context
 
-1. Determine the main branch:
-   ```
-   git symbolic-ref refs/remotes/origin/HEAD 2>/dev/null | sed 's|refs/remotes/origin/||'
-   ```
-   Fall back to `main` if the command fails.
-
-2. Get the current branch name and working tree status:
+1. Get the current branch name and working tree status:
    ```
    git rev-parse --abbrev-ref HEAD
    git status
    ```
    Abort if on the main branch — there is no PR to update.
 
-3. Verify a PR exists for this branch:
+2. Verify a PR exists for this branch:
    ```
    gh pr view --json number,title,body,url
    ```
    Abort if no PR is found.
 
-4. Fetch the latest remote state:
+3. Fetch the latest remote state:
    ```
    git fetch origin main
    git fetch origin <branch-name>
    ```
 
-5. Identify the boundary between already-pushed and new changes.
+4. Identify the boundary between already-pushed and new changes.
    The remote branch tip (`origin/<branch-name>`) is the baseline —
    everything after it is new. Collect:
    - Unpushed commits:
@@ -54,7 +48,7 @@ Read `~/.claude/skills/shared/bash-rules.md` for bash command constraints.
    If there are no unpushed commits AND no uncommitted changes, abort —
    nothing to update.
 
-6. Get the full diff of new changes for analysis:
+5. Get the full diff of new changes for analysis:
    ```
    git diff origin/<branch-name>..HEAD --stat
    git diff origin/<branch-name>..HEAD
@@ -62,38 +56,20 @@ Read `~/.claude/skills/shared/bash-rules.md` for bash command constraints.
    git diff --cached
    ```
 
-### Step 2: Draft commit message
+### Step 2: Analyze changes
 
-Read `~/.claude/skills/shared/commit-message-rules.md` for formatting and validation rules.
+Review the diffs and unpushed commit messages to understand what was changed and why. Take note of this context — it will inform the `/commit` skill in the next steps.
 
-Compose a commit message for the **new changes only** (not the entire PR), following those rules. Analyze the diff and unpushed commit messages to write a meaningful summary.
+### Step 3: Soft-reset unpushed commits
 
-### Step 3: Confirm with user
+Collapse unpushed commits back into the working tree so `/commit` can re-group them into clean atomic commits:
+```
+git reset --soft origin/<branch-name>
+```
 
-Display:
-1. The drafted commit message
-2. A summary of what will be added to the PR description
+### Step 4: Delegate to /commit
 
-Ask the user to approve or revise. Do not proceed until confirmed.
-
-### Step 4: Squash new changes into a single commit
-
-1. Soft-reset to the remote branch tip to collapse unpushed commits:
-   ```
-   git reset --soft origin/<branch-name>
-   ```
-
-2. Stage everything (including any previously uncommitted changes):
-   ```
-   git add -A
-   ```
-
-3. Create the single GPG-signed commit:
-   ```
-   git commit -S -F - <<'EOF'
-   <approved commit message>
-   EOF
-   ```
+Invoke the `/commit` skill. Pass along the context you gathered in Step 2 (what changed, why, relevant commit messages) so it can produce well-informed commit messages. Let `/commit` handle grouping, message drafting, user approval, and commit creation.
 
 ### Step 5: Rebase onto main
 
@@ -106,7 +82,7 @@ If the rebase produces conflicts, stop and ask the user to resolve them.
 
 ### Step 6: Push
 
-Push the updated branch. Since we squashed commits that were already on
+Push the updated branch. Since we reset commits that were already on
 the remote, force-with-lease is required:
 ```
 git push origin <branch-name> --force-with-lease
@@ -126,7 +102,7 @@ git push origin <branch-name> --force-with-lease
    <existing body>
 
    ## Update: <short description>
-   <bullet points summarizing the new commit>
+   <bullet points summarizing the new commits>
    EOF
    )"
    ```
@@ -135,6 +111,6 @@ git push origin <branch-name> --force-with-lease
 
 ## Important
 
-- **NEVER proceed without explicit user approval** of the commit message
+- **NEVER proceed without explicit user approval** — `/commit` will handle confirmation
 - Do NOT push to a different branch or create a new PR
-- Do NOT amend the existing remote commits — only squash new local changes
+- Do NOT amend the existing remote commits — only reset and recommit new local changes
