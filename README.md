@@ -153,6 +153,22 @@ TELEGRAM_CHAT_ID=...
 
 ---
 
+## Git Hooks
+
+### Pre-Push Validation
+
+**File:** `.git-hooks/pre-push`
+
+Prevents pushing commits that are Claude-attributed or not GPG-signed. Every new commit in the push is checked for:
+
+- Author or committer name/email containing "claude" or "anthropic"
+- `Co-Authored-By` trailers mentioning Claude or Anthropic
+- Missing good GPG signature (only `G` status passes)
+
+**Global installation** is covered in the [Global Installation](#global-installation) section below.
+
+---
+
 ## Scripts
 
 Scripts in this section are written in [AutoHotkey v2](https://www.autohotkey.com/) (Windows-only). To run a script, install AutoHotkey v2 and double-click the `.ahk` file. To auto-start a script with Windows, place a shortcut to it in your Startup folder — press <kbd>Win+R</kbd>, type `shell:startup`, and drop the shortcut there.
@@ -171,18 +187,21 @@ Claude Code can't receive pasted images — it needs a file path. Monosnap (a sc
 
 ## Global Installation
 
-Skills, hooks, and settings in this repository are the originals. To make them available across all your projects, create symlinks in your global Claude Code config (`~/.claude/`) pointing to `.claude/skills`, `.claude/hooks`, and `.claude/settings.json` in this repo.
+Skills, hooks, settings, and `CLAUDE.md` in this repository are the originals. To make them available across all your projects, create symlinks in your global Claude Code config (`~/.claude/`) pointing to the corresponding files in this repo.
 
-> If `~/.claude/skills`, `~/.claude/hooks`, or `~/.claude/settings.json` already exists, move it into the repo first (or remove it) before creating the symlink.
+> If any of these already exist in `~/.claude/`, move them into the repo first (or remove them) before creating the symlink.
 
 ### Windows
 
 Run from the project root *as Administrator*:
 
 ```powershell
+New-Item -ItemType SymbolicLink -Path "$env:USERPROFILE\.claude\CLAUDE.md" -Target "CLAUDE.md"
 New-Item -ItemType SymbolicLink -Path "$env:USERPROFILE\.claude\skills" -Target ".claude\skills"
 New-Item -ItemType SymbolicLink -Path "$env:USERPROFILE\.claude\hooks" -Target ".claude\hooks"
 New-Item -ItemType SymbolicLink -Path "$env:USERPROFILE\.claude\settings.json" -Target ".claude\settings.json"
+New-Item -ItemType SymbolicLink -Path "$env:USERPROFILE\.git-hooks" -Target ".git-hooks"
+git config --global core.hooksPath "$env:USERPROFILE\.git-hooks"
 ```
 
 ### Linux / macOS
@@ -190,9 +209,12 @@ New-Item -ItemType SymbolicLink -Path "$env:USERPROFILE\.claude\settings.json" -
 Run from the project root:
 
 ```bash
+ln -s "$(pwd)/CLAUDE.md" ~/.claude/CLAUDE.md
 ln -s "$(pwd)/.claude/skills" ~/.claude/skills
 ln -s "$(pwd)/.claude/hooks" ~/.claude/hooks
 ln -s "$(pwd)/.claude/settings.json" ~/.claude/settings.json
+ln -s "$(pwd)/.git-hooks" ~/.git-hooks
+git config --global core.hooksPath ~/.git-hooks
 ```
 
 ## License

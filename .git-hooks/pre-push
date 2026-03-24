@@ -1,0 +1,72 @@
+#!/usr/bin/env bash
+#
+# pre-push — reject commits that are Claude-attributed or unsigned.
+#
+# Checks every NEW commit (not yet on remote) for:
+#   1. Author/committer name or email containing "claude" or "anthropic"
+#   2. Co-Authored-By trailer mentioning "claude" or "anthropic"
+#   3. Missing good GPG signature (only "G" status passes)
+#
+
+set -euo pipefail
+
+CLAUDE_PATTERN="claude|anthropic"
+errors=0
+
+while read -r local_ref local_sha remote_ref remote_sha; do
+    # Skip delete pushes
+    if [ "$local_sha" = "0000000000000000000000000000000000000000" ]; then
+        continue
+    fi
+
+    # Determine range of new commits
+    if [ "$remote_sha" = "0000000000000000000000000000000000000000" ]; then
+        # New branch — check all commits not reachable from any remote branch
+        range="$local_sha --not --remotes"
+    else
+        range="$remote_sha..$local_sha"
+    fi
+
+    for commit in $(git rev-list $range); do
+        short=$(git rev-parse --short "$commit")
+
+        # Check signature — only "G" (good) is acceptable
+        sig_status=$(git log -1 --format='%G?' "$commit")
+        if [ "$sig_status" != "G" ]; then
+            echo "REJECTED [$short]: not GPG-signed (status: ${sig_status:-none})"
+            errors=$((errors + 1))
+            continue
+        fi
+
+        # Check author name/email
+        author=$(git log -1 --format='%an <%ae>' "$commit")
+        if echo "$author" | grep -qiE "$CLAUDE_PATTERN"; then
+            echo "REJECTED [$short]: author is Claude ($author)"
+            errors=$((errors + 1))
+            continue
+        fi
+
+        # Check committer name/email
+        committer=$(git log -1 --format='%cn <%ce>' "$commit")
+        if echo "$committer" | grep -qiE "$CLAUDE_PATTERN"; then
+            echo "REJECTED [$short]: committer is Claude ($committer)"
+            errors=$((errors + 1))
+            continue
+        fi
+
+        # Check Co-Authored-By trailers
+        trailers=$(git log -1 --format='%(trailers:key=Co-Authored-By)' "$commit")
+        if echo "$trailers" | grep -qiE "$CLAUDE_PATTERN"; then
+            echo "REJECTED [$short]: has Claude Co-Authored-By trailer"
+            errors=$((errors + 1))
+            continue
+        fi
+    done
+done
+
+if [ "$errors" -gt 0 ]; then
+    echo ""
+    echo "Push blocked: $errors commit(s) failed validation."
+    echo "All pushed commits must be GPG-signed and not attributed to Claude."
+    exit 1
+fi
