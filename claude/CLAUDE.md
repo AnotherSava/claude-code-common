@@ -53,6 +53,12 @@ When adding or removing a third-party import, update `requirements.txt` in the s
 
 When changing field/function names, search all usages (including tests) and update accordingly before making breaking changes. Run all tests after refactoring.
 
+## Gitignore
+
+When adding entries to `.gitignore`, choose the right scope:
+- **Global gitignore** (`~/.gitignore_global`): OS-specific or user-specific files — IDE folders, OS thumbnail caches, tool outputs for tools the user happens to use (e.g. `.idea/`, `Thumbs.db`, `.ralphex/`).
+- **Project gitignore** (`.gitignore`): files that everyone who checks out the project should ignore — build outputs, `.env` files, `node_modules/`, `__pycache__/`.
+
 ## Symlinks
 
 - **Windows:** Never create symlinks from Bash (`ln -s`) — it silently creates copies instead. Use PowerShell `New-Item -ItemType SymbolicLink` from an Administrator prompt. Use `$PWD` to build absolute target paths.

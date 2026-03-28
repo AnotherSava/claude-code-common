@@ -187,7 +187,7 @@ Claude Code can't receive pasted images — it needs a file path. Monosnap (a sc
 
 ## Global Installation
 
-Global files live in `claude/` (symlinked to `~/.claude/`) and `git/` (symlinked to `~/.git-hooks/`). Project-local config stays in `.claude/`.
+Global files live in `claude/` (symlinked to `~/.claude/`) and `git/` (hooks symlinked to `~/.git-hooks/`, global gitignore symlinked to `~/.gitignore_global`). Project-local config stays in `.claude/`.
 
 > If any of these already exist in `~/.claude/` or `~/.git-hooks/`, move them into the repo first (or remove them) before creating the symlink.
 
@@ -201,7 +201,9 @@ New-Item -ItemType SymbolicLink -Path "$env:USERPROFILE\.claude\skills" -Target 
 New-Item -ItemType SymbolicLink -Path "$env:USERPROFILE\.claude\hooks" -Target "$PWD\claude\hooks"
 New-Item -ItemType SymbolicLink -Path "$env:USERPROFILE\.claude\settings.json" -Target "$PWD\claude\settings.json"
 New-Item -ItemType SymbolicLink -Path "$env:USERPROFILE\.git-hooks" -Target "$PWD\git\hooks"
+New-Item -ItemType SymbolicLink -Path "$env:USERPROFILE\.gitignore_global" -Target "$PWD\git\gitignore_global"
 git config --global core.hooksPath "$env:USERPROFILE\.git-hooks"
+git config --global core.excludesFile "~/.gitignore_global"
 ```
 
 ### Linux / macOS
@@ -214,7 +216,9 @@ ln -s "$(pwd)/claude/skills" ~/.claude/skills
 ln -s "$(pwd)/claude/hooks" ~/.claude/hooks
 ln -s "$(pwd)/claude/settings.json" ~/.claude/settings.json
 ln -s "$(pwd)/git/hooks" ~/.git-hooks
+ln -s "$(pwd)/git/gitignore_global" ~/.gitignore_global
 git config --global core.hooksPath ~/.git-hooks
+git config --global core.excludesFile "~/.gitignore_global"
 ```
 
 ## License
