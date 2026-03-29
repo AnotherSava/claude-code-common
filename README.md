@@ -141,8 +141,8 @@ Sends a Telegram message when Claude Code finishes a task and the user hasn't in
 **Location:** `claude/hooks/notifications/telegram.py`
 
 **How it works:**
-- `UserPromptSubmit` hook records each prompt to a temporary file (`/tmp/claude-last-active-<project-hash>`) keyed by project directory
-- `Notification` hook fires when Claude stops, waits 60 seconds, then checks if the user has been active since — if not, sends a Telegram message with the project name and last prompt
+- `Notification` hook fires when Claude stops, waits 60 seconds, then checks the session log mtime to detect any user interaction (prompts, tool approvals, etc.) — if idle, sends a Telegram message with the project name and last prompt
+- `UserPromptSubmit` hook saves the prompt text (for display in notifications) and auto-deletes any pending notification when the user returns
 
 **Setup:** Create `claude/hooks/notifications/.env` with:
 
