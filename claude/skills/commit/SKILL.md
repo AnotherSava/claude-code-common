@@ -1,7 +1,7 @@
 ---
 name: commit
 description: Analyzes changes and generates Conventional Commit messages
-allowed-tools: Read, Glob, Bash(git diff:*), Bash(git add:*), Bash(git commit:*), Bash(git status:*), Bash(git log:*), Bash(git reset HEAD:*), Bash(git reset:*), Bash(git ls-files:*), Bash(git rev-list:*), Bash(git rev-parse:*)
+allowed-tools: Read, Glob, Bash(git diff:*), Bash(git add:*), Bash(git commit:*), Bash(git status:*), Bash(git log:*), Bash(git reset HEAD:*), Bash(git reset:*), Bash(git ls-files:*), Bash(git rev-list:*), Bash(git rev-parse:*), Bash(git push:*)
 ---
 
 # Commit Changes
@@ -25,21 +25,24 @@ Read `~/.claude/skills/shared/bash-rules.md` for bash command constraints.
    - Review the conversation history (if any) to understand what was accomplished — but do not assume all changes come from this session; the repo state is the source of truth
    - Include ALL uncommitted changes in the plan — both staged and unstaged — unless they match `.gitignore` patterns
    - **Scope guard:** Only commit files that belong to this repository. If earlier work in the conversation touched files in other projects, do not include those changes — each project's commits are handled separately.
+   - **Do NOT exit early if there are no uncommitted changes** — step 2 may offer a reset that creates uncommitted changes.
 
 2. **Check for unpushed commits:**
    - First check if an upstream is configured: run `git rev-parse --abbrev-ref @{upstream}` — if this fails (exit code 128), there is no upstream; fall back to `git log origin/$(git rev-parse --abbrev-ref HEAD)..HEAD --oneline` — if that also fails, assume no unpushed commits (e.g. remote doesn't exist yet or branch was just pushed)
    - If upstream exists, run `git log @{upstream}..HEAD --oneline` to list unpushed commits
-   - Only if the command **succeeds and produces output** are there unpushed commits — empty output or command failure both mean "no unpushed commits", skip to the next step
+   - Only if the command **succeeds and produces output** are there unpushed commits — empty output or command failure both mean "no unpushed commits"
+   - If there are **no unpushed commits AND no uncommitted changes**, stop — there is nothing to commit.
+   - If there are **no unpushed commits but there are uncommitted changes**, skip to the next step.
    - If there **are** unpushed commits, present a numbered list and ask the user to pick one:
      > There are **N** unpushed commit(s) on this branch. What scope should I commit?
-     > 1. Uncommitted changes only *(default)*
+     > 1. Uncommitted changes only *(default — skip if working tree is clean)*
      > 2. Reset to `abc1234 commit message` — include this + all above + uncommitted
      > 3. Reset to `def5678 commit message` — include this + all above + uncommitted
      > …
-     List commits in **descending** order (most recent first), so each successive option includes more history. The first commit listed resets only the latest commit; the last resets all unpushed commits.
-   - Wait for the user's choice (bare Enter or `1` = default):
-     - **Option 1:** proceed normally with only uncommitted changes
-     - **Any other option:** run `git reset <chosen-commit>~` (soft reset to the parent of the chosen commit), then treat all resulting uncommitted changes as the working set for planning
+     List commits in **descending** order (most recent first), so each successive option includes more history. The first commit listed resets only the latest commit; the last resets all unpushed commits. If the working tree is clean, omit option 1 and start numbering from the first reset option.
+   - Wait for the user's choice (bare Enter = default: uncommitted changes only if any, otherwise the most recent reset):
+     - **Uncommitted changes only:** proceed normally with only uncommitted changes
+     - **Any reset option:** run `git reset <chosen-commit>~` (soft reset to the parent of the chosen commit), then treat all resulting uncommitted changes as the working set for planning
 
 3. **Optimize imports in modified files**
 
@@ -74,6 +77,7 @@ Read `~/.claude/skills/shared/bash-rules.md` for bash command constraints.
    - Use `git add` with specific files (never use `-A` or `.`)
    - Create commits with your planned messages using `git commit -S` to GPG-sign them
    - After all commits are done, run `git log @{upstream}..HEAD --format="%h %ai %s"` (with the same fallback logic as step 2) to list all unpushed commits. Format each line as `Mon DD, HH:MM [hash] message` (e.g. `Mar 28, 16:59 [a37da68] feat: add side panel`). Display the full list as the end summary — this gives the user the complete picture of what will be pushed.
+   - After showing the summary, ask: "Push?" — if the user confirms, run `git push`.
 
 ## Important:
 - **NEVER execute commits without explicit user approval.** Invoking `/commit` (even repeatedly) only requests a plan — it is NOT approval to proceed. Wait for a clear "yes", "proceed", or equivalent before running any `git commit` commands.
@@ -96,7 +100,6 @@ Read `~/.claude/skills/shared/bash-rules.md` for bash command constraints.
 ```
 
 ## Out of scope:
-- Do NOT push to remote
 - Do NOT amend existing commits (soft-reset via step 2 is allowed when user explicitly chooses it)
 - Do NOT create or switch branches
 - Do NOT move, rename, or delete files

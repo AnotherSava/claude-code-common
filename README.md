@@ -201,7 +201,7 @@ Claude Code can't receive pasted images — it needs a file path. Monosnap (a sc
 
 ## Global Installation
 
-Global files live in `claude/` (symlinked to `~/.claude/`) and `git/` (hooks symlinked to `~/.git-hooks/`, global gitignore symlinked to `~/.gitignore_global`). Project-local config stays in `.claude/`.
+Global files live in `claude/` (symlinked to `~/.claude/`) and `git/` (hooks, gitignore, gitattributes — each symlinked to `~/`). Project-local config stays in `.claude/`.
 
 > If any of these already exist in `~/.claude/` or `~/.git-hooks/`, move them into the repo first (or remove them) before creating the symlink.
 
@@ -216,9 +216,11 @@ New-Item -ItemType SymbolicLink -Path "$env:USERPROFILE\.claude\hooks" -Target "
 New-Item -ItemType SymbolicLink -Path "$env:USERPROFILE\.claude\settings.json" -Target "$PWD\claude\settings.json"
 New-Item -ItemType SymbolicLink -Path "$env:USERPROFILE\.claude\learnings" -Target "$PWD\claude\learnings"
 New-Item -ItemType SymbolicLink -Path "$env:USERPROFILE\.git-hooks" -Target "$PWD\git\hooks"
-New-Item -ItemType SymbolicLink -Path "$env:USERPROFILE\.gitignore_global" -Target "$PWD\git\gitignore_global"
+New-Item -ItemType SymbolicLink -Path "$env:USERPROFILE\.gitignore" -Target "$PWD\git\gitignore"
+New-Item -ItemType SymbolicLink -Path "$env:USERPROFILE\.gitattributes" -Target "$PWD\git\gitattributes"
 git config --global core.hooksPath "$env:USERPROFILE\.git-hooks"
-git config --global core.excludesFile "~/.gitignore_global"
+git config --global core.excludesFile "~/.gitignore"
+git config --global core.attributesFile "~/.gitattributes"
 ```
 
 ### Linux / macOS
@@ -232,9 +234,11 @@ ln -s "$(pwd)/claude/hooks" ~/.claude/hooks
 ln -s "$(pwd)/claude/settings.json" ~/.claude/settings.json
 ln -s "$(pwd)/claude/learnings" ~/.claude/learnings
 ln -s "$(pwd)/git/hooks" ~/.git-hooks
-ln -s "$(pwd)/git/gitignore_global" ~/.gitignore_global
+ln -s "$(pwd)/git/gitignore" ~/.gitignore
+ln -s "$(pwd)/git/gitattributes" ~/.gitattributes
 git config --global core.hooksPath ~/.git-hooks
-git config --global core.excludesFile "~/.gitignore_global"
+git config --global core.excludesFile "~/.gitignore"
+git config --global core.attributesFile "~/.gitattributes"
 ```
 
 ## License
