@@ -136,13 +136,20 @@ Force-updates the plannotator plugin by clearing stale caches and reinstalling.
 
 ### Telegram Notification
 
-Sends a Telegram message when Claude Code finishes a task and the user hasn't interacted for 60 seconds. Useful for long-running autonomous workflows.
+Sends a Telegram message when Claude Code needs attention and the user hasn't interacted for 60 seconds. Distinguishes between notification types so you know whether to context-switch back.
 
 **Location:** `claude/hooks/notifications/telegram.py`
 
+**Notification types:**
+- **Done** — Claude finished the task (last assistant message is a statement). Includes a snippet of the original prompt for context.
+- **Has a question** — Claude finished but is waiting for your answer (last assistant message ends with `?`). Includes a snippet of the original prompt.
+- **Needs approval: \<tool\>** — Claude needs permission to use a specific tool (e.g. `Bash`, `Edit`).
+- **Fallback** — plan approval or unknown notification types are forwarded as-is.
+
 **How it works:**
-- `Notification` hook fires when Claude stops, waits 60 seconds, then checks the session log mtime to detect any user interaction (prompts, tool approvals, etc.) — if idle, sends a Telegram message with the project name and last prompt
-- `UserPromptSubmit` hook saves the prompt text (for display in notifications) and auto-deletes any pending notification when the user returns
+- `Notification` hook fires when Claude stops, waits 60 seconds, then checks the session log mtime to detect any user interaction (prompts, tool approvals, etc.) — if idle, formats the notification based on the `notification_type` field in the hook payload
+- For `idle_prompt` notifications, reads the last assistant message from the session transcript to determine if Claude finished (statement) or is asking a question (`?`)
+- `UserPromptSubmit` hook saves the prompt text (for display in notifications) and auto-deletes all pending notifications when the user returns
 
 **Setup:** Create `claude/hooks/notifications/.env` with:
 

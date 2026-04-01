@@ -3,3 +3,5 @@ Thumbs.db
 .vscode/
 .claude/settings.local.json
 .ralphex/
+.firecrawl/
+config/deploy.env

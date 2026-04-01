@@ -1,5 +1,6 @@
 #!/usr/bin/env python3
 import hashlib
+import json
 import os
 import sys
 import tempfile
@@ -62,33 +63,83 @@ def last_prompt() -> str:
     except FileNotFoundError:
         return ""
 
-def delete_notification() -> None:
-    """Delete the last sent notification if one exists."""
+def delete_notifications() -> None:
+    """Delete all pending notifications."""
     try:
-        message_id = NOTIFICATION_FILE.read_text(encoding="utf-8").strip()
-        if message_id:
-            url = f"https://api.telegram.org/bot{TOKEN}/deleteMessage"
-            requests.post(url, json={"chat_id": CHAT_ID, "message_id": int(message_id)}, timeout=10)
-    except (FileNotFoundError, ValueError, requests.RequestException):
+        lines = NOTIFICATION_FILE.read_text(encoding="utf-8").strip().splitlines()
+        url = f"https://api.telegram.org/bot{TOKEN}/deleteMessage"
+        for line in lines:
+            msg_id = line.strip()
+            if msg_id:
+                try:
+                    requests.post(url, json={"chat_id": CHAT_ID, "message_id": int(msg_id)}, timeout=10)
+                except (ValueError, requests.RequestException):
+                    pass
+    except FileNotFoundError:
         pass
     finally:
         NOTIFICATION_FILE.unlink(missing_ok=True)
 
+def last_assistant_ends_with_question(transcript_path: str) -> bool:
+    """Check if the last assistant text block in the session ends with '?'."""
+    try:
+        last_text = ""
+        with open(transcript_path, "r", encoding="utf-8") as f:
+            for line in f:
+                msg = json.loads(line).get("message", {})
+                if msg.get("role") != "assistant":
+                    continue
+                content = msg.get("content", "")
+                if isinstance(content, str) and content.strip():
+                    last_text = content.strip()
+                elif isinstance(content, list):
+                    for block in content:
+                        if isinstance(block, dict) and block.get("type") == "text" and block.get("text", "").strip():
+                            last_text = block["text"].strip()
+        return last_text.endswith("?")
+    except (OSError, json.JSONDecodeError):
+        return False
+
+
+def format_notification(hook_input: dict) -> str | None:
+    """Build notification text based on notification type. Returns None to skip."""
+    notification_type = hook_input.get("notification_type", "")
+    message = hook_input.get("message", "")
+    transcript_path = hook_input.get("transcript_path", "")
+
+    if notification_type == "permission_prompt":
+        # "Claude needs your permission to use Bash" -> "Needs approval: Bash"
+        tool = message.rsplit("use ", 1)[-1] if "use " in message else "a tool"
+        return f"[{PROJECT_NAME}] Needs approval: {tool}"
+
+    if notification_type == "idle_prompt":
+        if last_assistant_ends_with_question(transcript_path):
+            label = "Has a question"
+        else:
+            label = "Done"
+        prompt = last_prompt()
+        text = f"[{PROJECT_NAME}] {label}"
+        if prompt:
+            text += f":\n\n{prompt[:200]}"
+        return text
+
+    # plan_approval, generic attention, or unknown
+    if message:
+        return f"[{PROJECT_NAME}] {message}"
+    return None
+
+
 if __name__ == "__main__":
-    import json
     if not sys.stdin.isatty():
         hook_input = json.loads(sys.stdin.read())
-        message = hook_input.get("message", "")
-        if message:
+        text = format_notification(hook_input)
+        if text:
             time.sleep(NOTIFICATION_DELAY)
             if not was_recently_active():
-                prompt = last_prompt()
-                text = f"[{PROJECT_NAME}] {message}"
-                if prompt:
-                    text += f":\n\n{prompt[:200]}"
                 msg_id = notify(text)
                 if msg_id:
-                    NOTIFICATION_FILE.write_text(str(msg_id), encoding="utf-8")
+                    with NOTIFICATION_FILE.open("a", encoding="utf-8") as f:
+                        f.write(f"{msg_id}\n")
     elif len(sys.argv) >= 2:
         notify(sys.argv[1])
     else:

@@ -29,9 +29,12 @@ if notification_file.exists():
         load_dotenv(Path(__file__).resolve().parent / ".env")
         token = os.environ.get("TELEGRAM_BOT_TOKEN", "")
         chat_id = os.environ.get("TELEGRAM_CHAT_ID", "")
-        message_id = notification_file.read_text(encoding="utf-8").strip()
-        if token and chat_id and message_id:
-            requests.post(f"https://api.telegram.org/bot{token}/deleteMessage", json={"chat_id": chat_id, "message_id": int(message_id)}, timeout=10)
+        lines = notification_file.read_text(encoding="utf-8").strip().splitlines()
+        if token and chat_id:
+            for line in lines:
+                msg_id = line.strip()
+                if msg_id:
+                    requests.post(f"https://api.telegram.org/bot{token}/deleteMessage", json={"chat_id": chat_id, "message_id": int(msg_id)}, timeout=10)
     except Exception:
         pass
     finally:

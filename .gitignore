@@ -1,2 +1,16 @@
-claude/hooks/notifications/.env
+.env
 __pycache__/
+
+# Ignore all skills, whitelist ours
+claude/skills/*
+!claude/skills/commit/
+!claude/skills/document-data-flow/
+!claude/skills/move-project/
+!claude/skills/plan-ralphex/
+!claude/skills/plannotator-update/
+!claude/skills/pr-create/
+!claude/skills/pr-merge/
+!claude/skills/pr-prepare/
+!claude/skills/pr-update/
+!claude/skills/review-summary/
+!claude/skills/shared/
