@@ -12,10 +12,12 @@ Move or rename the current project folder while preserving all associated Claude
    - `NEW_PATH`: the target — if the user gave just a name, resolve it relative to the parent of `OLD_PATH`
    - Validate that `NEW_PATH` does not already exist
 
-3. **Compute Claude data directory names.** Claude stores project data in `~/.claude/projects/<key>/` where `<key>` is the absolute path with:
-   - Drive letter colon removed (e.g. `D:` → `D`)
-   - All path separators (`\` and `/`) replaced with `--`
-   - Example: `D:\projects\my-app` → `D--projects-my-app`
+3. **Compute Claude data directory names.** Claude stores project data in `~/.claude/projects/<key>/` where `<key>` is the absolute path with every `:`, `\`, and `/` replaced by a single `-`.
+   - `D:` has both `:` and `\` after it — each becomes `-`, so `D:\` → `D--` (two consecutive single replacements, not a special double-dash separator).
+   - Examples:
+     - `D:\projects\my-app` → `D--projects-my-app`
+     - `D:\projects\games\achievement-overlay` → `D--projects-games-achievement-overlay`
+   - **Common mistake:** do NOT replace path separators with `--` (double dash). Each `:`, `\`, `/` becomes exactly one `-`.
 
    Compute `OLD_KEY` and `NEW_KEY` from the old and new paths.
 

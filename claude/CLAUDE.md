@@ -23,6 +23,8 @@ Do not add logic, data structures, classes, or exports to production code that e
 
 When running commands via Bash on Windows, always use forward slashes (`/`) in paths, not backslashes (`\`). Backslashes are interpreted as escape characters by bash and get stripped.
 
+When asking the user to run a command manually (e.g. launching an app, system config), provide PowerShell syntax — not bash or cmd.
+
 ## Code Style
 
 ### Formatting

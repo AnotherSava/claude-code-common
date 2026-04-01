@@ -119,12 +119,18 @@ If the rebase produces conflicts, stop and ask the user to resolve them.
    git push -u origin <branch-name> --force-with-lease
    ```
 
-2. Create the PR:
+2. Draft the PR description. The PR body should be **more detailed than the commit message** — it is the primary review artifact. Build it from the plan doc, diff, and progress log:
+
+   - **Overview**: 2-3 sentences on what this PR accomplishes and why (from the plan's Overview section)
+   - **What changed**: bulleted list of concrete changes grouped by area (new modules, modified behavior, structural changes, test coverage). Derive from the diff, not just the plan — if the implementation added things not in the original plan, include them here.
+   - **Design decisions**: key trade-offs and rationale (from plan's Design Notes). Highlight anything a reviewer should pay attention to.
+   - **Scope reconciliation**: compare the plan against the actual diff. If the implementation diverged from the plan (added features, dropped features, changed approach), note the differences and why.
+   - **Plan reference**: link to the plan document filename
+   - **Test coverage**: summary of test files and what they cover
+
+3. Create the PR:
    ```
    gh pr create --base main --title "<commit subject line>" --body "<PR description>"
    ```
-   The PR body should include:
-   - A summary of the changes (derived from the commit body)
-   - A reference to the plan document filename
 
-3. Report the PR URL to the user.
+4. Report the PR URL to the user.

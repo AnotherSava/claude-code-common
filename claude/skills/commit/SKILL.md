@@ -40,7 +40,8 @@ Read `~/.claude/skills/shared/bash-rules.md` for bash command constraints.
      > 3. Reset to `def5678 commit message` — include this + all above + uncommitted
      > …
      List commits in **descending** order (most recent first), so each successive option includes more history. The first commit listed resets only the latest commit; the last resets all unpushed commits. If the working tree is clean, omit option 1 and start numbering from the first reset option.
-   - Wait for the user's choice (bare Enter = default: uncommitted changes only if any, otherwise the most recent reset):
+   - **Smart default:** If the most recent unpushed commits form a contiguous run of `fix: address code review findings`, the default (bare Enter) resets all of them (stopping before the first commit with a different message). Otherwise, the default is uncommitted changes only (or the most recent reset if the working tree is clean).
+   - Wait for the user's choice:
      - **Uncommitted changes only:** proceed normally with only uncommitted changes
      - **Any reset option:** run `git reset <chosen-commit>~` (soft reset to the parent of the chosen commit), then treat all resulting uncommitted changes as the working set for planning
 
