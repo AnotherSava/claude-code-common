@@ -39,6 +39,14 @@ function claude {
 }
 ```
 
+### Deploy alias (Bash only)
+
+```bash
+alias deploy='if [ -f scripts/deploy.sh ]; then bash scripts/deploy.sh; else echo "No scripts/deploy.sh in current directory"; fi'
+```
+
+Added to `~/.bashrc`. Use `! deploy` inside Claude Code (or `deploy` in any terminal) for fast project deploys without LLM overhead. Each project has a `scripts/deploy.sh` (gitignored) that delegates to the global deploy script at `~/.claude/skills/deploy/scripts/deploy.sh`.
+
 ## Behavior
 
 - `claude` → `claude --continue` (resume previous conversation, since most launches are continuations). If `--continue` fails (e.g., "No conversation found"), retries without it to start a fresh session.

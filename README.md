@@ -187,6 +187,7 @@ Read `~/.claude/learnings/chrome-extension.md` for domain-specific patterns.
 | File | Domain |
 |---|---|
 | `chrome-extension.md` | Chrome extensions (Manifest V3, Vite, side panel, service workers) |
+| `dotnet-tray-app.md` | .NET Windows tray apps (WinForms/WPF, config, overlay, CI/CD) |
 
 ---
 
