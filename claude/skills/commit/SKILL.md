@@ -12,7 +12,6 @@ Read `~/.claude/skills/shared/bash-rules.md` for bash command constraints.
 
 ## Context
 - Ignore rules: !`cat .gitignore 2>/dev/null`
-- Global ignore rules: !`cat ~/.gitignore 2>/dev/null`
 - Unstage all: !`git reset HEAD 2>/dev/null`
 - Uncommitted changes: !`git status --short`
 - Diff summary: !`git diff HEAD --stat`
@@ -21,16 +20,14 @@ Read `~/.claude/skills/shared/bash-rules.md` for bash command constraints.
 
 ## CRITICAL CONSTRAINT
 
-**The ONLY file changes this skill may make are optimizing imports and updating stale documentation/comments.** Never move, rename, or delete files. Never restructure code. Never modify files to work around ignore rules. If a file is ignored, it stays ignored — warn the user if you think ignore rules need updating, but do not change them yourself.
+**The ONLY file changes this skill may make are optimizing imports and updating stale documentation/comments.** Never move, rename, or delete files. Never restructure code.
 
 ## Process:
 
 1. **Assess the current state of the repository** (use Context above):
-   - Use **Ignore rules** and **Global ignore rules** to know which files should be excluded
    - Use **Uncommitted changes**, **Diff summary**, and **Full diff** to understand the total change set against HEAD
    - **Scope guard:** Only commit files that belong to this repository. If earlier work in the conversation touched files in other projects, do not include those changes — each project's commits are handled separately.
-   - If there are no uncommitted changes in this repository, stop — there is nothing to commit. (If the user wants to re-commit unpushed commits, they should run `/reset` first.)
-   - Cross-check untracked files against ignore rules — do not propose committing files that should be ignored (if ignore rules are missing entries, warn the user)
+   - If there are no uncommitted changes in this repository, stop — there is nothing to commit.
    - Review the conversation history (if any) to understand what was accomplished — but do not assume all changes come from this session; the repo state is the source of truth
 
 2. **Optimize imports in modified source code files**
@@ -92,7 +89,6 @@ Read `~/.claude/skills/shared/bash-rules.md` for bash command constraints.
 - Do NOT amend existing commits — use `/reset` to undo unpushed commits first, then `/commit` to re-commit
 - Do NOT create or switch branches
 - Do NOT move, rename, or delete files
-- Do NOT modify ignore rules or restructure code to avoid them
 
 ## Remember:
 - Changes may come from outside this session (external editors, IDEs, other tools) — do not assume you know what changed; always inspect
