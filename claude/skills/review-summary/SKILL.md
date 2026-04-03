@@ -6,6 +6,11 @@ allowed-tools: Bash, Read, Glob, Grep
 
 Analyze the most recent ralphex review and provide a concise summary.
 
+## Context
+- Latest progress log: !`ls -t .ralphex/progress/ 2>/dev/null | head -1`
+- Unpushed commits: !`git log origin/main..HEAD --oneline`
+- Working tree status: !`git status --short`
+
 ## Steps
 
 1. **Find the review progress log**: Look in `.ralphex/progress/` for the most recently modified file. Read it fully.

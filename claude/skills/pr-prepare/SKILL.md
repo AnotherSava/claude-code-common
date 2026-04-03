@@ -8,6 +8,12 @@ allowed-tools: Bash(git log:*), Bash(git diff:*), Bash(git status:*), Bash(git r
 
 Analyze whether the final implementation matches the plan, surfacing divergences, unplanned decisions, and missed plan items.
 
+## Context
+- Unpushed commits: !`git log origin/main..HEAD --oneline`
+- Changed files: !`git diff origin/main..HEAD --stat`
+- Latest plan: !`ls -t docs/plans/completed/ 2>/dev/null | head -1`
+- Progress logs: !`ls -t .ralphex/progress/ 2>/dev/null | head -5`
+
 ## Step 1: Locate the most recent completed plan
 
 Find the most recently modified file in `docs/plans/completed/`. This is the plan to analyze.

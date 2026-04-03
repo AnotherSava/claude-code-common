@@ -10,6 +10,12 @@ Squash all commits on the current feature branch into a single Conventional Comm
 
 Read `~/.claude/skills/shared/bash-rules.md` for bash command constraints.
 
+## Context
+- Current branch: !`git rev-parse --abbrev-ref HEAD`
+- Working tree status: !`git status --short`
+- Commits to squash: !`git log main..HEAD --oneline`
+- Diff summary: !`git diff main...HEAD --stat`
+
 ## Workflow
 
 ### Step 1: Gather context

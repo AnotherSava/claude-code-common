@@ -10,6 +10,12 @@ Analyze new local changes, soft-reset unpushed commits, then delegate to `/commi
 
 Read `~/.claude/skills/shared/bash-rules.md` for bash command constraints.
 
+## Context
+- Current branch: !`git rev-parse --abbrev-ref HEAD`
+- Working tree status: !`git status --short`
+- PR details: !`gh pr view --json number,title,url`
+- Unpushed commits: !`git log @{upstream}..HEAD --oneline 2>/dev/null`
+
 ## Workflow
 
 ### Step 1: Gather context

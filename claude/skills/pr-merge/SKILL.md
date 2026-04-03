@@ -13,6 +13,11 @@ and showing "Unverified" on repos that enforce signing.
 
 Read `~/.claude/skills/shared/bash-rules.md` for bash command constraints.
 
+## Context
+- Current branch: !`git rev-parse --abbrev-ref HEAD`
+- Working tree status: !`git status --short`
+- Open PRs: !`gh pr list --state open --json number,title,headRefName`
+
 ## Arguments
 
 Optional: PR number or branch name. If omitted, auto-detect from the current
