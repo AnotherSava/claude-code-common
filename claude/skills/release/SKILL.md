@@ -9,9 +9,10 @@ allowed-tools: AskUserQuestion, Bash(git status --porcelain), Bash(git branch --
 ## Context
 - Working tree clean?: !`git status --porcelain`
 - Current branch: !`git branch --show-current`
-- Sync with remote: !`git fetch origin main && git rev-list HEAD..origin/main --count && git rev-list origin/main..HEAD --count`
+- Fetch remote: !`git fetch origin main`
+- Unmerged remote commits: !`git rev-list HEAD..origin/main --count`
+- Unpushed local commits: !`git rev-list origin/main..HEAD --count`
 - Latest tag: !`git describe --tags --abbrev=0`
-- Changes since tag: !`git log $(git describe --tags --abbrev=0)..HEAD --oneline`
 
 ## 1. Check preconditions
 
