@@ -92,6 +92,37 @@ Analyzes changes and generates atomic Conventional Commit messages.
 
 ---
 
+### Deploy
+
+Configures the deployment pipeline for a .NET project and runs it. On first use in a project, sets up the `deploy` bash function, creates a local `scripts/deploy.sh` wrapper, and updates `.gitignore`. Then builds, deploys to the install directory, and verifies the app starts.
+
+**Command:** `/deploy`
+
+**Features:**
+- Auto-configures `deploy()` bash function in `~/.bashrc` if missing
+- Creates `scripts/deploy.sh` wrapper pointing to the global deploy script
+- Reads install path from `config/deploy.env` (asks on first run)
+- Runs the full pipeline: stop app → build → clean install dir → copy → launch → verify
+- After first `/deploy`, use `! deploy` for instant deploys without LLM overhead
+
+---
+
+### Release
+
+Tags a new version, pushes to trigger CI, monitors the build, and updates the GitHub release with final notes.
+
+**Command:** `/release`
+
+**Features:**
+- Validates preconditions: clean tree, on main, in sync with remote
+- Auto-detects project name from `.csproj` and GitHub repo info
+- Recommends version bump based on commit history, asks for confirmation
+- Compiles release notes from commits with SmartScreen warning and download table
+- Pushes tag, monitors the GitHub Actions workflow until completion
+- Updates release notes with actual asset sizes after CI produces the artifacts
+
+---
+
 ### Document Data Flow
 
 Generates or updates a data-flow architecture document (`docs/data-flow.md`).
