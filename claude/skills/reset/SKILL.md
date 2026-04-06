@@ -11,7 +11,7 @@ Soft-reset selected unpushed commits back into the working tree so they can be r
 Read `~/.claude/skills/shared/bash-rules.md` for bash command constraints.
 
 ## Context
-- Unpushed commits: !`git log @{upstream}..HEAD --format="%h %ai %s" 2>/dev/null`
+- Unpushed commits: !`git log @{upstream}..HEAD --format="%h %ai %s" 2>/dev/null || git log origin/master..HEAD --format="%h %ai %s" 2>/dev/null`
 - Working tree status: !`git status --short`
 
 ## Process
@@ -20,6 +20,7 @@ Read `~/.claude/skills/shared/bash-rules.md` for bash command constraints.
 
 2. **Present options** — show a numbered list:
    > There are **N** unpushed commit(s) on this branch. Which commits should I reset?
+   > 0. Don't reset — keep all commits as-is
    > 1. Reset to `Jun 17, 19:13 abc1234 commit message` — include this + all above
    > 2. Reset to `Jun 17, 18:45 def5678 commit message` — include this + all above
    > ...
@@ -29,13 +30,15 @@ Read `~/.claude/skills/shared/bash-rules.md` for bash command constraints.
 
    - **Smart default:** If the most recent unpushed commits form a contiguous run of `fix: address code review findings`, the default (bare Enter) resets all of them (stopping before the first commit with a different message). Otherwise, the default is the most recent commit only.
 
-3. **Execute on confirmation:**
+3. If the user selects **0**, skip the reset and go straight to step 4.
+
+4. **Execute on confirmation:**
    ```
    git reset <chosen-commit>~
    ```
    This is a soft reset to the parent of the chosen commit, putting all changes back into the working tree.
 
-4. **Report result** — show the new working tree status:
+5. **Report result** — show the new working tree status:
    ```
    git status --short
    ```
