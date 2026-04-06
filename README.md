@@ -22,16 +22,15 @@ Interactive design discussion that produces a structured plan document before an
 
 ### Create PR
 
-Squashes a feature branch into a single Conventional Commit, pushes, and opens a PR to main.
+Prepares commits on a feature branch, pushes, and opens a PR to main.
 
 **Command:** `/pr-create`
 
 **Features:**
 - Reads the associated plan document and progress log for context
-- Drafts a commit message explaining motivation and key decisions
-- Asks for your approval before committing
+- Uses `/reset` and `/commit` to create clean, atomic commits from branch changes
 - Rebases onto main before pushing so pr-merge can fast-forward
-- Handles force-push when the branch was previously pushed with unsquashed commits
+- Drafts a detailed PR description with overview, changes, design decisions, and scope reconciliation
 
 ---
 
