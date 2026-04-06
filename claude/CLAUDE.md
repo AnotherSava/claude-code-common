@@ -7,6 +7,10 @@ Never use absolute paths in committed documentation (README, CLAUDE.md, docs/, c
 
 Always ask clarifying questions before implementing if anything is ambiguous or unclear.
 
+## Self-Sufficiency
+
+Before asking the user to do something (run a command, edit a file, check a value), figure out how to do it yourself. If the action is non-destructive, just do it. If it's destructive or irreversible, ask the user for permission — but propose the concrete action, don't ask the user to perform it.
+
 Exclude `node_modules/` from all file and content search patterns — it clogs results with false positives.
 
 Do not inline Python scripts into Bash commands via `python -c`. Instead, use a heredoc: `python <<'EOF' ... EOF`.

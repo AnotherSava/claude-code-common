@@ -30,6 +30,10 @@ Summarize the "why" not just the "what".
 - Commits should be authored solely by the user
 - Do not include any "Generated with Claude" messages
 
+## Author identity
+
+Before committing, verify that `git config user.name` is not "Claude" or similar AI attribution. If it is, remove the local override with `git config --unset user.name` and `git config --unset user.email` so the global config (which has the real user identity) takes effect. Never hardcode author names in commit commands.
+
 ## Examples
 
 Good commit messages:
