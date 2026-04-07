@@ -113,6 +113,10 @@ For commands too complex for a single line, use a script:
 
 Since `!` commands are preprocessed, the data is always present when the model reads the skill. Process steps should reference the context output directly — no need to re-run commands or check whether data is available. When referring to context data in process steps, use the **same label** from the Context section (e.g. "**Ignore rules** from Context above"), not the underlying filename or command — the model sees labels, not filenames.
 
+### Prune unused context items
+
+Every context item must be referenced by at least one process step (by its label). When reviewing or updating a skill, scan the Context section and remove any items that no process step uses — unused context wastes the preprocessing budget and pollutes the model's input with irrelevant data.
+
 ## Gitignore
 
 When creating a new global skill, check the global gitignore (`~/.gitignore` or whatever `git config --global core.excludesfile` returns) for patterns that would exclude it. If the skill directory would be ignored, add a negation entry (e.g. `!claude/skills/<skill-name>/`) so it gets tracked.
