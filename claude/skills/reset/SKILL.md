@@ -18,15 +18,16 @@ Read `~/.claude/skills/shared/bash-rules.md` for bash command constraints.
 
 1. If **Unpushed commits** is empty, tell the user there is nothing to reset and stop.
 
-2. **Present options** — show a numbered list:
+2. **Present options** — always show each commit with its hash, timestamp, and message. Format timestamps from **Unpushed commits** as `Mon DD, HH:MM`. List in **descending** order (most recent first).
+
    > There are **N** unpushed commit(s) on this branch. Which commits should I reset?
    > 0. Don't reset — keep all commits as-is
-   > 1. Reset to `Jun 17, 19:13 abc1234 commit message` — include this + all above
-   > 2. Reset to `Jun 17, 18:45 def5678 commit message` — include this + all above
+   > 1. `Jun 17, 19:13 abc1234 commit message` — this commit only
+   > 2. `Jun 17, 18:45 def5678 commit message` — this + all above
    > ...
-   > N. Reset all unpushed commits
+   > N. `Jun 17, 17:00 ghi9012 commit message` — reset all unpushed commits
 
-   List commits in **descending** order (most recent first). Format timestamps from **Unpushed commits** as `Mon DD, HH:MM`.
+   With a single commit, show options 0 and 1 only (option 1 shows the commit details).
 
    - **Smart default:** If the most recent unpushed commits form a contiguous run of `fix: address code review findings`, the default (bare Enter) resets all of them (stopping before the first commit with a different message). Otherwise, the default is the most recent commit only.
 
