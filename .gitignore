@@ -12,10 +12,8 @@ claude/skills/*
 !claude/skills/pr-create/
 !claude/skills/pr-merge/
 !claude/skills/pr-prepare/
-!claude/skills/pr-update/
 !claude/skills/release/
 !claude/skills/reset/
-!claude/skills/review-summary/
 !claude/skills/shared/
 !claude/skills/skill/
 !claude/skills/track-achievements/

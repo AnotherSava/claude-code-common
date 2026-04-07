@@ -20,9 +20,9 @@ Interactive design discussion that produces a structured plan document before an
 
 ---
 
-### Create PR
+### Create / Update PR
 
-Prepares commits on a feature branch, pushes, and opens a PR to main.
+Prepares commits on a feature branch, pushes, and opens or updates a PR to main.
 
 **Command:** `/pr-create`
 
@@ -30,6 +30,7 @@ Prepares commits on a feature branch, pushes, and opens a PR to main.
 - Reads the associated plan document and progress log for context
 - Uses `/reset` and `/commit` to create clean, atomic commits from branch changes
 - Rebases onto main before pushing so pr-merge can fast-forward
+- Creates a new PR or updates the existing one (title, description, force-push)
 - Drafts a detailed PR description with overview, changes, design decisions, and scope reconciliation
 
 ---
@@ -50,29 +51,15 @@ Merges a PR locally via fast-forward to preserve your GPG-signed commits.
 
 ### Prepare PR
 
-Analyzes plan-vs-implementation divergence before creating a PR.
+Summarizes what was done, how it matches the plan, and what the review found — all in one report before creating a PR.
 
 **Command:** `/pr-prepare`
 
 **Features:**
-- Compares the most recent completed plan against the progress log and unpushed commits
-- Surfaces unplanned additions, missing plan items, and design divergences
-- Identifies review-driven changes in commit history
+- Reads the plan doc, progress logs, and commits to build a complete picture
+- Reports plan alignment: implemented items, unplanned additions, missing items
+- Summarizes review findings: confirmed fixes, false positives, unaddressed concerns
 - Read-only analysis — does not modify files or create commits
-
----
-
-### Update PR
-
-Soft-resets unpushed commits and delegates to `/commit` for clean atomic commits, then pushes to update an existing PR.
-
-**Command:** `/pr-update`
-
-**Features:**
-- Detects new changes since the last push (unpushed commits + uncommitted changes)
-- Soft-resets unpushed commits and delegates to `/commit` for re-grouping
-- Rebases onto main and force-pushes with lease
-- Appends an update summary to the PR description
 
 ---
 
@@ -133,19 +120,6 @@ Generates or updates a data-flow architecture document (`docs/data-flow.md`).
 - Produces step-by-step flow diagrams with data transition annotations
 - Generates message/API protocol tables for all message types and endpoints
 - Follows strict formatting rules for consistency across updates
-
----
-
-### Review Summary
-
-Summarizes a ralphex review — what was found, fixed, and dismissed.
-
-**Command:** `/review-summary`
-
-**Features:**
-- Reads the most recent progress log from `.ralphex/progress/`
-- Identifies committed but unpushed changes against `origin/main`
-- Produces a concise summary: confirmed fixes, unaddressed concerns, and false positives
 
 ---
 

@@ -1,12 +1,12 @@
 ---
 name: pr-create
-description: Prepare commits for the current feature branch, push, and create a PR to main.
-allowed-tools: Bash(git status:*), Bash(git log:*), Bash(git diff:*), Bash(git reset --soft:*), Bash(git add:*), Bash(git commit:*), Bash(git push:*), Bash(git rev-parse:*), Bash(git branch:*), Bash(git fetch:*), Bash(git checkout:*), Bash(git merge:*), Bash(git rebase:*), Bash(gh pr create:*), Bash(ls:*), Read, Glob, Grep
+description: Prepare commits for the current feature branch, push, and create or update a PR to main.
+allowed-tools: Bash(git status:*), Bash(git log:*), Bash(git diff:*), Bash(git reset --soft:*), Bash(git add:*), Bash(git commit:*), Bash(git push:*), Bash(git rev-parse:*), Bash(git branch:*), Bash(git fetch:*), Bash(git checkout:*), Bash(git merge:*), Bash(git rebase:*), Bash(gh pr create:*), Bash(gh pr view:*), Bash(gh pr edit:*), Bash(ls:*), Read, Glob, Grep
 ---
 
 # Create PR for Plan-Based Changes
 
-Prepare commits on the current feature branch, push, and open a PR to main.
+Prepare commits on the current feature branch, push, and create or update a PR to main.
 
 Read `~/.claude/skills/shared/bash-rules.md` for bash command constraints.
 
@@ -14,6 +14,7 @@ Read `~/.claude/skills/shared/bash-rules.md` for bash command constraints.
 - Current branch: !`git rev-parse --abbrev-ref HEAD`
 - Working tree status: !`git status --short`
 - Commits ahead of main: !`git log main..HEAD --oneline`
+- Existing PR: !`gh pr view --json number,title,url 2>/dev/null`
 
 ## Workflow
 
@@ -46,16 +47,13 @@ git rebase main
 ```
 If the rebase produces conflicts, stop and ask the user to resolve them.
 
-### Step 4: Push and create PR
+### Step 4: Push and create/update PR
 
-1. Push the branch:
-   ```
-   git push -u origin <branch-name>
-   ```
-   If the branch was already pushed with the old commits, use `--force-with-lease`:
+1. Push the branch. Use `--force-with-lease` if the remote branch already exists (commits were reset and recommitted):
    ```
    git push -u origin <branch-name> --force-with-lease
    ```
+   For a new remote branch, a regular push works too — `--force-with-lease` is safe either way.
 
 2. Draft the PR description. The PR body should be **more detailed than the commit message** — it is the primary review artifact. Build it from the plan doc, diff, and progress log:
 
@@ -66,9 +64,16 @@ If the rebase produces conflicts, stop and ask the user to resolve them.
    - **Plan reference**: link to the plan document filename
    - **Test coverage**: summary of test files and what they cover
 
-3. Create the PR:
+3. Check **Existing PR** from context:
+
+   **If no PR exists** — create one:
    ```
-   gh pr create --base main --title "<commit subject line>" --body "<PR description>"
+   gh pr create --base main --title "<title>" --body "<PR description>"
+   ```
+
+   **If a PR already exists** — update it with the new description:
+   ```
+   gh pr edit --title "<title>" --body "<PR description>"
    ```
 
 4. Report the PR URL to the user.
