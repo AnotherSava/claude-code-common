@@ -1,96 +1,73 @@
 ---
 name: pr-prepare
-description: Analyze the most recent completed plan against its progress log and unpushed commits to produce a plan-vs-implementation divergence summary.
-allowed-tools: Bash(git log:*), Bash(git diff:*), Bash(git status:*), Bash(git rev-parse:*), Bash(git symbolic-ref:*), Bash(git branch:*), Bash(ls:*), Read, Glob, Grep
+description: Analyze progress log, commits, and optionally a plan to summarize what was done, what diverged, and what review found.
+allowed-tools: Bash(git log:*), Bash(git diff:*), Bash(git status:*), Bash(git rev-parse:*), Bash(git branch:*), Bash(ls:*), Read, Glob, Grep
 ---
 
-# PR Preparation: Plan vs Implementation Summary
+# Preparation Summary
 
-Analyze whether the final implementation matches the plan, surfacing divergences, unplanned decisions, and missed plan items.
+Analyze progress logs and commits to produce a summary covering implementation, review findings, and readiness to proceed. If a related plan exists, include plan alignment analysis.
 
 ## Context
-- Unpushed commits: !`git log origin/main..HEAD --oneline`
-- Changed files: !`git diff origin/main..HEAD --stat`
+- Commits ahead of main: !`git log main..HEAD --oneline`
+- Commit details: !`git log main..HEAD --format="%h %s%n%b---"`
+- Changed files: !`git diff main..HEAD --stat`
+- Full diff: !`git diff main..HEAD`
+- Working tree status: !`git status --short`
 - Latest plan: !`ls -t docs/plans/completed/ 2>/dev/null | head -1`
 - Progress logs: !`ls -t .ralphex/progress/ 2>/dev/null | head -5`
 
-## Step 1: Locate the most recent completed plan
+## Step 1: Gather artifacts
 
-Find the most recently modified file in `docs/plans/completed/`. This is the plan to analyze.
+1. **Progress log(s)**: Find the most recently modified logs in `.ralphex/progress/`. If there are variants (e.g. `-review`), read all of them. Extract what was done, issues encountered, review findings, and fixes applied.
 
-## Step 2: Locate the corresponding progress log
+2. **Plan doc (optional)**: If **Latest plan** is not empty, read it — but only use it if it relates to the work described in the progress log. If the plan is unrelated (different feature, old work), disregard it. Tell the user which plan was found and whether it was used or skipped.
 
-The progress log lives in `.ralphex/progress/` and follows the naming convention `progress-{plan-slug}.txt` where `{plan-slug}` matches the plan filename without extension (e.g., plan `2026-03-12-extraction-source-enum.md` → `progress-2026-03-12-extraction-source-enum.txt`).
+3. **Commits and diff**: Use context data (**Commit details**, **Changed files**, **Full diff**).
 
-If there are multiple progress logs matching the slug (e.g., a `-review` variant), read all of them.
+## Step 2: Analyze
 
-## Step 3: Gather implementation data
+If a related plan was found, analyze:
+- **Plan alignment**: Which plan items were implemented, which were skipped or deferred
+- **Unplanned additions**: Files or behavior not in the original plan
+- **Design divergences**: Where implementation differs from planned approach
 
-In parallel:
+Based on progress logs and code changes, identify:
+- **What was done**: Concrete changes implemented, grouped by area
+- **Review findings fixed**: Issues caught during review and resolved
+- **Review findings dismissed**: Findings evaluated and rejected as false positives, with reasons
+- **Unaddressed concerns**: Issues raised but neither fixed nor dismissed
 
-1. **Read the plan** — extract the design notes, implementation steps, task descriptions, and expected file changes
-2. **Read the progress log(s)** — extract what was actually done, any issues encountered, deviations noted
-3. **Examine unpushed commits** — run `git log origin/main..HEAD --oneline` to list commits not yet pushed, then `git diff origin/main..HEAD --stat` for a file-level summary, and `git log origin/main..HEAD --format="%h %s%n%b---"` for full commit messages with bodies
-4. **Examine the actual diff** — run `git diff origin/main..HEAD` to see the full code changes (use `--no-color` flag)
-
-## Step 4: Analyze divergences
-
-Compare the plan against the actual implementation. Look for:
-
-### A. Plan items not implemented
-- Tasks or checklist items from the plan that have no corresponding changes in commits or code
-- Files listed in the plan's "Files" sections that were not actually modified or created
-
-### B. Unplanned changes
-- Files modified in commits that are not mentioned in the plan
-- New types, functions, or modules added that weren't in the plan's design
-- Behavioral changes beyond what the plan specified
-
-### C. Design divergences
-- Implementation decisions that differ from the plan's Design Notes
-- Different type shapes, function signatures, or module boundaries than planned
-- Different naming conventions than what the plan specified
-
-### D. Review-driven changes
-- Changes visible in commits that appear to be responses to code review feedback
-- Look for commit messages referencing "review", "fix", "address", or patterns suggesting iterative refinement after the initial implementation
-
-## Step 5: Output summary
-
-Present a structured summary:
+## Step 3: Output summary
 
 ```
-## PR Preparation Summary
+## Preparation Summary
 
-**Plan**: {plan title}
-**Commits**: {count} unpushed commits
+**Plan**: {plan title} (or "No related plan found")
+**Commits**: {count} on branch
 **Files changed**: {count}
 
-### Alignment
-{Brief statement: does the implementation match the plan overall?}
+### What was done
+{Bulleted list of implemented changes, grouped by area}
 
-### Divergences
-{List each divergence with:}
-- What the plan said
-- What was actually implemented
-- Whether this seems intentional (improvement) or accidental (oversight)
+### Plan alignment (if plan is present)
+{Brief statement: does the implementation match the plan?}
+{List divergences — what plan said vs what was built, whether intentional}
+{List any unplanned additions}
+{List any missing plan items}
 
-### Unplanned additions
-{List any changes not covered by the plan}
-
-### Missing from plan
-{List any plan items that appear unimplemented}
-
-### Review changes
-{List changes that appear to stem from post-implementation review}
+### Review findings
+- **Fixed**: {bulleted list of real issues found and resolved}
+- **Dismissed**: {bulleted list of false positives with brief reason}
+- **Unaddressed**: {bulleted list of open concerns, if any}
 
 ### Recommendation
-{Any concerns that should be addressed before creating the PR, or "Ready to proceed"}
+{Any concerns to address, or "Ready to proceed with /reset and /commit"}
 ```
 
 ## Important
 
 - This skill only **analyzes and reports** — it does NOT modify any files, create commits, or push code
-- If there are no unpushed commits, report that and stop
-- If the progress log cannot be found, proceed with just the plan and commits
-- Be concise — focus on meaningful divergences, not cosmetic differences
+- If there are no commits ahead of main and no uncommitted changes, report that and stop
+- If the progress log cannot be found, proceed with just the commits and diff
+- Be concise — focus on meaningful divergences and actionable findings
