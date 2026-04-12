@@ -93,6 +93,20 @@ Configures the deployment pipeline for a .NET project and runs it. On first use 
 
 ---
 
+### Build
+
+Configures a build shortcut for any project. On first use, sets up the `build` bash function, creates a local `scripts/build.sh` wrapper, and updates `.gitignore`. Then auto-detects the project type and builds.
+
+**Command:** `/build`
+
+**Features:**
+- Auto-configures `build()` bash function in `~/.bashrc` if missing
+- Creates `scripts/build.sh` wrapper pointing to the global build script
+- Auto-detects project type: `package.json` → `npm run build`, `src/*.csproj` → `dotnet build`
+- After first `/build`, use `! build` for instant builds without LLM overhead
+
+---
+
 ### Release
 
 Tags a new version, pushes to trigger CI, monitors the build, and updates the GitHub release with final notes.

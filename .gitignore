@@ -3,6 +3,7 @@ __pycache__/
 
 # Ignore all skills, whitelist ours
 claude/skills/*
+!claude/skills/build/
 !claude/skills/commit/
 !claude/skills/deploy/
 !claude/skills/document-data-flow/
