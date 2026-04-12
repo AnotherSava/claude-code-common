@@ -1,7 +1,7 @@
 ---
 name: commit
 description: Analyzes changes and generates Conventional Commit messages
-allowed-tools: Read, Glob, Bash(git diff:*), Bash(git add:*), Bash(git commit:*), Bash(git status:*), Bash(git log:*), Bash(git reset HEAD:*), Bash(git ls-files:*), Bash(git rev-list:*), Bash(git rev-parse:*), Bash(git push:*)
+allowed-tools: Read, Edit, Write, Grep, Glob, Bash(git diff:*), Bash(git add:*), Bash(git commit:*), Bash(git status:*), Bash(git log:*), Bash(git reset HEAD:*), Bash(git ls-files:*), Bash(git rev-list:*), Bash(git rev-parse:*), Bash(git push:*)
 ---
 
 # Commit Changes
@@ -11,7 +11,7 @@ You are tasked with creating git commits for the changes made during this sessio
 Read `~/.claude/skills/shared/bash-rules.md` for bash command constraints.
 
 ## Context
-- Ignore rules: !`cat .gitignore 2>/dev/null`
+- Ignore rules: !`cat .gitignore 2>/dev/null || true`
 - Unstage all: !`git reset HEAD 2>/dev/null`
 - Uncommitted changes: !`git status --short`
 - Diff summary: !`git diff HEAD --stat`
@@ -20,7 +20,7 @@ Read `~/.claude/skills/shared/bash-rules.md` for bash command constraints.
 
 ## CRITICAL CONSTRAINT
 
-**The ONLY file changes this skill may make are removing debug prints, optimizing imports, and updating stale documentation/comments.** Never move, rename, or delete files. Never restructure code.
+**The ONLY file changes this skill may make are removing debug prints, optimizing imports, and updating stale documentation.** Never move, rename, or delete source files. Never restructure code.
 
 ## Process:
 
@@ -34,11 +34,12 @@ Read `~/.claude/skills/shared/bash-rules.md` for bash command constraints.
 
 3. **Optimize imports in modified source code files**
 
-4. **Update stale documentation and comments:**
-   - Read the project README.md (at the repo root) and check if any references to changed paths, APIs, or behavior are stale
-   - Check `docs/pages/data-flow.md` (if it exists) and verify it reflects any changes to data flow, message protocols, or control flow logic — use the `/document-data-flow` skill to update it if needed
-   - Check comments and docstrings in source files that reference changed behavior, not just the modified files themselves
-   - Fix any stale references before proceeding — do not commit code with outdated docs
+4. **Update stale documentation and comments — do this BEFORE planning commits:**
+   - Read `README.md` (at the repo root) and fix any references to changed paths, APIs, or behavior
+   - Read all files in `docs/pages/` (if the folder exists) and rewrite any sections that no longer match the code — removed features, changed message protocols, new data flows, renamed concepts. Use Edit/Write tools to make the changes directly.
+   - Read `CLAUDE.md` and fix any stale file descriptions
+   - Check comments and docstrings in modified source files that reference changed behavior
+   - All documentation fixes become part of the commit(s) — do not commit code with outdated docs
 
 5. **Confidentiality check:**
    - Scan the diff for content that should not be committed to a public repository: API keys, tokens, passwords, private URLs, internal hostnames, personal data (emails, phone numbers, real names in test data), or proprietary business logic

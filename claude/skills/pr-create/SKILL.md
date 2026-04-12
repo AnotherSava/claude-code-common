@@ -14,7 +14,6 @@ Read `~/.claude/skills/shared/bash-rules.md` for bash command constraints.
 - Current branch: !`git rev-parse --abbrev-ref HEAD`
 - Working tree status: !`git status --short`
 - Commits ahead of main: !`git log main..HEAD --oneline`
-- Existing PR: !`gh pr view --json number,title,url 2>/dev/null`
 
 ## Workflow
 
@@ -64,7 +63,7 @@ If the rebase produces conflicts, stop and ask the user to resolve them.
    - **Plan reference**: link to the plan document filename
    - **Test coverage**: summary of test files and what they cover
 
-3. Check **Existing PR** from context:
+3. Check if a PR already exists for this branch: `gh pr view --json number,title,url`. If the command fails, no PR exists.
 
    **If no PR exists** — create one:
    ```
