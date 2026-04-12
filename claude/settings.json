@@ -37,7 +37,8 @@
   "enabledPlugins": {
     "ralphex@ralphex": true,
     "frontend-design@claude-plugins-official": true,
-    "plannotator@plannotator": true
+    "plannotator@plannotator": true,
+    "claude-mermaid@claude-mermaid": true
   },
   "extraKnownMarketplaces": {
     "claude-code-plugins": {
@@ -50,6 +51,12 @@
       "source": {
         "source": "github",
         "repo": "backnotprop/plannotator"
+      }
+    },
+    "claude-mermaid": {
+      "source": {
+        "source": "github",
+        "repo": "veelenga/claude-mermaid"
       }
     }
   }
