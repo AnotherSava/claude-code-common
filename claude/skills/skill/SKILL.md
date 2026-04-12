@@ -82,6 +82,8 @@ State explicitly what the skill does NOT do. An "Out of scope" section prevents 
 
 The `!`\`command\`` syntax in SKILL.md runs shell commands **automatically as preprocessing** before the skill content reaches the model. The command output replaces the placeholder inline — the model never sees the command, only the results. This eliminates the reconnaissance phase entirely.
 
+See `~/.claude/learnings/skill-context-evaluator.md` for known limitations, workarounds, and which commands work reliably in context.
+
 ### How to write a Context section
 
 When creating or updating a skill, identify every piece of data the skill needs before it can start its real work. For each one, add a labeled `!` line. Place the **Context** section at the top of the skill body (before the first process step).
@@ -104,7 +106,7 @@ For commands too complex for a single line, use a script:
 
 - **Read-only** — avoid mutations. Exception: idempotent setup commands (e.g. `git reset HEAD` to unstage) are allowed if they must run before the data-collection commands that follow.
 - **No command substitution** — `$()` inside `!` commands is blocked by the permission checker. Use simple commands or fallback chains with `||` (e.g. `git log @{upstream}..HEAD 2>/dev/null`).
-- **Deterministic** — runs the same way on every invocation, not conditional on prior results
+- **Deterministic** — runs the same way on every invocation, not conditional on prior results. Commands that can legitimately fail (e.g. `gh pr view` when no PR exists) must go in the skill body, not in context — the context evaluator treats any non-zero exit as a fatal error.
 - **Labeled** — the label describes what data the command provides
 - **Output-scoped** — limit output to what the skill actually needs. Use flags (`--short`, `--oneline`, `--stat`, `--format`), line limits (`-n`, `--limit`, `head -n`), field selectors (`--json ... --jq`), or filters (`grep`, `tail`) to trim noise. Unbounded output wastes context.
 - **Complete** — if a process step needs data on every invocation, that data must be in the Context section. Process steps should never need to re-run a command that Context could have provided. When reviewing a skill, scan every command in the process steps — if it runs unconditionally, it belongs in Context. Since `!` commands are replaced by their output during preprocessing, the model never sees the command text — only the label and the output. Process steps must reference context data by its **label** (e.g. "use **Diff summary**"), never by the command that produced it (e.g. not "run `git diff --stat`").
@@ -120,6 +122,10 @@ Every context item must be referenced by at least one process step (by its label
 ## Gitignore
 
 When creating a new global skill, check the global gitignore (`~/.gitignore` or whatever `git config --global core.excludesfile` returns) for patterns that would exclude it. If the skill directory would be ignored, add a negation entry (e.g. `!claude/skills/<skill-name>/`) so it gets tracked.
+
+## Shell environment
+
+Skills that configure bash functions (like `build` and `deploy`) should reference `~/.claude/learnings/shell-environment.md` for the canonical list of expected functions and the verification checklist. When adding a new bash function to a skill, update that file too.
 
 ## Conventions
 
