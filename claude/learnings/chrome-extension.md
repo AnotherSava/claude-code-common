@@ -106,7 +106,7 @@ function stripExports(): Plugin {
 
 **Fire-and-forget messages:** Use `chrome.runtime.sendMessage().catch(() => {})` when sending from background to side panel. If the panel isn't open, `sendMessage` throws — the `.catch` silences it.
 
-**Push-based > request/response** for background → side panel communication. The background pushes state changes; the side panel pushes user actions. Removing round-trips reduces complexity.
+**Push-based > request/response** for background → side panel communication. The cache manager pushes results via a callback whenever data is available (after setFilterConfig, label indexed, scope fetched, cache complete, refresh). The service worker relays each push as a single `filterResults` message. The side panel never requests data — it renders whatever arrives. Include a `partial` flag to distinguish intermediate results (initial build, invalidated labels) from final results.
 
 **`onMessage` handler returning `undefined` is fine** for synchronous handlers. The "return true" rule only applies if you call `sendResponse` asynchronously.
 
@@ -198,6 +198,14 @@ rollupOptions: {
 
 **Broken `.bin` shims after ralphex review:** ralphex runs in a Docker container on WSL, so its `npm install` installs Linux-native optional dependencies, overwriting the Windows ones in the shared `node_modules/`. Symptom: `'vite' is not recognized` or `Cannot find module @rollup/rollup-win32-x64-msvc`. Fix: `npm install @rollup/rollup-win32-x64-msvc`, then retry the build.
 
+## CSS in Extension Pages
+
+**`appearance: base-select` for dark-themed dropdowns.** Native `<select>` elements flash white when opening because the OS renders the dropdown. Chrome 134+ supports `appearance: base-select` which makes the dropdown a styleable top-layer element. Apply to both `select` and `::picker(select)`. Tradeoff: the dropdown no longer auto-sizes to the widest option — set an explicit `width`. Use `width: anchor-size(self-inline)` on `::picker(select)` to lock the picker width to the button.
+
+**`color-scheme: dark` meta tag.** Add `<meta name="color-scheme" content="dark">` in the HTML head so the browser uses dark OS styling for form elements from the start.
+
+**DOM mutations during `base-select` picker open cause resize/flicker.** If sibling elements change (e.g., progress spinner updates), the picker may resize. Either defer DOM updates while a select is open (`document.querySelector("select:open")`), or lock the picker width with CSS.
+
 ## Chrome Web Store Publishing
 
 **External CDN resources are rejected.** The store blocks extensions that load scripts or fonts from external domains. Bundle everything locally (e.g., `.woff2` fonts via `@font-face`).
@@ -213,6 +221,66 @@ rollupOptions: {
 **Promo assets:** 440x280 small tile appears in search results. 1400x560 marquee tile is only used if Google features your extension. Neither is required.
 
 **One-time $5 developer fee** and email verification required before publishing.
+
+## IndexedDB in Extensions
+
+**Service worker and extension pages share the same IndexedDB.** They're the same origin. Data written by the service worker is readable by the side panel and vice versa.
+
+**Use IndexedDB for large datasets, localStorage for small settings.** IndexedDB handles 90K+ records efficiently; localStorage has a ~5MB limit and blocks the main thread on read/write. Extension pages have `window.localStorage`; the service worker does not.
+
+**Full table scans are slow (~800ms for 90K records).** Avoid cursor-based filtering like `openCursor()` + `includes()` for per-label lookups. Instead, maintain a secondary index in the meta store (e.g., `labelIdx:{id}` → `messageId[]`), turning O(n) scans into O(1) key lookups + O(k) batch fetches.
+
+**Don't overload data fields as state flags.** Using `internalDate === 0` as a "deleted" sentinel causes bugs when the field is also used for date filtering. Add an explicit `status` field (`"pending" | "fetched" | "inaccessible"`) to separate data from state.
+
+**IndexedDB transactions auto-commit on idle.** Concurrent readonly transactions from different async operations work fine. But read-then-write patterns across separate transactions can race — a second writer may overwrite the first's changes if they read the same record before either writes.
+
+## Service Worker as Stateless Coordinator
+
+**The service worker should coordinate, not accumulate state.** It relays messages between the side panel and backend modules (cache, API). Avoid storing derived state in the service worker that could go stale on restart — let the cache layer be the source of truth.
+
+**Suppress redundant events for extension-initiated navigation.** When the extension navigates Gmail via `chrome.tabs.update`, Chrome fires `tabs.onUpdated` with `status: "complete"`. Store the navigation hash (`lastExtensionNavHash`) and skip broadcasting `resultsReady` when the hash matches — the side panel already has the correct state.
+
+**Track extension-initiated navigation with URL hash matching.** Store the decoded hash when navigating, compare with `+` → space normalization (Gmail normalizes spaces to `+` in hash fragments). Use `startsWith` for sub-path matching (pagination, email open from search).
+
+**Distinguish list views from message views in Gmail URLs.** List views: `#inbox`, `#sent`, `#label/Name`, `#search/query`. Message views: hash ends with a 16+ character alphanumeric segment. Use this to decide whether a user navigation should trigger a tab switch.
+
+## Cache Architecture Patterns
+
+**Label-to-messageIds index for fast lookups.** Store `labelIdx:{labelId}` → `messageId[]` in IndexedDB meta. No per-message store needed — co-labels are computed by intersecting label indexes (Set lookups) instead of reading individual messages.
+
+**Always fetch all time per label.** The Gmail `messages.list` API takes roughly the same time per label regardless of date filtering (~100ms per page). Scoped builds save no time but add complexity (gap-fill, expansion tiers). Fetch all-time once, then intersect with scoped ID sets locally for time-based filtering.
+
+**Configurable concurrency for parallel fetching.** Gmail API handles 10 concurrent `messages.list` calls without 429 errors. Higher concurrency (40+) triggers rate limiting. Default to 10; make it user-configurable. With concurrency=10, 143 labels fetch in ~8s instead of ~58s sequential.
+
+**In-memory ID accumulation across pages.** For multi-page label fetches, accumulate message IDs in memory and write to IndexedDB once when the label is complete. Avoids expensive per-page read+merge+write cycles that dominated fetch time.
+
+**Parallel scope segment fetching.** Large scope date ranges (e.g., 5 years) take 20s as a single paginated query. Split into N segments (based on concurrency), each covering a different date range, fetched in parallel. Per-scope accumulators and segment counters track completion. Reduces 20s to ~3s.
+
+**Background scope expansion through tiers.** After the initial build, pre-fetch scoped ID sets for expansion tiers (1w, 2w, 1m, 2m, 6m, 1y, 3y, 5y) so scope switching is instant. Each is ~0.5s. Limit cached scope sets (16) to avoid memory bloat — too few causes infinite re-fetch loops when tiers exceed the limit.
+
+**Refresh updates scope sets instead of clearing.** All messages from a refresh are newer than `lastRefreshTimestamp` and fall within every cached scope's time range. Add refreshed IDs to each cached scope set instead of clearing all sets and re-fetching.
+
+**Children-before-parents cache ordering.** Sort labels so sub-labels are fetched before their parents. This ensures inclusive counts are accurate when the parent is first rendered.
+
+**Cache freshness with format verification.** Check both timestamp (10-minute interval) AND presence of expected data (e.g., `labelIdx:INBOX` exists) before skipping a cache rebuild.
+
+**On-demand label fetching via `prioritizeLabel`.** When a label isn't cached yet and the orchestrator isn't running, fetch that label immediately for instant results.
+
+## Alarms and Keep-Alive
+
+**`chrome.alarms` keeps the service worker alive.** Create a periodic alarm (e.g., 0.4 minutes) during long-running operations like cache builds. Clear it on completion. The alarm handler can be a no-op — the alarm firing itself prevents the 30-second idle shutdown.
+
+**`alarms` permission is required** in the manifest. Minimum alarm period is 30 seconds for published extensions, but shorter periods work during development.
+
+## Gmail API Patterns
+
+**`messages.list` with `labelIds` takes ~100ms per page regardless of date range.** Adding `q=after:DATE` doesn't speed up the call — the API processes the full label index server-side. This means scoped per-label builds save no time over all-time builds.
+
+**`has:nouserlabels` search operator.** Returns messages with no user-created labels. Useful for a synthetic "No user labels" label. Combine with `after:DATE` for scoped queries.
+
+**Gmail API rate limit is ~10 concurrent calls.** 10 parallel `messages.list` requests work reliably. 40+ concurrent requests trigger 429 rate limit errors. The limit is per-second throughput, not per-minute — but bursting too many requests at once hits it.
+
+**`maxResults=500` is the practical maximum for `messages.list`.** Higher values are silently capped. Each page returns up to 500 message IDs and a `nextPageToken`.
 
 ## Permissions Cheat Sheet
 
