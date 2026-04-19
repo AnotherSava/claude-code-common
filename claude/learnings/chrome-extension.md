@@ -142,11 +142,37 @@ if (!isPageLoad && !isSpaNav) return;
 
 ## Storage
 
-**`chrome.storage.local` is cleared on extension uninstall.** Use `chrome.storage.sync` for settings that should survive reinstalls.
+### Comparison
 
-**`chrome.storage.sync` works without Chrome sign-in** — it falls back to local behavior.
+| Storage | Access | Persistence | Scope | Async | Manifest permission |
+|---|---|---|---|---|---|
+| `chrome.storage.local` | SW + all extension pages | Survives browser restart, cleared on uninstall | Global | Yes | `"storage"` |
+| `chrome.storage.session` | SW + all extension pages | Survives SW restart, cleared on browser close | Global | Yes | `"storage"` |
+| `chrome.storage.sync` | SW + all extension pages | Survives uninstall, syncs across devices (falls back to local without sign-in) | Global | Yes | `"storage"` |
+| `window.localStorage` | Extension pages only (NOT SW) | Survives browser restart, cleared on uninstall | Global | No (sync) | None |
+| IndexedDB | SW + all extension pages | Survives browser restart, cleared on uninstall | Global | Yes | None |
+| In-memory (SW) | SW only | Lost on idle shutdown (~30s) | Per-port (via `Map<Port, State>`) | No | None |
+| In-memory (extension page) | That page only | Lost on page close (panel close, tab close) | Per-window (each window has its own page instance) | No | None |
 
-**Extension pages have `window.localStorage`** just like regular web pages. The background service worker does not. If only extension pages need persistence, `localStorage` works and avoids the `"storage"` manifest permission entirely.
+### What to store where
+
+**`chrome.storage.local`** — persistent user settings shared between SW and sidepanel. Single source of truth for configuration that both sides need. Examples: display preferences (showStarred, showImportant, concurrency, pinMode, returnToInbox), selected label, scope value, zoom levels, column count.
+
+**`chrome.storage.session`** — transient SW state that must survive SW idle shutdown but not browser restart. Examples: current Gmail account path (so the alarm handler can restart the orchestrator after SW suspension).
+
+**IndexedDB** — large datasets. Examples: label-to-messageId indexes (90K+ entries), fetch state, cache depth. Both SW and extension pages share the same IndexedDB origin.
+
+**In-memory (class fields, module variables)** — derived/computed state that can be rebuilt from persistent storage. Examples: orchestrator loop state, in-flight pagination, scoped ID set caches. Accept that these reset on SW restart — reload from IndexedDB or recompute.
+
+### Pitfalls
+
+**No per-window or per-tab storage exists.** All Chrome storage APIs are global. If two windows need different state (e.g., different active labels), communicate via per-port messages instead of storage. For "remember last state" settings (active label, scope), global storage is acceptable — it remembers the last-used value across all windows.
+
+**`localStorage` is inaccessible from the service worker.** Don't use it for settings the SW needs — use `chrome.storage.local` instead. Prefer `chrome.storage.local` as the single source of truth to avoid dual-write complexity.
+
+**`chrome.storage.local` is async.** Extension pages that need settings at init time must load them before rendering. Use a single `chrome.storage.local.get(keys)` call to batch-load all settings, then initialize the UI.
+
+**`chrome.storage.onChanged` for cross-context reactivity.** When the sidepanel writes a setting, the SW can react immediately via `chrome.storage.onChanged` listener — no port message needed. Filter by `area === "local"` to ignore session/sync changes.
 
 ## OAuth2 and Identity
 
@@ -159,6 +185,16 @@ if (!isPageLoad && !isSpaNav) return;
 **The OAuth client ID is registered once in Google Cloud Console.** Users installing the extension don't need their own project — the ID is embedded in the manifest. While unpublished, Google shows an "unverified app" warning during auth.
 
 **Chrome extension IDs are stable only when published to the Chrome Web Store.** Unpacked extensions get a new ID on each install. The OAuth client ID registration needs the extension ID — for development, re-register or use a `key` field in the manifest to pin the ID.
+
+**All Gmail OAuth scopes are classified Restricted by Google Cloud Console** — including `gmail.readonly`, `gmail.modify`, and `gmail.metadata`. Google's developer docs at `/identity/protocols/oauth2/scopes` call some of these "sensitive," but the Cloud Console (Google Auth Platform → Data access) groups them under "Your restricted scopes." The Cloud Console classification is what drives verification requirements. Restricted = CASA audit needed.
+
+**Testing mode has a 100-user lifetime cap** for projects using sensitive or restricted scopes. The cap is per-project and cannot be reset. Test users are added individually by email in Google Auth Platform → Audience. Above 100 users, you must submit for verification.
+
+**CASA Tier 2 for Gmail restricted scopes costs $540–$1,800/year** via TAC Security (Google's preferred lab partner). Much cheaper than the often-quoted $15–75k, which is Tier 3 (manual pen test, reserved for complex/backend-heavy apps). Tier 2 is automated DAST scan plus remediation review, turnaround ~1–3 weeks. Client-side-only Chrome extensions typically qualify for Tier 2.
+
+**The "Use secure OAuth flows" warning in Cloud Console is advisory, not blocking.** `chrome.identity.getAuthToken()` with a "Chrome Extension" OAuth client type still works and passes verification. Google nudges toward PKCE + `launchWebAuthFlow` with a "Web application" client, but migrating is optional.
+
+**Scopes must be declared both in `manifest.json` (`oauth2.scopes`) AND in Google Cloud Console (Google Auth Platform → Data access).** The manifest drives the runtime consent prompt; the Cloud Console list is what verification reviewers assess. A mismatch (scope requested but not declared in Cloud Console) can fail verification.
 
 ## Vite Build Configuration
 
@@ -194,6 +230,8 @@ rollupOptions: {
 }
 ```
 
+**Use WebP for bundled image assets.** PNG card/icon images converted to WebP at quality 85 cut file size by ~40-60% with no visible quality loss at display sizes (20px icons, 375px hover previews). This directly reduces the extension's unpacked size and Chrome Web Store package. Convert during asset pipeline (`Pillow: im.save(path, 'WEBP', quality=85)`), not at build time.
+
 **No HMR without `crxjs/vite-plugin`.** Without it, the dev workflow is: save → build → reload extension on `chrome://extensions`.
 
 **Broken `.bin` shims after ralphex review:** ralphex runs in a Docker container on WSL, so its `npm install` installs Linux-native optional dependencies, overwriting the Windows ones in the shared `node_modules/`. Symptom: `'vite' is not recognized` or `Cannot find module @rollup/rollup-win32-x64-msvc`. Fix: `npm install @rollup/rollup-win32-x64-msvc`, then retry the build.
@@ -221,6 +259,12 @@ rollupOptions: {
 **Promo assets:** 440x280 small tile appears in search results. 1400x560 marquee tile is only used if Google features your extension. Neither is required.
 
 **One-time $5 developer fee** and email verification required before publishing.
+
+**Chrome Web Store auto-fills the Summary field from `manifest.json` `description`** (132 char max). Write the description as a user-facing pitch, not a technical blurb — it becomes the store summary shown under the extension name.
+
+**`github.io` is on Google's Public Suffix List**, so it cannot be added as an authorized domain in Google Auth Platform → Branding (error: "must be a top private domain"). Use the specific subdomain (`username.github.io`) verified via Google Search Console. For project-pages sites (`username.github.io/project/`), verification is tricky because Search Console's HTML file or meta tag must be served from the domain root — the project site only owns its subfolder. Solved by creating a user-pages repo (`username.github.io`) that hosts the verification file at root.
+
+**Unlisted visibility** means users with the direct CWS URL can install, but the extension doesn't appear in CWS search or browse. Combined with OAuth testing mode's 100-user cap, this is a reasonable private-beta distribution path without CASA cost — friends/beta testers install via link, authenticate only if allowlisted.
 
 ## IndexedDB in Extensions
 
@@ -256,15 +300,13 @@ rollupOptions: {
 
 **Parallel scope segment fetching.** Large scope date ranges (e.g., 5 years) take 20s as a single paginated query. Split into N segments (based on concurrency), each covering a different date range, fetched in parallel. Per-scope accumulators and segment counters track completion. Reduces 20s to ~3s.
 
-**Background scope expansion through tiers.** After the initial build, pre-fetch scoped ID sets for expansion tiers (1w, 2w, 1m, 2m, 6m, 1y, 3y, 5y) so scope switching is instant. Each is ~0.5s. Limit cached scope sets (16) to avoid memory bloat — too few causes infinite re-fetch loops when tiers exceed the limit.
-
 **Refresh updates scope sets instead of clearing.** All messages from a refresh are newer than `lastRefreshTimestamp` and fall within every cached scope's time range. Add refreshed IDs to each cached scope set instead of clearing all sets and re-fetching.
 
 **Children-before-parents cache ordering.** Sort labels so sub-labels are fetched before their parents. This ensures inclusive counts are accurate when the parent is first rendered.
 
 **Cache freshness with format verification.** Check both timestamp (10-minute interval) AND presence of expected data (e.g., `labelIdx:INBOX` exists) before skipping a cache rebuild.
 
-**On-demand label fetching via `prioritizeLabel`.** When a label isn't cached yet and the orchestrator isn't running, fetch that label immediately for instant results.
+
 
 ## Alarms and Keep-Alive
 
@@ -277,6 +319,8 @@ rollupOptions: {
 **`messages.list` with `labelIds` takes ~100ms per page regardless of date range.** Adding `q=after:DATE` doesn't speed up the call — the API processes the full label index server-side. This means scoped per-label builds save no time over all-time builds.
 
 **`has:nouserlabels` search operator.** Returns messages with no user-created labels. Useful for a synthetic "No user labels" label. Combine with `after:DATE` for scoped queries.
+
+**`gmail.metadata` scope rejects ALL `q=` parameters at runtime** — despite Google's docs claiming operators like `after:`, `before:`, `label:`, `has:userlabels` are allowed. The API returns `403 PERMISSION_DENIED` with message `"Metadata scope does not support 'q' parameter"`. Only the dedicated parameters work (`labelIds=`, `maxResults=`, `pageToken=`). Any time-scope filtering, synthetic labels, or custom search needs `gmail.readonly`.
 
 **Gmail API rate limit is ~10 concurrent calls.** 10 parallel `messages.list` requests work reliably. 40+ concurrent requests trigger 429 rate limit errors. The limit is per-second throughput, not per-minute — but bursting too many requests at once hits it.
 
