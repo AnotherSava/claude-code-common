@@ -44,6 +44,10 @@ echo "=== Step 3: Deploying to install directory..."
 mkdir -p "$INSTALL_DIR"
 rm -f "$INSTALL_DIR"/*
 cp -rf "$REPO_DIR/src/bin/publish"/* "$INSTALL_DIR/"
+if [ -f "$REPO_DIR/config/local.json" ]; then
+    echo "  Applying config/local.json override..."
+    cp -f "$REPO_DIR/config/local.json" "$INSTALL_DIR/config.json"
+fi
 echo "Done."
 
 if [ "$START" = "0" ]; then

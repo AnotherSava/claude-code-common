@@ -9,10 +9,11 @@ allowed-tools: Bash(git log:*), Bash(git diff:*), Bash(git status:*), Bash(git r
 Analyze progress logs and commits to produce a summary covering implementation, review findings, and readiness to proceed. If a related plan exists, include plan alignment analysis.
 
 ## Context
-- Commits ahead of main: !`git log main..HEAD --oneline`
-- Commit details: !`git log main..HEAD --format="%h %s%n%b---"`
-- Changed files: !`git diff main..HEAD --stat`
-- Full diff: !`git diff main..HEAD`
+- Current branch: !`git rev-parse --abbrev-ref HEAD`
+- Unpushed commits: !`git log @{upstream}..HEAD --oneline 2>/dev/null || git log origin/main..HEAD --oneline`
+- Unpushed commit details: !`git log @{upstream}..HEAD --format="%h %s%n%b---" 2>/dev/null || git log origin/main..HEAD --format="%h %s%n%b---"`
+- Changed files: !`git diff @{upstream}..HEAD --stat 2>/dev/null || git diff origin/main..HEAD --stat`
+- Full diff: !`git diff @{upstream}..HEAD 2>/dev/null || git diff origin/main..HEAD`
 - Working tree status: !`git status --short`
 - Latest plan: !`ls -t docs/plans/completed/ 2>/dev/null | head -1`
 - Progress logs: !`ls -t .ralphex/progress/ 2>/dev/null | head -5`
@@ -23,7 +24,7 @@ Analyze progress logs and commits to produce a summary covering implementation, 
 
 2. **Plan doc (optional)**: If **Latest plan** is not empty, read it — but only use it if it relates to the work described in the progress log. If the plan is unrelated (different feature, old work), disregard it. Tell the user which plan was found and whether it was used or skipped.
 
-3. **Commits and diff**: Use context data (**Commit details**, **Changed files**, **Full diff**).
+3. **Commits and diff**: Use context data (**Unpushed commit details**, **Changed files**, **Full diff**).
 
 ## Step 2: Analyze
 
@@ -68,6 +69,6 @@ Based on progress logs and code changes, identify:
 ## Important
 
 - This skill only **analyzes and reports** — it does NOT modify any files, create commits, or push code
-- If there are no commits ahead of main and no uncommitted changes, report that and stop
+- If there are no unpushed commits and no uncommitted changes, report that and stop
 - If the progress log cannot be found, proceed with just the commits and diff
 - Be concise — focus on meaningful divergences and actionable findings
