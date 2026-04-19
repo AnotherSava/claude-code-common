@@ -63,6 +63,21 @@ Summarizes what was done, how it matches the plan, and what the review found —
 
 ---
 
+### Clean Code
+
+Audits modified files for dead code, duplication, and import hygiene.
+
+**Command:** `/clean-code`
+
+**Features:**
+- Removes debug prints left from development
+- Dead code audit: traces callers to find unreachable methods, fields, imports, type members
+- Duplication audit: flags repeated logic and proposes consolidation
+- Optimizes imports in modified files
+- Iterates until clean — each removal pass may reveal new dead code
+
+---
+
 ### Commit
 
 Analyzes changes and generates atomic Conventional Commit messages.
@@ -71,10 +86,23 @@ Analyzes changes and generates atomic Conventional Commit messages.
 
 **Features:**
 - Reviews staged and unstaged changes, groups them into atomic commits
+- Delegates to `/clean-code` and `/documentation` before planning commits
 - Drafts commit messages in imperative mood with type prefixes
-- Updates stale documentation and optimizes imports before committing
 - Presents a full plan for approval before executing any commits
 - GPG-signs all commits, never adds AI attribution
+
+---
+
+### Update Documentation
+
+Scans project documentation for stale references and fixes them.
+
+**Command:** `/documentation`
+
+**Features:**
+- Checks README, `docs/pages/`, CLAUDE.md, and source comments against current code
+- Fixes stale paths, API references, and behavior descriptions
+- Suggests new documentation files or reorganization when beneficial
 
 ---
 
@@ -178,6 +206,32 @@ TELEGRAM_CHAT_ID=...
 
 ---
 
+### External Hook Paths
+
+When a hook command needs a path outside `~/.claude/` or this repo, reference it via a `CLAUDE_<NAME>` user-scope environment variable instead of hardcoding the absolute path. The hook `command` field is executed via shell, so standard `$VAR` expansion works — the same mechanism that already makes `$HOME/.claude/hooks/...` portable across machines.
+
+**Why:** `claude/settings.json` is symlinked to `~/.claude/settings.json` on every machine that uses this repo. Hardcoded absolute paths pin it to one user's filesystem layout; env vars keep it portable, and a repo move or rename only touches the env var (not every hook entry).
+
+**Caveat:** This works for hook `command` strings only. It does **not** work for MCP server args in `~/.claude.json` — those are passed straight to `child_process.spawn()` with no shell, so paths there must be absolute. That file is not symlinked from this repo.
+
+**Currently used env vars** — set these on a fresh machine before the corresponding hooks will work:
+
+- **`CLAUDE_AGENT_DASHBOARD`** — points to a local clone of the `ai-agent-dashboard` repo. Used by the `Notification`, `UserPromptSubmit`, `Stop`, `SessionEnd`, and `SessionStart` hooks for live session-status updates.
+
+**Set on Windows** (User scope, persistent):
+
+```powershell
+[Environment]::SetEnvironmentVariable('CLAUDE_AGENT_DASHBOARD', 'D:/projects/ai-agent-dashboard', 'User')
+```
+
+**Set on Linux / macOS** (in your shell profile):
+
+```bash
+export CLAUDE_AGENT_DASHBOARD="$HOME/projects/ai-agent-dashboard"
+```
+
+---
+
 ## Git Hooks
 
 ### Pre-Push Validation
@@ -219,9 +273,11 @@ Scripts in this section are written in [AutoHotkey v2](https://www.autohotkey.co
 
 **File:** `scripts/monosnap-watcher.ahk` (AutoHotkey v2)
 
-Claude Code can't receive pasted images — it needs a file path. Monosnap (a screenshot tool) can auto-save captures to a folder, but doesn't copy the file path to the clipboard. This script bridges the gap: it watches the Monosnap output folder and copies the path of each new screenshot to the clipboard, so you can paste it straight into Claude Code.
+Claude Code can't receive pasted images — it needs a file path. Monosnap (a screenshot tool) can auto-save captures to a folder, but doesn't copy the file path to the clipboard. This script bridges the gap: polls the folder given by `MONOSNAP_DIR` every 500ms; on each new file, copies the full path to the clipboard and shows a `TrayTip`. Look for "Monosnap Watcher" in the tray to confirm it's running.
 
-**Setup:** Set the `MONOSNAP_DIR` environment variable to your Monosnap auto-save folder (e.g. `C:\Users\OlegS\Monosnap`).
+**Setup:**
+1. Set the `MONOSNAP_DIR` environment variable to your Monosnap auto-save folder (e.g. `C:\Users\OlegS\Monosnap`)
+2. Install as a Windows startup shortcut pointing at `scripts/monosnap-watcher.ahk` — drop the shortcut into `%APPDATA%\Microsoft\Windows\Start Menu\Programs\Startup\`
 
 ---
 
@@ -241,6 +297,7 @@ New-Item -ItemType SymbolicLink -Path "$env:USERPROFILE\.claude\skills" -Target 
 New-Item -ItemType SymbolicLink -Path "$env:USERPROFILE\.claude\hooks" -Target "$PWD\claude\hooks"
 New-Item -ItemType SymbolicLink -Path "$env:USERPROFILE\.claude\settings.json" -Target "$PWD\claude\settings.json"
 New-Item -ItemType SymbolicLink -Path "$env:USERPROFILE\.claude\learnings" -Target "$PWD\claude\learnings"
+New-Item -ItemType SymbolicLink -Path "$env:USERPROFILE\.claude\memory" -Target "$PWD\claude\memory"
 New-Item -ItemType SymbolicLink -Path "$env:USERPROFILE\.git-hooks" -Target "$PWD\git\hooks"
 New-Item -ItemType SymbolicLink -Path "$env:USERPROFILE\.gitignore" -Target "$PWD\git\gitignore"
 New-Item -ItemType SymbolicLink -Path "$env:USERPROFILE\.gitattributes" -Target "$PWD\git\gitattributes"
@@ -259,6 +316,7 @@ ln -s "$(pwd)/claude/skills" ~/.claude/skills
 ln -s "$(pwd)/claude/hooks" ~/.claude/hooks
 ln -s "$(pwd)/claude/settings.json" ~/.claude/settings.json
 ln -s "$(pwd)/claude/learnings" ~/.claude/learnings
+ln -s "$(pwd)/claude/memory" ~/.claude/memory
 ln -s "$(pwd)/git/hooks" ~/.git-hooks
 ln -s "$(pwd)/git/gitignore" ~/.gitignore
 ln -s "$(pwd)/git/gitattributes" ~/.gitattributes
