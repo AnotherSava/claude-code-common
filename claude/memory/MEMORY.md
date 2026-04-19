@@ -1,0 +1,7 @@
+- [Follow skill instructions exactly](feedback_follow_skill_instructions.md) — never abbreviate or skip steps in skills, even when output feels verbose
+- [Fix failing skills](feedback_fix_skills.md) — fix the skill definition instead of working around failures manually
+- [Glob safety for numeric filenames](feedback_glob_safety_windows.md) — `hex_4*.png` matches hex_40, hex_400, AND hex_441; use explicit ranges
+- [GitHub identity](user_github.md) — login is `AnotherSava`; distinct from git author `Oleg Savelyev`
+- [Prefer loud errors to silent fallback](feedback_loud_errors.md) — surface failures in UI + log; never silently degrade
+- [Pre-push hook rejects unsigned + Claude trailers](reference_push_hook.md) — resign ancestors with `git rebase --exec` before first push
+- [Attribution style for inherited projects](feedback_attribution_style.md) — keep original LICENSE; "Initially based on…" in `docs/index.md` only
