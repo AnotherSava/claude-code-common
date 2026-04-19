@@ -12,7 +12,7 @@ Read `~/.claude/skills/shared/bash-rules.md` for bash command constraints.
 
 ## Context
 - Ignore rules: !`cat .gitignore 2>/dev/null || true`
-- Unstage all: !`git reset HEAD 2>/dev/null`
+- Unstage all: !`git reset HEAD 2>/dev/null || true`
 - Uncommitted changes: !`git status --short`
 - Diff summary: !`git diff HEAD --stat`
 - Full diff: !`git diff HEAD`
@@ -20,9 +20,11 @@ Read `~/.claude/skills/shared/bash-rules.md` for bash command constraints.
 
 ## CRITICAL CONSTRAINT
 
-**The ONLY file changes this skill may make are removing debug prints, optimizing imports, and updating stale documentation.** Never move, rename, or delete source files. Never restructure code.
+**The ONLY direct file changes this skill may make are through `/clean-code` and `/documentation`.** Never move, rename, or delete source files. Never restructure code beyond what those skills do.
 
 ## Process:
+
+**Pacing:** Steps 1–5 are preparation. Sub-skills may legitimately pause when they find substantive changes needing approval (e.g. clean-code proposing dead-code removal, documentation proposing edits). Honor those gates. But when a sub-skill finishes with nothing to report, continue immediately to the next step — do not insert an extra confirmation gate. The only gates the commit skill itself owns are step 6 (plan approval) and step 7 (push).
 
 1. **Assess the current state of the repository** (use Context above):
    - Use **Uncommitted changes**, **Diff summary**, and **Full diff** to understand the total change set against HEAD
@@ -30,35 +32,17 @@ Read `~/.claude/skills/shared/bash-rules.md` for bash command constraints.
    - If there are no uncommitted changes in this repository, stop — there is nothing to commit.
    - Review the conversation history (if any) to understand what was accomplished — but do not assume all changes come from this session; the repo state is the source of truth
 
-2. **Remove debug prints** (`print()`, `console.log()`, `Debug.Log()`, etc.) added during development — do not commit temporary debug output
+2. **Clean code:** Run `/clean-code` to remove debug prints, dead code, duplication, and optimize imports.
 
-3. **Dead code audit — iterate until clean:**
-   Check modified production source files AND any production files that imported or called symbols from modified/deleted code. For each file, look for:
-   - **Dead methods/functions**: defined but never called from production code (only from tests or not at all). Trace callers — if a method is only called from another dead method, both are dead.
-   - **Dead fields/variables**: only written (never read), or only set to a constant value that makes guarding branches unreachable.
-   - **Dead imports**: symbols imported but unused after other cleanup.
-   - **Dead type members**: union/enum members never constructed or matched.
-   - **Cascading dead code**: after each removal, re-check whether anything new became unreachable (deleted code may have been the only caller of other code).
+3. **Update stale documentation — do this BEFORE planning commits:**
+   Run `/documentation` to scan and fix stale references in README, docs, CLAUDE.md, and source comments. All documentation fixes become part of the commit(s) — do not commit code with outdated docs.
 
-   For each finding, ask the user: describe what you found, why it's dead, and propose removal. If the user agrees, make the change. If the user disagrees or wants to keep it, move on. **Keep iterating** — after each batch of removals, re-scan the affected files for newly dead code. Stop only when a full pass finds nothing actionable, or the user says to stop.
-
-   Production code that is public only because tests call it directly (e.g. unit-testing internal methods) is NOT dead — it runs in production via internal calls and is exposed for testability. Do not flag these.
-
-4. **Optimize imports in modified source code files**
-
-5. **Update stale documentation and comments — do this BEFORE planning commits:**
-   - Read `README.md` (at the repo root) and fix any references to changed paths, APIs, or behavior
-   - Read all files in `docs/pages/` (if the folder exists) and rewrite any sections that no longer match the code — removed features, changed message protocols, new data flows, renamed concepts. Use Edit/Write tools to make the changes directly.
-   - Read `CLAUDE.md` and fix any stale file descriptions
-   - Check comments and docstrings in modified source files that reference changed behavior
-   - All documentation fixes become part of the commit(s) — do not commit code with outdated docs
-
-6. **Confidentiality check:**
+4. **Confidentiality check:**
    - Scan the diff for content that should not be committed to a public repository: API keys, tokens, passwords, private URLs, internal hostnames, personal data (emails, phone numbers, real names in test data), or proprietary business logic
    - Pay extra attention to learning files (`claude/learnings/`): these are domain knowledge docs meant to be generic and reusable — flag any project-specific details, internal URLs, proprietary names, or customer data that leaked in from the source project
    - If anything looks sensitive, list the findings and ask the user before proceeding — do not silently include them in the commit plan
 
-7. **Plan your commit(s):**
+5. **Plan your commit(s):**
    - Read `~/.claude/skills/shared/commit-message-rules.md` for commit message formatting and validation rules
    - Group into atomic commits by feature/fix/refactor — no file belongs to more than one group, and each group can be committed independently
    - Identify which files belong together
@@ -66,7 +50,7 @@ Read `~/.claude/skills/shared/bash-rules.md` for bash command constraints.
    - Put tests and documentation changes in the same commit as the feature they cover, unless there is a significant reason to separate
    - Draft and validate commit messages following the shared rules
 
-8. **Present your plan to the user:**
+6. **Present your plan to the user:**
    - Separate each commit with a unicode line: `━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━`
    - For each commit show:
      1. **Commit N**
@@ -74,7 +58,7 @@ Read `~/.claude/skills/shared/bash-rules.md` for bash command constraints.
      3. Number of files and lines changed, then without an empty line in betweem, file list: each file as `inline code` followed by brief description. Pad each file entry with spaces so all entries match the length of the longest one, aligning descriptions into a column.
    - End with: "I plan to create **N** commit(s) with these changes. Shall I proceed?"
 
-9. **Execute upon confirmation:**
+7. **Execute upon confirmation:**
    - Use `git add` with specific files (never use `-A` or `.`)
    - Create commits with your planned messages using `git commit -S` to GPG-sign them
    - After all commits are done, list all unpushed commits with `git log @{upstream}..HEAD --format="%h %ai %s"` (fall back to `origin/<branch>..HEAD` if no upstream). Format each line as `Mon DD, HH:MM [hash] message` (e.g. `Mar 28, 16:59 [a37da68] feat: add side panel`). Display the full list as the end summary — this gives the user the complete picture of what will be pushed.
