@@ -11,12 +11,42 @@
         ]
       }
     ],
+    "PostToolUse": [
+      {
+        "matcher": "ExitPlanMode",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "python3 \"$HOME/.claude/hooks/plan-archive.py\" start",
+            "async": true
+          }
+        ]
+      }
+    ],
     "Notification": [
       {
         "hooks": [
           {
             "type": "command",
             "command": "python3 \"$HOME/.claude/hooks/notifications/telegram.py\"",
+            "async": true
+          }
+        ]
+      },
+      {
+        "hooks": [
+          {
+            "type": "command",
+            "command": "python3 \"$CLAUDE_AGENT_DASHBOARD/integrations/claude_hook.py\" idle",
+            "async": true
+          }
+        ]
+      },
+      {
+        "hooks": [
+          {
+            "type": "command",
+            "command": "python3 \"$HOME/.claude/hooks/plan-archive.py\" done",
             "async": true
           }
         ]
@@ -28,6 +58,48 @@
           {
             "type": "command",
             "command": "python3 \"$HOME/.claude/hooks/notifications/record-prompt.py\"",
+            "async": true
+          }
+        ]
+      },
+      {
+        "hooks": [
+          {
+            "type": "command",
+            "command": "python3 \"$CLAUDE_AGENT_DASHBOARD/integrations/claude_hook.py\" working",
+            "async": true
+          }
+        ]
+      }
+    ],
+    "Stop": [
+      {
+        "hooks": [
+          {
+            "type": "command",
+            "command": "python3 \"$CLAUDE_AGENT_DASHBOARD/integrations/claude_hook.py\" done",
+            "async": true
+          }
+        ]
+      }
+    ],
+    "SessionEnd": [
+      {
+        "hooks": [
+          {
+            "type": "command",
+            "command": "python3 \"$CLAUDE_AGENT_DASHBOARD/integrations/claude_hook.py\" clear",
+            "async": true
+          }
+        ]
+      }
+    ],
+    "SessionStart": [
+      {
+        "hooks": [
+          {
+            "type": "command",
+            "command": "python3 \"$CLAUDE_AGENT_DASHBOARD/integrations/claude_hook.py\" idle",
             "async": true
           }
         ]
@@ -59,5 +131,6 @@
         "repo": "veelenga/claude-mermaid"
       }
     }
-  }
+  },
+  "skipAutoPermissionPrompt": true
 }
