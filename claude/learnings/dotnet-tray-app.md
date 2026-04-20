@@ -396,6 +396,90 @@ Guard on `OriginalSource` type so clicks on `TextBox`/`Button` aren't hijacked f
 
 **WPF `KeyEventArgs` / `MouseButtonEventArgs` ambiguity in hybrid apps**: With both `UseWindowsForms` and `UseWPF` enabled, `KeyEventArgs` and `MouseButtonEventArgs` types are ambiguous between the two namespaces. Either fully qualify (`System.Windows.Input.KeyEventArgs`) or add per-file `using` aliases. The `<Using Remove="System.Drawing" />` trick in the csproj only handles System.Drawing; it doesn't fix these.
 
+## Fullscreen Selection Overlays
+
+Patterns for implementing a fullscreen "select a rectangle on the screen" UI — the snipping-tool pattern — that need to (1) cover the whole virtual screen, (2) look transparent so the user can see what they're selecting, (3) receive mouse input across every pixel, and (4) track the cursor with low visible lag. All are harder than they look on modern Windows.
+
+**DWM + `LWA_COLORKEY` hit-test override — colorkey is dead for "transparent but clickable" overlays**: On modern Windows with DWM composition, a layered window with `LWA_COLORKEY` treats key-colored pixels as click-through at the compositor level. This is **not** the same as `WS_EX_TRANSPARENT` — it applies even when that flag is absent, and it overrides `SetCapture`. Diagnostic confirming this: log `GetForegroundWindow() == Handle` and `GetCapture() == Handle` inside `Show()` — both can return true while mouse events still only fire on non-colorkey pixels. `AttachThreadInput` + `SetForegroundWindow` does not help because DWM hit-tests below the capture layer. Consequence: `LWA_COLORKEY` cannot be used for any overlay that needs to receive mouse input across its transparent pixels. The same applies to WinForms `Form.TransparencyKey` (which internally configures colorkey).
+
+**`Form.TransparencyKey` also adds `WS_EX_TRANSPARENT`**: undocumented consequence — setting the property doesn't just configure color-keying, it also marks the window click-through at the hit-test layer. If you need colorkey without click-through, skip `TransparencyKey` and manually apply `WS_EX_LAYERED` via `CreateParams` override + call `SetLayeredWindowAttributes(hwnd, crKey, 0, LWA_COLORKEY)` in `OnHandleCreated`. (Though per the previous item, DWM still defeats you, so this mostly matters as documentation.)
+
+**Screenshot-backdrop pattern**: The robust way to make a fullscreen overlay look transparent while keeping hit-testing normal is to **not** use transparency at all. In the overlay constructor:
+```csharp
+var vs = SystemInformation.VirtualScreen;
+_backdrop = new Bitmap(vs.Width, vs.Height, PixelFormat.Format32bppPArgb);
+using (var g = Graphics.FromImage(_backdrop))
+{
+    g.CopyFromScreen(vs.Left, vs.Top, 0, 0, vs.Size, CopyPixelOperation.SourceCopy);
+    using var dim = new SolidBrush(Color.FromArgb(64, 0, 0, 0)); // optional "frozen" tint
+    g.FillRectangle(dim, 0, 0, _backdrop.Width, _backdrop.Height);
+}
+```
+Render the bitmap as the form's opaque background and draw the selection UI (crosshair, rectangle) on top. Trade-off: the screen appears frozen during overlay lifetime (video/animations don't update). Acceptable for most selection tools. This is what Windows Snipping Tool and most pro tools do.
+
+**BitBlt via memory DC beats `Graphics.DrawImage`**: Cache the backdrop as a device-compatible `HBITMAP` selected into a memory DC once at startup; BitBlt from it in `OnPaint`:
+```csharp
+_memDc = CreateCompatibleDC(IntPtr.Zero);
+_backdropHBitmap = _backdrop.GetHbitmap();
+_oldBitmap = SelectObject(_memDc, _backdropHBitmap);
+// In OnPaint:
+var hdc = e.Graphics.GetHdc();
+BitBlt(hdc, x, y, w, h, _memDc, x, y, SRCCOPY);
+e.Graphics.ReleaseHdc(hdc);
+```
+Per-call overhead is microseconds. `Graphics.DrawImage` from a managed `Bitmap` is ~100-500μs per call due to GDI+ marshaling — noticeable at 60+ Hz mouse rate.
+
+**Paint per-scanline of the update region, not per-`ClipRectangle`**: `e.ClipRectangle` is the **bounding rectangle** of all invalidated regions. When you invalidate two thin crosshair strips at opposite corners of the monitor, the bounding can be millions of pixels. Use `e.Graphics.Clip.GetRegionScans(new Matrix())` to get the actual rectangles making up the region and BitBlt each one separately. Critical detail: **read `Clip` before calling `GetHdc()`**. During an active HDC checkout (`GetHdc` → `ReleaseHdc`) the managed `Graphics` is locked and any property access throws `InvalidOperationException: "Object is currently in use elsewhere"`.
+
+```csharp
+var scans = e.Graphics.Clip.GetRegionScans(new Matrix());  // BEFORE GetHdc
+var hdc = e.Graphics.GetHdc();
+foreach (var s in scans) BitBlt(hdc, (int)s.X, (int)s.Y, (int)s.Width, (int)s.Height, _memDc, (int)s.X, (int)s.Y, SRCCOPY);
+e.Graphics.ReleaseHdc(hdc);
+```
+
+**Mouse capture suppresses `WM_SETCURSOR` → cursor leakage from background apps**: Per MSDN, Windows does not send `WM_SETCURSOR` while mouse input is captured. WinForms' normal `Form.Cursor` application hooks `WM_SETCURSOR`, so under capture the cursor never gets re-applied after other apps call `SetCursor`. Symptom: during drag, cursor randomly shows hourglass (from a busy background window), up-down resize arrow (from something with a resize handle under the pointer), etc. Fix: set `Cursor.Current = _cursor` at the top of every `OnMouseMove` so the cursor is re-pinned per event.
+
+**`Cursors.Cross` is a monochrome XOR cursor**: The built-in `IDC_CROSS` inverts the pixels underneath it for visibility, which renders cyan over red, white over neutral, etc. — it can look "wrong" when dragged across a colored crosshair or selection stroke. Solution: build a color cursor from an ARGB bitmap:
+```csharp
+using var bmp = new Bitmap(size, size, PixelFormat.Format32bppArgb);
+using (var g = Graphics.FromImage(bmp)) { /* draw cross in solid colors */ }
+var hIcon = bmp.GetHicon();
+GetIconInfo(hIcon, out var info);
+info.fIcon = false;
+info.xHotspot = size / 2;
+info.yHotspot = size / 2;
+var hCursor = CreateIconIndirect(ref info);
+DestroyIcon(hIcon);
+if (info.hbmMask != IntPtr.Zero) DeleteObject(info.hbmMask);
+if (info.hbmColor != IntPtr.Zero) DeleteObject(info.hbmColor);
+return new Cursor(hCursor);
+```
+`Bitmap.GetHicon()` gives an icon with hotspot (0, 0); re-cooking via `GetIconInfo` + `CreateIconIndirect` with `fIcon=false` sets the proper cursor hotspot.
+
+**`DrawLine` over complex update regions — ghost pixels at OLD strip intersections**: When you invalidate crosshair strips at both the old and new cursor positions and then `DrawLine` the full-width/full-height crosshair, the line gets clipped to the union of all invalidated strips — including the old ones. For a horizontal line at `Y = NEW_Y`, the clipping into the **old vertical strip at X = OLD_X** draws a 3-pixel horizontal segment at `(OLD_X, NEW_Y)`. The old vertical strip is then BitBlt'd clean the next frame, but a fresh ghost appears at the *new* OLD_X. Visually: a tiny cross chases the cursor down the row/column it just left. Fix: restrict the clip to just the **new** strips before `DrawLine`:
+```csharp
+var oldClip = e.Graphics.Clip;
+using var newClip = new Region(newHorizontalStrip);
+newClip.Union(newVerticalStrip);
+e.Graphics.Clip = newClip;
+e.Graphics.DrawLine(pen, ...);  // both lines
+e.Graphics.Clip = oldClip;
+oldClip.Dispose();
+```
+
+**Empirical: complex update regions smooth tracking** (mechanism unclear): A crosshair that invalidates just two thin monitor-spanning strips per cursor move can visibly "stutter" or "lag" during pre-drag tracking, even though paint completes in well under a vsync period. Adding a cursor-tracking invisible rectangle whose 4 edge-strips get invalidated on every move (even when nothing is actually drawn) smooths the motion noticeably. Best guess: the extra invalidations push the update region past a WinForms/GDI+/DWM complexity threshold where paint-pickup aligns more consistently with vsync. Don't try to derive this from first principles — just keep the invisible-rectangle trick handy for cursor-tracking overlays that feel jittery with sparse invalidations. `DwmFlush()` does **not** produce the same effect and comes with its own problems (see below).
+
+**`DwmFlush()` blocks the UI thread → cursor leakage**: Calling `DwmFlush()` after your paint to align frames to vsync blocks the thread for up to 16ms waiting for the compositor. During that block the message pump stalls, so `WM_SETCURSOR` and other queued messages pile up — and the cursor shape reverts to whatever a background window most recently set. Only use `DwmFlush` if you absolutely need vsync-aligned frame timing and have verified the pump-stall cost is acceptable for your UX.
+
+**WPF `Window.Left/Top` initial placement uses primary-monitor DPI**: When you set `Window.Left/Top` in DIPs before `Show()`, WPF converts them to physical pixels using the primary monitor's DPI for the initial placement. On non-primary-DPI monitors this causes the window to land offset. Fix: after `Show()`, pin the window to the exact physical coordinates via `SetWindowPos`:
+```csharp
+var hwnd = new WindowInteropHelper(_dialog).Handle;
+SetWindowPos(hwnd, IntPtr.Zero, physicalLeft, physicalTop, 0, 0,
+             SWP_NOSIZE | SWP_NOZORDER | SWP_NOACTIVATE);
+```
+This bypasses the WPF DIP pipeline entirely. Particularly relevant when one window places another relative to it (dialog anchored to a frame, popup anchored to a tray target, etc.) and the anchor lives on a non-primary-DPI monitor.
+
 ## Achievement Icon Resolution
 
 Steam/GBE achievement icons are 256x256 JPEG. Icon paths in `steam_settings/achievements.json` are relative to `steam_settings/` (e.g. `"icon": "img/abc123.jpg"`). Resolve with path traversal protection:

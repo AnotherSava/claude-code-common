@@ -104,12 +104,23 @@ Accuracy is ~80–90% in practice. Known misses:
 
 Both misses are symmetric and non-catastrophic — the dashboard row briefly shows the wrong state until the next turn corrects it. For higher stakes (archiving a plan file, sending a notification) either accept the ~10% failure rate or add an explicit marker from Claude.
 
+**Mitigation: configurable benign-closers list.** For the common false-positives ("What's next?", "Anything else?"), let users supply a list of closing questions that should be treated as `done` instead of `awaiting`. Match case-insensitively at the end of the last assistant text. Trades off some recall — actual blocking questions that happen to match a closer slip through — but eliminates the chronic false-positive on Claude's standard conversational ending.
+
+```python
+def last_assistant_ends_with_question(transcript_path, benign_closers=()) -> bool:
+    # ...walk transcript to get last_text...
+    if not last_text.endswith("?"):
+        return False
+    lower = last_text.lower()
+    return not any(lower.endswith(c.lower()) for c in benign_closers)
+```
+
 ### Recommended classification by hook
 
 | Hook (arg to script) | Payload signal | Emitted state | Label (if any) |
 |---|---|---|---|
 | `SessionStart` | — | `idle` | (preserve) |
-| `UserPromptSubmit` | `prompt` | `working` | first line of prompt, 60-char cap |
+| `UserPromptSubmit` | `prompt` | `working` | prompt with whitespace flattened; the renderer ellipsizes via CSS |
 | `Stop` | last assistant ends with `?` | `awaiting` | "has a question" |
 | `Stop` | last assistant does not end with `?` | `done` | (preserve) |
 | `Notification` | `notification_type == "permission_prompt"` | `awaiting` | `"needs approval: <tool>"` (parse tool name from message) |
@@ -124,6 +135,25 @@ Both misses are symmetric and non-catastrophic — the dashboard row briefly sho
 `idle_prompt` fires after Claude Code's internal idle timeout (typically ~60s). If you want to suppress transient idle states (user alt-tabbed, came back seconds later), sleep for a grace period and check whether the session transcript mtime changed in the meantime — if it did, the user re-engaged and you skip the notification. Reference: `telegram.py:36-57` uses a 60s `NOTIFICATION_DELAY` and compares `~/.claude/projects/<mangled>/*.jsonl` mtime against `time.time() - NOTIFICATION_DELAY`.
 
 This matters for loud channels (Telegram, SMS, desktop push). For silent UI state updates (a dashboard row color change) the debounce is optional.
+
+## What hooks don't observe
+
+Some session states produce no hook events at all — plan your integration around these gaps rather than expecting reliable signals:
+
+- **User pressed ESC mid-response.** Claude Code aborts the turn but fires no `Stop`, no `Notification`, no `SessionEnd`. A row that was `working` when the user cancelled stays `working` until the next deliberate input. There is no direct signal that distinguishes "actively working" from "silently cancelled."
+- **Extended thinking (silent pondering).** During long thinking blocks (the "✢ Pondering… 3m 37s" UI state), Claude Code does not write incremental thinking content to the transcript — the file is quiet for the entire duration. Transcript mtime is useless as a liveness signal here, and a naive "no activity for N seconds → stuck" timer will false-positive on legitimately thinking sessions.
+- **Window resize / focus changes / tab switches.** None of these touch the hook pipeline. Observe from outside Claude Code if you care.
+
+Recovery paths, in order of reliability:
+
+1. **Wait for the next deliberate hook event** (`UserPromptSubmit`, `Notification: idle_prompt` after Claude Code's ~60s idle timeout, or `SessionEnd`). Simplest and most reliable.
+2. **Expose a manual dismiss in the UI** for stuck rows.
+3. **Ask Claude to emit via MCP** at key moments. Expensive in context tokens; rarely worth it for state reporting.
+
+Avoid:
+
+- **Staleness timeouts** (revert to idle after N seconds of no activity). False-triggers during silent thinking and long tool runs that happen not to write intermediate tool_results. Tried and reverted.
+- **Polling the Claude Code process**. Racy and OS-specific.
 
 ## Transcript JSONL location and filename mangling
 
@@ -233,8 +263,41 @@ The `PostToolUse`/`ExitPlanMode` matcher is narrow enough that the hook doesn't 
 
 Claude Code doesn't surface hook script errors to the user by default (especially with `async: true`). If a hook isn't firing as expected, log to a disk file from the script itself — not stdout — and inspect after a test prompt. Bash/Python scripts can write a single JSON-line log.
 
+## Cross-language config access
+
+When a hook script needs to read the same config file as a desktop app built on Tauri / Electron / any other framework that writes to an OS-standard app-data directory, resolve the path the same way the host app does. Tauri's `app_data_dir()` on each platform:
+
+| OS | Path |
+|---|---|
+| Windows | `%APPDATA%\<bundle-identifier>\` (e.g. `C:\Users\<name>\AppData\Roaming\com.example.myapp\`) |
+| macOS | `~/Library/Application Support/<bundle-identifier>/` |
+| Linux | `$XDG_CONFIG_HOME/<bundle-identifier>/` — falls back to `~/.config/<bundle-identifier>/` when `XDG_CONFIG_HOME` is unset |
+
+Key point: the directory name is the **bundle identifier**, not the product name. `com.example.myapp` stays as-is — no spaces, no dots collapsed.
+
+Python equivalent that matches Tauri's resolution:
+
+```python
+import os, sys
+from pathlib import Path
+
+BUNDLE_IDENTIFIER = "com.example.myapp"
+
+def app_data_dir() -> Path:
+    if sys.platform.startswith("win"):
+        base = Path(os.environ.get("APPDATA", Path.home() / "AppData" / "Roaming"))
+    elif sys.platform == "darwin":
+        base = Path.home() / "Library" / "Application Support"
+    else:
+        xdg = os.environ.get("XDG_CONFIG_HOME")
+        base = Path(xdg) if xdg else Path.home() / ".config"
+    return base / BUNDLE_IDENTIFIER
+```
+
+If the host app watches `config.json` for external edits (via `notify` / `chokidar` / etc.) and hot-reloads on change, the watcher can self-trigger when your own code writes to the file. Mitigation: compare the freshly-read config serialization byte-for-byte against the in-memory copy and skip the reload when they match. Watch the parent directory rather than the file itself so the watcher survives atomic rewrites (editors commonly rename-into-place rather than truncating).
+
 ## Reference implementations
 
-- **Dashboard with transcript tailing + state classifier**: `D:/projects/claude-status-dashboard/integrations/claude_hook.py` (hook arg dispatcher, chat_id derivation, `?`-heuristic), `src/log-watcher.cjs` (JSONL tail + `inferState` + token usage extraction).
+- **Dashboard with transcript tailing + state classifier**: `D:/projects/tauri-dashboard/integrations/claude_hook.py` (hook arg dispatcher, chat_id derivation, `?`-heuristic with benign_closers, per-OS `app_data_dir` resolution), `src-tauri/src/log_watcher.rs` (Rust JSONL tail + `infer_state` + token usage extraction + `apply_watcher_update` upgrade-only policy). Earlier Electron predecessor — retired — lived at `D:/projects/ai-agent-dashboard/` and used `src/log-watcher.cjs`.
 - **Telegram idle notifier with debouncing**: `D:/projects/claude/claude/hooks/notifications/telegram.py` (notification_type classifier, `?`-heuristic, mtime-based activity debounce, last-prompt recall).
 - **Prompt recorder**: `D:/projects/claude/claude/hooks/notifications/record-prompt.py` (writes last user prompt to a per-project temp file so later hooks can recall it).
