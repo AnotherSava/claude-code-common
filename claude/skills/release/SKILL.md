@@ -12,7 +12,7 @@ allowed-tools: AskUserQuestion, Bash(git status --porcelain), Bash(git branch --
 - Fetch remote: !`git fetch origin main`
 - Unmerged remote commits: !`git rev-list HEAD..origin/main --count`
 - Unpushed local commits: !`git rev-list origin/main..HEAD --count`
-- Latest tag: !`git describe --tags --abbrev=0`
+- Latest tag: !`git describe --tags --abbrev=0 2>/dev/null || echo "(none)"`
 
 ## 1. Check preconditions
 
