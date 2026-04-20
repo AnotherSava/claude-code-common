@@ -216,18 +216,18 @@ When a hook command needs a path outside `~/.claude/` or this repo, reference it
 
 **Currently used env vars** — set these on a fresh machine before the corresponding hooks will work:
 
-- **`CLAUDE_AGENT_DASHBOARD`** — points to a local clone of the `ai-agent-dashboard` repo. Used by the `Notification`, `UserPromptSubmit`, `Stop`, `SessionEnd`, and `SessionStart` hooks for live session-status updates.
+- **`CLAUDE_AI_AGENT_DASHBOARD`** — points to a local clone of the `tauri-dashboard` repo. Used by the `Notification`, `UserPromptSubmit`, `Stop`, `SessionEnd`, and `SessionStart` hooks for live session-status updates.
 
 **Set on Windows** (User scope, persistent):
 
 ```powershell
-[Environment]::SetEnvironmentVariable('CLAUDE_AGENT_DASHBOARD', 'D:/projects/ai-agent-dashboard', 'User')
+[Environment]::SetEnvironmentVariable('CLAUDE_AI_AGENT_DASHBOARD', 'D:/projects/tauri-dashboard', 'User')
 ```
 
 **Set on Linux / macOS** (in your shell profile):
 
 ```bash
-export CLAUDE_AGENT_DASHBOARD="$HOME/projects/ai-agent-dashboard"
+export CLAUDE_AI_AGENT_DASHBOARD="$HOME/projects/tauri-dashboard"
 ```
 
 ---
@@ -258,8 +258,16 @@ Read `~/.claude/learnings/chrome-extension.md` for domain-specific patterns.
 
 | File | Domain |
 |---|---|
+| `autohotkey.md` | AutoHotkey v2 patterns (hotkeys, clipboard, folder watchers, tray scripts) |
 | `chrome-extension.md` | Chrome extensions (Manifest V3, Vite, side panel, service workers) |
+| `claude-code-integration.md` | Observing Claude Code sessions (hooks, transcript JSONL, state classification) |
+| `css-layout-gotchas.md` | Non-obvious CSS grid/flex/overflow behaviors in dashboard UIs |
 | `dotnet-tray-app.md` | .NET Windows tray apps (WinForms/WPF, config, overlay, CI/CD) |
+| `electron-windows-launcher.md` | Silent Electron launch on Windows (Startup folder, hidden BrowserWindow) |
+| `git-line-endings.md` | CRLF/LF handling on cross-platform repos (`.gitattributes`, normalization) |
+| `shell-environment.md` | Shell config across bash/zsh/WSL (common functions, PATH, verification) |
+| `skill-context-evaluator.md` | Constraints of the `!` backtick preprocessor in SKILL.md Context sections |
+| `windows-terminal-title.md` | Why per-tab title manipulation from Claude Code hooks isn't feasible on WT |
 
 ---
 

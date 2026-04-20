@@ -37,7 +37,7 @@
         "hooks": [
           {
             "type": "command",
-            "command": "python3 \"$CLAUDE_AGENT_DASHBOARD/integrations/claude_hook.py\" idle",
+            "command": "python3 \"$CLAUDE_AI_AGENT_DASHBOARD/integrations/claude_hook.py\" idle",
             "async": true
           }
         ]
@@ -66,7 +66,7 @@
         "hooks": [
           {
             "type": "command",
-            "command": "python3 \"$CLAUDE_AGENT_DASHBOARD/integrations/claude_hook.py\" working",
+            "command": "python3 \"$CLAUDE_AI_AGENT_DASHBOARD/integrations/claude_hook.py\" working",
             "async": true
           }
         ]
@@ -77,7 +77,7 @@
         "hooks": [
           {
             "type": "command",
-            "command": "python3 \"$CLAUDE_AGENT_DASHBOARD/integrations/claude_hook.py\" done",
+            "command": "python3 \"$CLAUDE_AI_AGENT_DASHBOARD/integrations/claude_hook.py\" done",
             "async": true
           }
         ]
@@ -88,7 +88,7 @@
         "hooks": [
           {
             "type": "command",
-            "command": "python3 \"$CLAUDE_AGENT_DASHBOARD/integrations/claude_hook.py\" clear",
+            "command": "python3 \"$CLAUDE_AI_AGENT_DASHBOARD/integrations/claude_hook.py\" clear",
             "async": true
           }
         ]
@@ -99,7 +99,7 @@
         "hooks": [
           {
             "type": "command",
-            "command": "python3 \"$CLAUDE_AGENT_DASHBOARD/integrations/claude_hook.py\" idle",
+            "command": "python3 \"$CLAUDE_AI_AGENT_DASHBOARD/integrations/claude_hook.py\" idle",
             "async": true
           }
         ]
