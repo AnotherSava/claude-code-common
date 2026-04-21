@@ -20,6 +20,7 @@ See ~/.claude/learnings/claude-code-integration.md for the classification
 rationale (done vs awaiting, the ?-heuristic, notification_type values).
 """
 import json
+import re
 import shutil
 import sys
 import time
@@ -70,6 +71,40 @@ def last_assistant_ends_with_question(transcript_path) -> bool:
         return False
 
 
+def slugify(text: str) -> str:
+    """Kebab-case ASCII slug, capped at 60 chars."""
+    text = re.sub(r"[`*\"']", "", text)
+    slug = re.sub(r"[^a-zA-Z0-9]+", "-", text).strip("-").lower()
+    if len(slug) > 60:
+        slug = slug[:60].rstrip("-")
+    return slug
+
+
+def derive_slug_from_content(plan_path: Path) -> str | None:
+    """Return a slug from the plan's first H1 heading, or None.
+
+    Skips fenced code blocks so `# foo` inside ``` isn't mistaken for a title.
+    """
+    try:
+        in_fence = False
+        with plan_path.open("r", encoding="utf-8") as f:
+            for line in f:
+                stripped = line.strip()
+                if stripped.startswith("```"):
+                    in_fence = not in_fence
+                    continue
+                if in_fence:
+                    continue
+                if stripped.startswith("# ") and not stripped.startswith("## "):
+                    title = stripped[2:].strip()
+                    if title:
+                        s = slugify(title)
+                        return s or None
+    except OSError:
+        return None
+    return None
+
+
 def find_recent_plan() -> Path | None:
     """Return the most recently modified .md in ~/.claude/plans/ within the window, else None."""
     if not PLANS_DIR.exists():
@@ -104,7 +139,8 @@ def start(payload: dict) -> None:
     except OSError as e:
         log("start_mkdir_error", target=str(target_dir), error=str(e))
         return
-    target = target_dir / f"{timestamp()}_{plan.name}"
+    slug = derive_slug_from_content(plan) or plan.stem
+    target = target_dir / f"{timestamp()}_{slug}.md"
     try:
         shutil.move(str(plan), str(target))
         log("start_moved", src=str(plan), dst=str(target))
