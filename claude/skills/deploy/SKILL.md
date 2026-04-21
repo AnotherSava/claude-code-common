@@ -13,7 +13,9 @@ See `~/.claude/learnings/shell-environment.md` for the expected bash functions a
 - Wrapper target: !`grep -oE 'deploy(-[a-z]+)?\.sh' scripts/deploy.sh 2>/dev/null | tail -1 || echo none`
 - Scripts in gitignore: !`grep -cx 'scripts/' .gitignore 2>/dev/null || echo 0`
 - Deploy env: !`cat config/deploy.env 2>/dev/null || echo MISSING`
+- Deploy env has CONFIG_DEST: !`grep -c '^CONFIG_DEST=' config/deploy.env 2>/dev/null || echo 0`
 - Tauri project: !`test -f src-tauri/tauri.conf.json && echo yes || echo no`
+- Tauri identifier: !`sed -n 's/.*"identifier"[[:space:]]*:[[:space:]]*"\([^"]*\)".*/\1/p' src-tauri/tauri.conf.json 2>/dev/null | head -1 || echo none`
 - .NET project: !`ls src/*.csproj 2>/dev/null | grep -q . && echo yes || echo no`
 
 ## 1. Detect project type
@@ -35,7 +37,8 @@ If both are yes (mixed repo), ask the user which one to deploy — do not guess.
    ```bash
    deploy() { if [ -f scripts/deploy.sh ]; then bash scripts/deploy.sh "$@"; else echo "No scripts/deploy.sh in current directory"; fi; }
    ```
-2. If **Deploy env** is MISSING, ask the user where to install (default: `C:/Programs/<project-folder-name>`) and create `config/deploy.env` with `INSTALL_DIR=<their answer>`
+2. If **Deploy env** is MISSING, ask the user where to install (default: `C:/Programs/<project-folder-name>`) and create `config/deploy.env` with `INSTALL_DIR=<their answer>`. If the project is **Tauri**, also ask where to deploy the `config/local.json` override at runtime (default: `%APPDATA%/<Tauri identifier>/config.json` — substitute the identifier read from `src-tauri/tauri.conf.json`; use forward slashes to match the `INSTALL_DIR` convention and avoid bash escape-sequence issues) and append `CONFIG_DEST=<their answer>` to `config/deploy.env`. This is the path the app actually reads (`app_data_dir()`), not the install dir.
+3. If **Deploy env** is present, the project is **Tauri**, and **Deploy env has CONFIG_DEST** is 0, ask the user for `CONFIG_DEST` with the same default and append it to `config/deploy.env`
 
 ## 3. Set up quick deploy shortcut
 

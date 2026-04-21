@@ -13,15 +13,23 @@ START=${1:-1}
 REPO_DIR="$(pwd)"
 DEPLOY_ENV="$REPO_DIR/config/deploy.env"
 
-# Read install dir from deploy.env
+# Read settings from deploy.env
 if [ -f "$DEPLOY_ENV" ]; then
     INSTALL_DIR=$(grep '^INSTALL_DIR=' "$DEPLOY_ENV" | cut -d= -f2-)
+    CONFIG_DEST=$(grep '^CONFIG_DEST=' "$DEPLOY_ENV" | cut -d= -f2-)
 fi
 
 if [ -z "$INSTALL_DIR" ]; then
     echo "ERROR: No INSTALL_DIR found in config/deploy.env"
     echo "Create config/deploy.env with: INSTALL_DIR=C:/Programs/your-app"
     exit 1
+fi
+
+# Expand %APPDATA% (and ${APPDATA}) to the runtime value so users can author a
+# portable CONFIG_DEST without hardcoding per-machine paths.
+if [ -n "$CONFIG_DEST" ]; then
+    CONFIG_DEST="${CONFIG_DEST//%APPDATA%/$APPDATA}"
+    CONFIG_DEST="${CONFIG_DEST//\$\{APPDATA\}/$APPDATA}"
 fi
 
 TAURI_CONF="$REPO_DIR/src-tauri/tauri.conf.json"
@@ -71,8 +79,14 @@ mkdir -p "$INSTALL_DIR"
 rm -f "$INSTALL_DIR/$BIN_NAME.exe"
 cp -f "$BUILT_EXE" "$INSTALL_DIR/"
 if [ -f "$REPO_DIR/config/local.json" ]; then
-    echo "  Applying config/local.json override..."
-    cp -f "$REPO_DIR/config/local.json" "$INSTALL_DIR/config.json"
+    if [ -n "$CONFIG_DEST" ]; then
+        mkdir -p "$(dirname "$CONFIG_DEST")"
+        cp -f "$REPO_DIR/config/local.json" "$CONFIG_DEST"
+        echo "  Applied config/local.json to $CONFIG_DEST"
+    else
+        echo "  WARNING: config/local.json exists but CONFIG_DEST is not set in config/deploy.env."
+        echo "           The override was not deployed. Re-run the deploy skill to configure CONFIG_DEST."
+    fi
 fi
 echo "Done."
 
