@@ -36,6 +36,10 @@ When asking the user to run a command manually (e.g. launching an app, system co
 - Leave an empty line at the end of every file
 - Prefer single-line expressions over multi-line formatting, even if they're long. **Exception**: multi-line is acceptable when calling functions/constructors with all named parameters.
 
+### UI Text Casing
+
+Default to sentence case for user-facing UI strings (menu items, buttons, dialog titles, tooltips, notifications). Capitalize only the first word and proper nouns/acronyms. Examples: "Open config file", "Hide with Esc", "Start with Windows". See `~/.claude/memory/feedback_sentence_case_ui.md` for rationale and edge cases.
+
 ### Explicit State
 
 Use a dedicated field or variable for object state rather than overloading another field's values (e.g., using `internalDate === 0` as a "deleted" sentinel). A simple null/non-null check is fine, but anything beyond that should be an explicit status field.

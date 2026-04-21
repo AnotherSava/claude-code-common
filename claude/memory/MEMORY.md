@@ -9,3 +9,7 @@
 - [Claude dotfiles repo (D:/projects/claude)](reference_claude_dotfiles_repo.md) — ~/.claude/ + global git files symlinked from a shared repo; edits are version-controlled there
 - [Verify Node/platform fixes against official docs](feedback_verify_node_platform_docs.md) — check DEP list + child_process docs before defaulting to Stack Overflow workarounds
 - [Per-project plugin scoping](feedback_per_project_plugin_scoping.md) — globally enabled plugins bloat every session's context; prefer project-local settings for niche plugins
+- [Verify unpushed before rewriting history](feedback_verify_unpushed_before_rewrite.md) — check `git log @{upstream}..HEAD` before amending non-HEAD or rebasing; don't conflate "I have unpushed commits" with "recent history is rewritable"
+- [UI text sentence case](feedback_sentence_case_ui.md) — default to sentence case for user-facing UI labels; reserve Title Case for proper nouns and acronyms
+- [Pixel-precise CSS segmented bars](feedback_pixel_precise_css_segments.md) — repeating linear-gradient + overlay .fill div auto-retiles on resize with zero JS
+- [Tauri drag regions don't propagate through overlapping children](feedback_tauri_drag_region_stacking.md) — absolute-positioned overlays intercept drag unless tagged or pointer-events:none
