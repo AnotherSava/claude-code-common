@@ -91,3 +91,21 @@ const available = container.clientWidth
 const labelWidth = ctx.measureText(text).width;
 const fits = labelWidth <= available;
 ```
+
+## CSS Grid `1fr` + `gap` rounds per track, producing uneven widths
+
+`grid-template-columns: repeat(N, 1fr)` with `gap: 1px` tells the browser to distribute `(W - (N-1)px)` across N equal tracks. If that doesn't divide evenly (most of the time), the browser rounds each track independently — some `floor`, some `ceil`. Visible result: tracks with consistently 1 px gaps but inconsistently-sized colored widths.
+
+Using explicit `calc()` as the track template — `repeat(N, calc((100% - (N-1)px) / N))` — doesn't help. Same per-track rounding, same uneven output. Flex with `flex: 1 1 0` on each child also rounds per-child.
+
+**Fix for segmented bars:** render a single `repeating-linear-gradient` on one element rather than N grid/flex children. The gradient paints at sub-pixel precision from one definition, so all tiles are byte-identical. See `~/.claude/memory/feedback_pixel_precise_css_segments.md` for the formula.
+
+**When to accept the rounding:** if segments are wide (≥ 20 px) and the visual is dense enough that per-track ±1 px is imperceptible, `1fr` is fine. Thin segments (< 10 px) make the unevenness obvious.
+
+## `min-width` includes padding under `box-sizing: border-box`
+
+With `box-sizing: border-box` (set globally in most modern apps), `min-width` sets the *border-box* floor, not the content-box. If the element has horizontal padding, `min-width: 4ch` gives `4ch` of total border-box width and only `4ch - 2*padding` of content area — not enough to hold 4 monospace characters of text.
+
+**Symptom:** caps/labels with a `min-width` in `ch` units appear to "ignore" their floor whenever their text grows past `min-width - 2*padding`, because content overflows the padded content area and expands the border box past the floor. Two elements with the same `min-width` but different text lengths end up different widths.
+
+**Fix:** include the horizontal padding in the min-width, e.g. `min-width: calc(4ch + 10px)` for an element with `padding: 0 5px`. Or scope `box-sizing: content-box` to just that element if you want `min-width` to mean "content area min".
