@@ -14,12 +14,17 @@ Read this before creating or modifying any skill. These conventions ensure skill
 ```
 skills/<skill-name>/
 ├── SKILL.md          # Entry point (required)
-└── scripts/          # Helper scripts (optional)
+├── scripts/          # Helper scripts (optional)
+└── references/       # Reference docs cited from SKILL.md (optional)
 ```
 
 - Entry point is always `SKILL.md`
 - Place in `~/.claude/skills/` for global skills, `.claude/skills/` for project-local
 - Shared resources go in `~/.claude/skills/shared/`
+
+## Addressing Claude project data (per-project memory, sessions, etc.)
+
+If your skill needs to read or write anything under `~/.claude/projects/<project-id>/` — most commonly a project's memory directory — see `~/.claude/skills/skill/references/claude-project-memory-paths.md`. It documents the path mangling rule, the cross-platform CWD recipe, and the common gotchas. Cite that file from your skill rather than re-deriving the algorithm.
 
 ## Frontmatter
 
@@ -64,6 +69,23 @@ Don't duplicate conventions that exist in shared files. Reference them:
 Read `~/.claude/skills/shared/bash-rules.md` for bash command constraints.
 Read `~/.claude/skills/shared/commit-message-rules.md` for commit message formatting.
 ```
+
+### Extract optional depth into `references/`
+
+SKILL.md should carry only what every invocation needs. Deep, situational, or rarely-touched knowledge belongs in `references/<topic>.md` with a short pointer from SKILL.md describing *when* to consult it. The model reads the reference on demand, so the entry point stays lean and the detail loads only when relevant.
+
+Good candidates for extraction:
+- Recipes used by only a minority of invocations (e.g. a complex error-recovery flow, an uncommon platform variation)
+- Long tables, example matrices, or edge-case catalogs
+- Background rationale that helps when something goes wrong but isn't needed on the happy path
+- Cross-skill knowledge where SKILL.md-level duplication would drift (the "Addressing Claude project data" section below is an example — most skills don't need path mangling, so it lives in `references/claude-project-memory-paths.md`)
+
+Pointer style — cite with enough context that the model knows when to follow the link:
+```
+If <condition>, see `references/<topic>.md` for <what it covers>.
+```
+
+Keep it a one-liner in SKILL.md; the reference carries the depth.
 
 ### Always confirm before destructive actions
 
