@@ -45,14 +45,6 @@ build()  { if [ -f scripts/build.sh ]; then bash scripts/build.sh "$@"; else ech
 
 Use `! deploy` or `! build` inside Claude Code, or run directly in any terminal. Each project has a `scripts/deploy.sh` and/or `scripts/build.sh` (gitignored) that delegates to the global script in the corresponding skill directory.
 
-### `notify` — Telegram notification wrapper
-
-```bash
-notify() { "$@"; local rc=$?; python3 ~/.claude/hooks/notifications/telegram.py "$([ $rc -eq 0 ] && echo '✅' || echo '❌') $*"; return $rc; }
-```
-
-Wraps any command and sends a Telegram notification on completion. Uses credentials from `~/.claude/hooks/notifications/.env`. Example: `notify npm run build`.
-
 ## PowerShell `claude` wrapper
 
 ```powershell

@@ -180,32 +180,6 @@ Force-updates the plannotator plugin by clearing stale caches and reinstalling.
 
 ## Hooks
 
-### Telegram Notification
-
-Sends a Telegram message when Claude Code needs attention and the user hasn't interacted for 60 seconds. Distinguishes between notification types so you know whether to context-switch back.
-
-**Location:** `claude/hooks/notifications/telegram.py`
-
-**Notification types:**
-- **Done** — Claude finished the task (last assistant message is a statement). Includes a snippet of the original prompt for context.
-- **Has a question** — Claude finished but is waiting for your answer (last assistant message ends with `?`). Includes a snippet of the original prompt.
-- **Needs approval: \<tool\>** — Claude needs permission to use a specific tool (e.g. `Bash`, `Edit`).
-- **Fallback** — plan approval or unknown notification types are forwarded as-is.
-
-**How it works:**
-- `Notification` hook fires when Claude stops, waits 60 seconds, then checks the session log mtime to detect any user interaction (prompts, tool approvals, etc.) — if idle, formats the notification based on the `notification_type` field in the hook payload
-- For `idle_prompt` notifications, reads the last assistant message from the session transcript to determine if Claude finished (statement) or is asking a question (`?`)
-- `UserPromptSubmit` hook saves the prompt text (for display in notifications) and auto-deletes all pending notifications when the user returns
-
-**Setup:** Create `claude/hooks/notifications/.env` with:
-
-```
-TELEGRAM_BOT_TOKEN=...
-TELEGRAM_CHAT_ID=...
-```
-
----
-
 ### External Hook Paths
 
 When a hook command needs a path outside `~/.claude/` or this repo, reference it via a `CLAUDE_<NAME>` user-scope environment variable instead of hardcoding the absolute path. The hook `command` field is executed via shell, so standard `$VAR` expansion works — the same mechanism that already makes `$HOME/.claude/hooks/...` portable across machines.

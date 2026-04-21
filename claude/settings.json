@@ -28,15 +28,6 @@
         "hooks": [
           {
             "type": "command",
-            "command": "python3 \"$HOME/.claude/hooks/notifications/telegram.py\"",
-            "async": true
-          }
-        ]
-      },
-      {
-        "hooks": [
-          {
-            "type": "command",
             "command": "python3 \"$CLAUDE_AI_AGENT_DASHBOARD/integrations/claude_hook.py\" idle",
             "async": true
           }
@@ -53,15 +44,6 @@
       }
     ],
     "UserPromptSubmit": [
-      {
-        "hooks": [
-          {
-            "type": "command",
-            "command": "python3 \"$HOME/.claude/hooks/notifications/record-prompt.py\"",
-            "async": true
-          }
-        ]
-      },
       {
         "hooks": [
           {

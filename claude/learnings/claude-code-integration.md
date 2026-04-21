@@ -108,7 +108,7 @@ def last_assistant_ends_with_question(transcript_path: str) -> bool:
     return last_text.endswith("?")
 ```
 
-Reference implementation: `D:/projects/claude/claude/hooks/notifications/telegram.py:83-101`.
+Reference implementation: `D:/projects/tauri-dashboard/integrations/claude_hook.py` — see the `classify` function and the `benign_closers`-aware variant below.
 
 Accuracy is ~80–90% in practice. Known misses:
 - "Anything else?" at the end of a true completion → false `awaiting`.
@@ -144,7 +144,7 @@ def last_assistant_ends_with_question(transcript_path, benign_closers=()) -> boo
 
 ### Notification debouncing
 
-`idle_prompt` fires after Claude Code's internal idle timeout (typically ~60s). If you want to suppress transient idle states (user alt-tabbed, came back seconds later), sleep for a grace period and check whether the session transcript mtime changed in the meantime — if it did, the user re-engaged and you skip the notification. Reference: `telegram.py:36-57` uses a 60s `NOTIFICATION_DELAY` and compares `~/.claude/projects/<mangled>/*.jsonl` mtime against `time.time() - NOTIFICATION_DELAY`.
+`idle_prompt` fires after Claude Code's internal idle timeout (typically ~60s). If you want to suppress transient idle states (user alt-tabbed, came back seconds later), either (a) sleep for a grace period and check whether the session transcript mtime changed in the meantime — if it did, the user re-engaged and you skip the notification; or (b) have the host app already track a per-session `state_entered_at` timestamp and gate notifications on `now - state_entered_at >= threshold`, which sidesteps the mtime race entirely. The tauri-dashboard takes approach (b) — see `src-tauri/src/notifications.rs` and `src-tauri/src/state.rs`.
 
 This matters for loud channels (Telegram, SMS, desktop push). For silent UI state updates (a dashboard row color change) the debounce is optional.
 
@@ -350,5 +350,4 @@ If the host app watches `config.json` for external edits (via `notify` / `chokid
 ## Reference implementations
 
 - **Dashboard with transcript tailing + state classifier**: `D:/projects/tauri-dashboard/integrations/claude_hook.py` (hook arg dispatcher, chat_id derivation, `?`-heuristic with benign_closers, per-OS `app_data_dir` resolution), `src-tauri/src/log_watcher.rs` (Rust JSONL tail + `infer_state` + token usage extraction + `apply_watcher_update` upgrade-only policy). Earlier Electron predecessor — retired — lived at `D:/projects/ai-agent-dashboard/` and used `src/log-watcher.cjs`.
-- **Telegram idle notifier with debouncing**: `D:/projects/claude/claude/hooks/notifications/telegram.py` (notification_type classifier, `?`-heuristic, mtime-based activity debounce, last-prompt recall).
-- **Prompt recorder**: `D:/projects/claude/claude/hooks/notifications/record-prompt.py` (writes last user prompt to a per-project temp file so later hooks can recall it).
+- **Telegram idle notifier with per-state thresholds**: `D:/projects/tauri-dashboard/src-tauri/src/notifications.rs` (1s reconcile loop, per-notifier `Outstanding` map keyed by session id, dismiss-on-state-change) + `src-tauri/src/telegram.rs` (`sendMessage` / `deleteMessage`, credential-change detection). Folds into the dashboard's existing state machine so there's no duplicate activity tracking.
