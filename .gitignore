@@ -19,4 +19,3 @@ claude/skills/*
 !claude/skills/reset/
 !claude/skills/shared/
 !claude/skills/skill/
-!claude/skills/track-achievements/
