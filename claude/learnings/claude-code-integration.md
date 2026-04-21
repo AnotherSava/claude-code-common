@@ -54,6 +54,18 @@ Each hook receives a JSON payload on stdin. Common fields:
 
 **Race to be aware of:** on `SessionStart` the transcript file may not exist yet — Claude Code creates it lazily when the first conversational entry is written. Treat `ENOENT` on `transcript_path` as a benign log-only event. The next hook call (`UserPromptSubmit`) will arrive after the file exists.
 
+### UTF-8 stdin on Windows
+
+Claude Code sends JSON payloads as UTF-8 bytes, but Python on Windows decodes stdin with the system codepage (e.g. cp1251), mangling non-ASCII chars (emoji, `⎿`, CJK) into mojibake *before* your hook's logic runs. Content-layer sanitizers won't catch it because the original character is already gone. Fix at the top of the script:
+
+```python
+sys.stdin.reconfigure(encoding='utf-8', errors='replace')
+```
+
+Or read raw bytes: `json.loads(sys.stdin.buffer.read().decode('utf-8'))`.
+
+Diagnostic: three Cyrillic chars like `вЋї` in your output are usually the UTF-8 bytes of a single Unicode char (`E2 8E BF` = `⎿` U+23BF) decoded as cp1251. If you see them, suspect stdin encoding — not missing sanitization.
+
 ## Classifying session state: done vs awaiting vs idle
 
 The single most common integration mistake is treating `Stop` as "Claude completed the request." It doesn't — `Stop` fires at the end of **every assistant turn**, which includes:
@@ -230,6 +242,45 @@ For projects that also register an MCP server:
 - **Chat ID locking**: lock the first `chat_id` passed to `set_status` and reuse it for the rest of the process — don't let Claude accidentally spawn multiple dashboard entries.
 - **Error surfacing**: the MCP `tool` response must not surface errors about downstream failures (a missing widget, network blip, etc.) — that creates noise in Claude's reasoning. Log to a disk file instead. Return success on any fire-and-forget outcome.
 - **Session ID from env**: Claude Code may expose `session_id` to the MCP server via env var; check `process.env` before falling back to the locked-chat-id approach.
+
+## Plugin mechanics (patching third-party plugins)
+
+Claude Code plugins have a separate `.claude-plugin/plugin.json` manifest that is distinct from the repo's `package.json`. Two gotchas when diagnosing or patching a plugin:
+
+### Plugin version ≠ npm package version
+
+The plugin's cache dir under `~/.claude/plugins/cache/<marketplace>/<plugin>/<version>/` uses the version from `.claude-plugin/plugin.json`, not from `package.json`. A plugin like `claude-mermaid` may have `plugin.json.version = "1.2.0"` while its `package.json.version = "1.6.2"` — the cache dir is correctly named `1.2.0` and `installed_plugins.json` records `1.2.0`. They're two parallel release streams. Don't assume a `package.json` bump ahead of the plugin dir name indicates drift.
+
+### `mcpServers` in plugin.json usually don't run from the cache copy
+
+A plugin that declares its MCP server as
+
+```json
+"mcpServers": { "mermaid": { "command": "npx", "args": ["-y", "claude-mermaid"] } }
+```
+
+launches via `npx -y <pkg>`, which fetches the **npm-published** package into npm's `_npx` cache (on Windows: `%LOCALAPPDATA%\npm-cache\_npx\<hash>\node_modules\<pkg>\`) and runs from there. Claude Code never executes the source in `~/.claude/plugins/cache/...` for these plugins. To patch a bug, edit the file in `_npx/<hash>/node_modules/<pkg>/build/*.js`, not the Claude plugin cache. The `<hash>` is stable across re-runs of the same version but rotates on any version bump — so local patches survive re-runs but not upgrades.
+
+A plugin whose `command` points at a bundled script (e.g. `"command": "node", "args": ["build/index.js"]` with a relative path) *does* run from the Claude plugin cache. Inspect `plugin.json` first to know which regime applies.
+
+### Windows `execFile("npx", ...)` failure chain
+
+On Windows, three ways to spawn `npx` from Node fail — in different ways:
+
+1. `execFile("npx", args)` — fails with `spawn npx ENOENT`. Node's `execFile` (unlike `exec`) does not resolve `.cmd` shims, and `npx` is installed as `npx.cmd` on Windows.
+2. `execFile("npx.cmd", args)` — fails with `spawn npx.cmd EINVAL` on recent Node versions. CVE-2024-27980 hardening refuses direct `.cmd` spawn.
+3. `execFile("npx", args, { shell: true })` — works, but emits [DEP0190](https://nodejs.org/api/deprecations.html) on Node 24+ because arguments are concatenated without escaping (shell-injection risk).
+
+The Node-documented canonical pattern is to spawn `cmd.exe` explicitly with `/c` — see [Spawning .bat and .cmd files on Windows](https://nodejs.org/api/child_process.html#spawning-bat-and-cmd-files-on-windows):
+
+```js
+const isWin = process.platform === "win32";
+const cmd = isWin ? "cmd.exe" : "npx";
+const finalArgs = isWin ? ["/c", "npx", ...args] : args;
+const { stdout } = await execFileAsync(cmd, finalArgs);
+```
+
+Seen in `claude-mermaid` 1.6.2 — fix submitted upstream at [veelenga/claude-mermaid#117](https://github.com/veelenga/claude-mermaid/pull/117).
 
 ## Renderer-facing gotchas
 
