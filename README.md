@@ -108,7 +108,7 @@ Scans project documentation for stale references and fixes them.
 
 ### Deploy
 
-Configures the deployment pipeline for a .NET project and runs it. On first use in a project, sets up the `deploy` bash function, creates a local `scripts/deploy.sh` wrapper, and updates `.gitignore`. Then builds, deploys to the install directory, and verifies the app starts.
+Configures the deployment pipeline for a supported project (.NET, Tauri, or IntelliJ plugin) and runs it. On first use in a project, sets up the `deploy` bash function, creates a local `scripts/deploy.sh` wrapper, and updates `.gitignore`. Then builds, deploys to the install directory, and verifies the app starts.
 
 **Command:** `/deploy`
 
