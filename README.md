@@ -106,6 +106,20 @@ Scans project documentation for stale references and fixes them.
 
 ---
 
+### GitHub Pages Layout
+
+Arranges a project's README and GitHub Pages docs into a consistent user-first layout — short README that links out, Jekyll site with a user-facing index, one page per user-facing feature, and exactly one developer page.
+
+**Command:** `/github-pages`
+
+**Features:**
+- Enforces single-source-of-truth docs on GH Pages so the README stays under a screen
+- Separates user-facing pages from the one developer entry-point page (`development.md`)
+- Supports flat and monorepo variants with consistent navigation and screenshots
+- Aligns new repos to the shape of existing reference implementations
+
+---
+
 ### Deploy
 
 Configures the deployment pipeline for a supported project (.NET, Tauri, or IntelliJ plugin) and runs it. On first use in a project, sets up the `deploy` bash function, creates a local `scripts/deploy.sh` wrapper, and updates `.gitignore`. Then builds, deploys to the install directory, and verifies the app starts.
@@ -162,6 +176,20 @@ Generates or updates a data-flow architecture document (`docs/data-flow.md`).
 - Produces step-by-step flow diagrams with data transition annotations
 - Generates message/API protocol tables for all message types and endpoints
 - Follows strict formatting rules for consistency across updates
+
+---
+
+### Reflect
+
+Extracts durable knowledge from the current conversation and persists it to long-term memory before `/clear` or context compaction wipes it.
+
+**Command:** `/reflect`
+
+**Features:**
+- Scans the conversation for feedback, project context, user profile, and external reference pointers
+- Writes new memories or updates existing ones in global or project-scoped memory dirs
+- Flags candidate skill updates and learnings worth distilling
+- Falls back to direct file reads when the gather-context helper is blocked by permissions
 
 ---
 

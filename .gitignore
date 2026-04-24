@@ -9,12 +9,14 @@ claude/skills/*
 !claude/skills/deploy/
 !claude/skills/document-data-flow/
 !claude/skills/documentation/
+!claude/skills/github-pages/
 !claude/skills/move-project/
 !claude/skills/plan-ralphex/
 !claude/skills/plannotator-update/
 !claude/skills/pr-create/
 !claude/skills/pr-merge/
 !claude/skills/pr-prepare/
+!claude/skills/reflect/
 !claude/skills/release/
 !claude/skills/reset/
 !claude/skills/shared/
