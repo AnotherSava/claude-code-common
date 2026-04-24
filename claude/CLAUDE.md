@@ -22,6 +22,7 @@ Do not add logic, data structures, classes, or exports to production code that e
 - Do not create git commits unless explicitly asked
 - Do not push to remote unless explicitly requested
 - Follow `~/.claude/skills/shared/commit-message-rules.md`
+- Prefer `git status --short` over `git diff --stat` for change-set summaries. Changes sit unstaged until `/commit` runs, so untracked files are part of the pending commit — and `git diff --stat` silently omits them, producing an incomplete picture.
 
 ## Windows Bash Commands
 
