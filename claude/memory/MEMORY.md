@@ -13,3 +13,4 @@
 - [UI text sentence case](feedback_sentence_case_ui.md) — default to sentence case for user-facing UI labels; reserve Title Case for proper nouns and acronyms
 - [Pixel-precise CSS segmented bars](feedback_pixel_precise_css_segments.md) — repeating linear-gradient + overlay .fill div auto-retiles on resize with zero JS
 - [Tauri drag regions don't propagate through overlapping children](feedback_tauri_drag_region_stacking.md) — absolute-positioned overlays intercept drag unless tagged or pointer-events:none
+- [Warp cursor on drag clamp](feedback_drag_clamp_cursor_warp.md) — when a clamp pulls a drag-tracked element back, warp the cursor too to avoid an overshoot dead zone
