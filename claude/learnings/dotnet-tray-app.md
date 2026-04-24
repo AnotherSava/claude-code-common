@@ -392,6 +392,28 @@ MouseLeftButtonDown += (s, e) => {
 ```
 Guard on `OriginalSource` type so clicks on `TextBox`/`Button` aren't hijacked for drag. Labels (`TextBlock`), background `Border`, `Grid`, and the `Window` itself become drag regions; interactive controls work normally.
 
+**`DragMove()` anchors on mouse-down position, not `GetCursorPos()` — warping the cursor before `DragMove` causes a first-tick composite shift**: WPF's `Window.DragMove()` sends `WM_SYSCOMMAND(SC_MOVE, 0)`. The default modal move loop captures its anchor from the mouse-message queue's last-known cursor position — which is the *mouse-down* position, not the live cursor. If you call `SetCursorPos` to warp the drag grip before `DragMove`, the loop applies an initial delta of `(warped − original)` on the first tick, sliding the window in the warp direction. Sending `WM_NCLBUTTONDOWN` directly with an explicit `MAKELPARAM(x, y)` as lParam doesn't override it either — the anchor still comes from the mouse queue. To warp the cursor and drag without a shift, bypass `DragMove` entirely:
+```csharp
+// On MouseLeftButtonDown:
+_anchorOffsetX = warpX - currentWindowScreenX;  // in physical px
+_anchorOffsetY = warpY - currentWindowScreenY;
+SetCursorPos(warpX, warpY);
+CaptureMouse();
+
+// PreviewMouseMove (while captured):
+GetCursorPos(out var pt);
+Left = (pt.X - _anchorOffsetX) / dpi;
+Top = (pt.Y - _anchorOffsetY) / dpi;
+
+// PreviewMouseLeftButtonUp / LostMouseCapture:
+if (IsMouseCaptured) ReleaseMouseCapture();
+```
+This also lets you hide the window (`Opacity = 0`) during drag while `LocationChanged` keeps firing — use `Opacity`, not `Hide()` / `Visibility.Hidden`, both of which call `ShowWindow(SW_HIDE)` and break the capture.
+
+**`Opacity < 1` on a WPF `Window` requires `AllowsTransparency="True"` — otherwise the window renders as a black rectangle**. `WindowStyle="None"` is a prerequisite for `AllowsTransparency`. The fallback-to-black is because WPF can't composite partial opacity against Windows' normal chrome. Enabling `AllowsTransparency` has a known cost: ClearType is disabled (text falls back to grayscale antialiasing), and the window goes through `UpdateLayeredWindow` software composition instead of GDI. Fine for small dialogs; measurable at large sizes. See the overlay-perf-trap note above for when **not** to use it just as a general default.
+
+**`Mouse.OverrideCursor = Cursors.None` lags visible update — use Win32 `ShowCursor(false)` before `SetCursorPos` for instant hide**: `OverrideCursor` internally calls `SetCursor(NULL)`, but Windows only re-evaluates the *displayed* cursor on the next `WM_SETCURSOR` message — which is triggered by `SetCursorPos` itself. So warping the cursor right after setting `OverrideCursor` still flashes the old cursor along the warp path before the override takes effect. Remedy: `ShowCursor(false)` forces the per-process display counter below zero immediately. Balance with `ShowCursor(true)` at the end (the counter is paired, not toggled). Use both together for belt-and-suspenders — `ShowCursor` for instant hide, `OverrideCursor = None` so any cursor-changing hit-tests during the drag stay hidden.
+
 **Bottom-pivot resize for sizing-frame tools**: When the user adjusts frame dimensions and the dialog is anchored to a specific corner, make dimension changes pivot at that corner. E.g., dialog flush below frame → compute `interiorTop = dialog.Top - interiorHeight - borderThickness` on every sync. Width changes pivot at left, height changes pivot at bottom. This keeps the dialog's tether point stable during resize.
 
 **WPF `KeyEventArgs` / `MouseButtonEventArgs` ambiguity in hybrid apps**: With both `UseWindowsForms` and `UseWPF` enabled, `KeyEventArgs` and `MouseButtonEventArgs` types are ambiguous between the two namespaces. Either fully qualify (`System.Windows.Input.KeyEventArgs`) or add per-file `using` aliases. The `<Using Remove="System.Drawing" />` trick in the csproj only handles System.Drawing; it doesn't fix these.
