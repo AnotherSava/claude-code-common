@@ -6,8 +6,10 @@ Two subcommands, both read the hook payload from stdin:
 
   start — called from PostToolUse[ExitPlanMode]. Finds the just-approved plan
           in ~/.claude/plans/ (by mtime, within a recency window) and moves it
-          to <cwd>/docs/plans/<YYYY-MM-DD_HH-MM>_<slug>.md. Creates the target
-          directory if needed.
+          to <cwd>/docs/plans/<YYYY-MM-DD_HH-MM>_<slug>.md. The slug is derived
+          from the plan's first H1 heading, falling back to the original random
+          codename (with a warning marker prepended) when no H1 is present.
+          Creates the target directory if needed.
 
   done  — called from Notification. If notification_type == "idle_prompt" and
           the last assistant text does not end with '?', move every active plan
@@ -124,6 +126,30 @@ def find_recent_plan() -> Path | None:
     return candidates[0][1]
 
 
+FALLBACK_MARKER = (
+    "<!-- plan-archive: no `# H1 Title` was found in this plan, so the archive hook "
+    "fell back to the original random codename as the filename slug. Add a descriptive "
+    "`# H1` heading and rename the file; then remove this comment. -->\n\n"
+)
+
+
+def prepend_fallback_marker(plan: Path) -> bool:
+    """Prepend the H1-missing warning to the plan file. Return True on success."""
+    try:
+        content = plan.read_text(encoding="utf-8")
+    except OSError as e:
+        log("fallback_marker_read_error", file=str(plan), error=str(e))
+        return False
+    if content.startswith(FALLBACK_MARKER):
+        return True
+    try:
+        plan.write_text(FALLBACK_MARKER + content, encoding="utf-8")
+        return True
+    except OSError as e:
+        log("fallback_marker_write_error", file=str(plan), error=str(e))
+        return False
+
+
 def start(payload: dict) -> None:
     cwd = payload.get("cwd")
     if not isinstance(cwd, str) or not cwd.strip():
@@ -139,11 +165,20 @@ def start(payload: dict) -> None:
     except OSError as e:
         log("start_mkdir_error", target=str(target_dir), error=str(e))
         return
-    slug = derive_slug_from_content(plan) or plan.stem
+    derived_slug = derive_slug_from_content(plan)
+    if derived_slug:
+        slug = derived_slug
+    else:
+        slug = plan.stem
+        # No H1 found — the filename falls back to the original random codename.
+        # Prepend a visible marker so the user (and downstream tools like /commit)
+        # can flag the plan for renaming.
+        prepend_fallback_marker(plan)
+        log("start_fallback_codename", plan=str(plan), slug=slug)
     target = target_dir / f"{timestamp()}_{slug}.md"
     try:
         shutil.move(str(plan), str(target))
-        log("start_moved", src=str(plan), dst=str(target))
+        log("start_moved", src=str(plan), dst=str(target), derived=bool(derived_slug))
     except Exception as e:
         log("start_move_error", src=str(plan), dst=str(target), error=str(e))
 

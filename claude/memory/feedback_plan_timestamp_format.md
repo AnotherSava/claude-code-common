@@ -15,3 +15,4 @@ After the plan has been fully executed, **move** the file from `docs/plans/` int
 **How to apply:**
 - When creating a plan doc: format the date prefix as `YYYY-MM-DD_HH-MM-<slug>.md`. Use the user's local time (what `date +"%Y-%m-%d_%H-%M"` returns). Use hyphens between the timestamp and the slug.
 - When execution of the plan is complete (all stages/tasks done): `git mv docs/plans/<file>.md docs/plans/completed/<file>.md` — keep the same filename.
+- The first `# H1` heading inside the plan body must be a descriptive title (e.g. `# Refactor X to Y`). The `plan-archive` hook derives the filename slug from this H1; generic section headers like `# Context` or `# Plan` produce useless archived filenames. Keep section headings at `##` under the title.

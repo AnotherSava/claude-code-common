@@ -24,7 +24,7 @@ Read `~/.claude/skills/shared/bash-rules.md` for bash command constraints.
 
 ## Process:
 
-**Pacing:** Steps 1–5 are preparation. Sub-skills may legitimately pause when they find substantive changes needing approval (e.g. clean-code proposing dead-code removal, documentation proposing edits). Honor those gates. But when a sub-skill finishes with nothing to report, continue immediately to the next step — do not insert an extra confirmation gate. The only gates the commit skill itself owns are step 6 (plan approval) and step 7 (push).
+**Pacing:** Steps 1–6 are preparation. Sub-skills may legitimately pause when they find substantive changes needing approval (e.g. clean-code proposing dead-code removal, documentation proposing edits). Honor those gates. But when a sub-skill finishes with nothing to report, continue immediately to the next step — do not insert an extra confirmation gate. The only gates the commit skill itself owns are step 6 (plan-filename warning, if triggered), step 7 (commit-plan approval), and step 8 (push).
 
 1. **Assess the current state of the repository** (use Context above):
    - Use **Uncommitted changes**, **Diff summary**, and **Full diff** to understand the total change set against HEAD
@@ -48,9 +48,16 @@ Read `~/.claude/skills/shared/bash-rules.md` for bash command constraints.
    - Identify which files belong together
    - If a single file contains changes that belong to different commits, do NOT attempt to split it with `git add -p` or partial staging — assign the file to the commit where it fits best and note the mixed content in the plan
    - Put tests and documentation changes in the same commit as the feature they cover, unless there is a significant reason to separate
+   - **Plan files (`docs/plans/**`)**: bundle each plan file into the SAME commit as the implementation it describes. Match by filename slug / content keywords against the changed source paths. Only emit a separate `docs(plans):` commit if the plan file is the ONLY change (e.g. editing a plan mid-design without implementing yet, or archiving unrelated historical plans).
    - Draft and validate commit messages following the shared rules
 
-6. **Present your plan to the user:**
+6. **Validate plan filenames:**
+   For every plan file under `docs/plans/` that's part of this change set (new, modified, or renamed — check both `docs/plans/*.md` and `docs/plans/completed/*.md`):
+   - Read the file and check whether it contains a top-level `# H1` heading (on any line, outside fenced code blocks).
+   - If no H1 is found, warn the user explicitly: the `plan-archive.py` hook derives the filename slug from the plan's H1 and falls back to the original random codename (e.g. `zesty-coalescing-crystal`) when no H1 is present. Suggest a descriptive slug based on the plan's content, offer to rename the file and add an H1, and wait for user confirmation before proceeding. Do not silently include a codename-slug plan file in a commit.
+   - If the file starts with the `<!-- plan-archive: no ...` fallback marker comment, treat it the same as a missing H1 — the hook explicitly flagged it. If the user fixes the title, offer to remove the now-stale marker comment in the same edit.
+
+7. **Present your plan to the user:**
    - Separate each commit with a unicode line: `━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━`
    - For each commit show:
      1. **Commit N**
@@ -58,7 +65,7 @@ Read `~/.claude/skills/shared/bash-rules.md` for bash command constraints.
      3. Number of files and lines changed, then without an empty line in betweem, file list: each file as `inline code` followed by brief description. Pad each file entry with spaces so all entries match the length of the longest one, aligning descriptions into a column.
    - End with: "I plan to create **N** commit(s) with these changes. Shall I proceed?"
 
-7. **Execute upon confirmation:**
+8. **Execute upon confirmation:**
    - Use `git add` with specific files (never use `-A` or `.`)
    - Create commits with your planned messages using `git commit -S` to GPG-sign them
    - After all commits are done, list all unpushed commits with `git log @{upstream}..HEAD --format="%h %ai %s"` (fall back to `origin/<branch>..HEAD` if no upstream). Format each line as `Mon DD, HH:MM [hash] message` (e.g. `Mar 28, 16:59 [a37da68] feat: add side panel`). Display the full list as the end summary — this gives the user the complete picture of what will be pushed.
