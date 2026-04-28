@@ -32,10 +32,10 @@ Read `~/.claude/skills/shared/bash-rules.md` for bash command constraints.
    - If there are no uncommitted changes in this repository, stop — there is nothing to commit.
    - Review the conversation history (if any) to understand what was accomplished — but do not assume all changes come from this session; the repo state is the source of truth
 
-2. **Clean code:** Run `/clean-code` to remove debug prints, dead code, duplication, and optimize imports.
+2. **Clean code:** Run `/clean-code` to remove debug prints, dead code, duplication, and optimize imports. **If `/clean-code` reports nothing to clean up, immediately proceed to step 3 in the same response — do not stop, do not ask for confirmation.** Only pause if `/clean-code` proposes substantive changes that need user approval.
 
 3. **Update stale documentation — do this BEFORE planning commits:**
-   Run `/documentation` to scan and fix stale references in README, docs, CLAUDE.md, and source comments. All documentation fixes become part of the commit(s) — do not commit code with outdated docs.
+   Run `/documentation` to scan and fix stale references in README, docs, CLAUDE.md, and source comments. All documentation fixes become part of the commit(s) — do not commit code with outdated docs. **If `/documentation` reports nothing to fix, immediately proceed to step 4 in the same response — do not stop, do not ask for confirmation.** Only pause if `/documentation` proposes edits that need user approval.
 
 4. **Confidentiality check:**
    - Scan the diff for content that should not be committed to a public repository: API keys, tokens, passwords, private URLs, internal hostnames, personal data (emails, phone numbers, real names in test data), or proprietary business logic
