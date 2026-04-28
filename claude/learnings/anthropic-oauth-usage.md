@@ -18,7 +18,7 @@ Undocumented beta endpoint that returns rolling 5-hour and 7-day rate-limit util
 }
 ```
 
-- `utilization` is *usually* a `0.0..1.0` fraction, but some deployments return `0..100` percent. **Normalize defensively:** if the raw value is > 1.5, divide by 100, then clamp to `[0, 1]`.
+- `utilization` is a **0–100 percentage**. Always divide by 100, then clamp to `[0, 1]`. (Older guidance suggested an "if > 1.5 divide, else treat as fraction" heuristic, but that misinterprets real low percentages — `1.0` means 1%, not 100%. Verified across many real responses on a Max account that the API returns percentages exclusively.)
 - `resets_at` is ISO-8601 UTC. Use `chrono::DateTime<Utc>` in Rust or `new Date(resets_at).toLocaleString(undefined, ...)` in JS — drop the `timeZone: 'UTC'` option if you want local-time display.
 
 ## Credentials
@@ -38,6 +38,29 @@ Undocumented beta endpoint that returns rolling 5-hour and 7-day rate-limit util
 ```
 
 `expiresAt` is ms-epoch. When expired, running any `claude` CLI command (e.g. `claude -p .`) triggers an OAuth refresh and rewrites the file.
+
+## Refreshing the OAuth token directly
+
+You don't have to spawn the Claude Code CLI to refresh an expired access token — the same OAuth endpoint Claude Code uses is callable directly with the stored `refreshToken`.
+
+- **Endpoint:** `POST https://console.anthropic.com/v1/oauth/token`
+- **Headers:** `Content-Type: application/json`
+- **Body:**
+  ```json
+  {
+    "grant_type": "refresh_token",
+    "refresh_token": "<refreshToken from .credentials.json>",
+    "client_id": "9d1c250a-e61b-44d9-88ed-5944d1962f5e"
+  }
+  ```
+  The `client_id` is Claude Code's public OAuth client (hardcoded in the CLI, also visible in the `claude.ai/login` redirect URL).
+- **Response:**
+  ```json
+  { "access_token": "...", "refresh_token": "...", "expires_in": 3600 }
+  ```
+  Both tokens rotate — the new `refresh_token` replaces the old one. Compute `expiresAt = now_ms + expires_in * 1000` and write `accessToken` / `refreshToken` / `expiresAt` back to `.credentials.json` atomically (temp file + rename) while preserving unrelated fields like `scopes`/`subscriptionType`/`rateLimitTier`.
+
+**Race with Claude Code's own refresh:** refresh tokens are single-use. If both your tool and Claude Code attempt a refresh with the same token simultaneously, whichever calls second gets a 4xx and the new token written by the first caller. Mitigation: defer the first expired sighting one poll cycle to give Claude Code a chance to refresh on its own; only refresh yourself if the token is still expired on the next poll. The losing-side 4xx is recoverable — next poll re-reads `.credentials.json`, picks up the rotated token, proceeds normally.
 
 ## Rate limiting (important)
 

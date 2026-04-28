@@ -93,6 +93,118 @@ synthetic viewer as the always-shown raw pane simplifies state management.
 Keep the real `TextEditor` alive behind the scenes for document event
 listening + IDE file-system integration, but never add it to the visible UI.
 
+### Sizing a container to fit an editor's content exactly
+
+Don't trust two seemingly-obvious measurements when auto-sizing a panel
+to its editor's content:
+
+- `EditorEx.contentSize.height` — varies based on whether a horizontal
+  scrollbar is currently visible. Same document produces different
+  readings depending on the surrounding scroll-pane state.
+- `JScrollPane.horizontalScrollBar.preferredSize.height` — returns 0
+  when the scrollbar is currently hidden (JBScrollBar overlay mode), or
+  its real height when visible.
+
+Adding both to a target height double-counts the scrollbar after one
+navigation and undercounts after another, producing an auto-sized panel
+that oscillates as the user moves between content with/without
+horizontal overflow.
+
+Reliable: derive the target purely from the document plus constants:
+
+```kotlin
+val docH = doc.lineCount * editor.lineHeight
+val targetH = docH + borderH + JBUI.scale(11)  // constant scrollbar reservation
+```
+
+Also disable the editor's virtual scroll padding so `lineCount *
+lineHeight` matches what the editor actually paints (without an extra
+blank page below the content):
+
+```kotlin
+(editor as EditorEx).settings.let {
+    it.additionalLinesCount = 0
+    it.isAdditionalPageAtBottom = false
+}
+```
+
+### `JLayeredPane` + custom `LayoutManager` doesn't render overlays reliably
+
+`JLayeredPane` treats `add(comp, IntegerLayer)` specially — the Object
+constraint becomes the layer, not a layout hint. Combined with a custom
+`LayoutManager`, child bounds are set but the overlay frame may not
+paint on top of the default layer.
+
+Workaround: plain `JPanel(null)` with explicit z-order:
+
+```kotlin
+val container = JPanel(null)
+container.layout = MyLayout(...)
+container.add(background)
+container.add(overlay)
+container.setComponentZOrder(overlay, 0)  // 0 = front
+```
+
+### Transparent overlays need their own `JComponent` for mouse events
+
+Swing dispatches mouse events to the deepest visible component — no
+bubbling. A transparent area on top of a `JScrollPane` (e.g. a resize
+grip overlapping the editor's bottom-left) will not deliver clicks to a
+listener installed on the outer panel; the scrollpane consumes them.
+
+Make the interactive overlay its own `JComponent` at z-order 0, with
+its own mouse listeners. Don't try to listen on the parent.
+
+### Click-through decoration components
+
+The opposite problem: a paint-only decoration that should *not* intercept
+mouse events. Default Swing dispatch routes clicks on a `JComponent`'s
+bounds to its listeners (or consumes the event with no handler), blocking
+underlying components like a `JScrollBar` from receiving drags.
+
+Override `contains(x, y)` to return false:
+
+```kotlin
+private inner class Decoration : JComponent() {
+    init { isOpaque = false }
+    override fun paintComponent(g: Graphics) { /* draw stuff */ }
+    override fun contains(x: Int, y: Int): Boolean = false
+}
+```
+
+Swing skips the component during hit-testing, so events fall through to
+the next visible component beneath. Paint and hit-test are independent —
+the component still draws normally.
+
+Use case: a 1px divider drawn across a scrollbar gutter so an overlay's
+visual frame extends past its own bounds. The line is visible everywhere
+it covers, and the scrollbar beneath it stays draggable.
+
+### Soft-wrap
+
+Wrap width is editor-wide. `EditorSettings.setUseSoftWraps(true)` enables
+soft wrap for the whole editor; the wrap point is derived from the
+visible viewport width. There is no public API for per-line variable
+wrap widths. Per-line wrap requires either subclassing
+`SoftWrapApplianceManager` via reflection on
+`SoftWrapModelImpl.myApplianceManager` (internal, brittle across IDE
+versions) or rewriting the document with hard newlines and maintaining a
+`displayed → logical` line map for caret / filter translation. Avoid
+both unless the use case is critical.
+
+Custom soft-wrap indent has an off-by-one. `setUseCustomSoftWrapIndent(true)`
++ `setCustomSoftWrapIndent(N)` indents wrapped continuations by N columns
+*plus* the width of the soft-wrap indicator glyph IntelliJ paints at the
+head of every continuation line. For monospace fonts the glyph occupies
+~1 column, so visible text starts at column `N + 1`. To align text at
+column `X`, set `customSoftWrapIndent = X - 1`.
+
+Because the indent is editor-wide, it only produces precise alignment
+when every line's wrap point shares the same column (e.g. all lines are
+padded to the same prefix length). Under variable prefix lengths, prefer
+`setUseCustomSoftWrapIndent(false)` over a single best-effort
+approximation — every wrong-by-a-few-columns wrap looks like a bug.
+
 ## Highlighting strategies
 
 ### Theme-integrated colors via `TextAttributesKey` + `ColorSettingsPage`
