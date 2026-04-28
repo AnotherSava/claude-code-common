@@ -99,5 +99,5 @@ if [ ! -f "$IDE_EXE" ]; then
     echo "Deploy complete, but the IDE was not started."
     exit 0
 fi
-powershell.exe -Command "Start-Process '$IDE_EXE'"
+powershell.exe -Command "Start-Process '$IDE_EXE' -WindowStyle Maximized"
 echo "Done."
