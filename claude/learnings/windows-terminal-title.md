@@ -34,6 +34,10 @@ Result: `/dev/tty: No such device or address`. Claude's bash subprocess has no c
 
 - Both OSC stdout and `SetConsoleTitleW` work fine when invoked from a real PowerShell/bash session, *not* from inside Claude. PowerShell re-asserts its own title on each prompt render, so the title reverts unless `--suppressApplicationTitle` is set on the WT profile.
 
+## Claude Code overwrites the title
+
+Claude Code itself emits OSC 2 title sequences on every render tick (status spinner like `⠐ Claude Code`). This silently overwrites any title the parent shell set before launching Claude. To opt out, set `CLAUDE_CODE_DISABLE_TERMINAL_TITLE=1` in the environment when invoking Claude — then the wrapper's pre-launch title sticks for the entire session. See [anthropics/claude-code#44590](https://github.com/anthropics/claude-code/issues/44590) and [#23355](https://github.com/anthropics/claude-code/issues/23355).
+
 ## `wt.exe` capabilities (per Microsoft docs, Nov 2025)
 
 - Subcommands: `new-tab`, `split-pane`, `focus-tab`, `move-focus`, `move-pane`, `swap-pane`. **No `rename-tab`.**

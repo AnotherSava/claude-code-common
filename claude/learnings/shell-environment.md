@@ -19,6 +19,8 @@ All bash shells (Git Bash, WSL) should have these functions:
 
 ```bash
 claude() {
+  printf '\033]0;CC %s\a' "${PWD##*/}"
+  export CLAUDE_CODE_DISABLE_TERMINAL_TITLE=1
   if [[ "$1" == "--new" ]]; then
     shift
     command claude "$@"
@@ -34,6 +36,7 @@ claude() {
 
 - `claude` → resumes last conversation (`--continue`). Falls back to fresh session if none exists.
 - `claude --new` → fresh conversation.
+- Sets the Windows Terminal tab title to `CC <project-folder>` via OSC 0 escape. `CLAUDE_CODE_DISABLE_TERMINAL_TITLE=1` is required because Claude Code otherwise overwrites the title with `⠐ Claude Code` on every tick (see `windows-terminal-title.md`).
 - Screen clears on success; preserved on error so the message is readable.
 
 ### `deploy` / `build` — project shortcuts
@@ -49,6 +52,8 @@ Use `! deploy` or `! build` inside Claude Code, or run directly in any terminal.
 
 ```powershell
 function claude {
+    $Host.UI.RawUI.WindowTitle = "CC $(Split-Path -Leaf (Get-Location))"
+    $env:CLAUDE_CODE_DISABLE_TERMINAL_TITLE = "1"
     if ($args[0] -eq '--new') {
         & claude.cmd @($args[1..$args.Length])
     } else {
@@ -59,7 +64,7 @@ function claude {
 }
 ```
 
-Same behavior as the bash version.
+Same behavior as the bash version. PowerShell re-asserts its own title on each prompt render after Claude exits.
 
 ## Verification checklist
 
