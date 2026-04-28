@@ -14,3 +14,4 @@
 - [Pixel-precise CSS segmented bars](feedback_pixel_precise_css_segments.md) — repeating linear-gradient + overlay .fill div auto-retiles on resize with zero JS
 - [Tauri drag regions don't propagate through overlapping children](feedback_tauri_drag_region_stacking.md) — absolute-positioned overlays intercept drag unless tagged or pointer-events:none
 - [Warp cursor on drag clamp](feedback_drag_clamp_cursor_warp.md) — when a clamp pulls a drag-tracked element back, warp the cursor too to avoid an overshoot dead zone
+- [Run verification commands myself](feedback_user_run_commands_bang_prefix.md) — invoke `deploy`/`build`/`test` via Skill or Bash; never ask the user to run them
