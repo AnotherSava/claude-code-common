@@ -275,24 +275,6 @@ Read `~/.claude/learnings/chrome-extension.md` for domain-specific patterns.
 
 ---
 
-## Scripts
-
-Scripts in this section are written in [AutoHotkey v2](https://www.autohotkey.com/) (Windows-only). To run a script, install AutoHotkey v2 and double-click the `.ahk` file. To auto-start a script with Windows, place a shortcut to it in your Startup folder — press <kbd>Win+R</kbd>, type `shell:startup`, and drop the shortcut there.
-
----
-
-### Monosnap Watcher
-
-**File:** `scripts/monosnap-watcher.ahk` (AutoHotkey v2)
-
-Claude Code can't receive pasted images — it needs a file path. Monosnap (a screenshot tool) can auto-save captures to a folder, but doesn't copy the file path to the clipboard. This script bridges the gap: polls the folder given by `MONOSNAP_DIR` every 500ms; on each new file, copies the full path to the clipboard and shows a `TrayTip`. Look for "Monosnap Watcher" in the tray to confirm it's running.
-
-**Setup:**
-1. Set the `MONOSNAP_DIR` environment variable to your Monosnap auto-save folder (e.g. `C:\Users\OlegS\Monosnap`)
-2. Install as a Windows startup shortcut pointing at `scripts/monosnap-watcher.ahk` — drop the shortcut into `%APPDATA%\Microsoft\Windows\Start Menu\Programs\Startup\`
-
----
-
 ## Global Installation
 
 Global files live in `claude/` (symlinked to `~/.claude/`) and `git/` (hooks, gitignore, gitattributes — each symlinked to `~/`). Project-local config stays in `.claude/`.
