@@ -127,6 +127,20 @@ def last_assistant_ends_with_question(transcript_path, benign_closers=()) -> boo
     return not any(lower.endswith(c.lower()) for c in benign_closers)
 ```
 
+**Mitigation: trailing option lists.** Claude often appends a parenthetical option list like `"Save these? (all / numbers / none)"`. The `?` is mid-string, so `endswith("?")` returns false and the turn is mis-classified as `done`. Strip one trailing `(...)` group when (a) the trimmed text ends with `)` and (b) the substring before the matching `(` ends with `?`, then re-check. Round brackets only — don't peel `[...]` / `{...}` since they may carry unrelated content. The benign-closers comparison should run on the stripped text too, so `"What's next? (continue / stop)"` is still recognized as a benign closer.
+
+```python
+def strip_trailing_options(text: str) -> str:
+    trimmed = text.rstrip()
+    if trimmed.endswith(")"):
+        open_idx = trimmed.rfind("(")
+        if open_idx >= 0:
+            before = trimmed[:open_idx].rstrip()
+            if before.endswith("?"):
+                return before
+    return trimmed
+```
+
 ### Recommended classification by hook
 
 | Hook (arg to script) | Payload signal | Emitted state | Label (if any) |
@@ -159,8 +173,9 @@ Some session states produce no hook events at all — plan your integration arou
 Recovery paths, in order of reliability:
 
 1. **Wait for the next deliberate hook event** (`UserPromptSubmit`, `Notification: idle_prompt` after Claude Code's ~60s idle timeout, or `SessionEnd`). Simplest and most reliable.
-2. **Expose a manual dismiss in the UI** for stuck rows.
-3. **Ask Claude to emit via MCP** at key moments. Expensive in context tokens; rarely worth it for state reporting.
+2. **Treat any `UserPromptSubmit` arriving while the row is still `working` as a task boundary.** A second UPS without an intervening `Stop`/`Notification` is essentially always a cancellation: a normal turn always emits `Stop` before user input can land, and the input box is locked otherwise. So the second UPS *itself* is the missing cancellation signal — re-capture the original prompt, reset the working timer, treat as a fresh task. Approval cycles are unaffected because they go `working → awaiting → working` (the `Notification` / `Stop` fires before the user types), so `awaiting → working` remains the only "into working" transition that's NOT a task boundary.
+3. **Expose a manual dismiss in the UI** for stuck rows.
+4. **Ask Claude to emit via MCP** at key moments. Expensive in context tokens; rarely worth it for state reporting.
 
 Avoid:
 
