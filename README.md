@@ -193,6 +193,21 @@ Extracts durable knowledge from the current conversation and persists it to long
 
 ---
 
+### GitHub Status
+
+Cross-project overview of all your GitHub-owned local clones — branch, behind/ahead counts, uncommitted file/line totals, oldest pending work, and a per-repo description synthesized from the pending changes.
+
+**Command:** `/github-status`
+
+**Features:**
+- Walks `PROJECTS_ROOT` (configured per-machine on first run), filters to repos owned by your GitHub user
+- Fetches every repo's origin in parallel before reading state, so counts reflect the current remote
+- Auto-hides columns that have no meaningful data (no unpushed commits → no UNPUSHED column, all on main → no BRANCH column, etc.)
+- Reports uncommitted-file lists and unpushed-commit subjects so Claude can summarize each repo in one line
+- Pure read-only on repo content — the only mutation is the per-run fetch
+
+---
+
 ### Update Plannotator Plugin
 
 Force-updates the plannotator plugin by clearing stale caches and reinstalling.
@@ -262,6 +277,7 @@ Read `~/.claude/learnings/chrome-extension.md` for domain-specific patterns.
 |---|---|
 | `anthropic-oauth-usage.md` | Undocumented `/api/oauth/usage` endpoint (5h/7d rate-limit utilization for Claude Code OAuth tokens) |
 | `autohotkey.md` | AutoHotkey v2 patterns (hotkeys, clipboard, folder watchers, tray scripts) |
+| `bash-portability.md` | macOS bash 3.2 vs Git Bash 4/5 — bash 4+ features to avoid in committed scripts |
 | `chrome-extension.md` | Chrome extensions (Manifest V3, Vite, side panel, service workers) |
 | `claude-code-integration.md` | Observing Claude Code sessions (hooks, transcript JSONL, state classification) |
 | `css-layout-gotchas.md` | Non-obvious CSS grid/flex/overflow behaviors in dashboard UIs |
