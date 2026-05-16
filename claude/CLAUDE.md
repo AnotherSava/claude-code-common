@@ -26,11 +26,14 @@ Do not add logic, data structures, classes, or exports to production code that e
 - Follow `~/.claude/skills/shared/commit-message-rules.md`
 - Prefer `git status --short` over `git diff --stat` for change-set summaries. Changes sit unstaged until `/commit` runs, so untracked files are part of the pending commit — and `git diff --stat` silently omits them, producing an incomplete picture.
 
-## Windows Bash Commands
+## Bash Commands
 
-When running commands via Bash on Windows, always use forward slashes (`/`) in paths, not backslashes (`\`). Backslashes are interpreted as escape characters by bash and get stripped.
+- **Windows (Git Bash):** always use forward slashes (`/`) in paths, not backslashes (`\`). Backslashes are interpreted as escape characters by bash and get stripped.
+- **macOS / Linux:** paths are already Unix-style; no special handling needed.
 
-When asking the user to run a command manually (e.g. launching an app, system config), provide PowerShell syntax — not bash or cmd.
+When asking the user to run a command manually (e.g. launching an app, system config):
+- **on Windows:** provide PowerShell syntax — not bash or cmd.
+- **on macOS / Linux:** provide bash/zsh syntax.
 
 ## Code Style
 
@@ -80,8 +83,10 @@ When adding entries to `.gitignore`, choose the right scope:
 
 ## Symlinks
 
+For first-time global installation, use the platform-appropriate command block from `README.md`'s Global Installation section. For ad-hoc symlinks during a session:
+
+- **macOS / Linux:** `ln -s` with an absolute target path (`"$(pwd)/..."`).
 - **Windows:** Never create symlinks from Bash (`ln -s`) — it silently creates copies instead. Use PowerShell `New-Item -ItemType SymbolicLink` from an Administrator prompt. Use `$PWD` to build absolute target paths.
-- **Linux / macOS:** Use `ln -s` with an absolute target path (`"$(pwd)/..."`).
 
 ## Global Memory
 

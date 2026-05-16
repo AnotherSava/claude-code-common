@@ -36,5 +36,5 @@ Move or rename the current project folder while preserving all associated Claude
 
 ## Important
 - This skill does NOT execute the move itself — it prints the commands. Moving the working directory out from under a running session would break it.
-- On Windows, print both bash (`mv`) and PowerShell (`Move-Item`) variants so the user can run from either shell.
+- On Windows, print both bash (`mv`) and PowerShell (`Move-Item`) variants so the user can run from either shell. On macOS / Linux, print only the bash `mv` form.
 - If `~/.claude/projects/OLD_KEY` doesn't exist, skip that step (project may not have Claude data yet).

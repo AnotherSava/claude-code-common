@@ -8,6 +8,7 @@ Shell configuration across the user's environments. Use this to verify correct s
 |---|---|
 | Git Bash (Windows) | `~/.bashrc` |
 | WSL Ubuntu | `/home/sava/.bashrc` |
+| macOS zsh | `~/.zshrc` (interactive). Put `export` lines that need to apply to non-interactive shells (cron, hooks) in `~/.zshenv` instead. |
 | PowerShell 7 | `Documents/PowerShell/Microsoft.PowerShell_profile.ps1` |
 | PowerShell 5 | `Documents/WindowsPowerShell/Microsoft.PowerShell_profile.ps1` |
 
@@ -38,6 +39,7 @@ claude() {
 - `claude --new` → fresh conversation.
 - Sets the Windows Terminal tab title to `CC <project-folder>` via OSC 0 escape. `CLAUDE_CODE_DISABLE_TERMINAL_TITLE=1` is required because Claude Code otherwise overwrites the title with `⠐ Claude Code` on every tick (see `windows-terminal-title.md`).
 - Screen clears on success; preserved on error so the message is readable.
+- **macOS:** drop the same function in `~/.zshrc` (zsh) or `~/.bash_profile` (bash). The OSC 0 escape sets the tab title in Terminal.app and iTerm2 too. The `CLAUDE_CODE_DISABLE_TERMINAL_TITLE=1` line is harmless on macOS — the per-tick overwrite that justifies it on Windows Terminal doesn't happen here, but the export is a no-op when the override doesn't trigger.
 
 ### `deploy` / `build` — project shortcuts
 
@@ -75,5 +77,6 @@ When setting up a new shell (e.g. WSL), verify:
 3. **`build` function exists** — `type build`
 4. **`notify` function exists** — `type notify`
 5. **Python + deps available** — `python3 -c "import requests, dotenv"` (needed by `notify` and Claude hooks)
-6. **Symlinks intact** — `ls -la ~/.claude` should point to the claude-code-common repo's `claude/` directory
-7. **Git hooks linked** — `git config --global core.hooksPath` should return `~/.git-hooks`
+6. **macOS only:** confirm `python3` resolves at all — Apple removed the bundled `python` in recent macOS releases. Install via `brew install python` (or use the Xcode Command Line Tools shim) before running step 5.
+7. **Symlinks intact** — `ls -la ~/.claude` should point to the claude-code-common repo's `claude/` directory
+8. **Git hooks linked** — `git config --global core.hooksPath` should return `~/.git-hooks`

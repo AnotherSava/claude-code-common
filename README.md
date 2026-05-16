@@ -127,7 +127,7 @@ Configures the deployment pipeline for a supported project (.NET, Tauri, or Inte
 **Command:** `/deploy`
 
 **Features:**
-- Auto-configures `deploy()` bash function in `~/.bashrc` if missing
+- Auto-configures `deploy()` shell function in the platform-appropriate rc file (`~/.zshrc` on macOS, `~/.bashrc` on Windows Git Bash / Linux)
 - Creates `scripts/deploy.sh` wrapper pointing to the global deploy script
 - Reads install path from `config/deploy.env` (asks on first run)
 - Runs the full pipeline: stop app → build → clean install dir → copy → launch → verify
@@ -271,6 +271,7 @@ Read `~/.claude/learnings/chrome-extension.md` for domain-specific patterns.
 | `rust-serde-config-evolution.md` | Shipping Rust apps with schema-evolving override config files (container-level `#[serde(default)]`) |
 | `shell-environment.md` | Shell config across bash/zsh/WSL (common functions, PATH, verification) |
 | `skill-context-evaluator.md` | Constraints of the `!` backtick preprocessor in SKILL.md Context sections |
+| `tauri-macos-native.md` | Tauri on macOS (accessory policy, white-flash mitigation, Keychain via `security`, TCC) |
 | `windows-terminal-title.md` | Why per-tab title manipulation from Claude Code hooks isn't feasible on WT |
 
 ---
@@ -280,6 +281,8 @@ Read `~/.claude/learnings/chrome-extension.md` for domain-specific patterns.
 Global files live in `claude/` (symlinked to `~/.claude/`) and `git/` (hooks, gitignore, gitattributes — each symlinked to `~/`). Project-local config stays in `.claude/`.
 
 > If any of these already exist in `~/.claude/` or `~/.git-hooks/`, move them into the repo first (or remove them) before creating the symlink.
+
+macOS / Linux users skip this section — see [Linux / macOS](#linux--macos) below.
 
 ### Windows
 
@@ -305,6 +308,7 @@ git config --global core.attributesFile "~/.gitattributes"
 Run from the project root:
 
 ```bash
+mkdir -p ~/.claude
 ln -s "$(pwd)/claude/CLAUDE.md" ~/.claude/CLAUDE.md
 ln -s "$(pwd)/claude/skills" ~/.claude/skills
 ln -s "$(pwd)/claude/hooks" ~/.claude/hooks
