@@ -1,6 +1,17 @@
 #!/bin/bash
 set -e
 
+case "$(uname -s)" in
+    Darwin) OS=mac ;;
+    MINGW*|MSYS*|CYGWIN*) OS=win ;;
+    *) OS=linux ;;
+esac
+
+if [ "$OS" != "win" ]; then
+    echo "deploy.sh (.NET tray app) is Windows-only — current OS: $OS"
+    exit 1
+fi
+
 START=${1:-1}
 REPO_DIR="$(pwd)"
 DEPLOY_ENV="$REPO_DIR/config/deploy.env"

@@ -2,13 +2,14 @@
 name: deploy
 description: Configure deployment script and run it, verifying it succeeds
 disable-model-invocation: false
-allowed-tools: Bash(bash ~/.claude/skills/deploy/scripts/deploy.sh), Bash(bash ~/.claude/skills/deploy/scripts/deploy-tauri.sh), Bash(bash ~/.claude/skills/deploy/scripts/deploy-intellij-plugin.sh), Bash(bash ~/.claude/skills/deploy/scripts/detect-intellij-target.sh:*), Bash(deploy), Bash(echo *), AskUserQuestion, Read(config/deploy.env), Write(config/deploy.env), Write(scripts/deploy.sh), Read(scripts/deploy.sh), Edit(.gitignore), Read(.gitignore), Edit(~/.bashrc), Read(~/.bashrc)
+allowed-tools: Bash(bash ~/.claude/skills/deploy/scripts/deploy.sh), Bash(bash ~/.claude/skills/deploy/scripts/deploy-tauri.sh), Bash(bash ~/.claude/skills/deploy/scripts/deploy-intellij-plugin.sh), Bash(bash ~/.claude/skills/deploy/scripts/detect-intellij-target.sh:*), Bash(deploy), Bash(echo *), AskUserQuestion, Read(config/deploy.env), Write(config/deploy.env), Write(scripts/deploy.sh), Read(scripts/deploy.sh), Edit(.gitignore), Read(.gitignore), Edit(~/.bashrc), Read(~/.bashrc), Edit(~/.zshrc), Read(~/.zshrc)
 ---
 
 See `~/.claude/learnings/shell-environment.md` for the expected bash functions and verification checklist.
 
 ## Context
-- Deploy function in bashrc: !`grep -c "deploy()" ~/.bashrc 2>/dev/null || echo 0`
+- Deploy function in shell rc: !`cat ~/.bashrc ~/.zshrc ~/.bash_profile ~/.zprofile 2>/dev/null | grep -c "deploy()" || echo 0`
+- Shell rc target: !`case "$(uname -s)" in Darwin) echo "~/.zshrc" ;; MINGW*|MSYS*|CYGWIN*) echo "~/.bashrc" ;; *) [ -n "$ZSH_VERSION" ] || [ "${SHELL##*/}" = "zsh" ] && echo "~/.zshrc" || echo "~/.bashrc" ;; esac`
 - Wrapper script exists: !`test -f scripts/deploy.sh && echo yes || echo no`
 - Wrapper target: !`grep -oE 'deploy(-[a-z]+)?\.sh' scripts/deploy.sh 2>/dev/null | tail -1 || echo none`
 - Scripts in gitignore: !`grep -cx 'scripts/' .gitignore 2>/dev/null || echo 0`
@@ -41,17 +42,17 @@ If more than one flag is yes (mixed repo), ask the user which one to deploy — 
 
 ## 2. Check prerequisites
 
-1. If **Deploy function** is 0, append the function to `~/.bashrc`:
+1. If **Deploy function in shell rc** is 0, append the function to the file in **Shell rc target** (i.e. `~/.zshrc` on macOS, `~/.bashrc` on Windows Git Bash / Linux-bash):
    ```bash
    deploy() { if [ -f scripts/deploy.sh ]; then bash scripts/deploy.sh "$@"; else echo "No scripts/deploy.sh in current directory"; fi; }
    ```
 2. If **Deploy env** is MISSING, ask the user for `INSTALL_DIR` with a stack-appropriate default and create `config/deploy.env` with `INSTALL_DIR=<their answer>`:
-   - **Tauri / .NET** default: `C:/Programs/<project-folder-name>`
-   - **IntelliJ plugin** default: use the **IntelliJ plugins-dir guess** Context value verbatim. If empty (JetBrains dir not found), fall back to `%APPDATA%/JetBrains/IntelliJIdea<newest>/plugins` and ask the user to verify.
+   - **Tauri / .NET** default: `C:/Programs/<project-folder-name>` on Windows, `/Applications/<project-folder-name>` on macOS.
+   - **IntelliJ plugin** default: use the **IntelliJ plugins-dir guess** Context value verbatim (it already emits the cross-platform `%APP_CONFIG%/JetBrains/<dir>/plugins` form). If empty (JetBrains dir not found), fall back to `%APP_CONFIG%/JetBrains/IntelliJIdea<newest>/plugins` and ask the user to verify. `%APP_CONFIG%` resolves to `~/AppData/Roaming` on Windows and `~/Library/Application Support` on macOS at deploy time; the legacy `%APPDATA%` placeholder is also accepted as an alias.
 
    Then apply the stack-specific follow-up questions:
-   - **Tauri** — also ask where to deploy the `config/local.json` override at runtime (default: `%APPDATA%/<Tauri identifier>/config.json` — substitute the identifier read from `src-tauri/tauri.conf.json`; use forward slashes) and append `CONFIG_DEST=<their answer>` to `config/deploy.env`. This is the path the app actually reads (`app_data_dir()`), not the install dir.
-   - **IntelliJ plugin** — also ask (optional, skippable) for `IDE_PROCESS` (default = **IntelliJ IDE process guess** Context value) and `IDE_EXE` (default = **IntelliJ IDE exe guess** Context value; if empty — e.g. Toolbox-managed IDE — offer to skip). Append `IDE_PROCESS=<value>` / `IDE_EXE=<value>` only for keys the user confirms. Skipping is fine — the deploy still works, it just won't stop/restart the IDE.
+   - **Tauri** — also ask where to deploy the `config/local.json` override at runtime (default: `%APP_CONFIG%/<Tauri identifier>/config.json` — substitute the identifier read from `src-tauri/tauri.conf.json`; use forward slashes) and append `CONFIG_DEST=<their answer>` to `config/deploy.env`. This is the path the app actually reads (`app_data_dir()`), not the install dir.
+   - **IntelliJ plugin** — also ask (optional, skippable) for `IDE_PROCESS` (default = **IntelliJ IDE process guess** Context value) and `IDE_EXE` (default = **IntelliJ IDE exe guess** Context value; if empty — e.g. Toolbox-managed IDE, or running on macOS where the script doesn't auto-detect — offer to skip). On macOS, optionally ask for `IDE_BUNDLE_ID` (e.g. `com.jetbrains.intellij.ce`) — when set, the deploy uses `osascript … to quit` instead of `pkill`. Append `IDE_PROCESS=<value>` / `IDE_EXE=<value>` / `IDE_BUNDLE_ID=<value>` only for keys the user confirms. Skipping is fine — the deploy still works, it just won't stop/restart the IDE.
 3. If **Deploy env** is present, the project is **Tauri**, and **Deploy env has CONFIG_DEST** is 0, ask the user for `CONFIG_DEST` with the same default and append it to `config/deploy.env`
 4. If **Deploy env** is present, the project is an **IntelliJ plugin**, and **Deploy env has IDE_PROCESS** / **IDE_EXE** are 0, ask the user whether to add them (using the same Context-derived guesses as defaults) and append any values they supply.
 
@@ -72,7 +73,7 @@ If more than one flag is yes (mixed repo), ask the user which one to deploy — 
 ## 4. Deploy
 
 If step 2 or 3 made changes, tell the user:
-> The `deploy` shortcut has been configured. **Restart Claude Code** for `! deploy` to work — the shell reads `~/.bashrc` only at startup, so new functions aren't available until the next session.
+> The `deploy` shortcut has been configured. **Restart Claude Code** for `! deploy` to work — the shell reads its rc file only at startup, so new functions aren't available until the next session.
 >
 > For now, running the deploy directly:
 
