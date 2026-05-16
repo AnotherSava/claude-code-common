@@ -6,7 +6,7 @@
 - [Pre-push hook rejects unsigned + Claude trailers](reference_push_hook.md) — resign ancestors with `git rebase --exec` before first push
 - [Attribution style for inherited projects](feedback_attribution_style.md) — keep original LICENSE; "Initially based on…" in `docs/index.md` only
 - [Plan file timestamp format and lifecycle](feedback_plan_timestamp_format.md) — `docs/plans/YYYY-MM-DD_HH-MM-<slug>.md`; move to `docs/plans/completed/` after execution
-- [Claude dotfiles repo (D:/projects/claude)](reference_claude_dotfiles_repo.md) — ~/.claude/ + global git files symlinked from a shared repo; edits are version-controlled there
+- [Claude dotfiles repo](reference_claude_dotfiles_repo.md) — ~/.claude/ + global git files symlinked from a shared repo; edits are version-controlled there
 - [Verify Node/platform fixes against official docs](feedback_verify_node_platform_docs.md) — check DEP list + child_process docs before defaulting to Stack Overflow workarounds
 - [Per-project plugin scoping](feedback_per_project_plugin_scoping.md) — globally enabled plugins bloat every session's context; prefer project-local settings for niche plugins
 - [Verify unpushed before rewriting history](feedback_verify_unpushed_before_rewrite.md) — check `git log @{upstream}..HEAD` before amending non-HEAD or rebasing; don't conflate "I have unpushed commits" with "recent history is rewritable"
@@ -15,3 +15,4 @@
 - [Tauri drag regions don't propagate through overlapping children](feedback_tauri_drag_region_stacking.md) — absolute-positioned overlays intercept drag unless tagged or pointer-events:none
 - [Warp cursor on drag clamp](feedback_drag_clamp_cursor_warp.md) — when a clamp pulls a drag-tracked element back, warp the cursor too to avoid an overshoot dead zone
 - [Run verification commands myself](feedback_user_run_commands_bang_prefix.md) — invoke `deploy`/`build`/`test` via Skill or Bash; never ask the user to run them
+- [Clean up safety backups proactively](feedback_clean_up_backups.md) — delete `*.bak` files/dirs once the new state is verified; don't leave them lingering
