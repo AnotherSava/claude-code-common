@@ -1,8 +1,5 @@
 # Global Guidelines
 
-Never prepend `cd` to commands — the working directory is already the project root.
-Use relative paths for files inside the project. Absolute paths are acceptable for files outside the project root.
-
 Never use absolute paths in committed documentation (README, CLAUDE.md, docs/, comments). Use relative paths for files within the project and generic descriptions for external references (e.g. "the BGA extension repo" not `D:\projects\bga\assistant`). Absolute paths are machine-specific and break for other contributors.
 
 Always ask clarifying questions before implementing if anything is ambiguous or unclear.
