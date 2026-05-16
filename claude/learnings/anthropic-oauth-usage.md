@@ -39,6 +39,23 @@ Undocumented beta endpoint that returns rolling 5-hour and 7-day rate-limit util
 
 `expiresAt` is ms-epoch. When expired, running any `claude` CLI command (e.g. `claude -p .`) triggers an OAuth refresh and rewrites the file.
 
+## Credentials on macOS (Keychain, not a file)
+
+On macOS Claude Code stores OAuth credentials in the **system Keychain** — no `~/.claude/.credentials.json` is created. The Keychain entry holds the same `{"claudeAiOauth": {...}}` JSON blob as the file would on other OSes.
+
+Access from the CLI:
+
+    security find-generic-password -s "Claude Code-credentials" -a "$USER" -w
+
+Write back (atomic via API):
+
+    security add-generic-password -s "Claude Code-credentials" \
+        -a "$USER" -w '<json blob>' -U
+
+A read from an unsigned/non-Apple binary triggers a SecurityAgent permission prompt; reads via `/usr/bin/security` itself do not, because Apple's signed binary is on the entry's partition list by default. Tools reading these credentials from native code should either shell out to `security` or arrange to be on the partition list via a signed Developer ID identity.
+
+Schema is the same as the file version (accessToken / refreshToken / expiresAt). The single-use-refresh-token race with Claude Code still applies.
+
 ## Refreshing the OAuth token directly
 
 You don't have to spawn the Claude Code CLI to refresh an expired access token — the same OAuth endpoint Claude Code uses is callable directly with the stored `refreshToken`.
