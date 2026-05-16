@@ -1,4 +1,7 @@
 {
+  "permissions": {
+    "defaultMode": "auto"
+  },
   "hooks": {
     "PreToolUse": [
       {
@@ -92,7 +95,8 @@
     "ralphex@ralphex": true,
     "frontend-design@claude-plugins-official": true,
     "plannotator@plannotator": true,
-    "claude-mermaid@claude-mermaid": true
+    "claude-mermaid@claude-mermaid": true,
+    "rust-analyzer-lsp@claude-plugins-official": true
   },
   "extraKnownMarketplaces": {
     "claude-code-plugins": {
@@ -114,5 +118,6 @@
       }
     }
   },
+  "theme": "dark",
   "skipAutoPermissionPrompt": true
 }
