@@ -10,11 +10,11 @@ description: >-
   remotes", or "what have I been working on".
   DO NOT TRIGGER when: user is asking about a single specific repo (use
   `git status` / `git log` directly).
-allowed-tools: Bash(python3 ~/.claude/skills/github-status/scripts/repos-status.py), Bash(test -f ~/.claude/skills/github-status/config/config.env), AskUserQuestion, Read(~/.claude/skills/github-status/config/config.env), Write(~/.claude/skills/github-status/config/config.env)
+allowed-tools: Bash(python3 ~/.claude/skills/github-status/scripts/repos-status.py), Bash(test -f ~/.claude/skills/github-status/config/config.env:*), AskUserQuestion, Read(~/.claude/skills/github-status/config/config.env), Write(~/.claude/skills/github-status/config/config.env)
 ---
 
 ## Context
-- Config file: !`cat ~/.claude/skills/github-status/config/config.env 2>/dev/null || echo MISSING`
+- Config file: !`test -f ~/.claude/skills/github-status/config/config.env && echo PRESENT || echo MISSING`
 - GitHub user (script default): AnotherSava — override via `GITHUB_USER` env var
 
 ## 1. Ensure PROJECTS_ROOT is configured
@@ -29,7 +29,7 @@ If **Config file** above is `MISSING`:
    PROJECTS_ROOT="<absolute path>"
    ```
 
-If **Config file** is present, proceed directly to step 2.
+If **Config file** is `PRESENT`, proceed directly to step 2.
 
 ## 2. Run the report
 
