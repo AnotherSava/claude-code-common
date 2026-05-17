@@ -103,6 +103,12 @@ The same utilization/reset data is exposed on every `POST /v1/messages` response
 
 Upstream monitor sends a 1-token ping to `claude-haiku-4-5-*` and reads the headers off the response when the primary endpoint fails.
 
+## 5h window can reset between polls
+
+Polling every 10 minutes and caching the snapshot for display: the 5h window can close and reopen inside that interval. The cached `resets_at` is now in the past relative to `Date.now()` — the "time remaining" UI renders as `--:--` or negative until the next scheduled poll picks up the new window's `resets_at`.
+
+**Mitigation:** when the displayed remaining goes ≤ 0, trigger an out-of-band refresh from the UI. The server should keep a rate-limit floor (e.g. 60 s) so the trigger can't spam Anthropic during the brief expired window. Without that floor, every re-render during the stale period would fire a refresh.
+
 ## Reference implementations
 
 - [CodeZeno/Claude-Code-Usage-Monitor](https://github.com/CodeZeno/Claude-Code-Usage-Monitor) — Rust, `ureq`, native-tls, hand-rolled ISO-8601 parser, WSL multi-distro credential-hunt, auto-refresh via `claude -p .`. Minimal deps, ~200 LOC core.

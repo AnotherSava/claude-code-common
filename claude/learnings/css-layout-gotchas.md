@@ -102,6 +102,24 @@ Using explicit `calc()` as the track template — `repeat(N, calc((100% - (N-1)p
 
 **When to accept the rounding:** if segments are wide (≥ 20 px) and the visual is dense enough that per-track ±1 px is imperceptible, `1fr` is fine. Thin segments (< 10 px) make the unevenness obvious.
 
+## `offsetHeight` rounds per element — summing across rows under-counts
+
+`HTMLElement.offsetHeight` returns an integer (per spec, rounded). Summing the heights of N siblings to compute "what window size do I need to fit all this content" yields up to `N` pixels of under-count, because each child's fraction is rounded down. The OS resize honors what you asked for exactly, so a scrollbar appears even though "the math added up."
+
+**Symptom:** auto-fit window logic that walks `.list.children` and sums `offsetHeight` ends up 3-6 px short on a 4-row list, with a scrollbar always present.
+
+**Fix:** sum `getBoundingClientRect().height` (fractional) and ceil the total before requesting the resize:
+
+```js
+let listH = 0
+for (const child of list.children) {
+  listH += child.getBoundingClientRect().height
+}
+const desired = Math.ceil(headerEl.getBoundingClientRect().height + listH)
+```
+
+`offsetHeight` is fine when you only need approximate "is this big or small" — unsuitable for "exactly fit N items, no scrollbar."
+
 ## `min-width` includes padding under `box-sizing: border-box`
 
 With `box-sizing: border-box` (set globally in most modern apps), `min-width` sets the *border-box* floor, not the content-box. If the element has horizontal padding, `min-width: 4ch` gives `4ch` of total border-box width and only `4ch - 2*padding` of content area — not enough to hold 4 monospace characters of text.
@@ -109,3 +127,25 @@ With `box-sizing: border-box` (set globally in most modern apps), `min-width` se
 **Symptom:** caps/labels with a `min-width` in `ch` units appear to "ignore" their floor whenever their text grows past `min-width - 2*padding`, because content overflows the padded content area and expands the border box past the floor. Two elements with the same `min-width` but different text lengths end up different widths.
 
 **Fix:** include the horizontal padding in the min-width, e.g. `min-width: calc(4ch + 10px)` for an element with `padding: 0 5px`. Or scope `box-sizing: content-box` to just that element if you want `min-width` to mean "content area min".
+
+## Sibling grid-rows don't share column widths — use subgrid
+
+If each "row" in your list is its own `display: grid` container, each row computes its column widths independently. `auto` and `1fr` resolve per row, so a right-flush "$30" cell in one row is a different width than the empty cell below it — the columns won't visually align.
+
+**Bug case:** parent uses `display: table` (or any non-grid container), each row is a 4-column grid. Discount column and date column visually drift between rows.
+
+**Fix:** move the grid template to the parent and have each row inherit via `subgrid`:
+
+```css
+.summary-list { display: grid; column-gap: 10px; }
+.summary-list.deals { grid-template-columns: minmax(80px, 22%) 1fr auto auto; }
+.summary-row {
+  display: grid;
+  grid-template-columns: subgrid;
+  grid-column: 1 / -1;     /* the row spans all parent columns */
+}
+```
+
+Now all rows participate in the parent's column track sizing — `auto` columns size to the widest content across all rows, and right-aligned cells stack vertically.
+
+Requires Chrome 117+ / Firefox 125+ / Safari 16+. Note `gap` is inherited from the parent in a subgrid; setting `gap` on a subgrid row has no effect.

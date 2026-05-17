@@ -39,6 +39,8 @@ Practical lessons from building a Chrome extension with Vite, TypeScript, a side
 
 ## Side Panel
 
+**The side panel header (icon + extension name) is rendered by Chrome, not your HTML.** The strip above `sidepanel.html` showing `[icon] Extension Name` is Chrome's own chrome — it reads the text from `manifest.name` and the icon from `manifest.action.default_icon` (with fallback to `manifest.icons`). Updating these in `manifest.json` and reloading the extension updates the header automatically; no JS or HTML change in the side panel is needed. The HTML body renders below this Chrome-owned strip.
+
 **`sidePanel.open()` requires a user gesture context.** If you `await` anything before calling it, the gesture expires:
 ```ts
 // WRONG — gesture lost after await
@@ -110,6 +112,8 @@ function stripExports(): Plugin {
 
 **`onMessage` handler returning `undefined` is fine** for synchronous handlers. The "return true" rule only applies if you call `sendResponse` asynchronously.
 
+**A "broadcast once" flag in the background can leave the side panel stuck if the panel ever wipes local state.** If the background sets `labelsPushed = true` (or similar) after pushing data and only resets it on account change or explicit reset, then a side panel that clears its cache for any other reason (e.g., on a transient `notOnGmail` signal) will never receive that data again — background thinks the panel has it, panel thinks background will re-push. Either drop the once-flag (re-push on every relevant event), or don't reset receiver state for transient conditions — keep the cached labels valid until you actually know they're stale (account change, explicit cache reset).
+
 ## Tab and Window Management
 
 **`currentWindow: true` is ambiguous in a service worker.** In `chrome.tabs.query({ active: true, currentWindow: true })`, "current window" resolves to the last-focused window, not necessarily the window that triggered the event. Always use an explicit `windowId` from the event context (e.g., `tab.windowId`, `activeInfo.windowId`, or sent from the side panel via `chrome.windows.getCurrent()`).
@@ -131,6 +135,8 @@ if (!isPageLoad && !isSpaNav) return;
 ```
 
 **`tabs.onUpdated` fires for all tabs.** Filter by active tab ID to avoid reacting to background tab loads.
+
+**SPAs may rewrite the URL hash after you navigate to it.** When you `chrome.tabs.update({ url: "...#all/<id>" })`, the target page may load the resource but immediately rewrite the hash to its own internal identifier. Gmail is a notable case: navigating to `#all/<api-thread-id>` (the ID returned by `users.messages.get`) opens the correct thread, but Gmail rewrites the hash to its own web-internal ID (e.g. `FMfcgz...`) within milliseconds. Consequence: you cannot correlate Gmail's URL hash to the API thread ID — URL-based state tracking fails for individual messages. Workarounds: (a) track "what I asked the page to navigate to" as state and only clear it when the page enters a known list view (write an `isListView(url)` helper); (b) prefer search URLs when available — Gmail preserves `#search/<query>` verbatim, so URL-prefix matching works for those.
 
 ## Icon Management
 
@@ -236,6 +242,8 @@ rollupOptions: {
 
 **Broken `.bin` shims after ralphex review:** ralphex runs in a Docker container on WSL, so its `npm install` installs Linux-native optional dependencies, overwriting the Windows ones in the shared `node_modules/`. Symptom: `'vite' is not recognized` or `Cannot find module @rollup/rollup-win32-x64-msvc`. Fix: `npm install @rollup/rollup-win32-x64-msvc`, then retry the build.
 
+**Same Linux-only deps also block new package installs.** `npm install --no-save <pkg>` fails with `EBADPLATFORM` when `@esbuild/linux-x64` or `@rollup/rollup-linux-x64-musl` is in `package.json` deps but the current platform is win32. Use `--force` to install anyway — npm skips the Linux-only deps and installs your new package fine.
+
 ## TypeScript Typings (`chrome-types` vs `@types/chrome`)
 
 **`chrome-types` (community fork) inlines callback parameter shapes as anonymous object literals — it does not export them as named interfaces.** Names you might expect from `@types/chrome` are missing:
@@ -259,6 +267,8 @@ Use `@types/chrome` instead if you need the full set of named types — but be a
 
 ## Chrome Web Store Publishing
 
+**"Impersonation and IP" rejections flag icon AND wordmark as separate violations.** When CWS rejects under this policy (e.g., "Red Nickel"), the rejection notice lists each flagged entity separately — `ICON`, plus any brand wordmark in the metadata (e.g., `GMAIL`). Each is its own violation: adding elements to a trademarked logo (overlay, recolor, partial obscuring) does not remove the trademark from the design, and leading the product name with a brand wordmark ("Gmail Assistant") is flagged regardless of how generic the rest is. Fix both: rebuild the icon with a generic visual vocabulary (a plain envelope is generic; Gmail's M-flap motif is not; Google's saturated Material palette is not), and rename with the brand as a **trailing** compatibility descriptor ("Foo for Gmail", not "Gmail Foo"). Body-text compatibility claims ("uses the Gmail API", "Browse Gmail labels") are explicitly allowed.
+
 **External CDN resources are rejected.** The store blocks extensions that load scripts or fonts from external domains. Bundle everything locally (e.g., `.woff2` fonts via `@font-face`).
 
 **A privacy policy URL is required** before submission, even for hobby extensions. A GitHub Pages page works.
@@ -275,7 +285,9 @@ Use `@types/chrome` instead if you need the full set of named types — but be a
 
 **Chrome Web Store auto-fills the Summary field from `manifest.json` `description`** (132 char max). Write the description as a user-facing pitch, not a technical blurb — it becomes the store summary shown under the extension name.
 
-**`github.io` is on Google's Public Suffix List**, so it cannot be added as an authorized domain in Google Auth Platform → Branding (error: "must be a top private domain"). Use the specific subdomain (`username.github.io`) verified via Google Search Console. For project-pages sites (`username.github.io/project/`), verification is tricky because Search Console's HTML file or meta tag must be served from the domain root — the project site only owns its subfolder. Solved by creating a user-pages repo (`username.github.io`) that hosts the verification file at root.
+**`github.io` is on Google's Public Suffix List**, so it cannot be added as an authorized domain in Google Auth Platform → Branding (error: "must be a top private domain"). For Auth Platform, verify the specific subdomain (`username.github.io`) via Search Console; this typically requires hosting a verification file at the subdomain root, which means a user-pages repo (`username.github.io`).
+
+**Chrome Web Store "Official URL" field requires Search Console verification of that exact URL.** Pasting an unverified URL silently redirects to Search Console's welcome screen instead of saving. For a project-pages URL like `https://username.github.io/project/`, no user-pages repo is needed: add a Search Console **URL prefix** property (not Domain — DNS isn't available on github.io), choose HTML file verification, and commit the file to the GH Pages source folder (e.g. `docs/`). Jekyll passes files without YAML front matter through unchanged, so just-the-docs and default Jekyll sites need no config. Keep the file in the repo — Search Console re-checks periodically.
 
 **Unlisted visibility** means users with the direct CWS URL can install, but the extension doesn't appear in CWS search or browse. Combined with OAuth testing mode's 100-user cap, this is a reasonable private-beta distribution path without CASA cost — friends/beta testers install via link, authenticate only if allowlisted.
 
@@ -338,6 +350,12 @@ Use `@types/chrome` instead if you need the full set of named types — but be a
 **Gmail API rate limit is ~10 concurrent calls.** 10 parallel `messages.list` requests work reliably. 40+ concurrent requests trigger 429 rate limit errors. The limit is per-second throughput, not per-minute — but bursting too many requests at once hits it.
 
 **`maxResults=500` is the practical maximum for `messages.list`.** Higher values are silently capped. Each page returns up to 500 message IDs and a `nextPageToken`.
+
+**`format=full` returns the body; `format=metadata` does not.** `messages.get?format=metadata` returns only headers, `snippet`, `internalDate`, `sizeEstimate` — no `payload.body.data`, no part contents. If you need the body text, request `format=full` (≈10× larger response, drop concurrency from ~10 to ~5 to stay under rate limits).
+
+**`payload.body.data` is base64url-encoded.** Convert with `data.replace(/-/g,'+').replace(/_/g,'/')`, pad with `=` to length % 4 == 0, then `atob()` and decode UTF-8 via `TextDecoder`. Traverse `payload.parts[]` recursively to find a text part — multipart/alternative wraps text/plain and text/html children.
+
+**Prefer text/html over text/plain for marketing emails.** Many promo senders (DoorDash, etc.) ship a text/html version with fully-rendered merge variables but a text/plain version with the placeholders never substituted — literal `$+` instead of `$15+`, `$).` instead of `$10).`. Preferring text/plain seems cleaner but loses the actual values. Extract text from HTML via `new DOMParser().parseFromString(html, "text/html")` then `body.textContent` — this also decodes all HTML entities (including `&#36;` → `$`) that hand-rolled regex strippers miss.
 
 ## Permissions Cheat Sheet
 

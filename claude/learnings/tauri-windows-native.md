@@ -16,6 +16,58 @@ For frameless windows (`decorations: false`) with `resizable: true`, Windows sti
 
 **Always use `inner_size()` for size reads if you'll feed the result back into `set_size`.**
 
+## Auto-resize loops vs Windows minimum window height
+
+Windows enforces a minimum height (~150 device px, varies by frame style) for resizable windows. `WebviewWindow::set_size` to anything smaller succeeds silently — no error — but the subsequent `inner_size()` returns the clamped value, not the requested one.
+
+If the frontend has an auto-resize loop that compares "desired content height" against `window.innerHeight` and re-fires on mismatch, this clamp creates a feedback loop:
+
+1. JS measures content as 87, sends `apply_auto_resize(87)`.
+2. Rust calls `set_size(87)`. Windows clamps to ~150. Inner is now 150.
+3. JS resize handler fires. Measures 87, sees `window.innerHeight = 150`, fires again.
+4. Loop continues at ~1 fire per measurement debounce until something else changes.
+
+The log signature is identical `desired_logical_height` across rapid calls with drifting `new_y` (Up-mode anchors compute fresh deltas each pass):
+
+```
+{"desired_logical_height":87.0,"new_height_phys":87,"new_y":2037}
+{"desired_logical_height":87.0,"new_height_phys":87,"new_y":2106}
+{"desired_logical_height":87.0,"new_height_phys":87,"new_y":2189}
+```
+
+### Correct dedup strategy
+
+Two cases need different treatment:
+
+1. **Content overflows the viewport** (`desired > window.innerHeight`) — always fire. This is the original bug class (content too tall, scrollbar appears). Dedup must never block it, including across DPI shifts and monitor moves where `lastSentHeight` may be stale relative to the current viewport.
+2. **Content fits the viewport** — dedup against `lastSentHeight` (what we last requested), not the viewport. Even if the actual window is taller than `desired` because of an OS clamp, re-asking for the same size won't help and we already requested it once.
+
+```ts
+let lastSentHeight = -1
+
+function measure() {
+    const desired = headerEl.offsetHeight + contentH
+
+    const overflowing = desired > window.innerHeight + 1
+    if (!overflowing && Math.abs(desired - lastSentHeight) < 1) return
+
+    lastSentHeight = desired
+    invoke('apply_auto_resize', { height: desired })
+}
+
+// Pair with a `resize` listener so DPI/monitor changes also trigger a
+// re-measure — the dedup above prevents recursion when our own resize
+// settles the window.
+window.addEventListener('resize', scheduleMeasure)
+```
+
+The naive single-comparison alternatives both fail:
+
+- Dedup against `lastSentHeight` alone: silently drops drift fires when the window's real size diverged from what we requested (DPI shift, monitor move, external resize). Content overflows, no resize.
+- Dedup against `window.innerHeight` alone: loops forever on OS clamp.
+
+The two-comparison form handles both.
+
 ## Threading
 
 `SetWindowSubclass` (and most class-modifying APIs like `SetClassLongPtrW`) require the **window-creating thread**. Calling them from a tokio worker (e.g. inside `tauri::async_runtime::spawn` after a `tokio::time::sleep`) silently fails with no error in the logs except the explicit return-value check.
