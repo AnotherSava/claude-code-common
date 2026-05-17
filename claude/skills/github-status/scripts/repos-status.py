@@ -108,15 +108,28 @@ def git(args: list[str], cwd: Path) -> str:
 
 
 def find_repos(root: Path, depth: int) -> list[Path]:
-    out = subprocess.run(
-        ["find", str(root), "-maxdepth", str(depth), "-type", "d", "-name", ".git"],
-        capture_output=True, text=True,
-    ).stdout
+    """Walk `root` up to `depth` levels and return directories containing `.git`.
+
+    Mirrors the previous `find -maxdepth <depth> -name .git` semantics in
+    pure Python — works identically on Linux, macOS, and Windows (where
+    `find.exe` is a line-filter, not a directory walker).
+    """
     repos: list[Path] = []
-    for line in out.splitlines():
-        if "/_archive/" in line or "/node_modules/" in line:
+    root = root.resolve()
+    skip_names = {"_archive", "node_modules"}
+    for dirpath, dirnames, _ in os.walk(root):
+        cur = Path(dirpath)
+        try:
+            cur_depth = len(cur.relative_to(root).parts)
+        except ValueError:
             continue
-        repos.append(Path(line).parent)
+        dirnames[:] = [d for d in dirnames if d not in skip_names]
+        if ".git" in dirnames:
+            repos.append(cur)
+            dirnames[:] = []  # don't descend into a repo
+            continue
+        if cur_depth >= depth - 1:
+            dirnames[:] = []
     repos.sort()
     return repos
 
@@ -356,6 +369,13 @@ def resolve_projects_root(config_file: Path) -> str | None:
 
 
 def main() -> int:
+    # Windows consoles default to a legacy codepage (e.g. cp1251) that can't
+    # encode the Unicode box-drawing characters used in the table. Force UTF-8
+    # on stdout/stderr so the script works identically across platforms.
+    for stream in (sys.stdout, sys.stderr):
+        if hasattr(stream, "reconfigure"):
+            stream.reconfigure(encoding="utf-8")
+
     github_user = os.environ.get("GITHUB_USER", "AnotherSava")
     depth = int(os.environ.get("ROOT_DEPTH", "4"))
     skill_dir = Path(__file__).resolve().parent.parent
