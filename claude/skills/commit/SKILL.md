@@ -13,6 +13,7 @@ Read `~/.claude/skills/shared/bash-rules.md` for bash command constraints.
 ## Context
 - Ignore rules: !`cat .gitignore 2>/dev/null || true`
 - Unstage all: !`git reset HEAD 2>/dev/null || true`
+- Remote ahead by: !`git fetch origin --quiet 2>/dev/null || true; git rev-list --count HEAD..@{upstream} 2>/dev/null || echo "n/a"`
 - Uncommitted changes: !`git status --short`
 - Diff summary: !`git diff HEAD --stat`
 - Full diff: !`git diff HEAD`
@@ -27,6 +28,7 @@ Read `~/.claude/skills/shared/bash-rules.md` for bash command constraints.
 **Pacing:** Steps 1–6 are preparation. Sub-skills may legitimately pause when they find substantive changes needing approval (e.g. clean-code proposing dead-code removal, documentation proposing edits). Honor those gates. But when a sub-skill finishes with nothing to report, continue immediately to the next step — do not insert an extra confirmation gate. The only gates the commit skill itself owns are step 6 (plan-filename warning, if triggered), step 7 (commit-plan approval), and step 8 (push).
 
 1. **Assess the current state of the repository** (use Context above):
+   - **Remote sync check (do this first):** If **Remote ahead by** is > 0, the remote has commits you don't have locally and `git push` will be rejected at the end. Surface this to the user immediately and propose `git pull --rebase origin <branch>` before proceeding. Wait for user confirmation before rebasing — it could conflict with the pending changes. After rebasing, re-check `git status --short` since the working tree may differ.
    - Use **Uncommitted changes**, **Diff summary**, and **Full diff** to understand the total change set against HEAD
    - **Scope guard:** Only commit files that belong to this repository. If earlier work in the conversation touched files in other projects, do not include those changes — each project's commits are handled separately.
    - If there are no uncommitted changes in this repository, stop — there is nothing to commit.
