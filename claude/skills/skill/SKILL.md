@@ -132,6 +132,7 @@ For commands too complex for a single line, use a script:
 - **Labeled** — the label describes what data the command provides
 - **Output-scoped** — limit output to what the skill actually needs. Use flags (`--short`, `--oneline`, `--stat`, `--format`), line limits (`-n`, `--limit`, `head -n`), field selectors (`--json ... --jq`), or filters (`grep`, `tail`) to trim noise. Unbounded output wastes context.
 - **Complete** — if a process step needs data on every invocation, that data must be in the Context section. Process steps should never need to re-run a command that Context could have provided. When reviewing a skill, scan every command in the process steps — if it runs unconditionally, it belongs in Context. Since `!` commands are replaced by their output during preprocessing, the model never sees the command text — only the label and the output. Process steps must reference context data by its **label** (e.g. "use **Diff summary**"), never by the command that produced it (e.g. not "run `git diff --stat`").
+- **CWD-portable** — global skills can be invoked from any project's working directory. Context commands that read files OUTSIDE that CWD (e.g. the skill's own config at `~/.claude/skills/<name>/...`) can be denied by Claude Code's auto-mode classifier as "scope escalation". The credential-heuristic is especially trigger-happy on `.env` filenames. See "Cross-CWD safety" below.
 
 ### Process steps should use context output directly
 
@@ -140,6 +141,20 @@ Since `!` commands are preprocessed, the data is always present when the model r
 ### Prune unused context items
 
 Every context item must be referenced by at least one process step (by its label). When reviewing or updating a skill, scan the Context section and remove any items that no process step uses — unused context wastes the preprocessing budget and pollutes the model's input with irrelevant data.
+
+### Cross-CWD safety
+
+A user can invoke any global skill from any project. The skill's own config / reference files live in `~/.claude/skills/<name>/`, which is *outside* the user's CWD whenever the CWD isn't `~/.claude/`. Claude Code's auto-mode classifier runs heuristics on every Bash command — when a `!` Context command reads outside the CWD, especially from `.env`-suffixed files, it may deny with: `"scope escalation beyond the <repo> repo and may expose credentials"`.
+
+Mitigations, in order of preference:
+
+1. **Existence-check, not content-read.** Use `!` + `test -f ~/.claude/skills/<name>/config/<file> && echo PRESENT || echo MISSING` and branch on the literal `PRESENT`/`MISSING` in process steps. No file content is read; the credential heuristic doesn't fire.
+2. **Avoid `.env` filenames** for skill-local config. Use `.conf`, `.ini`, `.txt`, or no extension. The classifier treats `.env` as credential-bearing regardless of actual contents.
+3. **Whitelist with `:*` wildcard** in `allowed-tools` when the compound form `cmd && X || Y` is needed:
+   `Bash(test -f ~/.claude/skills/<name>/config/<file>:*)`. The `:*` allows arguments and shell continuations after the prefix.
+4. **Read content via the `Read` tool**, not Bash, when content really is required. `Read(~/.claude/skills/<name>/config/<file>)` declared in `allowed-tools` doesn't go through the Bash classifier.
+
+If the skill's own script (`Bash(python3 ~/.claude/skills/<name>/scripts/<script>)`) is also denied when invoked from outside CWD, the user can add a project-local or global permission rule in `settings.json` allowing scripts under `~/.claude/skills/`.
 
 ## Gitignore
 
