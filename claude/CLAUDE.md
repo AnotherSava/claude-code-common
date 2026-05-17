@@ -94,6 +94,10 @@ Cross-project preferences and feedback. Memory files live in `~/.claude/memory/`
 - [Fix failing skills](~/.claude/memory/feedback_fix_skills.md) — fix the skill definition instead of working around failures manually
 - [Glob safety for numeric filenames](~/.claude/memory/feedback_glob_safety_windows.md) — `hex_4*.png` matches hex_40, hex_400, AND hex_441; use explicit ranges
 - [Post-iteration cleanup audit](~/.claude/memory/feedback_post_iteration_cleanup.md) — before committing after a debug/optimize session, remove changes from disproven theories; don't leave cruft
+- [Verify before justifying legacy behavior](~/.claude/memory/feedback_verify_before_justifying.md) — if explaining why old code/docs exist (especially defending keeping it), check the source before speculating; defensive guesses preserve cruft
+- [Captured the lesson, drop the code](~/.claude/memory/feedback_research_to_production_cleanup.md) — when research code transitions to production, delete helpers whose rationale lives in docs
+- [Fix bugs at the source, not in callers](~/.claude/memory/feedback_fix_at_source.md) — if a bug lives in code I can modify, fix it where it originates instead of working around in the caller
+- [Generalize global skills, don't fork project-local](~/.claude/memory/feedback_generalize_global_skills.md) — name collisions silently load the wrong SKILL body; use the deploy skill's Context-probe-and-dispatch pattern instead
 
 ## Skills
 
