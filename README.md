@@ -280,10 +280,12 @@ Read `~/.claude/learnings/chrome-extension.md` for domain-specific patterns.
 | `bash-portability.md` | macOS bash 3.2 vs Git Bash 4/5 — bash 4+ features to avoid in committed scripts |
 | `chrome-extension.md` | Chrome extensions (Manifest V3, Vite, side panel, service workers) |
 | `claude-code-integration.md` | Observing Claude Code sessions (hooks, transcript JSONL, state classification) |
+| `claude-code-rendering.md` | ANSI escapes don't render in Claude Code's response markdown — `isatty()` guard pattern |
 | `css-layout-gotchas.md` | Non-obvious CSS grid/flex/overflow behaviors in dashboard UIs |
 | `dotnet-tray-app.md` | .NET Windows tray apps (WinForms/WPF, config, overlay, CI/CD) |
 | `electron-windows-launcher.md` | Silent Electron launch on Windows (Startup folder, hidden BrowserWindow) |
 | `git-line-endings.md` | CRLF/LF handling on cross-platform repos (`.gitattributes`, normalization) |
+| `git-porcelain-parsing.md` | `git status --porcelain` parsing — the `.strip()` first-line leading-space trap |
 | `rust-serde-config-evolution.md` | Shipping Rust apps with schema-evolving override config files (container-level `#[serde(default)]`) |
 | `shell-environment.md` | Shell config across bash/zsh/WSL (common functions, PATH, verification) |
 | `skill-context-evaluator.md` | Constraints of the `!` backtick preprocessor in SKILL.md Context sections |

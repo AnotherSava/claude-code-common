@@ -494,3 +494,69 @@ code needs to update its state later.
 to declare whether `update()` runs on EDT or BGT. If your `update` reads
 mutable UI-adjacent state (a settings service, a session object), return
 `ActionUpdateThread.EDT` explicitly; otherwise the platform warns.
+
+## Gradle plugin v2.x upgrade chain
+
+A pre-v2.12 plugin definition (e.g. `2.1.0` with `instrumentationTools()`,
+Kotlin 1.9.x, Gradle 8.x wrapper) hits a cascading wall when moved to a
+modern Gradle / JDK environment. The actual chain of fixes:
+
+### 2.12.0 (2026-03) — breaking changes
+
+- **Removed `instrumentationTools()`.** It became automatic. Delete the
+  call from `dependencies { intellijPlatform { ... } }`.
+- **Min Gradle bumped to 9.0.0.** The 8.x wrapper no longer works.
+
+Error you see before the bump:
+
+    Adding a provider of configurations directly to the configuration
+    container is not allowed.  Use a factory method instead to create a
+    new configuration in the container.
+
+That's an old plugin internal calling a Gradle 9 API. Bump the
+`intellij.platform` plugin version to 2.12+ (we used 2.16.0).
+
+### foojay-resolver-convention 1.0.0+ for Gradle 9
+
+Gradle 9 + Kotlin JVM toolchain auto-provisioning needs the foojay
+resolver. The widely-cited `0.8.0` references `JvmVendorSpec.IBM_SEMERU`,
+which was removed in Gradle 9:
+
+    Class org.gradle.jvm.toolchain.JvmVendorSpec does not have member
+    field 'org.gradle.jvm.toolchain.JvmVendorSpec IBM_SEMERU'
+
+Use `1.0.0`+ in `settings.gradle.kts`:
+
+    plugins {
+        id("org.gradle.toolchains.foojay-resolver-convention") version "1.0.0"
+    }
+
+This makes Gradle auto-download the matching JDK (e.g. 17 for IntelliJ
+2024.1) instead of failing with "Cannot find a Java installation".
+
+### Kotlin 2.x for JDK 25 daemon compat
+
+If the Gradle daemon runs on JDK 25 (e.g. IntelliJ's bundled JBR at
+`/Applications/IntelliJ IDEA.app/Contents/jbr/Contents/Home`), Kotlin
+1.9.x's compiler can't parse the version string:
+
+    e: java.lang.IllegalArgumentException: 25.0.2
+        at org.jetbrains.kotlin.cli.jvm.modules.CoreJrtFileSystem.roots$lambda$0
+
+Bump `kotlin("jvm")` to 2.1+ (we used 2.3.21). This also fixes a separate
+Gradle 9 configuration-cache incompatibility in Kotlin 1.9.x's Gradle
+plugin.
+
+### Using IntelliJ's bundled JBR as JAVA_HOME
+
+`/Applications/IntelliJ IDEA.app/Contents/jbr/Contents/Home` is a complete
+JDK (OpenJDK 25 in current IntelliJ). Setting `JAVA_HOME` to that path and
+prepending its `bin/` to PATH gives `gradle` an immediately-working JVM
+without needing `brew install openjdk@<x>`:
+
+    export JAVA_HOME="/Applications/IntelliJ IDEA.app/Contents/jbr/Contents/Home"
+    export PATH="$JAVA_HOME/bin:$PATH"
+
+Useful for one-off scripted invocations of `gradle buildPlugin` from a
+deploy script when you don't want to manage a separate JDK install.
+
