@@ -16,3 +16,9 @@
 - [Warp cursor on drag clamp](feedback_drag_clamp_cursor_warp.md) — when a clamp pulls a drag-tracked element back, warp the cursor too to avoid an overshoot dead zone
 - [Run verification commands myself](feedback_user_run_commands_bang_prefix.md) — invoke `deploy`/`build`/`test` via Skill or Bash; never ask the user to run them
 - [Clean up safety backups proactively](feedback_clean_up_backups.md) — delete `*.bak` files/dirs once the new state is verified; don't leave them lingering
+- [Toolbox image-opt reference](reference_toolbox_image_opt.md) — canonical WebP/AVIF settings (method=6, quality=60); check toolbox before deriving fresh params
+- [Recover context from jsonl logs](reference_recover_context_from_jsonl.md) — after forced /clear, parse `~/.claude/projects/<id>/*.jsonl` to reconstruct prior session
+- [No premature abstraction](feedback_no_premature_abstraction.md) — don't build interfaces/registries until 2-3 concrete instances reveal the pattern
+- [CSS variant classes, not base-class overrides](feedback_css_variant_classes_not_overrides.md) — base class holds layout-agnostic styles; each view declares its own variant class with grid/flex shape
+- [No scratch paths in committed code](feedback_no_scratch_paths_in_committed_code.md) — committed docs/comments must not reference gitignored `tmp/`, `scratch/`, etc.; promote the file or rewrite the prose
+- [Verify log timing before transcript-based detection](feedback_verify_log_timing.md) — empirically check writer flush behavior; "unresolved X" probes fail silently if the writer buffers
