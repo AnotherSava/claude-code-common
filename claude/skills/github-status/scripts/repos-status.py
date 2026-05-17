@@ -7,6 +7,11 @@ stdout plus per-repo detail sections for uncommitted and unpushed work.
 Each run performs `git fetch --quiet` per repo in parallel before reading
 state, so `last_pushed` / `unpushed` / `behind` reflect the current remote.
 
+After collecting state, repos with inbound commits (`REMOTE > 0`) and no
+uncommitted changes (`LOCAL` empty) are auto-pulled with `git pull
+--ff-only --quiet`. Successful pulls are marked with a trailing `✓` in
+the REMOTE column (the original behind count is preserved for display).
+
 Environment:
   PROJECTS_ROOT — directory to scan (overrides config/config.env)
   GITHUB_USER   — origin-URL owner to filter by (default AnotherSava)
@@ -42,8 +47,8 @@ def format_lines(added: int, deleted: int) -> str:
     return ""
 
 
-def format_out(uncommitted: int, added: int, deleted: int) -> str:
-    """Render '<count> (+A/-D)' for the OUT column. '<count>' alone if no line diff."""
+def format_local(uncommitted: int, added: int, deleted: int) -> str:
+    """Render '<count> (+A/-D)' for the LOCAL column. '<count>' alone if no line diff."""
     if not uncommitted:
         return ""
     lines = format_lines(added, deleted)
@@ -88,6 +93,7 @@ class Repo:
     oldest_epoch: float  # Unix timestamp of oldest pending file mtime or unpushed commit; 0 if none
     lines_added: int  # tracked-only: sum of additions in `git diff HEAD --numstat`
     lines_deleted: int  # tracked-only: sum of deletions in `git diff HEAD --numstat`
+    pulled: bool = False  # set True if `git pull --ff-only` succeeded after state collection
 
 
 def git(args: list[str], cwd: Path) -> str:
@@ -128,6 +134,38 @@ def fetch_all(repos: list[Path]) -> None:
         return
     with ThreadPoolExecutor(max_workers=min(16, len(repos))) as ex:
         list(ex.map(fetch_one, repos))
+
+
+def pull_one(repo: Path) -> bool:
+    """Attempt fast-forward pull. Return True on success.
+
+    --ff-only refuses to create a merge commit if the branch has diverged
+    (local has unpushed commits AND remote has inbound commits), so this
+    is safe to run unconditionally on the eligible set.
+    """
+    r = subprocess.run(
+        ["git", "-C", str(repo), "pull", "--ff-only", "--quiet"],
+        capture_output=True, timeout=60,
+    )
+    return r.returncode == 0
+
+
+def pull_eligible(repo_rows: list[tuple[Path, "Repo"]]) -> None:
+    """Pull repos with inbound commits and no uncommitted changes.
+
+    Sets `row.pulled = True` for each repo where the fast-forward pull
+    succeeded. The row's `behind` field is intentionally NOT updated, so
+    the REMOTE column keeps showing the original count alongside the ✓ mark.
+    """
+    eligible = [(p, r) for p, r in repo_rows
+                if r.behind not in {"", "0"} and r.uncommitted == 0]
+    if not eligible:
+        return
+    print(f"Pulling {len(eligible)} clean repo(s)...", file=sys.stderr)
+    with ThreadPoolExecutor(max_workers=min(16, len(eligible))) as ex:
+        results = list(ex.map(lambda pr: pull_one(pr[0]), eligible))
+    for (_, row), ok in zip(eligible, results):
+        row.pulled = ok
 
 
 def discover_owned(projects_root: Path, github_user: str, depth: int) -> list[tuple[Path, str]]:
@@ -222,24 +260,24 @@ COLUMN_SPECS = [
     ("PROJECT",     "project",     lambda r: r.project),
     ("BRANCH",      "branch",      lambda r: r.branch),
     ("UNPUSHED",    "unpushed",    lambda r: r.unpushed if r.unpushed not in ("", "0") else ""),
-    ("IN",          "in",          lambda r: r.behind if r.behind not in ("", "0") else ""),
-    ("OUT",         "out",         lambda r: format_out(r.uncommitted, r.lines_added, r.lines_deleted)),
+    ("REMOTE",      "remote",      lambda r: (f"{r.behind} ✓" if r.pulled else r.behind) if r.behind not in ("", "0") else ""),
+    ("LOCAL",       "local",       lambda r: format_local(r.uncommitted, r.lines_added, r.lines_deleted)),
     ("AGE",         "age",         lambda r: human_age(time.time() - r.oldest_epoch) if r.oldest_epoch else ""),
     ("DESCRIPTION", "description", lambda r: "<analyze below>" if (r.unpushed_commits or r.changes) else "—"),
 ]
 
 
-def visible_columns(show_branch: bool, show_unpushed: bool, show_in: bool,
-                    show_out: bool, show_age: bool, show_description: bool):
+def visible_columns(show_branch: bool, show_unpushed: bool, show_remote: bool,
+                    show_local: bool, show_age: bool, show_description: bool):
     skip = set()
     if not show_branch:
         skip.add("branch")
     if not show_unpushed:
         skip.add("unpushed")
-    if not show_in:
-        skip.add("in")
-    if not show_out:
-        skip.add("out")
+    if not show_remote:
+        skip.add("remote")
+    if not show_local:
+        skip.add("local")
     if not show_age:
         skip.add("age")
     if not show_description:
@@ -248,7 +286,7 @@ def visible_columns(show_branch: bool, show_unpushed: bool, show_in: bool,
 
 
 # Column keys whose HEADER renders centered (values stay left-aligned).
-CENTERED_HEADERS = {"unpushed", "in", "out", "age"}
+CENTERED_HEADERS = {"unpushed", "remote", "local", "age"}
 
 
 def print_table(rows: list[Repo], cols) -> None:
@@ -342,16 +380,18 @@ def main() -> int:
     print(f"Fetching {len(owned)} repos...", file=sys.stderr)
     fetch_all([repo for repo, _ in owned])
 
-    rows = [collect_state(repo, rel) for repo, rel in owned]
+    repo_rows = [(repo, collect_state(repo, rel)) for repo, rel in owned]
+    pull_eligible(repo_rows)
+    rows = [r for _, r in repo_rows]
     rows.sort(key=lambda r: r.sort_iso, reverse=True)
 
     show_branch = any(r.branch not in {"main", "master"} for r in rows)
     show_unpushed = any(r.unpushed not in {"", "0"} for r in rows)
-    show_in = any(r.behind not in {"", "0"} for r in rows)
-    show_out = any(r.uncommitted for r in rows)
+    show_remote = any(r.behind not in {"", "0"} for r in rows)
+    show_local = any(r.uncommitted for r in rows)
     show_age = any(r.oldest_epoch for r in rows)
     show_description = any(r.unpushed_commits or r.changes for r in rows)
-    cols = visible_columns(show_branch, show_unpushed, show_in, show_out, show_age, show_description)
+    cols = visible_columns(show_branch, show_unpushed, show_remote, show_local, show_age, show_description)
 
     print_table(rows, cols)
     print_changes_detail(rows)
