@@ -3,6 +3,7 @@ __pycache__/
 
 # Ignore all skills, whitelist ours
 claude/skills/*
+!claude/skills/annotate/
 !claude/skills/build/
 !claude/skills/clean-code/
 !claude/skills/commit/
