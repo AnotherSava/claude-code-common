@@ -236,6 +236,19 @@ rollupOptions: {
 
 **Broken `.bin` shims after ralphex review:** ralphex runs in a Docker container on WSL, so its `npm install` installs Linux-native optional dependencies, overwriting the Windows ones in the shared `node_modules/`. Symptom: `'vite' is not recognized` or `Cannot find module @rollup/rollup-win32-x64-msvc`. Fix: `npm install @rollup/rollup-win32-x64-msvc`, then retry the build.
 
+## TypeScript Typings (`chrome-types` vs `@types/chrome`)
+
+**`chrome-types` (community fork) inlines callback parameter shapes as anonymous object literals — it does not export them as named interfaces.** Names you might expect from `@types/chrome` are missing:
+
+- `chrome.tabs.TabChangeInfo` (the `changeInfo` param of `tabs.onUpdated`) — not exported; the type is declared inline in the `onUpdated` event signature.
+- Similar pattern for other event-callback shapes.
+
+If you cast a test fixture as `chrome.tabs.TabChangeInfo`, `tsc` errors with `Namespace 'chrome.tabs' has no exported member 'TabChangeInfo'`. Fixes:
+- Drop the cast entirely if the receiver is loosely typed (e.g. `Function` in test mocks).
+- Otherwise inline the shape: `as { url?: string; status?: string }`.
+
+Use `@types/chrome` instead if you need the full set of named types — but be aware it may lag newer APIs.
+
 ## CSS in Extension Pages
 
 **`appearance: base-select` for dark-themed dropdowns.** Native `<select>` elements flash white when opening because the OS renders the dropdown. Chrome 134+ supports `appearance: base-select` which makes the dropdown a styleable top-layer element. Apply to both `select` and `::picker(select)`. Tradeoff: the dropdown no longer auto-sizes to the widest option — set an explicit `width`. Use `width: anchor-size(self-inline)` on `::picker(select)` to lock the picker width to the button.
