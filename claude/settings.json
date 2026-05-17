@@ -3,6 +3,18 @@
     "defaultMode": "auto"
   },
   "hooks": {
+    "PreToolUse": [
+      {
+        "matcher": "^(AskUserQuestion|ExitPlanMode)$",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "python3 \"$CLAUDE_AI_AGENT_DASHBOARD/integrations/claude_hook.py\" awaiting",
+            "async": true
+          }
+        ]
+      }
+    ],
     "PostToolUse": [
       {
         "matcher": "ExitPlanMode",
@@ -85,7 +97,8 @@
     "frontend-design@claude-plugins-official": true,
     "plannotator@plannotator": true,
     "claude-mermaid@claude-mermaid": true,
-    "rust-analyzer-lsp@claude-plugins-official": true
+    "rust-analyzer-lsp@claude-plugins-official": true,
+    "notion-workspace-plugin@notion-plugin-marketplace": true
   },
   "extraKnownMarketplaces": {
     "claude-code-plugins": {
@@ -105,8 +118,17 @@
         "source": "github",
         "repo": "veelenga/claude-mermaid"
       }
+    },
+    "notion-plugin-marketplace": {
+      "source": {
+        "source": "github",
+        "repo": "makenotion/claude-code-notion-plugin"
+      }
     }
   },
   "theme": "dark",
+  "effortLevel": "xhigh",
+  "awaySummaryEnabled": false,
+  "agentPushNotifEnabled": true,
   "skipAutoPermissionPrompt": true
 }

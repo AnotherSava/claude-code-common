@@ -36,7 +36,7 @@ Always pass `async: true` so the hook POST doesn't block Claude's turn.
 | `SessionEnd` | Session exits (`/exit` or window close) | `clear` (remove row) |
 | `PostToolUse` (matcher: `ExitPlanMode`) | User approved a plan | trigger plan-archival side effects |
 
-Also worth knowing about but usually not needed for state reporting: `PreToolUse`, `SubagentStop`.
+Also worth knowing about: `PreToolUse` (needed for user-gating tools like `AskUserQuestion` / `ExitPlanMode` — see "User-gating tools and the buffered-write problem" below) and `SubagentStop` (rarely needed).
 
 ## Hook stdin payload
 
@@ -155,6 +155,8 @@ def strip_trailing_options(text: str) -> str:
 | `Notification` | `notification_type == "idle_prompt"` + no `?` | `done` | (preserve) |
 | `Notification` | any other `notification_type` | `awaiting` | `message` |
 | `SessionEnd` | — | `clear` | — |
+| `PreToolUse` (matcher: `AskUserQuestion`) | `tool_name == "AskUserQuestion"` | `awaiting` | "has a question" |
+| `PreToolUse` (matcher: `ExitPlanMode`) | `tool_name == "ExitPlanMode"` | `awaiting` | "plan approval" |
 
 ### Notification debouncing
 
@@ -181,6 +183,29 @@ Avoid:
 
 - **Staleness timeouts** (revert to idle after N seconds of no activity). False-triggers during silent thinking and long tool runs that happen not to write intermediate tool_results. Tried and reverted.
 - **Polling the Claude Code process**. Racy and OS-specific.
+
+## User-gating tools and the buffered-write problem
+
+Claude Code buffers the assistant message containing certain client-side tool_use blocks until the matching tool_result is ready. The blocks are not flushed to the JSONL transcript while the user is being prompted. Confirmed cases (Claude Code 2.1.x):
+
+- `AskUserQuestion` — interactive UI prompt with selectable options. Sample transcripts showed 9-min and 38-min gaps between the tool_use and tool_result timestamps.
+- `ExitPlanMode` — plan acceptance gate.
+
+Implications:
+- Transcript watchers cannot detect these calls in flight. A "find unresolved X tool_use" probe will never fire — the file is silent during the wait.
+- The only timely signal is `PreToolUse`, which runs before Claude Code renders the prompt.
+
+The naive install — `PreToolUse` without a matcher — fires for every tool call and forks the hook script per call. Use a regex matcher to scope it:
+
+```json
+"PreToolUse": [
+  { "matcher": "^(AskUserQuestion|ExitPlanMode)$",
+    "hooks": [ { "type": "command", "async": true,
+        "command": "python3 /path/to/your-hook.py awaiting" } ] }
+]
+```
+
+`PostToolUse` for the same tools usually doesn't need to be wired — once the user answers, the watcher sees the now-flushed `tool_result` and reverts to `working`; a later `Stop` carries the row to `done`.
 
 ## Transcript JSONL location and filename mangling
 
