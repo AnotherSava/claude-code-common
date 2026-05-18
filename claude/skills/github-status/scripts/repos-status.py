@@ -267,8 +267,8 @@ def collect_state(repo: Path, rel: str) -> Repo:
 # Widths are computed dynamically at render time as max(header_len, max value
 # length) — the box border already adds 1 space of padding on each side via
 # "│ {cell} │", so we don't need any extra padding math.
-# Rows remain sorted by upstream commit date (newest first) regardless of which
-# columns are visible — see `rows.sort(key=lambda r: r.sort_iso, ...)` in main.
+# Rows are filtered to those with pending work and sorted by AGE ascending
+# (freshest first) — see filter + sort in `main`.
 COLUMN_SPECS = [
     ("PROJECT",     "project",     lambda r: r.project),
     ("BRANCH",      "branch",      lambda r: r.branch),
@@ -402,8 +402,16 @@ def main() -> int:
 
     repo_rows = [(repo, collect_state(repo, rel)) for repo, rel in owned]
     pull_eligible(repo_rows)
-    rows = [r for _, r in repo_rows]
-    rows.sort(key=lambda r: r.sort_iso, reverse=True)
+    # Keep only repos with something to report: uncommitted local changes,
+    # unpushed commits, or remote-inbound commits (including ones we just
+    # auto-pulled — surfaced once with the ✓ marker, then drop out next run).
+    rows = [
+        r for _, r in repo_rows
+        if r.unpushed_commits or r.changes or r.behind not in ("", "0")
+    ]
+    # Sort by AGE ascending: freshest pending work first, oldest at bottom.
+    # Sorting by oldest_epoch descending achieves this since age = now - epoch.
+    rows.sort(key=lambda r: r.oldest_epoch, reverse=True)
 
     show_branch = any(r.branch not in {"main", "master"} for r in rows)
     show_unpushed = any(r.unpushed not in {"", "0"} for r in rows)

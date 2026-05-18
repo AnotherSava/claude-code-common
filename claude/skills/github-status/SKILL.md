@@ -1,9 +1,10 @@
 ---
 name: github-status
 description: >-
-  List your GitHub-owned local clones under PROJECTS_ROOT with branch,
-  last-pushed date, unpushed commits, behind-upstream count, and
-  uncommitted file counts. Each run fetches every repo's origin in
+  List your GitHub-owned local clones under PROJECTS_ROOT that have
+  pending work (uncommitted changes, unpushed commits, or inbound
+  remote commits), with branch, counts, age of oldest pending work,
+  and a per-repo summary. Each run fetches every repo's origin in
   parallel so the counts reflect the current remote.
   TRIGGER when: user asks "/github-status", wants a cross-project overview
   of their repos, "which repos have unpushed commits", "what's new on
@@ -35,7 +36,7 @@ If **Config file** is `PRESENT`, proceed directly to step 2.
 
 Run `python3 ~/.claude/skills/github-status/scripts/repos-status.py`. The script output has up to three parts:
 
-1. **Table**, fixed-width and sorted by upstream commit date (newest first). Columns:
+1. **Table**, fixed-width. Only repos with pending work appear — anything with no uncommitted changes, no unpushed commits, and no inbound remote commits (after the auto-pull pass) is filtered out. Rows are sorted by AGE ascending (freshest pending work first; oldest at the bottom). Columns:
    - **PROJECT** is always present.
    - **BRANCH** appears only if any repo is on a branch other than `main` or `master`.
    - **UNPUSHED** appears only if any repo has unpushed commits (`@{upstream}..HEAD` > 0).
@@ -79,7 +80,7 @@ Do not show the script's original placeholder table either; your filled table re
 - **`REMOTE`** = commits in `HEAD..@{upstream}` (remote commits you haven't pulled).
 - **`LOCAL`** = `git status --porcelain | wc -l` (entry count) combined with line-level diff totals for both tracked and untracked text content.
 - The per-file detail section reproduces `git status --porcelain` output for each dirty repo, with the leading XY status code's spaces replaced by `·` so the columns line up.
-- Branches with no upstream show empty UNPUSHED / REMOTE cells and sort to the bottom.
+- Branches with no upstream show empty UNPUSHED / REMOTE cells; they appear only if they have local uncommitted changes, sorted alongside everything else by AGE.
 
 See `references/findings.md` for background on the depth-4 walk, ownership filter rationale, and the explicit-exclusion history.
 
