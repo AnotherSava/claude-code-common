@@ -130,5 +130,8 @@
   "effortLevel": "xhigh",
   "awaySummaryEnabled": false,
   "agentPushNotifEnabled": true,
-  "skipAutoPermissionPrompt": true
+  "skipAutoPermissionPrompt": true,
+  "attribution": {
+    "commit": ""
+  }
 }

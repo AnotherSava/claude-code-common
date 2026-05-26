@@ -105,6 +105,14 @@ Cross-project preferences and feedback. Memory files live in `~/.claude/memory/`
 - [Fix bugs at the source, not in callers](~/.claude/memory/feedback_fix_at_source.md) — if a bug lives in code I can modify, fix it where it originates instead of working around in the caller
 - [Generalize global skills, don't fork project-local](~/.claude/memory/feedback_generalize_global_skills.md) — name collisions silently load the wrong SKILL body; use the deploy skill's Context-probe-and-dispatch pattern instead
 
+## Reference Material
+
+Before reinventing a plugin or skill, and whenever you feel under-informed about the technology or domain at hand, consult the official Anthropic repositories:
+- Plugins: https://github.com/anthropics/claude-plugins-official
+- Skills: https://github.com/anthropics/skills
+
+Browse them for existing implementations to reuse, adapt, or learn from rather than building from scratch.
+
 ## Skills
 
 Skills live in `.claude/skills/<skill-name>/` (project-local) or `~/.claude/skills/<skill-name>/` (global). The entry point for each skill is `SKILL.md`.

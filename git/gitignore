@@ -5,3 +5,5 @@ Thumbs.db
 .ralphex/
 .firecrawl/
 config/deploy.env
+
+**/.claude/settings.local.json
