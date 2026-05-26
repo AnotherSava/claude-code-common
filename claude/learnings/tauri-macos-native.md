@@ -63,6 +63,50 @@ frontend calls a `show_window` Tauri command at the end of mount; this is
 also where the rAF gating goes. A 1500ms safety net in the Rust setup() is
 fine to keep — it only fires if the frontend never calls show.
 
+## Default window positioning: work_area() vs size()
+
+`tauri::window::Monitor::size()` returns the **full screen** including the
+Dock/menu bar (macOS) and the taskbar (Windows). Positioning a "bottom-right
+of screen" widget with `screen.height - window.height - margin` will leave it
+partially hidden under the Dock on macOS, and many projects compensate with a
+hardcoded `taskbar_allowance` constant.
+
+Tauri 2.x exposes `Monitor::work_area() -> &PhysicalRect<i32, u32>` — the
+usable rect that the OS reports as free of Dock/menu bar/taskbar chrome. Use
+it instead and drop the platform-specific allowance:
+
+    let work = monitor.work_area();
+    let x = work.position.x + work.size.width as i32 - size.width as i32 - margin_x;
+    let y = work.position.y + work.size.height as i32 - size.height as i32 - margin_y;
+
+`PhysicalRect` has `position: PhysicalPosition<i32>` and
+`size: PhysicalSize<u32>`. This is cross-platform — works on Windows
+(excludes taskbar) and Linux too. Always prefer `work_area()` over `size()`
+for positioning logic unless you specifically want absolute screen
+coordinates.
+
+## acceptFirstMouse: clicks on inactive windows reach the webview
+
+By default on macOS, clicking on an inactive (non-key) window only
+activates it — AppKit consumes the click and it never reaches the
+webview. For a multi-window app where the user expects a single click on
+a background window to register (e.g. clicking a dashboard row to toggle
+a popover that has focus), this manifests as needing TWO clicks: the
+first activates, the second triggers.
+
+Tauri exposes this as a per-window config flag in `tauri.conf.json`:
+
+    "app": {
+      "windows": [
+        { "label": "main",    "acceptFirstMouse": true, ... },
+        { "label": "history", "acceptFirstMouse": true, ... }
+      ]
+    }
+
+Default is `false`. Maps to NSView's `acceptsFirstMouse(_:) -> true`.
+macOS-only — no effect on Windows/Linux. Set on every window where you
+want click-through-on-activation behavior.
+
 ## Cross-platform bundle.targets
 
 `bundle.targets: ["nsis", "app", "dmg"]` works fine across platforms — Tauri

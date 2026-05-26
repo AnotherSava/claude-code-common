@@ -54,6 +54,8 @@ Each hook receives a JSON payload on stdin. Common fields:
 
 **Race to be aware of:** on `SessionStart` the transcript file may not exist yet — Claude Code creates it lazily when the first conversational entry is written. Treat `ENOENT` on `transcript_path` as a benign log-only event. The next hook call (`UserPromptSubmit`) will arrive after the file exists.
 
+**Use `payload.prompt` verbatim for chat-history capture.** If you also derive a cleaned single-line label for a status/dashboard row (newlines→spaces, terminal-chrome stripped), keep that label SEPARATE from the message you persist for a multi-line history view. Using the cleaned label as the history entry text collapses all paragraph structure and code blocks into one run-on line.
+
 ### UTF-8 stdin on Windows
 
 Claude Code sends JSON payloads as UTF-8 bytes, but Python on Windows decodes stdin with the system codepage (e.g. cp1251), mangling non-ASCII chars (emoji, `⎿`, CJK) into mojibake *before* your hook's logic runs. Content-layer sanitizers won't catch it because the original character is already gone. Fix at the top of the script:
@@ -207,6 +209,19 @@ The naive install — `PreToolUse` without a matcher — fires for every tool ca
 
 `PostToolUse` for the same tools usually doesn't need to be wired — once the user answers, the watcher sees the now-flushed `tool_result` and reverts to `working`; a later `Stop` carries the row to `done`.
 
+## `/clear` fires SessionEnd → SessionStart with a new transcript
+
+Typing `/clear` in Claude Code is two sequential hook invocations, ~30ms apart:
+
+1. `SessionEnd` with the **old** `transcript_path` and `session_id`.
+2. `SessionStart` (`source: "clear"`) with a **new** `transcript_path` and a **new** `session_id`. The old JSONL is left intact; a new one is created.
+
+`cwd` is unchanged across the pair, so any row identity derived from `cwd` (rather than `session_id`) is stable. But anything keyed off `session_id` or `transcript_path` — file watchers, in-memory dialog buffers, accumulated counters — is wiped between the two events.
+
+**Implication:** if you need to carry state across `/clear` (visual separator in a history view, accumulated stats, "session N of M"), do the work in the **`SessionEnd`** hook handler. By the time `SessionStart` arrives, the cleanup has already run — there's no opportunity to look back at the previous session's state from inside `SessionStart`. Persist what you need to disk during `SessionEnd` so `SessionStart`'s restore path can pick it up.
+
+`/compact` follows the same shape (`SessionEnd` → `SessionStart` with `source: "compact"`), but the transcript filename may or may not rotate depending on Claude Code version — don't assume, check `transcript_path`.
+
 ## Transcript JSONL location and filename mangling
 
 Path: `~/.claude/projects/<mangled-cwd>/<session-id>.jsonl`.
@@ -263,6 +278,31 @@ Walk entries backwards; use the last one whose type is `user` or `assistant` and
 | `assistant` with only `text` (no pending tool) | `done` (turn complete) |
 
 Empty text blocks (whitespace-only) don't count as `text`.
+
+## Stop hook fires before final assistant text is flushed
+
+The `Stop` hook can fire **before** the model's final assistant text is
+visible in the transcript file. If you read `transcript_path`
+synchronously in the Stop handler, you may get only entries up to the
+previous tool_use turn — missing the assistant's final response (often
+a question awaiting the user).
+
+Concrete evidence from one session: assistant entry timestamp
+`00:23:24.207Z`, Stop hook fires `00:23:24.557Z` (350 ms later). The
+JSONL line's `timestamp` field is EARLIER than the hook fire time, but
+the on-disk file at hook time doesn't yet contain that line —
+verifiable by truncating the file to N lines and re-running the read
+function.
+
+This affects both dialog text capture and the `?`-heuristic question
+detection. Mitigation: use the file watcher (`notify` /
+`FileSystemWatcher`) as the authoritative source for assistant text.
+The watcher's file-change event fires after the OS flushes the final
+line, so the read happens with complete content. Have Stop set status
+only; let the watcher push the dialog text via an upsert that replaces
+the latest Assistant entry within the current turn (i.e. the latest
+Assistant entry that sits after the most recent User entry — append if
+none exists yet).
 
 ## Chat ID derivation from cwd
 

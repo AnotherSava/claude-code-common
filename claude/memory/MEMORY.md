@@ -22,3 +22,6 @@
 - [CSS variant classes, not base-class overrides](feedback_css_variant_classes_not_overrides.md) — base class holds layout-agnostic styles; each view declares its own variant class with grid/flex shape
 - [No scratch paths in committed code](feedback_no_scratch_paths_in_committed_code.md) — committed docs/comments must not reference gitignored `tmp/`, `scratch/`, etc.; promote the file or rewrite the prose
 - [Verify log timing before transcript-based detection](feedback_verify_log_timing.md) — empirically check writer flush behavior; "unresolved X" probes fail silently if the writer buffers
+- [No bluffing external UIs or local internals](feedback_no_bluffing_external_uis.md) — investigate (WebSearch or Bash/Read) before answering; don't guess at dashboards, hook timing, file contents
+- [Honor concrete example](feedback_honor_concrete_example.md) — implement the user's literal example; ask before substituting a more general rule
+- [Resolve symlinks before editing](feedback_resolve_symlinks_before_editing.md) — Write/Edit fail on symlinks; `readlink` first for anything under `~/.claude/`

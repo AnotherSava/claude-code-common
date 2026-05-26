@@ -32,6 +32,10 @@ When asking the user to run a command manually (e.g. launching an app, system co
 - **on Windows:** provide PowerShell syntax — not bash or cmd.
 - **on macOS / Linux:** provide bash/zsh syntax.
 
+## Tooling Defaults
+
+- **Node.js**: default to the current active LTS (Node **24** as of May 2026) for new projects, CI workflows, and `.nvmrc` files — unless the project already pins an older version, a dependency demands otherwise, or there's a specific reason to use something else. Always prefer an existing `.nvmrc` / `engines.node` over this default.
+
 ## Code Style
 
 ### Formatting
@@ -79,6 +83,8 @@ When adding entries to `.gitignore`, choose the right scope:
 - **Project gitignore** (`.gitignore`): files that everyone who checks out the project should ignore — build outputs, `.env` files, `node_modules/`, `__pycache__/`.
 
 ## Symlinks
+
+Everything under `~/.claude/` is symlinked from the dotfiles repo (`CLAUDE.md`, `settings.json`, `skills/`, `hooks/`, `learnings/`, `memory/`). The Write and Edit tools **refuse to write through symlinks**. Before editing any file under `~/.claude/`, resolve the symlink with `readlink <path>` and pass the real target path to Write/Edit.
 
 For first-time global installation, use the platform-appropriate command block from `README.md`'s Global Installation section. For ad-hoc symlinks during a session:
 

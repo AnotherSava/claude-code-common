@@ -190,7 +190,24 @@ if (!isPageLoad && !isSpaNav) return;
 
 **The OAuth client ID is registered once in Google Cloud Console.** Users installing the extension don't need their own project — the ID is embedded in the manifest. While unpublished, Google shows an "unverified app" warning during auth.
 
-**Chrome extension IDs are stable only when published to the Chrome Web Store.** Unpacked extensions get a new ID on each install. The OAuth client ID registration needs the extension ID — for development, re-register or use a `key` field in the manifest to pin the ID.
+**Chrome extension IDs are deterministic.** For unpacked extensions, Chrome derives the ID from the install path — stable per machine, varies across machines/checkouts. For CWS-published extensions, the ID comes from the public key Chrome registers on first upload. To get a single stable ID across every machine AND match the CWS-published ID, add a top-level `"key"` field to `manifest.json`. The value is the base64 public key from CWS Dashboard → **Build** → **Package** → **View public key**, with the `BEGIN/END PUBLIC KEY` markers and newlines stripped.
+
+**The `"key"` field is safe to commit.** It's a public key — anyone with it can sideload an extension with your ID locally but cannot push CWS updates or impersonate you to the store. Google's own teams commit it (e.g. `google/chrome-ssh-agent`). The corresponding *private* key (`.pem`) is what must stay secret.
+
+**Strip `"key"` from the CWS upload ZIP.** Whether CWS rejects or silently strips is inconsistent across sources — safer to strip in your package script before zipping:
+```ts
+const packagedManifest = { ...manifest };
+delete packagedManifest.key;
+zip.file("manifest.json", JSON.stringify(packagedManifest, null, 2) + "\n");
+```
+
+**`bad client id` with a matching extension ID = wrong "Item ID" in Cloud Console.** The extension ID Chrome reports in `chrome://extensions` is only half the equation. The OAuth client at https://console.cloud.google.com/auth/clients has an **Item ID** field that must exactly equal your extension ID. If a previous dev environment's ID got pasted there, EVERY install (including CWS end users) fails with `bad client id` regardless of which machine. Diagnose by reading the Item ID in Cloud Console — a string that isn't your CWS extension ID means update it there and wait 5–60 min for propagation.
+
+**A single Chrome Extension OAuth client supports only one Item ID.** Google's docs explicitly say "if your app runs on multiple platforms, you must create a separate client ID for each platform." There's no UI/API affordance for multiple extension IDs per client. The canonical workaround is the `"key"` field above — make every install resolve to the same ID — not registering multiple IDs.
+
+**Runtime detection of dev vs. published install:** `chrome.management.getSelf()` returns `installType: "development" | "normal" | "admin" | "sideload" | "other"`. `"development"` means loaded unpacked; `"normal"` means installed from CWS. **This is the one `chrome.management` method that does NOT require the `"management"` permission** — it can self-introspect freely. Useful for tailoring error messages, hints, or telemetry.
+
+**`chrome://identity-internals` has been removed** in modern Chrome (visible in `chrome://chrome-urls` — gone). The programmatic equivalent still works from the SW devtools console: `chrome.identity.clearAllCachedAuthTokens(() => {})`. To force full re-consent, revoke at https://myaccount.google.com/permissions, then fully quit Chrome (⌘Q on macOS — not just close window) and relaunch.
 
 **All Gmail OAuth scopes are classified Restricted by Google Cloud Console** — including `gmail.readonly`, `gmail.modify`, and `gmail.metadata`. Google's developer docs at `/identity/protocols/oauth2/scopes` call some of these "sensitive," but the Cloud Console (Google Auth Platform → Data access) groups them under "Your restricted scopes." The Cloud Console classification is what drives verification requirements. Restricted = CASA audit needed.
 
