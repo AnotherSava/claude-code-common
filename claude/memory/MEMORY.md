@@ -25,3 +25,8 @@
 - [No bluffing external UIs or local internals](feedback_no_bluffing_external_uis.md) — investigate (WebSearch or Bash/Read) before answering; don't guess at dashboards, hook timing, file contents
 - [Honor concrete example](feedback_honor_concrete_example.md) — implement the user's literal example; ask before substituting a more general rule
 - [Resolve symlinks before editing](feedback_resolve_symlinks_before_editing.md) — Write/Edit fail on symlinks; `readlink` first for anything under `~/.claude/`
+- [Don't cache cheap derivations](feedback_no_cache_cheap_derivations.md) — use plain @property for cheap derived values; reserve @cached_property for genuinely expensive computation
+- [Edit replace_all scope safety](feedback_edit_replace_all_scope.md) — replace_all is only safe when matches share indentation/scope; multi-line new_string will mis-indent across different blocks
+- [Side-panel actions refresh, don't navigate](feedback_actions_refresh_not_navigate.md) — explicit clicks navigate the host page; action consequences refresh in place to preserve user context
+- [Store raw data, derive display fields](feedback_store_raw_derive_display.md) — persist full/rich data; truncate or compute booleans at display time, not storage time
+- [Don't state assumptions as facts](feedback_assumptions_vs_facts.md) — label inferences explicitly; verify before presenting causal explanations as conclusions
