@@ -88,6 +88,8 @@ chrome.action.onClicked.addListener(async (tab) => {
 
 **`world: "ISOLATED"` for DOM-only watchers** that only need MutationObserver + `chrome.runtime.sendMessage()`. Safer because the content script can't be tampered with by page scripts. Note: TypeScript's type definitions may not include `"ISOLATED"` as a valid world value — cast with `as any`.
 
+**`chrome.scripting.executeScript({ target, func })` injects a function inline** — no separate content-script file or `web_accessible_resources` entry needed. Useful for one-off UI interactions (e.g. clicking a button on a third-party SPA). Requires the `scripting` permission plus host_permissions for the target URL (or `activeTab`). The injected function runs in the ISOLATED world by default — pass `world: "MAIN"` to access page-script globals. The function's return value is available in `results[0].result`, so you can detect failure (e.g. selector returned nothing) and fall back to a heavier strategy like `chrome.tabs.reload`.
+
 **Scripts injected via `executeScript({ files: [...] })` must not have `export` statements.** Vite outputs `export {};` by default. Strip it with a custom `generateBundle` plugin:
 ```ts
 function stripExports(): Plugin {
@@ -137,6 +139,8 @@ if (!isPageLoad && !isSpaNav) return;
 **`tabs.onUpdated` fires for all tabs.** Filter by active tab ID to avoid reacting to background tab loads.
 
 **SPAs may rewrite the URL hash after you navigate to it.** When you `chrome.tabs.update({ url: "...#all/<id>" })`, the target page may load the resource but immediately rewrite the hash to its own internal identifier. Gmail is a notable case: navigating to `#all/<api-thread-id>` (the ID returned by `users.messages.get`) opens the correct thread, but Gmail rewrites the hash to its own web-internal ID (e.g. `FMfcgz...`) within milliseconds. Consequence: you cannot correlate Gmail's URL hash to the API thread ID — URL-based state tracking fails for individual messages. Workarounds: (a) track "what I asked the page to navigate to" as state and only clear it when the page enters a known list view (write an `isListView(url)` helper); (b) prefer search URLs when available — Gmail preserves `#search/<query>` verbatim, so URL-prefix matching works for those.
+
+**Navigating to the same hash URL is a no-op in Gmail.** `chrome.tabs.update(tabId, { url: sameUrl })` won't make Gmail's SPA re-fetch — the URL didn't change from Chrome's perspective, and Gmail's hashchange listener ignores identical hashes. To force a refresh in place (cheaper than `chrome.tabs.reload`, which is a full frame reload), inject a script that clicks Gmail's own Refresh button via `chrome.scripting.executeScript`. Selector: `[role="button"][aria-label="Refresh"]`. Caveat: `aria-label` is localized — fall back to `chrome.tabs.reload` if the query returns nothing. Distinguish two intents at the message-passing layer: "navigate to filter" (different URL → SPA navigate) vs "refresh current view" (same or different URL → click Refresh).
 
 ## Icon Management
 
@@ -208,6 +212,12 @@ zip.file("manifest.json", JSON.stringify(packagedManifest, null, 2) + "\n");
 **Runtime detection of dev vs. published install:** `chrome.management.getSelf()` returns `installType: "development" | "normal" | "admin" | "sideload" | "other"`. `"development"` means loaded unpacked; `"normal"` means installed from CWS. **This is the one `chrome.management` method that does NOT require the `"management"` permission** — it can self-introspect freely. Useful for tailoring error messages, hints, or telemetry.
 
 **`chrome://identity-internals` has been removed** in modern Chrome (visible in `chrome://chrome-urls` — gone). The programmatic equivalent still works from the SW devtools console: `chrome.identity.clearAllCachedAuthTokens(() => {})`. To force full re-consent, revoke at https://myaccount.google.com/permissions, then fully quit Chrome (⌘Q on macOS — not just close window) and relaunch.
+
+**Adding or changing a manifest `key` requires a full uninstall + load-unpacked.** `chrome.runtime.reload()` — what Extensions Reloader and the "↻" button on chrome://extensions trigger — re-reads files but does NOT recompute the extension ID from the new key. The extension keeps whatever ID Chrome assigned at first install, so OAuth keeps failing with "bad client id" until you remove the extension entirely and load the dist fresh.
+
+**Adding a new `permissions` entry to the manifest triggers Chrome's "Updated permissions" prompt.** The extension stays installed but is disabled until the user approves the new permissions on the chrome://extensions page. `host_permissions` additions are incremental and don't reset other permissions, but adding API permissions like `scripting`, `notifications`, or `tabs` blocks the extension on next reload pending approval. Bump the manifest `version` so Chrome detects the change, and warn beta users in advance — silent reloads will appear broken until they revisit chrome://extensions.
+
+**`chrome.identity.getAuthToken` caches tokens keyed by scope set.** When you change `oauth2.scopes` in the manifest, Chrome won't return the previously-cached (narrower) token — it'll prompt the user to re-consent for the new scopes. Existing cached tokens for the old scope set become unusable; they're not auto-revoked, but they no longer get returned. If the new scope hasn't been added to Google Cloud Console's authorized scope list, the consent attempt fails with `invalid_scope` and the extension has no usable token at all. Always add the scope to GCP → Auth Platform → Data access *before* shipping the manifest change.
 
 **All Gmail OAuth scopes are classified Restricted by Google Cloud Console** — including `gmail.readonly`, `gmail.modify`, and `gmail.metadata`. Google's developer docs at `/identity/protocols/oauth2/scopes` call some of these "sensitive," but the Cloud Console (Google Auth Platform → Data access) groups them under "Your restricted scopes." The Cloud Console classification is what drives verification requirements. Restricted = CASA audit needed.
 
@@ -373,6 +383,10 @@ Use `@types/chrome` instead if you need the full set of named types — but be a
 **`payload.body.data` is base64url-encoded.** Convert with `data.replace(/-/g,'+').replace(/_/g,'/')`, pad with `=` to length % 4 == 0, then `atob()` and decode UTF-8 via `TextDecoder`. Traverse `payload.parts[]` recursively to find a text part — multipart/alternative wraps text/plain and text/html children.
 
 **Prefer text/html over text/plain for marketing emails.** Many promo senders (DoorDash, etc.) ship a text/html version with fully-rendered merge variables but a text/plain version with the placeholders never substituted — literal `$+` instead of `$15+`, `$).` instead of `$10).`. Preferring text/plain seems cleaner but loses the actual values. Extract text from HTML via `new DOMParser().parseFromString(html, "text/html")` then `body.textContent` — this also decodes all HTML entities (including `&#36;` → `$`) that hand-rolled regex strippers miss.
+
+**`users.messages.batchModify` for bulk label edits.** One POST to `/messages/batchModify` with `{ ids: [], addLabelIds: [], removeLabelIds: [] }` modifies up to 1000 messages in one call. "Move to Trash" = add the system label `TRASH`; "Untrash" = remove `TRASH` (still recoverable from Gmail UI within 30 days). Archive a user-defined label by removing it. Endpoint returns 204 — no JSON body to parse. Requires `gmail.modify` scope (broader than `gmail.readonly`). Far cheaper than N per-message `users.messages.modify` calls.
+
+**Gmail search uses space for AND, `{}` for OR.** `label:foo label:bar` (space-separated) matches messages with both labels; `{label:foo OR label:bar}` (braces) matches either. Hyphens replace slashes in label names: `label:ads/deal` is written `label:ads-deal` or quoted `label:"ads-deal"`. `formatLabelForQuery(name)` should produce `"label-with-hyphens"` (quoted, lowercased, slash → hyphen).
 
 ## Permissions Cheat Sheet
 

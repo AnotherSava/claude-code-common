@@ -171,3 +171,17 @@ unsafe {
 Don't `DeleteObject` the previous brush returned by `SetClassLongPtrW` — it may be a system color value (e.g. `COLOR_WINDOW+1`) rather than a real GDI handle, and feeding that to `DeleteObject` is undefined.
 
 `COLORREF` encoding is `0x00BBGGRR` (low byte red), so `#1c1c1e` → `0x001E_1C1C`.
+
+## Multi-window pitfalls
+
+Attempting to add a second always-on-top overlay window (for a tooltip that extends past the main widget) revealed several issues:
+
+**Capability JSON with non-existent window labels**: adding `"tooltip"` to the capability's `windows` array before the window exists can break IPC routing for the main window — `data-tauri-drag-region` drag and `app.exit(0)` both stopped working. Pre-declaring the window in `tauri.conf.json` (so it exists at startup) or using a separate capability file avoids this.
+
+**Dynamically-created overlay windows break main window drag**: creating a `transparent(true)` + `always_on_top(true)` window at runtime broke the main window's drag detection even after hiding the overlay. Root cause is likely focus migration during creation — `focused(false)` in the builder prevents initial focus but doesn't prevent the window from being focusable. The drag region's `start_dragging` IPC requires the window to be the foreground window.
+
+**`app.exit(0)` silently no-ops from tray menu handlers**: observed after adding a second window. `std::process::exit(0)` bypasses Tauri's exit pipeline entirely and is reliable for tray widgets where there's no graceful work to flush.
+
+**Native `title` tooltips already escape the window**: the browser's `title` attribute renders an OS-level tooltip (a separate native window managed by the webview), not a DOM element. It can extend past the webview frame in any direction. Don't build a custom Tauri overlay window for tooltip-like content — the browser already does it for free, with correct hit-testing, no focus issues, and no capability concerns. The trade-off is plain text only (no styling, no highlighting).
+
+**Dynamically created windows have no IPC**: `WebviewWindowBuilder::build()` creates windows that load and render HTML/JS normally, but `invoke()` calls silently fail — no errors, no logs, just dead IPC. `initialization_script` globals also don't survive to page JS. `WebviewUrl::App("other.html".into())` for non-root HTML files produces a completely empty window (no content, no close button response). The workaround: pre-configure windows in `tauri.conf.json` with `visible: false`, then show/hide them via commands. Pre-configured windows get full IPC. Use a managed state + events to pass data between windows (e.g. `HistoryTarget` mutex + `history_target` event). For the OS close button on reusable windows: match `CloseRequested { api, .. }`, call `api.prevent_close()`, then `window.hide()`.
