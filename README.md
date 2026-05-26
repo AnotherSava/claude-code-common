@@ -137,31 +137,34 @@ Configures the deployment pipeline for a supported project (.NET, Tauri, or Inte
 
 ### Build
 
-Configures a build shortcut for any project. On first use, sets up the `build` bash function, creates a local `scripts/build.sh` wrapper, and updates `.gitignore`. Then auto-detects the project type and builds.
+Configures a build shortcut for any project. On first use, sets up the `build` bash function, creates a local `scripts/build.sh` wrapper, and updates `.gitignore`. Then auto-detects the project type and builds. Optionally generates a GitHub Actions CI workflow.
 
 **Command:** `/build`
 
 **Features:**
 - Auto-configures `build()` bash function in `~/.bashrc` if missing
 - Creates `scripts/build.sh` wrapper pointing to the global build script
-- Auto-detects project type: `package.json` → `npm run build`, `src/*.csproj` → `dotnet build`
+- Auto-detects project type: npm, dotnet, or Tauri
+- Optionally generates `.github/workflows/build.yml` with CI for push/PR builds (Tauri uses a Windows + macOS matrix)
 - After first `/build`, use `! build` for instant builds without LLM overhead
 
 ---
 
 ### Release
 
-Tags a new version, pushes to trigger CI, monitors the build, and updates the GitHub release with final notes.
+Tags a new version, pushes to trigger CI, monitors the build, and updates the GitHub release with final notes. Supports dotnet and Tauri projects (Tauri builds for Windows + macOS).
 
 **Command:** `/release`
 
 **Features:**
 - Validates preconditions: clean tree, on main, in sync with remote
-- Auto-detects project name from `.csproj` and GitHub repo info
+- Auto-detects project type (dotnet or Tauri) and extracts project name
 - Recommends version bump based on commit history, asks for confirmation
-- Compiles release notes from commits with SmartScreen warning and download table
-- Pushes tag, monitors the GitHub Actions workflow until completion
-- Updates release notes with actual asset sizes after CI produces the artifacts
+- Bumps version in all manifest files before tagging (csproj / package.json / tauri.conf.json / Cargo.toml)
+- Creates signed annotated tags for GitHub "Verified" badge
+- Compiles platform-appropriate release notes (SmartScreen + Gatekeeper warnings, download tables)
+- Monitors CI (single-platform for dotnet, matrix for Tauri) until completion
+- Updates release notes with actual asset sizes, un-drafts Tauri releases
 
 ---
 
@@ -202,9 +205,9 @@ Cross-project overview of all your GitHub-owned local clones — branch, behind/
 **Features:**
 - Walks `PROJECTS_ROOT` (configured per-machine on first run), filters to repos owned by your GitHub user
 - Fetches every repo's origin in parallel before reading state, so counts reflect the current remote
+- Auto-pulls clean repos with inbound commits via `git pull --ff-only`, marks pulled repos with `✓`
 - Auto-hides columns that have no meaningful data (no unpushed commits → no UNPUSHED column, all on main → no BRANCH column, etc.)
 - Reports uncommitted-file lists and unpushed-commit subjects so Claude can summarize each repo in one line
-- Pure read-only on repo content — the only mutation is the per-run fetch
 
 ---
 
@@ -280,16 +283,24 @@ Read `~/.claude/learnings/chrome-extension.md` for domain-specific patterns.
 | `bash-portability.md` | macOS bash 3.2 vs Git Bash 4/5 — bash 4+ features to avoid in committed scripts |
 | `chrome-extension.md` | Chrome extensions (Manifest V3, Vite, side panel, service workers) |
 | `claude-code-integration.md` | Observing Claude Code sessions (hooks, transcript JSONL, state classification) |
+| `claude-code-plugin-mcp-config.md` | Claude Code plugin MCP config — locating the authoritative `mcpServers` definition |
 | `claude-code-rendering.md` | ANSI escapes don't render in Claude Code's response markdown — `isatty()` guard pattern |
+| `css-anchor-positioning.md` | CSS Anchor Positioning (Chrome 125+) — native tooltip/popover positioning without JS |
+| `css-color-adaptation.md` | CSS color adaptation — adapting arbitrary colors to contrast requirements without JS |
 | `css-layout-gotchas.md` | Non-obvious CSS grid/flex/overflow behaviors in dashboard UIs |
 | `dotnet-tray-app.md` | .NET Windows tray apps (WinForms/WPF, config, overlay, CI/CD) |
 | `electron-windows-launcher.md` | Silent Electron launch on Windows (Startup folder, hidden BrowserWindow) |
 | `git-line-endings.md` | CRLF/LF handling on cross-platform repos (`.gitattributes`, normalization) |
 | `git-porcelain-parsing.md` | `git status --porcelain` parsing — the `.strip()` first-line leading-space trap |
+| `intellij-plugin-development.md` | IntelliJ Platform plugin development (Gradle, SDK, lexer/parser, settings) |
+| `macos-app-uninstall.md` | Cleanly uninstalling macOS apps (app bundles, LaunchAgents, caches, Keychain) |
 | `rust-serde-config-evolution.md` | Shipping Rust apps with schema-evolving override config files (container-level `#[serde(default)]`) |
 | `shell-environment.md` | Shell config across bash/zsh/WSL (common functions, PATH, verification) |
 | `skill-context-evaluator.md` | Constraints of the `!` backtick preprocessor in SKILL.md Context sections |
+| `tauri-github-release-pipeline.md` | Tauri release pipeline on GitHub Actions (tauri-action, matrix drafts, signed tags, version pinning) |
 | `tauri-macos-native.md` | Tauri on macOS (accessory policy, white-flash mitigation, Keychain via `security`, TCC) |
+| `tauri-updater.md` | Tauri auto-updater plugin (endpoints, latest.json, signature verification, S3/GH hosting) |
+| `tauri-windows-native.md` | Tauri on Windows — native Win32 customization (HWND, taskbar, tray, always-on-top) |
 | `windows-terminal-title.md` | Why per-tab title manipulation from Claude Code hooks isn't feasible on WT |
 
 ---
