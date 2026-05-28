@@ -22,12 +22,15 @@ Tag the current `main` commit as `vX.Y.Z` and let the project's CI workflow buil
 ### Project type probes
 - Chrome extension: !`test -f manifest.json && test -f package.json && grep -q '"manifest_version"' manifest.json 2>/dev/null && echo yes || echo no`
 - .NET project: !`ls src/*.csproj 2>/dev/null | grep -q . && echo yes || echo no`
+- Tauri project: !`test -f src-tauri/tauri.conf.json && echo yes || echo no`
 
 ### Stack-specific data
 - Manifest version: !`node -p "require('./manifest.json').version" 2>/dev/null || echo n/a`
 - Package version: !`node -p "require('./package.json').version" 2>/dev/null || echo n/a`
 - AssemblyName: !`sed -n 's/.*<AssemblyName>\([^<]*\)<.*/\1/p' src/*.csproj 2>/dev/null | head -1 || echo n/a`
 - Has signing policy section: !`grep -q "Code signing policy" README.md 2>/dev/null && echo yes || echo no`
+- Tauri config version: !`node -p "require('./src-tauri/tauri.conf.json').version" 2>/dev/null || echo n/a`
+- Tauri Cargo version: !`sed -n 's/^version = "\([^"]*\)".*/\1/p' src-tauri/Cargo.toml 2>/dev/null | head -1 || echo n/a`
 
 ## 1. Detect project type
 
@@ -35,8 +38,9 @@ Pick the matching flow based on the **Context** flags:
 
 - **Chrome extension** is yes → use Chrome-extension flow
 - else **.NET project** is yes → use .NET flow
+- else **Tauri project** is yes → use Tauri flow
 - else → **STOP**. Tell the user:
-  > The `release` skill recognizes Chrome extensions (`manifest.json` + `package.json`) and .NET (`src/*.csproj`) projects. None was found in the current directory. To support a new stack, extend this skill's Context probes and add a stack-specific branch to each step.
+  > The `release` skill recognizes Chrome extensions (`manifest.json` + `package.json`), .NET (`src/*.csproj`), and Tauri (`src-tauri/tauri.conf.json`) projects. None was found in the current directory. To support a new stack, extend this skill's Context probes and add a stack-specific branch to each step.
 
 If more than one flag is yes (mixed repo), ask the user which stack to release — do not guess.
 
@@ -51,21 +55,24 @@ Universal:
 
 Stack-specific:
 - **Chrome extension**: **Manifest version** must equal **Package version**
+- **Tauri**: **Tauri config version** must equal **Tauri Cargo version** (and **Package version**) — the bundle version comes from `tauri.conf.json`, so all version files must agree
 
 ## 3. Determine version
 
 1. Read the latest tag (Context) and the current source-of-truth version:
    - **Chrome extension**: source-of-truth = **Manifest version**
    - **.NET**: ask the user — version is injected from the tag into the build (no version file to read), so the tag is the source of truth
+   - **Tauri**: source-of-truth = **Tauri config version** (`tauri.conf.json`)
 2. List commits since the latest tag: `git log <latest-tag>..HEAD --oneline`. If no prior tag, list all commits.
 3. Recommend patch / minor / major based on commit subjects (`feat:` → minor, `fix:`/`chore:`/`refactor:` → patch, breaking change → major).
 4. Decision:
    - **Chrome extension**: if **Manifest version** > latest tag's version, the bump is already committed — use it and skip step 4. Else proceed to step 4 with the recommended version (or user override).
    - **.NET**: ask user for new version (default = recommended bump). Skip step 4 — version is tag-injected.
+   - **Tauri**: if **Tauri config version** > latest tag's version, the bump is already committed — use it and skip step 4. Else proceed to step 4 with the recommended version (or user override).
 
 Tag format is always `vX.Y.Z`.
 
-## 4. Bump version (Chrome extension only)
+## 4. Bump version (Chrome extension and Tauri)
 
 Skip this step for .NET.
 
@@ -75,7 +82,15 @@ For Chrome extension:
 - Stage and commit (GPG-signed): `git add manifest.json package.json && git commit -S -m "chore: bump version to X.Y.Z"`
 - Push: `git push origin main`
 
-Use the Edit tool — do not regenerate either file.
+For Tauri, bump **all four** version references so they stay in sync (the bundle version comes from `tauri.conf.json`; the others must match):
+- Edit `src-tauri/tauri.conf.json` `"version"` field → new version
+- Edit `package.json` `"version"` field → new version
+- Edit `src-tauri/Cargo.toml` `[package]` `version` field → new version
+- Edit `src-tauri/Cargo.lock` — the package's own entry (find the `[[package]]` block whose `name` matches the crate, bump its `version`; leave dependency entries untouched)
+- Stage and commit (GPG-signed): `git add src-tauri/tauri.conf.json package.json src-tauri/Cargo.toml src-tauri/Cargo.lock && git commit -S -m "chore: bump version to X.Y.Z"`
+- Push: `git push origin main`
+
+Use the Edit tool — do not regenerate any file. Read `Cargo.lock` before editing it (Edit requires a prior Read).
 
 ## 5. Compile release notes
 
@@ -127,6 +142,21 @@ After the "What's new" section, include a Downloads table (leave sizes as placeh
 Requires Windows 10+ and .NET 10 SDK.
 
 dotnet build src/
+
+**Full Changelog**: https://github.com/{owner}/{repo}/compare/{prev-tag}...vX.Y.Z
+```
+
+**Tauri:**
+
+`release.yml` builds a per-OS matrix via `tauri-action` and creates a **draft** release with the installers attached (Windows NSIS `.exe`, macOS `.dmg`). After the "What's new" section, include a Downloads table (leave names/sizes as placeholders to be filled in step 8 — exact filenames and the macOS arch (`x64` vs `aarch64`) aren't known until the build finishes):
+
+```
+### Downloads
+
+| File | Platform | Size |
+|---|---|---|
+| `{productName}_{version}_x64-setup.exe` | Windows (NSIS installer) | _TBD_ |
+| `{productName}_{version}_{arch}.dmg` | macOS (DMG) | _TBD_ |
 
 **Full Changelog**: https://github.com/{owner}/{repo}/compare/{prev-tag}...vX.Y.Z
 ```
@@ -184,6 +214,18 @@ Once CI succeeds:
    gh release edit vX.Y.Z --notes "..."
    ```
 
+   **Tauri**: `tauri-action` creates the release as a **draft** with auto-generated notes. Get actual asset names and sizes, fill the real filenames + human-readable sizes into the Downloads table, then replace the notes:
+   ```bash
+   gh release view vX.Y.Z --json isDraft,assets --jq '.assets[] | "\(.name) \(.size)"'
+   ```
+   ```bash
+   gh release edit vX.Y.Z --notes "..."
+   ```
+   Then publish the draft (confirm with the user first if they want to review the draft before it goes public):
+   ```bash
+   gh release edit vX.Y.Z --draft=false --latest
+   ```
+
 3. Print the release URL:
    ```bash
    gh release view vX.Y.Z --json url --jq .url
@@ -194,7 +236,7 @@ Once CI succeeds:
 Before tagging:
 - [ ] Working tree clean, on main, in sync
 - [ ] Project type detected unambiguously
-- [ ] Stack-specific preconditions met (Chrome ext: manifest version == package version)
+- [ ] Stack-specific preconditions met (Chrome ext: manifest version == package version; Tauri: all version files in sync)
 - [ ] Release notes drafted and reviewed
 
 After tagging:
@@ -202,3 +244,4 @@ After tagging:
 - [ ] GitHub Release created with expected asset(s) attached
 - [ ] Release notes replaced via `gh release edit`
 - [ ] (Chrome ext) Zip downloaded and ready for Chrome Web Store upload
+- [ ] (Tauri) Draft release published via `gh release edit --draft=false`
