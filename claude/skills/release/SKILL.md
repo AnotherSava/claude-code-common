@@ -1,7 +1,7 @@
 ---
 name: release
 description: Tag a new version, push to trigger CI, monitor the build, and verify the GitHub release
-allowed-tools: AskUserQuestion, Read, Edit, Bash(git status --porcelain), Bash(git branch --show-current), Bash(git fetch origin *), Bash(git rev-list *), Bash(git describe --tags *), Bash(git log *), Bash(git tag *), Bash(git push origin *), Bash(git add *), Bash(git commit -S -m *), Bash(gh run list *), Bash(gh run watch *), Bash(gh run view *), Bash(gh release view *), Bash(gh release edit *), Bash(gh release create *), Bash(gh repo view *), Bash(node -p *), Bash(sed *), Bash(ls *), Bash(test *), Bash(grep *)
+allowed-tools: AskUserQuestion, Read, Edit, Bash(git status --porcelain), Bash(git branch --show-current), Bash(git rev-parse *), Bash(git fetch origin *), Bash(git rev-list *), Bash(git describe --tags *), Bash(git log *), Bash(git tag *), Bash(git push origin *), Bash(git add *), Bash(git commit -S -m *), Bash(gh run list *), Bash(gh run watch *), Bash(gh run view *), Bash(gh release view *), Bash(gh release edit *), Bash(gh release create *), Bash(gh repo view *), Bash(node -p *), Bash(sed *), Bash(ls *), Bash(test *), Bash(grep *)
 ---
 
 # Release
@@ -11,6 +11,7 @@ Tag the current `main` commit as `vX.Y.Z` and let the project's CI workflow buil
 ## Context
 
 ### Git state (universal)
+- Repo root: !`git rev-parse --show-toplevel 2>/dev/null || pwd`
 - Working tree clean?: !`git status --porcelain`
 - Current branch: !`git branch --show-current`
 - Fetch remote: !`git fetch origin main 2>/dev/null || true`
@@ -20,17 +21,21 @@ Tag the current `main` commit as `vX.Y.Z` and let the project's CI workflow buil
 - Repo: !`gh repo view --json nameWithOwner --jq .nameWithOwner 2>/dev/null || echo unknown`
 
 ### Project type probes
-- Chrome extension: !`test -f manifest.json && test -f package.json && grep -q '"manifest_version"' manifest.json 2>/dev/null && echo yes || echo no`
-- .NET project: !`ls src/*.csproj 2>/dev/null | grep -q . && echo yes || echo no`
-- Tauri project: !`test -f src-tauri/tauri.conf.json && echo yes || echo no`
+- Chrome extension: !`R=$(git rev-parse --show-toplevel 2>/dev/null || pwd) && test -f "$R/manifest.json" && test -f "$R/package.json" && grep -q '"manifest_version"' "$R/manifest.json" 2>/dev/null && echo yes || echo no`
+- .NET project: !`R=$(git rev-parse --show-toplevel 2>/dev/null || pwd) && ls "$R"/src/*.csproj 2>/dev/null | grep -q . && echo yes || echo no`
+- Tauri project: !`R=$(git rev-parse --show-toplevel 2>/dev/null || pwd) && test -f "$R/src-tauri/tauri.conf.json" && echo yes || echo no`
 
 ### Stack-specific data
-- Manifest version: !`node -p "require('./manifest.json').version" 2>/dev/null || echo n/a`
-- Package version: !`node -p "require('./package.json').version" 2>/dev/null || echo n/a`
-- AssemblyName: !`sed -n 's/.*<AssemblyName>\([^<]*\)<.*/\1/p' src/*.csproj 2>/dev/null | head -1 || echo n/a`
-- Has signing policy section: !`grep -q "Code signing policy" README.md 2>/dev/null && echo yes || echo no`
-- Tauri config version: !`node -p "require('./src-tauri/tauri.conf.json').version" 2>/dev/null || echo n/a`
-- Tauri Cargo version: !`sed -n 's/^version = "\([^"]*\)".*/\1/p' src-tauri/Cargo.toml 2>/dev/null | head -1 || echo n/a`
+- Manifest version: !`R=$(git rev-parse --show-toplevel 2>/dev/null || pwd) && node -p "require('$R/manifest.json').version" 2>/dev/null || echo n/a`
+- Package version: !`R=$(git rev-parse --show-toplevel 2>/dev/null || pwd) && node -p "require('$R/package.json').version" 2>/dev/null || echo n/a`
+- AssemblyName: !`R=$(git rev-parse --show-toplevel 2>/dev/null || pwd) && sed -n 's/.*<AssemblyName>\([^<]*\)<.*/\1/p' "$R"/src/*.csproj 2>/dev/null | head -1 || echo n/a`
+- Has signing policy section: !`R=$(git rev-parse --show-toplevel 2>/dev/null || pwd) && grep -q "Code signing policy" "$R/README.md" 2>/dev/null && echo yes || echo no`
+- Tauri config version: !`R=$(git rev-parse --show-toplevel 2>/dev/null || pwd) && node -p "require('$R/src-tauri/tauri.conf.json').version" 2>/dev/null || echo n/a`
+- Tauri Cargo version: !`R=$(git rev-parse --show-toplevel 2>/dev/null || pwd) && sed -n 's/^version = "\([^"]*\)".*/\1/p' "$R/src-tauri/Cargo.toml" 2>/dev/null | head -1 || echo n/a`
+
+## Working directory
+
+All file paths in this skill body (`manifest.json`, `package.json`, `src-tauri/tauri.conf.json`, `src-tauri/Cargo.toml`, `src-tauri/Cargo.lock`, `README.md`, `src/*.csproj`) are relative to **Repo root** from Context. The cwd may be a subdirectory — prefix every Read/Edit call with the Repo root value, and pass `git add` paths from Repo root so the staging path matches. Bare paths are cwd-relative.
 
 ## 1. Detect project type
 
@@ -148,15 +153,12 @@ dotnet build src/
 
 **Tauri:**
 
-`release.yml` builds a per-OS matrix via `tauri-action` and creates a **draft** release with the installers attached (Windows NSIS `.exe`, macOS `.dmg`). After the "What's new" section, include a Downloads table (leave names/sizes as placeholders to be filled in step 8 — exact filenames and the macOS arch (`x64` vs `aarch64`) aren't known until the build finishes):
+`release.yml` builds a per-OS matrix via `tauri-action` and creates a **draft** release with the installers attached (Windows NSIS `.exe`, macOS `.dmg`). GitHub auto-renders an Assets section at the bottom of every release with filenames and sizes, so the notes should NOT include a Downloads table — it would just duplicate that.
+
+If the project has an install-guide page that documents OS-specific first-launch warnings (macOS Gatekeeper "damaged", Windows SmartScreen, etc.), link to it at the end. Otherwise just include the Full Changelog line:
 
 ```
-### Downloads
-
-| File | Platform | Size |
-|---|---|---|
-| `{productName}_{version}_x64-setup.exe` | Windows (NSIS installer) | _TBD_ |
-| `{productName}_{version}_{arch}.dmg` | macOS (DMG) | _TBD_ |
+See the [installation guide]({install-url}) for OS-specific first-launch notes.
 
 **Full Changelog**: https://github.com/{owner}/{repo}/compare/{prev-tag}...vX.Y.Z
 ```
@@ -214,10 +216,7 @@ Once CI succeeds:
    gh release edit vX.Y.Z --notes "..."
    ```
 
-   **Tauri**: `tauri-action` creates the release as a **draft** with auto-generated notes. Get actual asset names and sizes, fill the real filenames + human-readable sizes into the Downloads table, then replace the notes:
-   ```bash
-   gh release view vX.Y.Z --json isDraft,assets --jq '.assets[] | "\(.name) \(.size)"'
-   ```
+   **Tauri**: `tauri-action` creates the release as a **draft** with auto-generated notes. Replace those notes with the drafted "What's new" content from step 5 — the Assets section is auto-rendered, no filename/size filling needed:
    ```bash
    gh release edit vX.Y.Z --notes "..."
    ```
