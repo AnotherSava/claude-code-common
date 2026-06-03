@@ -10,6 +10,16 @@ A macOS app leaves footprint in 5+ locations beyond `/Applications`:
 - LaunchAgent at `~/Library/LaunchAgents/<Label>.plist` (label from the autostart config)
 - LaunchServices DB entries (Spotlight + Open With menus reference these)
 
+## Find all copies first
+
+Before deleting anything, run:
+
+```sh
+mdfind "kMDItemCFBundleIdentifier == '<bundle-id>'"
+```
+
+This returns *every* installed copy of the bundle on the system regardless of path. Pattern-greps against `/Applications/` miss bundles in unexpected subdirectories — e.g. a project whose `deploy` script installs to `/Applications/<project>/<App>.app` while a separate DMG drag-install lands at `/Applications/<App>.app`. Both have the same bundle ID but different paths; only the Spotlight metadata query finds both.
+
 ## Finding what's loaded
 
 - `launchctl print gui/$UID | grep <pattern>` — currently loaded launch agents

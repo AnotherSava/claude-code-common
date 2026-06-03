@@ -85,6 +85,57 @@ it instead and drop the platform-specific allowance:
 for positioning logic unless you specifically want absolute screen
 coordinates.
 
+## Window geometry timing pitfalls (mid-launch and post-resize)
+
+Three macOS-specific lag/aliasing traps that hit any Tauri code reading
+window dimensions or scale around `setup()` or right after `set_size()`.
+
+### `window.outer_size()` lags `set_size()` by several frames
+
+On macOS, reading `outer_size()` immediately after `set_size(LogicalSize)`
+returns the *old* size. The new size only appears once the NSWindow has
+re-rendered. Code that does `set_size(...); let actual = outer_size()?;`
+and clamps against `actual` is silently computing the clamp against the
+pre-resize geometry — the window grows past the work-area edge and only
+your clamp pass moves it back, creating a visible off-screen flicker.
+
+Fix: don't read it. Compute the new size from `requested_logical × scale`
+yourself and clamp against that.
+
+### `window.scale_factor()` is unreliable before the window is realized
+
+At `setup()` time, `WebviewWindow::scale_factor()` reads
+`NSWindow.backingScaleFactor`, which on a hidden/not-yet-screened window
+can lag the actual display's value (returns 1.0 on retina, etc.). The
+positioning math then halves and the window lands off-screen.
+
+Fix: use `Monitor::scale_factor()` (returned by `primary_monitor()` /
+`current_monitor()`). Tauri bakes the value into the `Monitor` struct
+when it queries the display, so it's not subject to NSWindow timing.
+
+### `parent: "main"` in tauri.conf.json cascades visibility on macOS
+
+On macOS, `parent: "main"` maps to NSWindow `addChildWindow:ordered:`,
+which cascades show/hide from parent to child. A hidden About window
+*will* auto-appear the moment the main window is first revealed — frontend
+mode-gating (e.g. `aboutMode` in App.svelte's `finally { showWindow() }`)
+is too late, because the OS shows the child before the JS ever runs in it.
+
+Win32 owned windows do NOT cascade — the same `parent: "main"` works fine
+on Windows. To keep an About / preferences modal hidden until the user
+opens it, omit `parent` entirely on macOS and use `alwaysOnTop` for the
+float-on-top feel.
+
+### Move before resize to avoid off-screen intermediate frames
+
+When a resize would push the window past the work-area edge and your
+clamp logic moves it back, the OS sees two events: (1) `set_size` →
+window briefly straddles the edge; (2) `set_position` → window jumps
+back. The user sees a flicker.
+
+Order them as `set_position; set_size` and the intermediate state is
+always "new position, old size" — fully on-screen.
+
 ## acceptFirstMouse: clicks on inactive windows reach the webview
 
 By default on macOS, clicking on an inactive (non-key) window only
@@ -152,6 +203,23 @@ Process name in `process "X"` is the **binary name** (Cargo `[package].name`,
 not productName). Requires Accessibility permission for whatever process is
 running osascript (Terminal, Kitty, etc.) — toggleable in
 System Settings → Privacy & Security → Accessibility.
+
+## Signing & distribution without an Apple Developer ID
+
+Two distinct things to know.
+
+**`bundle.macOS.signingIdentity: "-"` in `tauri.conf.json` is not just cosmetic.**
+Without it, Tauri emits a *linker-signed* bundle (the executable is signed by `ld` itself at build time but the bundle has no proper signature with resource sealing). When that bundle is wrapped into a DMG and extracted later, `codesign --verify` returns `code has no resources but signature indicates they must be present`, and Gatekeeper rejects it. With `"-"`, Tauri's bundler runs a proper `codesign --force --deep --sign -` over the whole bundle, sealing all resources. `codesign -dv` then reports `Sealed Resources version=2 rules=13 files=1` and verifies clean. The cost of leaving the flag out is silently shipping bundles that fail to launch on user machines.
+
+**On modern macOS, a quarantined ad-hoc-signed app shows "damaged and can't be opened" — *not* "unidentified developer".**
+The familiar right-click → Open trick **does not bypass it** for ad-hoc apps anymore (it still works for some unsigned cases, but not the ad-hoc + quarantine combination Gatekeeper labels as "damaged"). The two workarounds that do work for end users:
+
+- **System Settings → Privacy & Security**, scroll to the blocked-app notice, click **Open Anyway**. No terminal needed.
+- `xattr -cr "/Applications/<App Name>.app"` to strip all extended attributes (including `com.apple.quarantine`).
+
+`spctl -a -vv` will always say `rejected` for ad-hoc apps — that's expected, it only means "not Apple-notarized", and is not what triggers the "damaged" error. The "damaged" error is specifically a quarantine + non-Developer-ID combination.
+
+Locally-built bundles (e.g. via a `deploy` script copying the .app to `/Applications/`) don't get the quarantine flag — it's only applied by browsers/email clients/downloaders when files cross the network. So your own dev workflow stays clean; only end-user downloads hit this.
 
 ## Reading the Keychain from an unsigned Tauri app
 
