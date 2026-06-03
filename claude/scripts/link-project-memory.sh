@@ -67,16 +67,39 @@ if [ -z "$(ls -A "$repo_mem")" ]; then
 fi
 
 # --- Point the cache folder at the committed repo directory -----------------
-# On Windows, `ln -s` from Git Bash silently makes a *copy*, not a link — never
-# use it (see CLAUDE.md). Emit a directory-junction command to run instead.
+# On Windows, `ln -s` from Git Bash silently makes a *copy*, not a link, and
+# `cmd //c mklink` mangles its `/J` switch under MSYS — so create the directory
+# junction via PowerShell (no admin needed). A junction reads back as a symlink
+# in Git Bash, so the migration logic above and the Unix branch below treat it
+# the same way.
 case "$(uname -s)" in
   MINGW* | MSYS* | CYGWIN*)
     link_win="$(cygpath -w "$cache_mem" 2>/dev/null || echo "$cache_mem")"
     target_win="$(cygpath -w "$repo_mem" 2>/dev/null || echo "$repo_mem")"
-    echo "migrated files into: $repo_mem"
-    echo
-    echo "Windows: bash can't create the link safely. Run this (no admin needed):"
-    echo "  cmd //c mklink /J \"$link_win\" \"$target_win\""
+
+    # Idempotent: a correctly-pointing junction reads back as a symlink here.
+    # readlink yields a POSIX path (lowercased drive, maybe trailing slash), so
+    # normalize both sides to Windows form before comparing.
+    if [ -L "$cache_mem" ] && [ "$(cygpath -w "$(readlink "$cache_mem")" 2>/dev/null)" = "$target_win" ]; then
+      echo "already linked: $cache_mem -> $repo_mem"
+      exit 0
+    fi
+
+    # Clear a stale junction/symlink. Never force-delete a populated dir —
+    # migration above leaves one only when files collided, which must be kept.
+    if [ -L "$cache_mem" ]; then
+      rm -f "$cache_mem"
+    elif [ -d "$cache_mem" ]; then
+      rmdir "$cache_mem" 2>/dev/null || { echo "error: $cache_mem still holds files (migration collisions); resolve manually" >&2; exit 1; }
+    fi
+
+    if powershell -NoProfile -Command "New-Item -ItemType Junction -Path '$link_win' -Target '$target_win'" >/dev/null 2>&1; then
+      echo "linked: $cache_mem -> $repo_mem"
+      echo "commit  $repo_mem  in the '$(basename "$repo_root")' repo to share it."
+    else
+      echo "could not create the junction automatically. Run this in PowerShell (no admin needed):"
+      echo "  New-Item -ItemType Junction -Path '$link_win' -Target '$target_win'"
+    fi
     exit 0
     ;;
 esac
