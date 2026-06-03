@@ -1,4 +1,7 @@
 {
+  "attribution": {
+    "commit": ""
+  },
   "permissions": {
     "defaultMode": "auto"
   },
@@ -126,12 +129,10 @@
       }
     }
   },
-  "theme": "dark",
   "effortLevel": "xhigh",
   "awaySummaryEnabled": false,
+  "tui": "fullscreen",
+  "theme": "dark",
   "agentPushNotifEnabled": true,
-  "skipAutoPermissionPrompt": true,
-  "attribution": {
-    "commit": ""
-  }
+  "skipAutoPermissionPrompt": true
 }
