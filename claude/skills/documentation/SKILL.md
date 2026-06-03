@@ -23,7 +23,11 @@ All file paths below (`README.md`, `docs/`, `docs/pages/`, `docs/index.md`, `CLA
 
 1. **Read `README.md`** (at the repo root) and fix any references to changed paths, APIs, or behavior
 
-2. **Read all files in `docs/pages/`** (if the folder exists) and rewrite any sections that no longer match the code — removed features, changed message protocols, new data flows, renamed concepts
+2. **Read all files in `docs/pages/`** (if the folder exists) and check for both staleness and gaps:
+   - Rewrite any sections that no longer match the code — removed features, changed message protocols, new data flows, renamed concepts
+   - Check whether features added or significantly changed in the current diff are missing from the relevant docs page. A new user-visible capability, config option, or behavioral change should appear in the page that covers its area. Propose additions and wait for approval
+   - **Check embedded diagrams** (` ```mermaid ` blocks, ASCII flowcharts/trees, and structural tables) that depict architecture, data flow, state machines, or file layout. When code changes — or another doc you just edited — alters the structure a diagram illustrates (a renamed/removed module, a new component, a changed path or edge), update the diagram itself, not just the surrounding prose. A stale node, missing arrow, or wrong label in a diagram is as misleading as stale text.
+   - **Check pages that moved in the nav hierarchy** (e.g. a former top-level page now nested as a subpage). A relocated page often (a) duplicates content that now belongs to a sibling page — trim it to a pointer so each page owns one concern; and (b) keeps heading levels from its old position (a former subsection's `###` where siblings use `##`). Also re-verify its relative links resolve from the new location.
 
 3. **Align README with the GH Pages index** — only if **GH Pages index present** is `yes`. Read `README.md` and `docs/index.md` together and reconcile them so they describe the same product at the same point in time:
    - Tagline / one-line description must match (ignoring italics and minor punctuation).

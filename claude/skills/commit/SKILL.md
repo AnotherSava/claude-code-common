@@ -1,7 +1,7 @@
 ---
 name: commit
 description: Analyzes changes and generates Conventional Commit messages
-allowed-tools: Read, Edit, Write, Grep, Glob, Bash(git diff:*), Bash(git add:*), Bash(git commit:*), Bash(git status:*), Bash(git log:*), Bash(git reset HEAD:*), Bash(git ls-files:*), Bash(git rev-list:*), Bash(git rev-parse:*), Bash(git push:*), Bash(bash ~/.claude/scripts/sanitize-project-memory.sh:*)
+allowed-tools: Read, Edit, Write, Grep, Glob, Bash(git diff:*), Bash(git add:*), Bash(git commit:*), Bash(git status:*), Bash(git log:*), Bash(git reset HEAD:*), Bash(git ls-files:*), Bash(git rev-list:*), Bash(git rev-parse:*), Bash(git push:*), Bash(bash ~/.claude/scripts/sanitize-project-memory.sh:*), Bash(rm:*)
 ---
 
 # Commit Changes
@@ -27,7 +27,7 @@ Read `~/.claude/skills/shared/bash-rules.md` for bash command constraints.
 
 ## CRITICAL CONSTRAINT
 
-**The ONLY direct file changes this skill may make are through `/clean-code` and `/documentation`.** Never move, rename, or delete source files. Never restructure code beyond what those skills do.
+**The ONLY direct file changes this skill may make are through `/clean-code` and `/documentation`.** Never move, rename, or delete source files. Never restructure code beyond what those skills do. (Exception: untracked junk artifacts like `*.stackdump` may be discarded — see step 1.)
 
 ## Process:
 
@@ -37,6 +37,7 @@ Read `~/.claude/skills/shared/bash-rules.md` for bash command constraints.
    - **Remote sync check (do this first):** If **Remote ahead by** is > 0, the remote has commits you don't have locally and `git push` will be rejected at the end. Surface this to the user immediately and propose `git pull --rebase origin <branch>` before proceeding. Wait for user confirmation before rebasing — it could conflict with the pending changes. After rebasing, re-check `git status --short` since the working tree may differ.
    - Use **Uncommitted changes**, **Diff summary**, and **Full diff** to understand the total change set against HEAD
    - **Scope guard:** Only commit files that belong to this repository. If earlier work in the conversation touched files in other projects, do not include those changes — each project's commits are handled separately.
+   - **Discard junk artifacts:** delete untracked crash-dump / junk files that should never be committed — e.g. `*.stackdump` (Git Bash crash dumps on Windows), `core` dumps. Remove them with `rm` so they don't clutter the change set or get staged. Only delete clearly-disposable, never-source artifacts; if an untracked file's purpose is at all unclear, leave it and mention it rather than deleting.
    - If there are no uncommitted changes in this repository, stop — there is nothing to commit.
    - Review the conversation history (if any) to understand what was accomplished — but do not assume all changes come from this session; the repo state is the source of truth
 
@@ -102,7 +103,7 @@ Read `~/.claude/skills/shared/bash-rules.md` for bash command constraints.
 ## Out of scope:
 - Do NOT amend existing commits — use `/reset` to undo unpushed commits first, then `/commit` to re-commit
 - Do NOT create or switch branches
-- Do NOT move, rename, or delete files
+- Do NOT move, rename, or delete tracked/source files (untracked junk artifacts like `*.stackdump` are the only exception — discard them per step 1)
 
 ## Remember:
 - Changes may come from outside this session (external editors, IDEs, other tools) — do not assume you know what changed; always inspect

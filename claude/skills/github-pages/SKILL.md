@@ -109,6 +109,18 @@ exclude:
   - plans/                    # internal planning docs, if any
 ```
 
+### Content width
+
+The default content width (~1100px) is conservative. For projects with wide code blocks or tables, override via `_sass/custom/setup.scss` (variable overrides, loaded before CSS):
+
+```scss
+$content-width: 87.5rem; // ~1400px at 16px base
+```
+
+The value **must be in `rem`** — GitHub Pages uses sass 3.x which rejects mixed `px`/`rem` arithmetic.
+
+Do NOT use `_sass/custom/custom.scss` with `.main-content { max-width: ... }` — that class does not exist in just-the-docs. The actual class is `.main`, driven by `$content-width`.
+
 ## Front matter cheat sheet
 
 | Key | When to use |
@@ -301,6 +313,17 @@ Indentation must match the actual parent/child hierarchy. Every existing page mu
 
 The README never contains setup, build, architecture, or API content. If you catch yourself writing any of that in the README, move it to `development.md` and leave a link.
 
+## In-app About dialog (if present)
+
+Some projects (desktop apps, browser extensions, IDE plugins) ship an in-app **About** dialog. When one exists, treat it as a third surface that carries the **same descriptive prose** as `README.md` and `docs/index.md`: the tagline plus the short what-it-does description must match across all three, word for word. Pick one source of truth and propagate edits to the other two.
+
+The About dialog additionally carries two things the README/home page handle elsewhere, and which belong only in the dialog:
+
+- **Version and release date** — the running build's version (and its release date if available).
+- **A link to the project documentation** — pointing at the GitHub Pages home page.
+
+So the rule is: *shared descriptive prose, dialog-only version/date + docs link.* Do not copy screenshots, Features bullets, Install pointers, or the docs footer into the About dialog — those stay on the README/site.
+
 ## Writing process
 
 Follow these steps whenever creating or restructuring docs.
@@ -313,7 +336,8 @@ Follow these steps whenever creating or restructuring docs.
 6. **Write `development.md`** the same way: parent for the dev tree, with children for Architecture, Extension points, etc.
 7. **Write `README.md` last.** Lift the tagline and Features bullets from `index.md`. Footer lists every existing page hierarchically. Verify each footer URL resolves.
 8. **Verify cross-consistency.**
-   - Tagline matches across `README.md`, `docs/index.md`, and `_config.yml description`.
+   - Tagline matches across `README.md`, `docs/index.md`, `_config.yml description`, and the in-app About dialog (if present).
+   - Descriptive prose (tagline + what-it-does paragraphs) matches across `README.md`, `docs/index.md`, and the About dialog (if present), word for word.
    - Features bullets match between `README.md` and `docs/index.md` (set, wording, order).
    - Hero-screenshot alt text matches across `README.md` and `docs/index.md`.
    - Footer in `README.md` lists every `docs/pages/**.md` (excluding nav-excluded pages); no listed page is missing on disk.
