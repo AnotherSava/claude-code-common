@@ -1,6 +1,9 @@
 .env
 __pycache__/
 
+# Machine-local project config (keep .claude/memory/ tracked)
+.claude/settings.local.json
+
 # Ignore all skills, whitelist ours
 claude/skills/*
 !claude/skills/annotate/

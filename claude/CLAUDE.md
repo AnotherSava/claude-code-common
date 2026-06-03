@@ -84,7 +84,7 @@ When adding entries to `.gitignore`, choose the right scope:
 
 ## Symlinks
 
-Everything under `~/.claude/` is symlinked from the dotfiles repo (`CLAUDE.md`, `settings.json`, `skills/`, `hooks/`, `learnings/`, `memory/`). The Write and Edit tools **refuse to write through symlinks**. Before editing any file under `~/.claude/`, resolve the symlink with `readlink <path>` and pass the real target path to Write/Edit.
+Everything under `~/.claude/` is symlinked from the dotfiles repo (`CLAUDE.md`, `settings.json`, `skills/`, `hooks/`, `learnings/`, `memory/`, `scripts/`). The Write and Edit tools **refuse to write through symlinks**. Before editing any file under `~/.claude/`, resolve the symlink with `readlink <path>` and pass the real target path to Write/Edit.
 
 For first-time global installation, use the platform-appropriate command block from `README.md`'s Global Installation section. For ad-hoc symlinks during a session:
 
@@ -94,6 +94,8 @@ For first-time global installation, use the platform-appropriate command block f
 ## Global Memory
 
 Cross-project preferences and feedback. Memory files live in `~/.claude/memory/`. When saving a memory that applies across all projects (not just the current one), write the file there and add an index entry below. Same frontmatter format as project-specific memories.
+
+**Project memory is version-controlled too.** Repos wired with `~/.claude/scripts/link-project-memory.sh` redirect their machine-local memory cache (`~/.claude/projects/<hash>/memory/`, a symlink) into a committed `<repo>/.claude/memory/`. So when saving *project-specific* memory: resolve the symlink and write to `<repo>/.claude/memory/`, then commit it with the rest of the work. On a fresh clone, re-run the script to re-establish the symlink. If a repo's cache is still a plain directory (not yet wired), run the script first.
 
 - [User GitHub account](~/.claude/memory/user_github_account.md) — handle is `AnotherSava`; use to filter "my repos" vs third-party clones
 - [Follow skill instructions exactly](~/.claude/memory/feedback_follow_skill_instructions.md) — never abbreviate or skip steps in skills, even when output feels verbose

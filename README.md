@@ -162,9 +162,9 @@ Tags a new version, pushes to trigger CI, monitors the build, and updates the Gi
 - Recommends version bump based on commit history, asks for confirmation
 - Bumps version in all manifest files before tagging (csproj / package.json / tauri.conf.json / Cargo.toml)
 - Creates signed annotated tags for GitHub "Verified" badge
-- Compiles platform-appropriate release notes (SmartScreen + Gatekeeper warnings, download tables)
+- Compiles platform-appropriate release notes (SmartScreen + Gatekeeper first-launch warnings)
 - Monitors CI (single-platform for dotnet, matrix for Tauri) until completion
-- Updates release notes with actual asset sizes, un-drafts Tauri releases
+- Replaces draft notes and un-drafts Tauri releases (GitHub auto-renders the assets list)
 
 ---
 
@@ -324,6 +324,7 @@ New-Item -ItemType SymbolicLink -Path "$env:USERPROFILE\.claude\hooks" -Target "
 New-Item -ItemType SymbolicLink -Path "$env:USERPROFILE\.claude\settings.json" -Target "$PWD\claude\settings.json"
 New-Item -ItemType SymbolicLink -Path "$env:USERPROFILE\.claude\learnings" -Target "$PWD\claude\learnings"
 New-Item -ItemType SymbolicLink -Path "$env:USERPROFILE\.claude\memory" -Target "$PWD\claude\memory"
+New-Item -ItemType SymbolicLink -Path "$env:USERPROFILE\.claude\scripts" -Target "$PWD\claude\scripts"
 New-Item -ItemType SymbolicLink -Path "$env:USERPROFILE\.git-hooks" -Target "$PWD\git\hooks"
 New-Item -ItemType SymbolicLink -Path "$env:USERPROFILE\.gitignore" -Target "$PWD\git\gitignore"
 New-Item -ItemType SymbolicLink -Path "$env:USERPROFILE\.gitattributes" -Target "$PWD\git\gitattributes"
@@ -344,6 +345,7 @@ ln -s "$(pwd)/claude/hooks" ~/.claude/hooks
 ln -s "$(pwd)/claude/settings.json" ~/.claude/settings.json
 ln -s "$(pwd)/claude/learnings" ~/.claude/learnings
 ln -s "$(pwd)/claude/memory" ~/.claude/memory
+ln -s "$(pwd)/claude/scripts" ~/.claude/scripts
 ln -s "$(pwd)/git/hooks" ~/.git-hooks
 ln -s "$(pwd)/git/gitignore" ~/.gitignore
 ln -s "$(pwd)/git/gitattributes" ~/.gitattributes
@@ -351,6 +353,30 @@ git config --global core.hooksPath ~/.git-hooks
 git config --global core.excludesFile "~/.gitignore"
 git config --global core.attributesFile "~/.gitattributes"
 ```
+
+## Project memory
+
+Claude Code stores project-specific memory in a machine-local cache
+(`~/.claude/projects/<path-encoded>/memory/`) that is **not** version
+controlled — so that knowledge is invisible from other machines and lost if the
+cache is cleared. `claude/scripts/link-project-memory.sh` redirects that cache,
+via a symlink, into a committed `.claude/memory/` directory inside the project
+repo. The harness keeps reading and writing the same path, so auto-recall is
+unaffected; the files just live in the repo now and travel with `git clone`.
+
+Run once per project, per machine — from inside the repo:
+
+```bash
+bash ~/.claude/scripts/link-project-memory.sh
+```
+
+It migrates any files already in the cache, creates the symlink, and leaves
+`.claude/memory/` staged for you to commit. On a fresh machine, clone the repo
+and re-run the command to re-establish the (machine-local) symlink.
+
+> The dotfiles repo keeps two separate stores: `claude/memory/` is the **global**
+> memory deployed to `~/.claude/memory`; the repo-root `.claude/memory/` is
+> **project-specific** memory for working on the dotfiles repo itself.
 
 ## License
 
