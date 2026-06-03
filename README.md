@@ -270,38 +270,13 @@ Prevents pushing commits that are Claude-attributed or not GPG-signed. Every new
 
 ## Learnings
 
-Domain-specific knowledge files in `claude/learnings/` are available globally via the `~/.claude/learnings/` symlink. To use them in a project, add a line to that project's `CLAUDE.md`:
+The `claude/learnings/` directory collects long-form, domain-specific reference notes — non-obvious behaviors learned through trial and error (framework quirks, API limitations, platform gotchas), each a topic-named markdown file with no frontmatter or index. They're available globally through the `~/.claude/learnings/` symlink, and the `/reflect` skill adds to them as new knowledge surfaces.
+
+The filenames are the index — browse `claude/learnings/` to see what's covered rather than maintaining a manifest here. To pull a topic into a project, point that project's `CLAUDE.md` at the file:
 
 ```
 Read `~/.claude/learnings/chrome-extension.md` for domain-specific patterns.
 ```
-
-| File | Domain |
-|---|---|
-| `anthropic-oauth-usage.md` | Undocumented `/api/oauth/usage` endpoint (5h/7d rate-limit utilization for Claude Code OAuth tokens) |
-| `autohotkey.md` | AutoHotkey v2 patterns (hotkeys, clipboard, folder watchers, tray scripts) |
-| `bash-portability.md` | macOS bash 3.2 vs Git Bash 4/5 — bash 4+ features to avoid in committed scripts |
-| `chrome-extension.md` | Chrome extensions (Manifest V3, Vite, side panel, service workers) |
-| `claude-code-integration.md` | Observing Claude Code sessions (hooks, transcript JSONL, state classification) |
-| `claude-code-plugin-mcp-config.md` | Claude Code plugin MCP config — locating the authoritative `mcpServers` definition |
-| `claude-code-rendering.md` | ANSI escapes don't render in Claude Code's response markdown — `isatty()` guard pattern |
-| `css-anchor-positioning.md` | CSS Anchor Positioning (Chrome 125+) — native tooltip/popover positioning without JS |
-| `css-color-adaptation.md` | CSS color adaptation — adapting arbitrary colors to contrast requirements without JS |
-| `css-layout-gotchas.md` | Non-obvious CSS grid/flex/overflow behaviors in dashboard UIs |
-| `dotnet-tray-app.md` | .NET Windows tray apps (WinForms/WPF, config, overlay, CI/CD) |
-| `electron-windows-launcher.md` | Silent Electron launch on Windows (Startup folder, hidden BrowserWindow) |
-| `git-line-endings.md` | CRLF/LF handling on cross-platform repos (`.gitattributes`, normalization) |
-| `git-porcelain-parsing.md` | `git status --porcelain` parsing — the `.strip()` first-line leading-space trap |
-| `intellij-plugin-development.md` | IntelliJ Platform plugin development (Gradle, SDK, lexer/parser, settings) |
-| `macos-app-uninstall.md` | Cleanly uninstalling macOS apps (app bundles, LaunchAgents, caches, Keychain) |
-| `rust-serde-config-evolution.md` | Shipping Rust apps with schema-evolving override config files (container-level `#[serde(default)]`) |
-| `shell-environment.md` | Shell config across bash/zsh/WSL (common functions, PATH, verification) |
-| `skill-context-evaluator.md` | Constraints of the `!` backtick preprocessor in SKILL.md Context sections |
-| `tauri-github-release-pipeline.md` | Tauri release pipeline on GitHub Actions (tauri-action, matrix drafts, signed tags, version pinning) |
-| `tauri-macos-native.md` | Tauri on macOS (accessory policy, white-flash mitigation, Keychain via `security`, TCC) |
-| `tauri-updater.md` | Tauri auto-updater plugin (endpoints, latest.json, signature verification, S3/GH hosting) |
-| `tauri-windows-native.md` | Tauri on Windows — native Win32 customization (HWND, taskbar, tray, always-on-top) |
-| `windows-terminal-title.md` | Why per-tab title manipulation from Claude Code hooks isn't feasible on WT |
 
 ---
 
@@ -354,15 +329,26 @@ git config --global core.excludesFile "~/.gitignore"
 git config --global core.attributesFile "~/.gitattributes"
 ```
 
-## Project memory
+## Memory
 
-Claude Code stores project-specific memory in a machine-local cache
-(`~/.claude/projects/<path-encoded>/memory/`) that is **not** version
-controlled — so that knowledge is invisible from other machines and lost if the
-cache is cleared. `claude/scripts/link-project-memory.sh` redirects that cache,
-via a symlink, into a committed `.claude/memory/` directory inside the project
-repo. The harness keeps reading and writing the same path, so auto-recall is
-unaffected; the files just live in the repo now and travel with `git clone`.
+Two complementary stores hold accumulated cross-session knowledge, both surfaced
+to the harness for auto-recall:
+
+- **Global memory** (`claude/memory/`, deployed to `~/.claude/memory/` via
+  symlink) — cross-project preferences, feedback, and references meant to apply
+  everywhere.
+- **Project memory** — facts specific to a single repo. Claude Code writes these
+  to a machine-local cache (`~/.claude/projects/<path-encoded>/memory/`) that is
+  **not** version controlled, so the knowledge is invisible from other machines
+  and lost if the cache is cleared.
+
+### Versioning project memory
+
+The `claude/scripts/link-project-memory.sh` script redirects a project's memory
+cache — via a symlink, or a directory junction on Windows — into a committed
+`.claude/memory/` directory inside that repo. The harness keeps reading and
+writing the same path, so auto-recall is unaffected; the files just live in the
+repo now and travel with `git clone`.
 
 Run once per project, per machine — from inside the repo:
 
@@ -370,13 +356,13 @@ Run once per project, per machine — from inside the repo:
 bash ~/.claude/scripts/link-project-memory.sh
 ```
 
-It migrates any files already in the cache, creates the symlink, and leaves
+It migrates any files already in the cache, wires up the link, and leaves
 `.claude/memory/` staged for you to commit. On a fresh machine, clone the repo
-and re-run the command to re-establish the (machine-local) symlink.
+and re-run the command to re-establish the (machine-local) link.
 
-> The dotfiles repo keeps two separate stores: `claude/memory/` is the **global**
-> memory deployed to `~/.claude/memory`; the repo-root `.claude/memory/` is
-> **project-specific** memory for working on the dotfiles repo itself.
+> In this dotfiles repo the two stores sit side by side: `claude/memory/` is the
+> **global** payload deployed to `~/.claude/memory`; the repo-root
+> `.claude/memory/` is this repo's own **project-specific** memory.
 
 ## License
 
