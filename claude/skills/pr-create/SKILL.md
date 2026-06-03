@@ -11,9 +11,14 @@ Prepare commits on the current feature branch, push, and create or update a PR t
 Read `~/.claude/skills/shared/bash-rules.md` for bash command constraints.
 
 ## Context
+- Repo root: !`git rev-parse --show-toplevel 2>/dev/null || pwd`
 - Current branch: !`git rev-parse --abbrev-ref HEAD`
 - Working tree status: !`git status --short`
 - Commits ahead of main: !`git log main..HEAD --oneline`
+
+## Working directory
+
+`docs/plans/`, `.ralphex/progress/`, and any other file paths in this skill are relative to **Repo root** from Context. The cwd may be a subdirectory — prefix Repo root when calling Read/Glob/Grep/ls. Bare paths are cwd-relative and will silently miss plans and progress logs at the actual root.
 
 ## Workflow
 

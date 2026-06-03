@@ -13,11 +13,14 @@ cat "$HOME/.claude/CLAUDE.md" 2>/dev/null || echo "(none)"
 section global-memory-index
 cat "$HOME/.claude/memory/MEMORY.md" 2>/dev/null || echo "(none)"
 
-# Compute the current project's ID by mangling CWD. See
-# ~/.claude/skills/skill/references/claude-project-memory-paths.md
-# for the mangling rule and the cross-platform pwd recipe.
-cwd="$(pwd -W 2>/dev/null || pwd)"
-project_id="$(printf '%s' "$cwd" | sed 's|[:/\\]|-|g')"
+# Compute the current project's ID by mangling the REPO ROOT (not cwd —
+# /reflect can be invoked from a subdirectory like src-tauri/ or frontend/,
+# and mangling cwd would produce an ID that points at a nonexistent project
+# memory dir). Fall back to cwd only when not inside a git repo. See
+# ~/.claude/skills/skill/references/claude-project-memory-paths.md for the
+# mangling rule and the cross-platform pwd recipe.
+root="$(git rev-parse --show-toplevel 2>/dev/null || pwd -W 2>/dev/null || pwd)"
+project_id="$(printf '%s' "$root" | sed 's|[:/\\]|-|g')"
 
 section project-id
 echo "$project_id"

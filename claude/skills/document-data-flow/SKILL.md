@@ -1,12 +1,19 @@
 ---
 name: document-data-flow
 description: Create or update the data flow architecture document (docs/pages/data-flow.md).
-allowed-tools: Read, Glob, Grep, Write, Edit, Agent
+allowed-tools: Read, Glob, Grep, Write, Edit, Agent, Bash(git rev-parse:*)
 ---
 
 # Document Data Flow
 
 Create or update `docs/pages/data-flow.md` — a reference document tracing how data moves between the major components of the project.
+
+## Context
+- Repo root: !`git rev-parse --show-toplevel 2>/dev/null || pwd`
+
+## Working directory
+
+All paths in this skill (`docs/pages/data-flow.md`, any existing architecture docs you Read first) are relative to **Repo root** from Context. The cwd may be a subdirectory — prefix every Read/Edit/Write/Grep/Glob call with the Repo root value. Bare paths are cwd-relative and will silently create/read files in the wrong place.
 
 ## When to run
 

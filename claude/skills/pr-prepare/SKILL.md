@@ -9,14 +9,19 @@ allowed-tools: Bash(git log:*), Bash(git diff:*), Bash(git status:*), Bash(git r
 Analyze progress logs and commits to produce a summary covering implementation, review findings, and readiness to proceed. If a related plan exists, include plan alignment analysis.
 
 ## Context
+- Repo root: !`git rev-parse --show-toplevel 2>/dev/null || pwd`
 - Current branch: !`git rev-parse --abbrev-ref HEAD`
 - Unpushed commits: !`git log @{upstream}..HEAD --oneline 2>/dev/null || git log origin/main..HEAD --oneline`
 - Unpushed commit details: !`git log @{upstream}..HEAD --format="%h %s%n%b---" 2>/dev/null || git log origin/main..HEAD --format="%h %s%n%b---"`
 - Changed files: !`git diff @{upstream}..HEAD --stat 2>/dev/null || git diff origin/main..HEAD --stat`
 - Full diff: !`git diff @{upstream}..HEAD 2>/dev/null || git diff origin/main..HEAD`
 - Working tree status: !`git status --short`
-- Latest plan: !`ls -t docs/plans/completed/ 2>/dev/null | head -1`
-- Progress logs: !`ls -t .ralphex/progress/ 2>/dev/null | head -5`
+- Latest plan: !`R=$(git rev-parse --show-toplevel 2>/dev/null || pwd) && ls -t "$R/docs/plans/completed/" 2>/dev/null | head -1`
+- Progress logs: !`R=$(git rev-parse --show-toplevel 2>/dev/null || pwd) && ls -t "$R/.ralphex/progress/" 2>/dev/null | head -5`
+
+## Working directory
+
+`docs/plans/completed/`, `.ralphex/progress/`, and any other file paths in this skill are relative to **Repo root** from Context. The cwd may be a subdirectory — prefix Repo root when calling Read/Glob/Grep/ls. Bare paths are cwd-relative.
 
 ## Step 1: Gather artifacts
 

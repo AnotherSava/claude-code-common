@@ -3,7 +3,7 @@ name: reflect
 description: >-
   Extract and persist conversation learnings before context loss.
   TRIGGER when: user runs /reflect, or before /clear or compaction.
-allowed-tools: Bash(bash ~/.claude/skills/reflect/gather-context.sh), Read, Write, Edit, Glob, Grep
+allowed-tools: Bash(bash ~/.claude/skills/reflect/gather-context.sh), Read, Write, Edit, Glob, Grep, Bash(git rev-parse:*)
 ---
 
 # Reflect
@@ -11,10 +11,15 @@ allowed-tools: Bash(bash ~/.claude/skills/reflect/gather-context.sh), Read, Writ
 Extract durable knowledge from the current conversation and persist it to long-term memory. Run this before compacting or clearing context so insights are not lost.
 
 ## Context
+- Repo root: !`git rev-parse --show-toplevel 2>/dev/null || pwd`
 - Current working directory: !`pwd`
-- Project CLAUDE.md: !`cat CLAUDE.md 2>/dev/null || echo "(none)"`
-- Project skills: !`ls .claude/skills/ 2>/dev/null || echo "(none)"`
+- Project CLAUDE.md: !`R=$(git rev-parse --show-toplevel 2>/dev/null || pwd) && cat "$R/CLAUDE.md" 2>/dev/null || echo "(none)"`
+- Project skills: !`R=$(git rev-parse --show-toplevel 2>/dev/null || pwd) && ls "$R/.claude/skills/" 2>/dev/null || echo "(none)"`
 - Global inventory (global CLAUDE.md, global memory index, current project ID + its memory index, global learnings, global skills), bundled into one permission-checked call: !`bash ~/.claude/skills/reflect/gather-context.sh 2>/dev/null || echo "(gather-context blocked — Process step 1 will fall back to the Read tool)"`
+
+## Working directory
+
+`CLAUDE.md`, `.claude/skills/`, and the project memory dir derived from the project ID are all relative to **Repo root** from Context (NOT cwd — /reflect can be invoked from a subdirectory like `src-tauri/`). The bundled `gather-context.sh` already derives the project ID from the repo root; the manual fallback in Process step 1 below uses Repo root the same way.
 
 ## Process
 
@@ -25,13 +30,15 @@ Extract durable knowledge from the current conversation and persist it to long-t
    If the global-inventory line starts with `(gather-context blocked …)`, fall back to loading each source manually:
    - Read `~/.claude/CLAUDE.md`
    - Read `~/.claude/memory/MEMORY.md`
-   - Compute the current project ID by mangling CWD (replace each `:`, `/`, `\` with `-`), then Read `~/.claude/projects/<project-id>/memory/MEMORY.md`
+   - Compute the current project ID by mangling **Repo root** from Context (replace each `:`, `/`, `\` with `-`) — NOT cwd, since cwd may be a subdirectory and would produce a nonexistent project ID. Then Read `~/.claude/projects/<project-id>/memory/MEMORY.md`
    - Glob `~/.claude/learnings/*` (filenames are self-documenting; read bodies only when topic overlaps the current session)
    - Glob `~/.claude/skills/*/SKILL.md`
 
    Only read the full body of a specific memory, learning, or `SKILL.md` when its name suggests overlap with something in the current conversation.
 
-2. **Use the pre-loaded project memory.** The `=== project-memory-index ===` block from Context already contains the current project's `MEMORY.md` (or `(none)` if the project has no memory yet). Individual memory files live at `~/.claude/projects/<project-id>/<memory-name>.md` — use the project ID from the `=== project-id ===` block when you need to read or write one.
+2. **Use the pre-loaded project memory.** The `=== project-memory-index ===` block from Context already contains the current project's `MEMORY.md` (or `(none)` if the project has no memory yet). Individual memory files live at `~/.claude/projects/<project-id>/memory/<memory-name>.md` — use the project ID from the `=== project-id ===` block when you need to read or write one.
+
+   **Project memory may be version-controlled.** If `~/.claude/projects/<project-id>/memory` is a symlink (wired by `~/.claude/scripts/link-project-memory.sh`), it points into the repo's committed `<repo>/.claude/memory/`. The Write/Edit tools refuse to write through symlinks, so resolve it with `readlink` and write to the real repo path; the saved file is then committable with the rest of the work.
 
    **Check skills relevant to the session.** From the project-skills listing and the `=== global-skills ===` block, identify any skills the user invoked or whose scope overlaps with potential findings. Read those `SKILL.md` files so you can judge whether a finding should become a skill update.
 

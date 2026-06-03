@@ -12,9 +12,17 @@ description: >-
   DO NOT TRIGGER when: editing unrelated docs outside docs/, working on a
   project that already has an incompatible docs framework (Docusaurus, MkDocs,
   VitePress, etc.).
+allowed-tools: Read, Edit, Write, Glob, Grep, Bash(git rev-parse:*)
 ---
 
 # GitHub Pages Documentation Layout
+
+## Context
+- Repo root: !`git rev-parse --show-toplevel 2>/dev/null || pwd`
+
+## Working directory
+
+All `README.md`, `docs/`, `docs/index.md`, `docs/pages/`, `docs/_config.yml`, `docs/screenshots/` paths in this skill are relative to **Repo root** from Context. The cwd may be a subdirectory — prefix every Read/Edit/Write/Grep/Glob with the Repo root value. Bare paths are cwd-relative and will silently miss the actual root.
 
 Use this skill when organizing project-level documentation into a README plus a GitHub Pages Jekyll site running the `just-the-docs` theme. The goal is a consistent shape across repos: the README sells the project in under a screen, every user-facing capability gets its own sidebar entry, and developers get a single Developer guide that may itself have technical child pages.
 

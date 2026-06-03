@@ -1,7 +1,7 @@
 ---
 name: documentation
 description: Update stale documentation and comments to match current code
-allowed-tools: Read, Edit, Write, Grep, Glob, Bash(git diff:*), Bash(git status:*)
+allowed-tools: Read, Edit, Write, Grep, Glob, Bash(git diff:*), Bash(git status:*), Bash(git rev-parse:*)
 ---
 
 # Update Documentation
@@ -9,10 +9,15 @@ allowed-tools: Read, Edit, Write, Grep, Glob, Bash(git diff:*), Bash(git status:
 Scan project documentation and comments for references that no longer match the code, and fix them.
 
 ## Context
+- Repo root: !`git rev-parse --show-toplevel 2>/dev/null || pwd`
 - Uncommitted changes: !`git status --short`
 - Diff summary: !`git diff HEAD --stat`
 - Full diff: !`git diff HEAD`
-- GH Pages index present: !`test -f docs/index.md && echo yes || echo no`
+- GH Pages index present: !`R=$(git rev-parse --show-toplevel 2>/dev/null || pwd) && test -f "$R/docs/index.md" && echo yes || echo no`
+
+## Working directory
+
+All file paths below (`README.md`, `docs/`, `docs/pages/`, `docs/index.md`, `CLAUDE.md`) are relative to **Repo root** from Context. The current working directory may be a subdirectory (e.g. `src-tauri/`, `frontend/`), so always prefix the Repo root value when calling Read/Edit/Write/Grep/Glob. Bare paths are cwd-relative and will silently miss files that live at the actual root.
 
 ## Process
 

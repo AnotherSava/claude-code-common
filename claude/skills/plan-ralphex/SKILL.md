@@ -1,12 +1,19 @@
 ---
 name: plan-ralphex
 description: Create an implementation plan for a new feature, refactor, or fix. Guides an interactive design discussion and produces a structured plan document.
-allowed-tools: Read, Write, Edit, Glob, Grep, Agent, Skill, AskUserQuestion
+allowed-tools: Read, Write, Edit, Glob, Grep, Agent, Skill, AskUserQuestion, Bash(git rev-parse:*)
 ---
 
 # Create Implementation Plan
 
 Create a structured implementation plan in `docs/plans/` following the project's established format. The plan captures design decisions, file changes, and task breakdown before any code is written.
+
+## Context
+- Repo root: !`git rev-parse --show-toplevel 2>/dev/null || pwd`
+
+## Working directory
+
+All `docs/plans/` paths in this skill (the new plan file, samples cross-reference, completed plans for convention discovery, the eventual move-to-completed step) are relative to **Repo root** from Context. The cwd may be a subdirectory — prefix Repo root when calling Read/Write/Glob/Grep. Writing `docs/plans/YYYY-MM-DD-slug.md` from a subdirectory creates the file in the wrong place silently.
 
 ## Important
 

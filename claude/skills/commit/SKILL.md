@@ -1,7 +1,7 @@
 ---
 name: commit
 description: Analyzes changes and generates Conventional Commit messages
-allowed-tools: Read, Edit, Write, Grep, Glob, Bash(git diff:*), Bash(git add:*), Bash(git commit:*), Bash(git status:*), Bash(git log:*), Bash(git reset HEAD:*), Bash(git ls-files:*), Bash(git rev-list:*), Bash(git rev-parse:*), Bash(git push:*)
+allowed-tools: Read, Edit, Write, Grep, Glob, Bash(git diff:*), Bash(git add:*), Bash(git commit:*), Bash(git status:*), Bash(git log:*), Bash(git reset HEAD:*), Bash(git ls-files:*), Bash(git rev-list:*), Bash(git rev-parse:*), Bash(git push:*), Bash(bash ~/.claude/scripts/sanitize-project-memory.sh:*)
 ---
 
 # Commit Changes
@@ -11,13 +11,19 @@ You are tasked with creating git commits for the changes made during this sessio
 Read `~/.claude/skills/shared/bash-rules.md` for bash command constraints.
 
 ## Context
-- Ignore rules: !`cat .gitignore 2>/dev/null || true`
+- Repo root: !`git rev-parse --show-toplevel 2>/dev/null || pwd`
+- Ignore rules: !`R=$(git rev-parse --show-toplevel 2>/dev/null || pwd) && cat "$R/.gitignore" 2>/dev/null || true`
+- Sanitize project memory: !`R=$(git rev-parse --show-toplevel 2>/dev/null || pwd) && bash ~/.claude/scripts/sanitize-project-memory.sh "$R" 2>/dev/null || true`
 - Unstage all: !`git reset HEAD 2>/dev/null || true`
 - Remote ahead by: !`git fetch origin --quiet 2>/dev/null || true; git rev-list --count HEAD..@{upstream} 2>/dev/null || echo "n/a"`
 - Uncommitted changes: !`git status --short`
 - Diff summary: !`git diff HEAD --stat`
 - Full diff: !`git diff HEAD`
 - Recent commits: !`git log --oneline -10`
+
+## Working directory
+
+`docs/plans/**` paths and any file paths in this skill are relative to **Repo root** from Context. The cwd may be a subdirectory — prefix Repo root when calling Read/Edit/Write/Grep/Glob, and pass paths from `git status --short` to `git add` verbatim (they're already repo-root-relative; git resolves them from cwd up to the repo root automatically).
 
 ## CRITICAL CONSTRAINT
 
