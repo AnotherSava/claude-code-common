@@ -1,9 +1,12 @@
 - [Follow skill instructions exactly](feedback_follow_skill_instructions.md) — never abbreviate or skip steps in skills, even when output feels verbose
 - [Fix failing skills](feedback_fix_skills.md) — fix the skill definition instead of working around failures manually
+- [No unprompted skill edits](feedback_no_unprompted_skill_edits.md) — don't rewrite a working skill's guidance unasked; fixing applies when a skill fails during use
 - [Glob safety for numeric filenames](feedback_glob_safety_windows.md) — `hex_4*.png` matches hex_40, hex_400, AND hex_441; use explicit ranges
 - [GitHub identity](user_github.md) — login is `AnotherSava`; distinct from git author `Oleg Savelyev`
-- [Prefer loud errors to silent fallback](feedback_loud_errors.md) — surface failures in UI + log; never silently degrade
+- [Prefer loud errors to silent fallback](feedback_loud_errors.md) — surface failures in UI + log; never silently degrade; show status on the active view, prefer truthful "retrying" over a timeout that fakes a terminal result
+- [Eliminate the bug class, don't patch paths](feedback_eliminate_bug_class.md) — a bug recurring after a targeted patch means wrong altitude; remove the structural cause (e.g. push→pull) not the trigger path
 - [Pre-push hook rejects unsigned + Claude trailers](reference_push_hook.md) — resign ancestors with `git rebase --exec` before first push
+- [Multiline commit messages via -m flags](feedback_commit_message_m_flags.md) — use repeatable `git commit -m … -m …`, not PowerShell here-strings; Git Bash leaks `@'…'@` literally
 - [Attribution style for inherited projects](feedback_attribution_style.md) — keep original LICENSE; "Initially based on…" in `docs/index.md` only
 - [Plan file timestamp format and lifecycle](feedback_plan_timestamp_format.md) — `docs/plans/YYYY-MM-DD_HH-MM-<slug>.md`; move to `docs/plans/completed/` after execution
 - [Claude dotfiles repo](reference_claude_dotfiles_repo.md) — ~/.claude/ + global git files symlinked from a shared repo; edits are version-controlled there
@@ -19,6 +22,7 @@
 - [Toolbox image-opt reference](reference_toolbox_image_opt.md) — canonical WebP/AVIF settings (method=6, quality=60); check toolbox before deriving fresh params
 - [Recover context from jsonl logs](reference_recover_context_from_jsonl.md) — after forced /clear, parse `~/.claude/projects/<id>/*.jsonl` to reconstruct prior session
 - [No premature abstraction](feedback_no_premature_abstraction.md) — don't build interfaces/registries until 2-3 concrete instances reveal the pattern
+- [Ask before keeping for backcompat](feedback_ask_before_backcompat.md) — internal symbols going unused → ask the user before silently preserving "for backwards compatibility"
 - [CSS variant classes, not base-class overrides](feedback_css_variant_classes_not_overrides.md) — base class holds layout-agnostic styles; each view declares its own variant class with grid/flex shape
 - [No scratch paths in committed code](feedback_no_scratch_paths_in_committed_code.md) — committed docs/comments must not reference gitignored `tmp/`, `scratch/`, etc.; promote the file or rewrite the prose
 - [Verify log timing before transcript-based detection](feedback_verify_log_timing.md) — empirically check writer flush behavior; "unresolved X" probes fail silently if the writer buffers
@@ -31,3 +35,7 @@
 - [Store raw data, derive display fields](feedback_store_raw_derive_display.md) — persist full/rich data; truncate or compute booleans at display time, not storage time
 - [Don't state assumptions as facts](feedback_assumptions_vs_facts.md) — label inferences explicitly; verify before presenting causal explanations as conclusions
 - [Stash-pop sides flipped](feedback_stash_pop_conflict_sides.md) — `--ours` = post-pull tree, `--theirs` = stash; checkout from a named ref when unsure
+- [Migrate, don't degrade persistence](feedback_migrate_dont_degrade_persistence.md) — fix stale persisted data with a one-time cleanup; don't switch compute-once/first-write-wins into recompute-every-time
+- [Fold by visual volume, not line count](feedback_fold_by_visual_volume.md) — budget folds by lines AND chars; expand control on its own line
+- [No unsolicited past-data fixes](feedback_no_unsolicited_data_fixes.md) — fix going-forward code only; don't proactively migrate/correct stale stored data unless asked or after asking
+- [Verify the symptom, not a proxy](feedback_verify_symptom_not_proxy.md) — confirm the symptom changed under the user's reported conditions (e.g. reboot), not a proxy signal or convenient test scenario
