@@ -42,9 +42,9 @@ Also worth knowing about: `PreToolUse` (needed for user-gating tools like `AskUs
 
 Each hook receives a JSON payload on stdin. Common fields:
 
-- `session_id` — UUID string, stable for the lifetime of one Claude Code session (preserved across `/clear` and `/compact`).
+- `session_id` — UUID string, stable for the lifetime of one Claude Code session. **Not** preserved across `/clear` — that mints a new session_id and a new transcript file (verified: the transcript rotated `83a08d40….jsonl` → `62af8740….jsonl` on `/clear`). `/compact` may preserve it, but don't assume — check `transcript_path`.
 - `transcript_path` — absolute path to the session's JSONL transcript.
-- `cwd` — the Claude Code process's working directory (the project root when launched in a project).
+- `cwd` — the Claude Code process's **live** working directory. It is the project root at launch but **changes mid-session** when the agent `cd`s into a subdirectory (verified: one session's events reported `D:/projects/bga/assistant`, `…/assistant/data`, and `…/assistant/data/_rt_inspect`). Do NOT derive a stable row/identity from `cwd` alone — a single conversation will fragment across multiple ids. Key identity on `session_id`; if you want a readable name, derive it from cwd only on the first event and lock it for the rest of the session. Note the transcript's folder is the mangled **session-start** cwd and stays put across `cd`, so it is not a source for the live cwd but is a stable session anchor.
 - `prompt` — present only on `UserPromptSubmit`.
 - `message` — present on `Notification` (the notification text).
 - `notification_type` — present on `Notification`: `permission_prompt`, `idle_prompt`, `plan_approval`, or other attention signals. **Critical for state classification** (see next section).
@@ -222,6 +222,28 @@ Typing `/clear` in Claude Code is two sequential hook invocations, ~30ms apart:
 
 `/compact` follows the same shape (`SessionEnd` → `SessionStart` with `source: "compact"`), but the transcript filename may or may not rotate depending on Claude Code version — don't assume, check `transcript_path`.
 
+## Mid-turn user interrupts
+
+When a user sends a message while Claude is still working (mid-turn), **no hook fires**. There is no `UserInterrupt` hook ([feature request #9516](https://github.com/anthropics/claude-code/issues/9516)). The message appears in the JSONL transcript only. Verified shape (Claude Code 2.1.152, across 53 transcripts):
+
+```
+{"type": "queue-operation", "operation": "enqueue", "content": "update commit skill", ...}
+{"type": "queue-operation", "operation": "remove", ...}
+{"type": "attachment", "attachment": {"type": "queued_command", "prompt": "update commit skill", "commandMode": "prompt"}, ...}
+```
+
+The text lives in **two** places, **neither of which is a top-level `prompt` field**. (An earlier version of this note claimed top-level `prompt` on both entry types and a `subtype` key on `queue-operation` — both wrong. Code written against that shape silently captured nothing, because `prompt` and `subtype` are never present.) The real layout:
+- `queue-operation` with `operation: "enqueue"` → queued text in **`content`** (the `remove` entry has no text).
+- `attachment` with `attachment.type == "queued_command"` → text in **`attachment.prompt`** (nested under `attachment`, not top-level).
+
+The interrupt is NOT a `type: "user"` entry with text content. A watcher that only processes `user` and `assistant` entries misses it. To capture it: on `attachment` entries, gate on `attachment.type == "queued_command"` and read `attachment.prompt`.
+
+**Filter system-injected prompts.** `queued_command` is also used for non-user input: a background-task completion notice arrives as `commandMode: "task-notification"` with the prompt wrapped in `<task-notification>…</task-notification>`. Skip any prompt starting with `<task-notification>` so it doesn't become a dialog entry. Real user prompts have `commandMode: "prompt"`.
+
+Timing: the `queue-operation` "enqueue" arrives first (message queued), then after the current tool call completes the `queue-operation` "remove" and `attachment` entries appear together. Claude sees the interrupt as an attachment on the next tool result and incorporates it into the ongoing turn.
+
+Since both the pre-interrupt and post-interrupt assistant responses are in the same turn (no `user` entry separates them), a simple "replace last assistant text" approach loses the earlier response. To preserve both, treat the captured `attachment` prompt as a user-role dialog boundary so subsequent assistant text appends after it instead of overwriting. Note the boundary lands where the attachment materializes (the dequeue point), so any task wrap-up Claude emits *after* that point belongs to the post-interrupt segment — even when it conceptually finishes the pre-interrupt task.
+
 ## Transcript JSONL location and filename mangling
 
 Path: `~/.claude/projects/<mangled-cwd>/<session-id>.jsonl`.
@@ -235,13 +257,13 @@ Each line is a JSON object with a top-level `type`. Entries that carry conversat
 - `type: "user"`, `message.role: "user"` — a user message (text block) or a tool result coming back to Claude (tool_result block).
 - `type: "assistant"`, `message.role: "assistant"` — Claude's output; may contain `text` and/or `tool_use` blocks.
 
-Metadata entries that should be skipped when inferring state:
-- `attachment`
+Metadata entries — skip when inferring state, but some carry data:
+- `attachment` — many subtypes (`task_reminder`, `command_permissions`, `edited_text_file`, …); only `attachment.type == "queued_command"` **carries a user interrupt** (see "Mid-turn user interrupts" above)
 - `file-history-snapshot`
 - `system`
 - `permission-mode`
 - `last-prompt`
-- `queue-operation`
+- `queue-operation` — enqueue/remove tracking for queued user messages; the `enqueue` entry carries the queued text in `content`
 
 ## Sidechain and synthetic assistant entries
 

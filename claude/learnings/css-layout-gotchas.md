@@ -149,3 +149,35 @@ If each "row" in your list is its own `display: grid` container, each row comput
 Now all rows participate in the parent's column track sizing — `auto` columns size to the widest content across all rows, and right-aligned cells stack vertically.
 
 Requires Chrome 117+ / Firefox 125+ / Safari 16+. Note `gap` is inherited from the parent in a subgrid; setting `gap` on a subgrid row has no effect.
+
+## Confine scroll to a child region — flex column + `min-height: 0`
+
+To make only an inner region scroll (e.g. a long table) instead of the whole page, the scroll container must be height-bounded **and** the scrollable child must be allowed to shrink below its content size:
+
+- The ancestor fills the viewport: `height: 100vh; overflow: hidden` (add `box-sizing: border-box` if it has padding, or the padding adds to `100vh` and overflows).
+- That ancestor (or an intermediate wrapper) is `display: flex; flex-direction: column`.
+- Non-scrolling siblings (header, toolbar, chart) keep their natural height.
+- The scrollable child: `flex: 1; min-height: 0; overflow-y: auto`.
+
+```css
+body:has(.stats-page) { height: 100vh; overflow: hidden; box-sizing: border-box; }
+body:has(.stats-page) #content { height: 100%; }
+.stats-page { height: 100%; display: flex; flex-direction: column; box-sizing: border-box; }
+.stats-table-wrap { flex: 1; min-height: 0; overflow-y: auto; }   /* the only scroller */
+```
+
+The crucial, non-obvious part is **`min-height: 0`**. A flex item's default `min-height` is `auto`, which refuses to shrink below the content's intrinsic size — so without it the child grows to fit all its rows and the *page* (or next ancestor) scrolls instead of the child. `min-height: 0` lets it shrink, and its own scrollbar appears.
+
+Scope it to one view inside a shared container with `:has()` (`body:has(.stats-page) { … }`) so sibling views in the same container keep normal document scrolling. `:has()` needs Chrome 105+.
+
+To push the scrollable child (and its scrollbar) out to the container's edge past the ancestor's padding, give it a negative margin equal to that padding: `.stats-table-wrap { margin-right: -20px; }`.
+
+## Sticky `thead th` + `border-collapse` drops the header border on scroll
+
+A sticky table header — `thead th { position: sticky; top: 0 }` — needs an opaque `background` so scrolling rows don't show through it. But with `border-collapse: collapse`, the cell's `border-bottom` belongs to the collapsed **table** border, not the cell, and Chrome paints it at the table's static position — so the divider scrolls away with the rows and the pinned header is left with no bottom line.
+
+**Fix:** draw the divider as an inset box-shadow on the sticky cell instead (painted with the cell, so it stays pinned), and give the cell a background:
+
+```css
+.stats-table thead th { position: sticky; top: 0; background: #1e1e1e; box-shadow: inset 0 -1px 0 #444; }
+```

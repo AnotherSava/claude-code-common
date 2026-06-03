@@ -1,4 +1,6 @@
-# just-the-docs SCSS customization
+# just-the-docs customization
+
+## SCSS overrides
 
 Two override files, loaded at different stages:
 
@@ -31,3 +33,31 @@ To verify a width change actually applied, grep the compiled `assets/css/just-th
 ### Compiled CSS is cached aggressively
 
 `just-the-docs-default.css` is served with no content hash in its filename, so browsers hold the old copy after a Pages redeploy. A change confirmed live in the fetched CSS but "not showing" is almost always browser cache — hard-refresh (Ctrl+Shift+R).
+
+## Suppressing the auto child-list (`has_toc`)
+
+A page with `has_children: true` makes just-the-docs auto-render a "Table of contents" list of its child pages at the bottom of the page body. If the page *also* has a hand-written navigation block (e.g. a "Next steps" section that links the same children with descriptions), the two duplicate each other.
+
+Set **`has_toc: false`** in the page's front matter to suppress the auto-generated child-list while keeping `has_children: true` (so the sidebar still nests the children). Prefer this when your manual list carries descriptions the bare auto-list lacks.
+
+## Mermaid diagrams
+
+just-the-docs has **built-in mermaid support** — no plugin needed. Enable it in `_config.yml`:
+
+```yaml
+mermaid:
+  version: "11.4.1"   # loaded from jsDelivr CDN; pin a real published version
+```
+
+Any ` ```mermaid ` fenced block then renders client-side, styled to the theme. Prefer mermaid over ASCII box-art: ASCII box-drawing diagrams render as flat monospace and look poor in the theme.
+
+Pick the representation by diagram type:
+
+- **Flowcharts / data-flow diagrams** → a ` ```mermaid ` `flowchart` block.
+- **File trees / directory layouts** → a **nested Markdown bullet list** (file/dir names as inline `code`, descriptions after `—`). The theme styles nested lists with indent guides; a list reads better than a tree here and needs no mermaid. Collapse single-child dirs onto one line (`adapters/claude.rs`).
+
+Mermaid label gotchas (these break rendering or render wrong):
+
+- Quote any edge/node label with special chars: `-->|"#[tauri::command]"|`, `-->|"a -> b"|`.
+- Inside node labels, use `&lt;`/`&gt;` for angle brackets and `<br/>` for line breaks: `AS[("AppState<br/>Mutex&lt;Vec&lt;T&gt;&gt;")]`.
+- Validate the diagram parses (e.g. the claude-mermaid plugin's `mermaid_preview`) before committing — a syntax error renders as a broken diagram on the live site, not a build failure.

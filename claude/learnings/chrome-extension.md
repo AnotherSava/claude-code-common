@@ -68,6 +68,8 @@ chrome.action.onClicked.addListener(async (tab) => {
 
 **Per-window port tracking for multi-window support.** A single boolean `sidePanelOpen` breaks with multiple Chrome windows. Track port state per-window using a `Map<Port, PortState>` where `PortState` includes `windowId`. The side panel reports its window via `chrome.windows.getCurrent()` after connecting. Use `windowId` to scope broadcasts and tab lookups.
 
+**Reloading the extension does NOT refresh an already-open side panel.** The open panel keeps running its previously-loaded `sidepanel.js`; a rebuild won't appear until you close and reopen the panel (a fresh page load). When testing UI changes, toggle the panel off/on — don't just hit "Reload" on the extensions page, or you'll keep debugging stale code (a real time-sink — symptoms look like "my fix didn't take").
+
 ## Service Worker Lifecycle
 
 **The service worker shuts down after ~30 seconds of inactivity.** All module-level `let` variables reset on restart. Treat the service worker as stateless across time. Use `chrome.storage.session` to persist critical state (like pin mode) across SW restarts — it survives restarts but clears on browser close. Requires the `"storage"` permission.
@@ -89,6 +91,10 @@ chrome.action.onClicked.addListener(async (tab) => {
 **`world: "ISOLATED"` for DOM-only watchers** that only need MutationObserver + `chrome.runtime.sendMessage()`. Safer because the content script can't be tampered with by page scripts. Note: TypeScript's type definitions may not include `"ISOLATED"` as a valid world value — cast with `as any`.
 
 **`chrome.scripting.executeScript({ target, func })` injects a function inline** — no separate content-script file or `web_accessible_resources` entry needed. Useful for one-off UI interactions (e.g. clicking a button on a third-party SPA). Requires the `scripting` permission plus host_permissions for the target URL (or `activeTab`). The injected function runs in the ISOLATED world by default — pass `world: "MAIN"` to access page-script globals. The function's return value is available in `results[0].result`, so you can detect failure (e.g. selector returned nothing) and fall back to a heavier strategy like `chrome.tabs.reload`.
+
+**`executeScript` awaits a returned Promise — in both worlds (and for `files:` injections).** If the injected function (or the completion value of a `files` script) is a Promise, Chrome waits for it and `results[0].result` is the *resolved* value (which must be structured-cloneable). This is how an injected func/file does async work — an in-page `fetch`/XHR, a page `ajaxcall` — and hands the data back synchronously to the caller.
+
+**To read a site's *authenticated* API, inject into the page — don't `fetch` from the service worker.** A `fetch()` from the SW to `https://thesite.com/api/...` is a *cross-site* request from the extension's origin: the site's `SameSite=Lax/Strict` session cookie and any per-request CSRF/security token are not attached, so the site rejects it (often returning a generic error envelope — keys like `status/exception/error/code` — rather than the data). Instead `executeScript` a small probe into the page (`world: "MAIN"`) that calls the page's own API helper (which adds the token) or does a same-origin `fetch`, and return the result. Keep that probe a **separate** `executeScript` call, decoupled from your main extraction, so a failure or hang in it can never break the core extraction.
 
 **Scripts injected via `executeScript({ files: [...] })` must not have `export` statements.** Vite outputs `export {};` by default. Strip it with a custom `generateBundle` plugin:
 ```ts
@@ -112,9 +118,45 @@ function stripExports(): Plugin {
 
 **Push-based > request/response** for background → side panel communication. The cache manager pushes results via a callback whenever data is available (after setFilterConfig, label indexed, scope fetched, cache complete, refresh). The service worker relays each push as a single `filterResults` message. The side panel never requests data — it renders whatever arrives. Include a `partial` flag to distinguish intermediate results (initial build, invalidated labels) from final results.
 
+## Presence & Idle Tracking (`chrome.idle`, `chrome.alarms`, window focus)
+
+Building idle-aware play-time tracking (a session = the focused game tab; pause on AFK/sleep) exposed a cluster of MV3 quirks. The symptom that led here: a run of **0-length sessions spaced ~3 minutes apart** in history while the user was away from the keyboard.
+
+**`chrome.idle.onStateChanged` does NOT replay the last transition to a freshly-restarted SW.** When the service worker is torn down and cold-restarts, `onStateChanged` only fires on *future* state changes — it does not re-deliver the already-past `"idle"` transition to the new instance. So any startup-path code that assumes "the user is active" is wrong if they're actually idle. A session started blindly at SW startup never receives an idle event, freezes, and is finalized as a 0-length row on the next restart — looping once per restart. **Fix:** gate startup work on the *live* idle state, not just on "is there a session":
+```ts
+if (!(await hasActiveSession()) && (await chrome.idle.queryState(IDLE_DETECTION_SECONDS)) === "active") {
+  startSession(...);
+}
+```
+Use `chrome.idle.queryState()` to read the current state on demand; use `onStateChanged` only for live transitions while the SW is alive. Detection interval floor is **15 seconds** (`setDetectionInterval`); states are `"active" | "idle" | "locked"` (`"locked"` covers screen-lock/sleep); requires the `"idle"` permission.
+
+**MV3 SWs cold-restart constantly; alarms wake them but delivery is throttled to ~minutes when the SW is dormant** — even if you asked for a 60s period. This is why the phantom 0-length rows were ~3 min apart, not 1 min. Every module-level statement re-runs on each cold start, so "initialize on startup" code fires repeatedly, not once. Design startup code to be idempotent and to re-derive state from `chrome.storage`, never to assume it runs once.
+- Heartbeat pattern: run a periodic alarm *only while a session is open* (create on session start, clear on session end) so the SW isn't woken when there's nothing to track. Requires the `"alarms"` permission.
+- Belt-and-suspenders: drop nonsensical results at the storage boundary (e.g. discard a session whose `end <= start`) so residual startup/finalize races can't litter persisted data.
+
+**`tab.active` is NOT "the user is looking at this tab".** It only means "selected tab *within its own window*" — it stays `true` when that window is **minimized** or sitting **behind another window/app**. A heartbeat that checks only `tab.active` keeps counting an idle/backgrounded tab as live. For genuine presence, check the focused window:
+```ts
+const win = await chrome.windows.getLastFocused({ populate: true });
+if (win.focused) {                       // a Chrome window currently holds OS focus
+  const activeTab = win.tabs?.find((t) => t.active);  // the tab the user actually sees
+}
+// also require win.state !== "minimized" if you queried a specific window
+```
+
+**Focus / idle event coverage — what fires when:**
+- **Switch tab** → `chrome.tabs.onActivated`
+- **Same-tab navigation / SPA pushState** → `chrome.tabs.onUpdated` (full load: `status` goes `loading`→`complete`; SPA: only `url` changes, no `status` field)
+- **Close tab** → `chrome.tabs.onRemoved`
+- **Switch Chrome window / minimize / switch to another app** → `chrome.windows.onFocusChanged`; `windowId === chrome.windows.WINDOW_ID_NONE` means *no* Chrome window has focus.
+- **AFK with the tab still focused, screen lock, sleep** → *no* tab/window event fires at all; only `chrome.idle` catches these. `chrome.idle` is **system-wide** (any input, any app), so it composes with the focus events: alt-tab to another app and `onFocusChanged` already closed the session; keep Chrome focused but stop typing and `chrome.idle` is the only signal.
+
+**Bounding sessions across crash/quit (no end-write on shutdown).** On a hard quit the SW can die before writing the session end. Persist a `lastSeen` timestamp (refreshed by the heartbeat while active) and an `idleSince` (set when idle begins). On the next startup, run a recovery pass *before* re-establishing the current session: finalize an orphaned session at `idleSince` (if it had gone idle) or at `lastSeen` (crash) instead of stretching it to "now" — otherwise one session balloons to cover the entire time the browser was shut.
+
 **`onMessage` handler returning `undefined` is fine** for synchronous handlers. The "return true" rule only applies if you call `sendResponse` asynchronously.
 
-**A "broadcast once" flag in the background can leave the side panel stuck if the panel ever wipes local state.** If the background sets `labelsPushed = true` (or similar) after pushing data and only resets it on account change or explicit reset, then a side panel that clears its cache for any other reason (e.g., on a transient `notOnGmail` signal) will never receive that data again — background thinks the panel has it, panel thinks background will re-push. Either drop the once-flag (re-push on every relevant event), or don't reset receiver state for transient conditions — keep the cached labels valid until you actually know they're stale (account change, explicit cache reset).
+**A "broadcast once" flag in the background can leave the side panel stuck if the panel ever wipes local state.** If the background sets `labelsPushed = true` (or similar) after pushing data and only resets it on account change or explicit reset, then a side panel that clears its cache for any other reason (e.g., on a transient `notOnGmail` signal) will never receive that data again — background thinks the panel has it, panel thinks background will re-push. Remedies, most to least robust: (1) give the receiver a **pull** path — when it activates without the data, send an explicit `requestX` and have the background answer from its live state; this self-heals regardless of which path wiped the receiver's copy, including reconnects. (2) drop the once-flag (re-push on every relevant event). (3) don't reset receiver state for transient conditions — keep cached data valid until you actually know it's stale (account change, explicit cache reset). Path-by-path patches of (3) tend to recur: a new trigger leaks through the same hole. Prefer (1) when the data has a single activation chokepoint to hook the pull into.
+
+**A pull/deferred reply must wait for data *readiness*, not just *existence*.** When the background answers an on-demand request by resolving a key (e.g. label name → ID) and reading its value (the cached message-ID index), replying the instant the *key* resolves — but before the *value* is populated — produces a false-empty answer ("No emails") that nothing re-triggers, because the receiver treats the reply as final. Gate the reply on the value being final: queue the request and re-evaluate it on each progress event, releasing it only once that specific datum is built (a per-key "ready" predicate) or the whole build completes. Distinguish a *genuinely-absent key* (answer immediately — it'll never exist) from a *not-yet-built value* (keep waiting). The progress callback that already fires per work-unit is the natural place to flush the queue.
 
 ## Tab and Window Management
 
@@ -398,4 +440,6 @@ Use `@types/chrome` instead if you need the full set of named types — but be a
 | `sidePanel` | Side panel API |
 | `storage` | `chrome.storage.local`, `chrome.storage.sync`, and `chrome.storage.session` (covers all) |
 | `identity` | `chrome.identity.getAuthToken()` for OAuth2 |
+| `idle` | `chrome.idle.queryState()` / `onStateChanged` / `setDetectionInterval` |
+| `alarms` | `chrome.alarms.create()` / `onAlarm` (periodic SW wakeups) |
 | `host_permissions` | Persistent `executeScript` on matching tabs without user gesture |

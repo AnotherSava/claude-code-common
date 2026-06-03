@@ -16,6 +16,38 @@ For frameless windows (`decorations: false`) with `resizable: true`, Windows sti
 
 **Always use `inner_size()` for size reads if you'll feed the result back into `set_size`.**
 
+### Positioning relative to a target outer edge
+
+When the goal is "after resize, the window's *outer right* edge sits at column X" (e.g. preserve a right-edge margin against the work area), the obvious order — `set_position` to a computed new_x using the requested inner width, then `set_size` — produces the wrong final edge because outer ≠ inner.
+
+Empirical example (decorationless, `decorations: false`, DPR 1.5):
+- Requested logical width 597.33 → expected physical 896.
+- Observed `outer_size().width` after `set_size` = **918** physical (~22 px wider — the invisible WS_THICKFRAME resize border, ~11 px per side at this DPR).
+- If position math used 896, the window hung 6 px past the work area; if it used 918, position was correct.
+
+Working pattern:
+
+```rust
+// 1. Resize first; defer position adjust until we know the actual outer size.
+window.set_size(LogicalSize::new(target_logical_w, current_logical_h))?;
+
+// 2. Read what the window manager actually produced.
+let pos = window.outer_position()?;
+let outer = window.outer_size()?;
+
+// 3. Compute target position using actual outer width.
+let monitor = window.current_monitor()?.unwrap();
+let work = monitor.work_area();
+let allowed_right = work.position.x + work.size.width as i32 - RIGHT_MARGIN_PX;
+let overflow = pos.x + outer.width as i32 - allowed_right;
+if overflow > 0 {
+    let new_x = (pos.x - overflow).max(work.position.x);
+    window.set_position(PhysicalPosition::new(new_x, pos.y))?;
+}
+```
+
+The brief frame where the window is sized but not yet repositioned (one tick) is fine in practice — no user-visible flash on Windows.
+
 ## Auto-resize loops vs Windows minimum window height
 
 Windows enforces a minimum height (~150 device px, varies by frame style) for resizable windows. `WebviewWindow::set_size` to anything smaller succeeds silently — no error — but the subsequent `inner_size()` returns the clamped value, not the requested one.
@@ -185,3 +217,23 @@ Attempting to add a second always-on-top overlay window (for a tooltip that exte
 **Native `title` tooltips already escape the window**: the browser's `title` attribute renders an OS-level tooltip (a separate native window managed by the webview), not a DOM element. It can extend past the webview frame in any direction. Don't build a custom Tauri overlay window for tooltip-like content — the browser already does it for free, with correct hit-testing, no focus issues, and no capability concerns. The trade-off is plain text only (no styling, no highlighting).
 
 **Dynamically created windows have no IPC**: `WebviewWindowBuilder::build()` creates windows that load and render HTML/JS normally, but `invoke()` calls silently fail — no errors, no logs, just dead IPC. `initialization_script` globals also don't survive to page JS. `WebviewUrl::App("other.html".into())` for non-root HTML files produces a completely empty window (no content, no close button response). The workaround: pre-configure windows in `tauri.conf.json` with `visible: false`, then show/hide them via commands. Pre-configured windows get full IPC. Use a managed state + events to pass data between windows (e.g. `HistoryTarget` mutex + `history_target` event). For the OS close button on reusable windows: match `CloseRequested { api, .. }`, call `api.prevent_close()`, then `window.hide()`.
+
+## Managed state timing: `.setup()` vs `Builder::manage()`
+
+Commands using `State<T>` where T is managed inside `.setup()` can consistently fail with `"state not managed for field 'state' on command 'get_config'"`. The webview (pre-configured in `tauri.conf.json`) can invoke commands before `.setup()` completes — this is not a rare race, it reproduces on every launch.
+
+- **`Builder::manage()`** (before `.setup()`) — state is always available to commands from the first `invoke()`.
+- **`app.manage()` inside `.setup()`** — state may not be available when the webview's JS first executes `onMount` / startup code.
+
+Fix: for state that must be constructed inside `.setup()` (needs `app.path()`, config files, etc.), change the command from `State<T>` to `AppHandle` and use `try_state`:
+
+```rust
+#[tauri::command]
+pub fn get_config(app: AppHandle) -> Config {
+    app.try_state::<ConfigState>()
+        .map(|s| s.snapshot())
+        .unwrap_or_default()
+}
+```
+
+The frontend gets a default config on the first call, then receives the real config via the `config_updated` event once setup finishes and the config watcher fires. If your type doesn't implement `Default`, return `Option<T>` and handle `None` in the frontend.
