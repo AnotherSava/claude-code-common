@@ -30,3 +30,4 @@
 - [Side-panel actions refresh, don't navigate](feedback_actions_refresh_not_navigate.md) — explicit clicks navigate the host page; action consequences refresh in place to preserve user context
 - [Store raw data, derive display fields](feedback_store_raw_derive_display.md) — persist full/rich data; truncate or compute booleans at display time, not storage time
 - [Don't state assumptions as facts](feedback_assumptions_vs_facts.md) — label inferences explicitly; verify before presenting causal explanations as conclusions
+- [Stash-pop sides flipped](feedback_stash_pop_conflict_sides.md) — `--ours` = post-pull tree, `--theirs` = stash; checkout from a named ref when unsure
