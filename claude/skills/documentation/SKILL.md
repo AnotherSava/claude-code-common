@@ -26,6 +26,7 @@ All file paths below (`README.md`, `docs/`, `docs/pages/`, `docs/index.md`, `CLA
 2. **Read all files in `docs/pages/`** (if the folder exists) and check for both staleness and gaps:
    - Rewrite any sections that no longer match the code — removed features, changed message protocols, new data flows, renamed concepts
    - Check whether features added or significantly changed in the current diff are missing from the relevant docs page. A new user-visible capability, config option, or behavioral change should appear in the page that covers its area. Propose additions and wait for approval
+   - **Update the features section.** When the diff adds a new user-facing feature or changes an existing one, the curated feature listings must reflect it — the dedicated features page (e.g. `docs/pages/features.md`), any enumerated feature list in `docs/index.md`, and the README's feature list. Add a new entry for a new feature; revise the existing entry for a changed one. A feature that exists in code but is absent from (or stale in) these listings is a documentation gap even when every other page is accurate. Propose the additions/edits and wait for approval
    - **Check embedded diagrams** (` ```mermaid ` blocks, ASCII flowcharts/trees, and structural tables) that depict architecture, data flow, state machines, or file layout. When code changes — or another doc you just edited — alters the structure a diagram illustrates (a renamed/removed module, a new component, a changed path or edge), update the diagram itself, not just the surrounding prose. A stale node, missing arrow, or wrong label in a diagram is as misleading as stale text.
    - **Check pages that moved in the nav hierarchy** (e.g. a former top-level page now nested as a subpage). A relocated page often (a) duplicates content that now belongs to a sibling page — trim it to a pointer so each page owns one concern; and (b) keeps heading levels from its old position (a former subsection's `###` where siblings use `##`). Also re-verify its relative links resolve from the new location.
 
@@ -42,9 +43,11 @@ All file paths below (`README.md`, `docs/`, `docs/pages/`, `docs/index.md`, `CLA
 
 5. **Check comments and docstrings** in modified source files (use **Uncommitted changes** and **Full diff** to identify them) that reference changed behavior
 
-6. **Suggest improvements** — if documentation would benefit from a new file or reorganization, suggest it to the user and wait for approval before proceeding
+6. **Update dimensioned drafts** — only if the repo keeps drafts (Glob `**/dimensioned_drafts/*.py` outside ignored dirs; skip this step when nothing matches). Drafts are documentation of model geometry: when a model source file changed in the diff, find the draft scripts that document it (match by model name/directory and by constants mirrored from the model's dimensions class) and check every drawn value — dimensions, profile vertices, removed/added features, not just labels. Update the draft script to the current model, re-run it to regenerate the SVG, and include both files in the change set. A draft documenting a feature the model no longer has is stale documentation just like prose.
 
-7. **Report** what was updated. If nothing was stale, say so. Call out README ↔ `docs/index.md` mismatches explicitly, even when fixed.
+7. **Suggest improvements** — if documentation would benefit from a new file or reorganization, suggest it to the user and wait for approval before proceeding
+
+8. **Report** what was updated. If nothing was stale, say so. Call out README ↔ `docs/index.md` mismatches explicitly, even when fixed.
 
 ## Out of scope
 

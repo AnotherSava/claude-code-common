@@ -107,6 +107,13 @@ Build bullets from `git log <prev-tag>..HEAD --oneline` (or all commits if no pr
 - Group closely related commits into a single bullet if obvious
 - Skip pure-internal commits with no user-visible effect (CI tweaks, doc-only changes, internal refactors)
 
+Group the bullets under emoji-prefixed `###` headings by kind, in this order, omitting any heading with no bullets:
+- `### ✨ Features` — `feat:` commits
+- `### 🐛 Fixes` — `fix:` commits
+- `### ⚠️ Breaking changes` — any breaking change
+
+Everything else user-visible that doesn't fit (rare) goes under whichever of the above fits best, or an un-headed bullet list when a release has only one kind and the split adds no clarity.
+
 ### Stack-specific sections
 
 **Chrome extension:**
@@ -155,12 +162,11 @@ dotnet build src/
 
 `release.yml` builds a per-OS matrix via `tauri-action` and creates a **draft** release with the installers attached (Windows NSIS `.exe`, macOS `.dmg`). GitHub auto-renders an Assets section at the bottom of every release with filenames and sizes, so the notes should NOT include a Downloads table — it would just duplicate that.
 
-If the project has an install-guide page that documents OS-specific first-launch warnings (macOS Gatekeeper "damaged", Windows SmartScreen, etc.), link to it at the end. Otherwise just include the Full Changelog line:
+End the notes with a code-signing NOTE callout: the installers aren't signed, so the user hits a first-launch warning on each platform the release ships. Give the concrete bypass step per OS (drop the line for any OS this release doesn't build), and link to the project's install guide for full steps. Omit the `{install-url}` link only if the project has no install-guide page. Do NOT add a Full Changelog line (GitHub's auto-rendered compare link covers it) or a Downloads table.
 
 ```
-See the [installation guide]({install-url}) for OS-specific first-launch notes.
-
-**Full Changelog**: https://github.com/{owner}/{repo}/compare/{prev-tag}...vX.Y.Z
+> [!NOTE]
+> The installers aren't code-signed. On **Windows**, SmartScreen shows "Windows protected your PC" — click **More info** → **Run anyway**. On **macOS**, first launch is blocked ("damaged"/unidentified developer) — open **System Settings → Privacy & Security** and click **Open Anyway**. Full steps in the [installation guide]({install-url}).
 ```
 
 Present the full draft to the user and ask them to confirm or request edits. Do not push the tag until approved.

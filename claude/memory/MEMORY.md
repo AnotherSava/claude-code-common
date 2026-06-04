@@ -1,6 +1,7 @@
 - [Follow skill instructions exactly](feedback_follow_skill_instructions.md) — never abbreviate or skip steps in skills, even when output feels verbose
 - [Fix failing skills](feedback_fix_skills.md) — fix the skill definition instead of working around failures manually
 - [No unprompted skill edits](feedback_no_unprompted_skill_edits.md) — don't rewrite a working skill's guidance unasked; fixing applies when a skill fails during use
+- [Codify conventions as single rules](feedback_codify_conventions_as_single_rules.md) — one unambiguous rule, no "or Y is also fine" escape hatch; sweep all artifacts after codifying
 - [Glob safety for numeric filenames](feedback_glob_safety_windows.md) — `hex_4*.png` matches hex_40, hex_400, AND hex_441; use explicit ranges
 - [GitHub identity](user_github.md) — login is `AnotherSava`; distinct from git author `Oleg Savelyev`
 - [Prefer loud errors to silent fallback](feedback_loud_errors.md) — surface failures in UI + log; never silently degrade; show status on the active view, prefer truthful "retrying" over a timeout that fakes a terminal result
