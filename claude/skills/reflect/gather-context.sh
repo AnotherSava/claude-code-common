@@ -20,7 +20,7 @@ cat "$HOME/.claude/memory/MEMORY.md" 2>/dev/null || echo "(none)"
 # ~/.claude/skills/skill/references/claude-project-memory-paths.md for the
 # mangling rule and the cross-platform pwd recipe.
 root="$(git rev-parse --show-toplevel 2>/dev/null || pwd -W 2>/dev/null || pwd)"
-project_id="$(printf '%s' "$root" | sed 's|[:/\\]|-|g')"
+project_id="$(printf '%s' "$root" | sed 's|[^a-zA-Z0-9]|-|g')"
 
 section project-id
 echo "$project_id"

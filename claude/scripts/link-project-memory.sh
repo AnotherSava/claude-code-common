@@ -23,8 +23,9 @@ set -euo pipefail
 
 # --- Resolve the project repo root and its Claude project ID ----------------
 # Mirror gather-context.sh EXACTLY so the computed ID matches the cache dir the
-# harness actually uses: logical path (not `pwd -P`), mangling :/\\ each to one
-# dash. See skills/skill/references/claude-project-memory-paths.md.
+# harness actually uses: logical path (not `pwd -P`), mangling every
+# non-alphanumeric character to one dash (so `:` `/` `\` `.` `_` each collapse to
+# `-`). See skills/skill/references/claude-project-memory-paths.md.
 target="${1:-.}"
 cd "$target" 2>/dev/null || { echo "error: cannot enter '$target'" >&2; exit 1; }
 repo_root="$(git rev-parse --show-toplevel 2>/dev/null || pwd -W 2>/dev/null || pwd)"
@@ -32,7 +33,7 @@ if [ -z "$repo_root" ]; then
   echo "error: '$target' is not inside a git repository" >&2
   exit 1
 fi
-project_id="$(printf '%s' "$repo_root" | sed 's|[:/\\]|-|g')"
+project_id="$(printf '%s' "$repo_root" | sed 's|[^a-zA-Z0-9]|-|g')"
 
 cache_parent="$HOME/.claude/projects/$project_id"
 cache_mem="$cache_parent/memory"

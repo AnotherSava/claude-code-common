@@ -25,12 +25,12 @@ Extract durable knowledge from the current conversation and persist it to long-t
 
 1. **Review pre-loaded context.** The Context section has two inventory sources:
    - **Project-local** (always available): project CLAUDE.md and project skills listing.
-   - **Global inventory** (from `gather-context.sh`): parse the `=== global-claude-md ===`, `=== global-memory-index ===`, `=== project-id ===`, `=== project-memory-index ===`, `=== global-learnings ===`, and `=== global-skills ===` blocks. The script has already deduced the current project's mangled ID from CWD (replace `:`, `/`, `\` with `-`) and cat'd only *this* project's `MEMORY.md` — no directory scanning needed.
+   - **Global inventory** (from `gather-context.sh`): parse the `=== global-claude-md ===`, `=== global-memory-index ===`, `=== project-id ===`, `=== project-memory-index ===`, `=== global-learnings ===`, and `=== global-skills ===` blocks. The script has already deduced the current project's mangled ID from CWD (replace every non-alphanumeric character with `-`; see `~/.claude/skills/skill/references/claude-project-memory-paths.md`) and cat'd only *this* project's `MEMORY.md` — no directory scanning needed.
 
    If the global-inventory line starts with `(gather-context blocked …)`, fall back to loading each source manually:
    - Read `~/.claude/CLAUDE.md`
    - Read `~/.claude/memory/MEMORY.md`
-   - Compute the current project ID by mangling **Repo root** from Context (replace each `:`, `/`, `\` with `-`) — NOT cwd, since cwd may be a subdirectory and would produce a nonexistent project ID. Then Read `~/.claude/projects/<project-id>/memory/MEMORY.md`
+   - Compute the current project ID by mangling **Repo root** from Context (replace every non-alphanumeric character with `-`) — NOT cwd, since cwd may be a subdirectory and would produce a nonexistent project ID. Then Read `~/.claude/projects/<project-id>/memory/MEMORY.md`
    - Glob `~/.claude/learnings/*` (filenames are self-documenting; read bodies only when topic overlaps the current session)
    - Glob `~/.claude/skills/*/SKILL.md`
 

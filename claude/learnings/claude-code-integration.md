@@ -68,6 +68,13 @@ Or read raw bytes: `json.loads(sys.stdin.buffer.read().decode('utf-8'))`.
 
 Diagnostic: three Cyrillic chars like `вЋї` in your output are usually the UTF-8 bytes of a single Unicode char (`E2 8E BF` = `⎿` U+23BF) decoded as cp1251. If you see them, suspect stdin encoding — not missing sanitization.
 
+### Python via Bash-tool heredocs on Windows
+
+Two gotchas when running `python <<'EOF' … EOF` through the Bash tool on Windows:
+
+- **UTF-8 stdout.** Printing chars outside the system codepage (box-drawing `│┌┬`, arrows `→`) raises `UnicodeEncodeError: 'charmap' codec can't encode` because stdout encodes as cp1251. Fix at the top of the script: `sys.stdout.reconfigure(encoding="utf-8")`.
+- **Backslash stripping.** Even inside a single-quoted heredoc (`<<'EOF'`), a `\\` in the script body reaches Python as a single `\` — valid escapes like `\a`/`\t` then corrupt string literals, and Python emits `SyntaxWarning: invalid escape sequence` for the rest (that warning is the tell). Build literal backslashes via `chr(92)` instead of escaping.
+
 ## Classifying session state: done vs awaiting vs idle
 
 The single most common integration mistake is treating `Stop` as "Claude completed the request." It doesn't — `Stop` fires at the end of **every assistant turn**, which includes:
@@ -248,7 +255,7 @@ Since both the pre-interrupt and post-interrupt assistant responses are in the s
 
 Path: `~/.claude/projects/<mangled-cwd>/<session-id>.jsonl`.
 
-CWD mangling replaces `:` and `/` (and `\`) with `-`, leaves existing `-` alone. The mangling is **lossy** — `D:/projects/foo-bar` and `D:/projects/foo/bar` both mangle to `D--projects-foo-bar`. Reverse lookup from mangled path back to cwd is unreliable. **Always use the `transcript_path` passed by the hook, never reconstruct it from cwd.**
+CWD mangling replaces **every non-alphanumeric character** with `-` — separators, dots, and underscores all collapse (`D:\projects\instagram\ai.answers.daily` → `D--projects-instagram-ai-answers-daily`); existing `-` maps to itself. The mangling is **lossy** — `D:/projects/foo-bar`, `D:/projects/foo/bar`, and `D:/projects/foo.bar` all mangle to `D--projects-foo-bar`. Reverse lookup from mangled path back to cwd is unreliable. **Always use the `transcript_path` passed by the hook, never reconstruct it from cwd.**
 
 ## Transcript entry types
 

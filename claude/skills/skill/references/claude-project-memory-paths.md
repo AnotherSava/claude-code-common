@@ -18,15 +18,18 @@ Claude Code stores per-project data at:
 
 ## Mangling rule
 
-Replace each `:`, `/`, and `\` in the absolute path with a single `-`. Everything else (case, dots, hyphens already in the path) is preserved.
+Replace **every non-alphanumeric character** in the absolute path with a single `-`. Only `[a-zA-Z0-9]` survive unchanged (case included); separators, dots, underscores, and spaces all become `-`. Hyphens already in the path map to themselves, so they pass through unchanged.
 
 | Input path                                  | Project ID                                |
 | ------------------------------------------- | ----------------------------------------- |
 | `D:\projects\my-app`                        | `D--projects-my-app`                      |
 | `D:\projects\games\achievement-overlay`     | `D--projects-games-achievement-overlay`   |
+| `D:\projects\instagram\ai.answers.daily`    | `D--projects-instagram-ai-answers-daily`  |
 | `/home/oleg/projects/claude`                | `-home-oleg-projects-claude`              |
 
-**Common mistake:** do NOT replace path separators with `--` (double dash). Each `:`, `\`, `/` becomes exactly one `-`. `D:\` is `D--` only because `:` and `\` are two consecutive characters, each getting its own single replacement.
+**Dots and underscores collapse to dashes too** — `ai.answers.daily` becomes `ai-answers-daily`, not `ai.answers.daily`. Verified against a real harness-written transcript path; do not assume dots are preserved.
+
+**Common mistake:** do NOT replace path separators with `--` (double dash). Each character becomes exactly one `-`. `D:\` is `D--` only because `:` and `\` are two consecutive non-alphanumeric characters, each getting its own single replacement.
 
 ## Cross-platform CWD recipe
 
@@ -36,7 +39,7 @@ Two-line bash snippet that works on all three:
 
 ```bash
 cwd="$(pwd -W 2>/dev/null || pwd)"
-project_id="$(printf '%s' "$cwd" | sed 's|[:/\\]|-|g')"
+project_id="$(printf '%s' "$cwd" | sed 's|[^a-zA-Z0-9]|-|g')"
 ```
 
 The `2>/dev/null || pwd` fallback keeps it portable: `pwd -W` errors silently on POSIX shells and the fallback kicks in.
