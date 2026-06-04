@@ -34,6 +34,18 @@ back_protrusion_body = back_protrusion.extrude(1.5)
 
 Final polygon has 4 vertices: `(0,0)`, `(1.366, 1.7)`, `(-15.634, 1.7)`, `(-15.634, 0)`.
 
+## Start parameter shifts the plane origin
+
+`Pencil(plane, start=(7.5, 0))` does NOT place the pen at (7.5, 0). The pen always starts at local **(0, 0)** — `start` offsets the plane origin, shifting where the whole local coordinate system lands in world space. Probing `pencil.location` right after construction returns `(0, 0)`. Consequence: traces are always authored around the local origin, and mirror axes (`create_mirrored_*` with `center=0`) pass through the `start` point in world space.
+
+## No-arg direction calls draw TO coordinate zero
+
+`left()` / `right()` / `up()` / `down()` with no argument draw to coordinate **0** on their axis (e.g. `left()` ≡ `x_to(0)`), not by some default length. Useful for closing a trace back onto the local origin or mirror axis explicitly.
+
+## Fillet timing
+
+`fillet(radius)` marks the corner at the *current* location and applies it when the **next** curve is added; `fillet()` with no arg reuses the last radius. A **trailing** `fillet()` (no segment drawn after it) applies to the next implicitly drawn segment — the auto-close line of `create_wire(enclose=True)` / `create_face()` / `extrude()`, or the closing segment the mirrored-wire builders add to reach the mirror axis (capability completed 2026-06-04; previously only the mirrored path honored it). Filleting the corner at the trace **start** (between the closure and the first segment) is still impossible — restructure the trace so that corner is interior.
+
 ## Arc sweep angle is degrees, not radians
 
 `arc_with_destination(dest, angle)` takes `angle` in **degrees** as the sweep angle. Sign convention: positive = CCW arc, negative = CW. The radius is computed from `chord_length / (2 · sin(angle/2))`.

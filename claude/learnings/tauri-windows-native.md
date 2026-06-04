@@ -48,6 +48,53 @@ if overflow > 0 {
 
 The brief frame where the window is sized but not yet repositioned (one tick) is fine in practice — no user-visible flash on Windows.
 
+## Maximized window save/restore
+
+Persisting a window's geometry on close and restoring it on open has two non-obvious maximize traps on Windows.
+
+**1. A maximized window's outer rect is inflated by the frame.** `outer_position()`/`outer_size()` on a maximized window report it sitting ~8 px past each work-area edge (where the invisible resize border goes), so the size is roughly `work + 16` on each axis. Saving that rect and re-applying it to an *unmaximized* window produces a free-floating window larger than the work area — and it can grow on each maximize→save→restore cycle. Don't capture bounds while maximized:
+
+```rust
+let maximized = window.is_maximized().unwrap_or(false);
+state.with_mut(|c| c.window_maximized = maximized);
+if !maximized {
+    // Only the unmaximized geometry is a valid restore-rect.
+    let pos = window.outer_position()?;
+    let size = window.outer_size().ok();
+    state.with_mut(|c| c.window_position = Some(/* pos + size */));
+}
+```
+
+Persist a **separate `maximized: bool`** alongside the position (not a field inside the bounds struct — the flag must survive even when no bounds were ever saved), and keep the last *unmaximized* bounds untouched while maximized.
+
+**2. Closing-as-hide preserves the maximized state, so a naïve restore flashes.** Reusable windows are typically closed via `api.prevent_close()` + `window.hide()` — which keeps the window maximized while hidden. On reopen it's *already* maximized, so restore code that unconditionally runs `unmaximize() → set_position() → set_size(normal) → maximize()` forces the window down to normal size and back up: a visible flash. Only touch geometry when the actual state differs from the target:
+
+```rust
+let already_max = window.is_maximized().unwrap_or(false);
+match (saved_bounds, want_maximized) {
+    (Some(p), false)            => { window.unmaximize(); set_pos_size(p); }
+    (Some(p), true) if !already_max => { set_pos_size(p); window.maximize(); } // bounds first => restore-rect
+    (Some(_), true)             => {} // already maximized — leave it, no flash
+    (None, _) if !already_max   => { /* default position */ window.maximize(); }
+    (None, _)                   => {}
+}
+window.show()?;
+```
+
+Setting the unmaximized bounds *before* `maximize()` makes them the OS restore-rect, so a later un-maximize returns to the right size.
+
+**3. `maximize()` then `show()` in the same tick can still flash.** When the window starts un-maximized (first open after an app restart), an immediate `maximize()` right before `show()` may paint one normal-size frame before maximizing. Pre-apply the maximized state to the still-hidden window **at startup** (well before its first show, so the event loop settles it) — then the first open reveals it already maximized:
+
+```rust
+// in setup(), window pre-created hidden in tauri.conf.json
+if cfg.save_window_position && cfg.window_maximized {
+    if let Some(w) = app.get_webview_window("history") {
+        if let Some(p) = cfg.window_position { set_pos_size_on(&w, p); }
+        let _ = w.maximize();
+    }
+}
+```
+
 ## Auto-resize loops vs Windows minimum window height
 
 Windows enforces a minimum height (~150 device px, varies by frame style) for resizable windows. `WebviewWindow::set_size` to anything smaller succeeds silently — no error — but the subsequent `inner_size()` returns the clamped value, not the requested one.
