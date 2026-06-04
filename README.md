@@ -1,6 +1,6 @@
-# Claude Code Skills
+# Claude Code Environment
 
-A collection of reusable [Claude Code](https://docs.anthropic.com/en/docs/claude-code) skills, hooks, and utility scripts for implementation planning, PR workflows, and architecture documentation.
+A complete [Claude Code](https://docs.anthropic.com/en/docs/claude-code) environment: global guidelines, reusable skills, hooks, settings, version-controlled memory and learnings, and shared git configuration — everything symlinked into place from one repo.
 
 ## Skills
 
@@ -102,6 +102,8 @@ Scans project documentation for stale references and fixes them.
 **Features:**
 - Checks README, `docs/pages/`, CLAUDE.md, and source comments against current code
 - Fixes stale paths, API references, and behavior descriptions
+- Keeps curated feature listings (features page, docs index, README) in sync with the diff
+- Regenerates dimensioned-draft drawings when the model they document changed
 - Suggests new documentation files or reorganization when beneficial
 
 ---
