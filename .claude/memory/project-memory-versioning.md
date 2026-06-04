@@ -25,3 +25,8 @@ The dotfiles repo keeps two distinct stores: `claude/memory/` is the **global**
 payload (deployed to `~/.claude/memory`); the repo-root `.claude/memory/` is this
 repo's **project-specific** memory. Don't conflate them. Writing project memory
 means resolving the symlink first (Write/Edit refuse to write through symlinks).
+
+**Gitignore interplay** (hit in bga-themes, 2026-06-03): a repo that ignores
+`.claude/` keeps the linked memory untracked even after wiring — and git cannot
+re-include a path inside a wholly-excluded directory, so `!.claude/memory/` alone
+does nothing. Change the ignore entry to `.claude/*` plus `!.claude/memory/`.
