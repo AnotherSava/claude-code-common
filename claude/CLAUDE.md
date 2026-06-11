@@ -36,6 +36,15 @@ When asking the user to run a command manually (e.g. launching an app, system co
 
 - **Node.js**: default to the current active LTS (Node **24** as of May 2026) for new projects, CI workflows, and `.nvmrc` files — unless the project already pins an older version, a dependency demands otherwise, or there's a specific reason to use something else. Always prefer an existing `.nvmrc` / `engines.node` over this default.
 
+## Best-Practice Adoption
+
+When a project lacks a practice that is standard for its type — a linter for a Python project, ESLint/strict tsconfig for TypeScript, CI for a released library, a lockfile, a test runner — point out the gap and offer to adopt it. Offer, don't adopt silently; and don't nag: one offer per project, and if declined, record the decision in project memory so it isn't re-raised.
+
+When the offer is accepted:
+- **Measure before proposing rules**: run the candidate tool against the codebase and triage the real baseline per rule; adopt with a clean baseline (fix or explicitly scope every existing violation).
+- **Fit the tool to the project's documented style**, never the reverse — skip or configure rules that fight an established preference, and document every deliberately disabled rule and its reason inside the tool's config file.
+- **Prefer enforcement at generation time** (e.g. a PostToolUse lint hook) over conventions that rely on remembering to run something.
+
 ## Code Style
 
 ### Formatting
