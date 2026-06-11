@@ -13,12 +13,14 @@ Add-Type @"
 using System;
 using System.Runtime.InteropServices;
 public class Win32Cap {
+    [DllImport("user32.dll")] public static extern bool SetProcessDPIAware();
     [DllImport("user32.dll")] public static extern bool GetWindowRect(IntPtr h, out RECT r);
     [DllImport("user32.dll")] public static extern bool PrintWindow(IntPtr h, IntPtr dc, uint flags);
     [StructLayout(LayoutKind.Sequential)] public struct RECT { public int L, T, R, B; }
 }
 "@
 Add-Type -AssemblyName System.Drawing
+[Win32Cap]::SetProcessDPIAware() | Out-Null  # MUST run before GetWindowRect on scaled monitors
 $h = (Get-Process my-app).MainWindowHandle
 $r = New-Object Win32Cap+RECT
 [Win32Cap]::GetWindowRect($h, [ref]$r) | Out-Null
@@ -33,6 +35,7 @@ $bmp.Save("$env:TEMP\capture.png"); $g.Dispose(); $bmp.Dispose()
 
 Caveats:
 
-- On a per-monitor-DPI (scaled) monitor, `GetWindowRect` can under-report relative to the window's DPI-scaled rendered content, so a bitmap sized exactly to the rect **clips the bottom/right edge** — losing whole rows of a content-fit / auto-resize window. Re-reading the rect does **not** help (the rect is genuinely smaller than the painted content). Fix: size the bitmap **larger** than the rect (e.g. `1.6×w, 1.8×h`), clear it to a sentinel color (magenta) before `PrintWindow` so the real content boundary is visible, then crop. The sentinel margin also confirms you captured everything rather than clipping.
+- **Make the capturing process DPI-aware first** (`SetProcessDPIAware()` before `GetWindowRect`). A DPI-unaware PowerShell process receives *virtualized* (scaled-down) coordinates on a scaled monitor — a window truly 652×111 physical px on a 1.5× monitor reads as 435×74 (÷1.5), and a bitmap sized to that rect drops the bottom/right third of the rendered content. This silently reads as "content is clipped / not rendering" and is very easy to misdiagnose (chasing a phantom layout/clip bug). Cross-check the rect against the app's own logged window size if available, and note that the rect's position also reveals which monitor it's on (a large x like 3186 = secondary monitor, often the scaled one). Once the process is DPI-aware, `GetWindowRect` returns true physical px and a rect-sized bitmap captures everything — no oversize/sentinel needed.
+- *(fallback, if you can't set DPI awareness)* Size the bitmap **larger** than the rect (e.g. `1.6×w, 1.8×h`), clear it to a sentinel color (magenta) before `PrintWindow` so the real content boundary is visible, then crop. The sentinel margin also confirms you captured everything rather than clipping.
 - If the window resizes between `GetWindowRect` and `PrintWindow` (e.g. a content-fit auto-resize), the bitmap clips or letterboxes — capture again with a fresh rect (and oversize the bitmap per the previous point).
 - Prefer this over full-screen `CopyFromScreen` even when the window is visible: it avoids capturing the user's unrelated screen content.
