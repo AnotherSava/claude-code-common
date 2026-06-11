@@ -177,21 +177,43 @@ This matters for loud channels (Telegram, SMS, desktop push). For silent UI stat
 
 Some session states produce no hook events at all — plan your integration around these gaps rather than expecting reliable signals:
 
-- **User pressed ESC mid-response.** Claude Code aborts the turn but fires no `Stop`, no `Notification`, no `SessionEnd`. A row that was `working` when the user cancelled stays `working` until the next deliberate input. There is no direct signal that distinguishes "actively working" from "silently cancelled."
+- **User pressed ESC mid-response.** Claude Code aborts the turn but fires no `Stop`, no `Notification`, no `SessionEnd`. A row that was `working` when the user cancelled stays `working` until the next deliberate input. The transcript signal depends on *how far the turn got* (verified across 38 transcripts, CC 2.1.167):
+  - **Cancel of active work** (a tool was running, or text was generating) **does** leave a direct signal: a `user`-role text entry `[Request interrupted by user]` (variant `[Request interrupted by user for tool use]`). No hook, but a watcher tailing the transcript detects it immediately and can demote the row. Caveat: it's a normal `user` text entry, so a classifier that reads "newest user text = working" will *re-promote* it — special-case the marker to mean "turn ended", not "working".
+  - **Instant cancel** (Esc before the model emits anything) leaves **nothing** — no marker, no assistant entry, no hook. Genuinely signal-less; recover via the next-`UserPromptSubmit` boundary (below), or by reading the terminal screen (Windows — see `windows-console-screen-read.md`). To tell working from idle on screen, the busy anchor is the footer `esc to interrupt`; the *idle* anchor must be the input-box `─` border, **not** `? for shortcuts` — that hint is absent in auto-accept mode, whose idle footer is `⏵⏵ auto mode on · … · ↓ to manage`.
 - **Extended thinking (silent pondering).** During long thinking blocks (the "✢ Pondering… 3m 37s" UI state), Claude Code does not write incremental thinking content to the transcript — the file is quiet for the entire duration. Transcript mtime is useless as a liveness signal here, and a naive "no activity for N seconds → stuck" timer will false-positive on legitimately thinking sessions.
 - **Window resize / focus changes / tab switches.** None of these touch the hook pipeline. Observe from outside Claude Code if you care.
 
 Recovery paths, in order of reliability:
 
-1. **Wait for the next deliberate hook event** (`UserPromptSubmit`, `Notification: idle_prompt` after Claude Code's ~60s idle timeout, or `SessionEnd`). Simplest and most reliable.
-2. **Treat any `UserPromptSubmit` arriving while the row is still `working` as a task boundary.** A second UPS without an intervening `Stop`/`Notification` is essentially always a cancellation: a normal turn always emits `Stop` before user input can land, and the input box is locked otherwise. So the second UPS *itself* is the missing cancellation signal — re-capture the original prompt, reset the working timer, treat as a fresh task. Approval cycles are unaffected because they go `working → awaiting → working` (the `Notification` / `Stop` fires before the user types), so `awaiting → working` remains the only "into working" transition that's NOT a task boundary.
-3. **Expose a manual dismiss in the UI** for stuck rows.
-4. **Ask Claude to emit via MCP** at key moments. Expensive in context tokens; rarely worth it for state reporting.
+1. **Watch the transcript for the `[Request interrupted by user]` marker.** Fires immediately on a cancel of *active* work (covers the common case), cross-platform, no waiting. Misses only the instant-cancel-of-nothing case.
+2. **Wait for the next deliberate hook event** (`UserPromptSubmit`, `Notification: idle_prompt` after Claude Code's ~60s idle timeout, or `SessionEnd`). Simplest, and the only event-driven recovery for an instant cancel.
+3. **Treat any `UserPromptSubmit` arriving while the row is still `working` as a task boundary.** A second UPS without an intervening `Stop`/`Notification` is essentially always a cancellation: a normal turn always emits `Stop` before user input can land, and the input box is locked otherwise. So the second UPS *itself* is the missing cancellation signal — re-capture the original prompt, reset the working timer, treat as a fresh task. Approval cycles are unaffected because they go `working → awaiting → working` (the `Notification` / `Stop` fires before the user types), so `awaiting → working` remains the only "into working" transition that's NOT a task boundary.
+4. **Expose a manual dismiss in the UI** for stuck rows.
+5. **Ask Claude to emit via MCP** at key moments. Expensive in context tokens; rarely worth it for state reporting.
 
 Avoid:
 
 - **Staleness timeouts** (revert to idle after N seconds of no activity). False-triggers during silent thinking and long tool runs that happen not to write intermediate tool_results. Tried and reverted.
 - **Polling the Claude Code process**. Racy and OS-specific.
+
+## Hook event set (v2.1.169) and slash-command timing
+
+~30 configurable hook events exist — far beyond the lifecycle basics (verified against the v2.1.169 binary string table + the official reference, https://code.claude.com/docs/en/hooks). Beyond `SessionStart/End, UserPromptSubmit, PreToolUse, PostToolUse, Notification, Stop, SubagentStop, PreCompact`: also `UserPromptExpansion, PermissionRequest, PermissionDenied, PostToolUseFailure, PostToolBatch, MessageDisplay, SubagentStart, TaskCreated, TaskCompleted, StopFailure, PostCompact, Elicitation, ElicitationResult, Setup, InstructionsLoaded, ConfigChange, CwdChanged, FileChanged, WorktreeCreate, WorktreeRemove` (+ `TeammateIdle`).
+
+**Slash-command launch ordering** (empirically measured by logging hooks during a heavy `/commit`):
+
+1. `UserPromptExpansion` fires the **instant** the command is invoked — *before* the command's `!` context-gathering. Payload: `expansion_type: "slash_command"`, `command_name`, `command_args`, `command_source`, `prompt: "/commit"`, plus the usual `session_id`/`cwd`/`transcript_path`. Matchable by command name.
+2. ~15–20 s of `!` context-gathering (heavy skills), during which the terminal shows `esc to interrupt` but **no hook fires**.
+3. `UserPromptSubmit` (its `prompt` is the literal `/commit`, **not** the expanded body).
+4. `PreToolUse(Bash)` for the first tool *inside* the skill body.
+
+So `UserPromptExpansion` is the early "work started" signal; `UserPromptSubmit` lags it badly for slash commands. The `!` gathering commands do **not** fire `PreToolUse`.
+
+**No interrupt/cancel hook** (confirmed v2.1.169): an Esc-cancel of an in-progress turn fires *nothing* — no `Stop`, `Notification`, or `StopFailure`. Detecting it still requires the transcript `[Request interrupted by user]` marker or terminal-screen reading; there is no hook alternative.
+
+**`StopFailure`** fires when a turn ends on an API error (a normal `Stop` does **not** fire then, so a Stop-keyed tracker sits stuck until the next prompt). Matcher values: `rate_limit, overloaded, authentication_failed, oauth_org_not_allowed, billing_error, invalid_request, model_not_found, server_error, max_output_tokens, unknown`.
+
+**Other useful events:** `PreCompact`/`PostCompact` (matcher `manual`/`auto`) for compaction boundaries; `PermissionRequest`/`PermissionDenied` (carry `tool_name`) for permission prompts; `Elicitation`/`ElicitationResult` for MCP user-input prompts; `SubagentStart`/`SubagentStop` (carry `agent_type`) for subagent activity; `SessionStart.source ∈ {startup, resume, clear, compact}`.
 
 ## User-gating tools and the buffered-write problem
 
@@ -422,6 +444,18 @@ The `PostToolUse`/`ExitPlanMode` matcher is narrow enough that the hook doesn't 
 ## Hook diagnostic technique
 
 Claude Code doesn't surface hook script errors to the user by default (especially with `async: true`). If a hook isn't firing as expected, log to a disk file from the script itself — not stdout — and inspect after a test prompt. Bash/Python scripts can write a single JSON-line log.
+
+## PostToolUse enforcement hooks (lint-on-edit)
+
+Pattern for running a linter/checker on every file Claude edits, with auto-fix and feedback (proven with ruff on Windows, 2026-06):
+
+- **Use a committed script, not a jq one-liner** — jq is frequently absent from Git Bash on Windows. A small Python script in `<repo>/.claude/hooks/` reads the stdin JSON, guards, runs the tool. Reference: `build123d-models/.claude/hooks/ruff_check.py`.
+- **Anchor every path to the script's own location** (`PROJECT_ROOT = Path(__file__).resolve().parents[2]`): Windows `CreateProcess` does not reliably resolve relative executable paths like `venv/Scripts/ruff.exe`, and the inside-project guard shouldn't depend on CWD either.
+- **Guards**: skip non-target extensions; skip files outside the project (`Path(file).resolve().relative_to(PROJECT_ROOT)` in try/except) — otherwise edits to other repos get linted under the wrong config.
+- **Feedback contract**: run with auto-fix (`ruff check --fix <file>`); exit 0 when clean (silent), else print the report to **stderr** and **exit 2** — Claude receives it as blocking feedback and corrects the code in the same turn.
+- **Pipe-test before wiring**: `echo '<payload>' | python .claude/hooks/script.py` — but hand-written payloads must be valid JSON; raw Windows paths (`"D:\projects\..."`) are invalid escapes that crash `json.load` and look like script bugs. Use forward slashes in test payloads.
+- **Settings watcher caveat**: a newly created `.claude/settings.json` hot-loads only if the directory already contained some settings file at session start (e.g. `settings.local.json`); otherwise the user must open `/hooks` or restart.
+- Verified-live check: Edit a probe file to introduce an auto-fixable violation; if the hook is live, the harness reports "PostToolUse hook modified <file> after your edit" and re-reading shows the fix.
 
 ## Cross-language config access
 

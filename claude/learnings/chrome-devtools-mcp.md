@@ -45,6 +45,26 @@ Clean up the spawned instance when done (it's a dedicated temp-profile process, 
 Get-CimInstance Win32_Process -Filter "Name='chrome.exe'" | Where-Object { $_.CommandLine -like '*<profile-dir>*' } | ForEach-Object { Stop-Process -Id $_.ProcessId -Force }
 ```
 
+## Driving interactive sites (headed)
+
+For real-world sites (quote tools, forms, anything that may bot-gate), launch **headed**, not headless — the visible window lets the user step in, and some sites behave differently headless:
+
+```powershell
+Start-Process "C:\Program Files\Google\Chrome\Application\chrome.exe" -ArgumentList '--remote-debugging-port=9222',"--user-data-dir=$env:TEMP\claude-chrome-<task>",'--no-first-run','about:blank'
+Start-Sleep 3; (Invoke-WebRequest http://localhost:9222/json/version -UseBasicParsing).Content
+```
+
+Gotchas learned driving Craftcloud/Treatstock quote flows:
+
+- **`fill` appends** to an input that already holds a value (it types into the field). Clear first via `evaluate_script` with the native setter, then `fill`:
+  ```js
+  (el) => { const s = Object.getOwnPropertyDescriptor(window.HTMLInputElement.prototype, 'value').set; s.call(el, ''); el.dispatchEvent(new Event('input', { bubbles: true })); }
+  ```
+- **Huge pages**: pass `filePath` to `take_snapshot` and Grep/Read the saved file — inlining a 700-line a11y tree into context per interaction step burns context fast.
+- **CAPTCHAs**: don't solve them. The headed window is on the user's desktop — ask the user to click through (AskUserQuestion works well); the session cookie persists for the rest of the flow.
+- **`upload_file`** accepts any element that opens a file chooser (an "Upload files" button works), not just a literal `<input type=file>`.
+- Snapshot `uid`s go stale after the page re-renders (e.g. a price list recomputing); on "uid no longer exists", re-snapshot rather than retrying.
+
 ## One-off visual check without the MCP
 
 For *visually* eyeballing rendered output — an icon, a component, a layout — at a real pixel size (as opposed to measuring or interacting), skip the MCP and the debug port entirely. Headless Chrome renders a file and saves a screenshot in one shot, which you can then Read:
