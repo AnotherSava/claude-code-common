@@ -86,7 +86,7 @@ Analyzes changes and generates atomic Conventional Commit messages.
 
 **Features:**
 - Reviews staged and unstaged changes, groups them into atomic commits
-- Delegates to `/clean-code` and `/documentation` before planning commits
+- Delegates to `/reflect`, `/clean-code`, and `/documentation` before planning commits
 - Drafts commit messages in imperative mood with type prefixes
 - Presents a full plan for approval before executing any commits
 - GPG-signs all commits, never adds AI attribution
@@ -186,7 +186,7 @@ Generates or updates a data-flow architecture document (`docs/data-flow.md`).
 
 ### Reflect
 
-Extracts durable knowledge from the current conversation and persists it to long-term memory before `/clear` or context compaction wipes it.
+Extracts durable knowledge from the current conversation and persists it to long-term memory before `/clear` or context compaction wipes it. Also runs automatically as an early step of `/commit`, so session learnings are captured alongside the changes they came from.
 
 **Command:** `/reflect`
 

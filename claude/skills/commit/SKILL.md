@@ -1,6 +1,6 @@
 ---
 name: commit
-description: Analyzes changes and generates Conventional Commit messages
+description: Reflects on the session, then analyzes changes and generates Conventional Commit messages
 allowed-tools: Read, Edit, Write, Grep, Glob, Bash(git diff:*), Bash(git add:*), Bash(git commit:*), Bash(git status:*), Bash(git log:*), Bash(git reset HEAD:*), Bash(git ls-files:*), Bash(git rev-list:*), Bash(git rev-parse:*), Bash(git push:*), Bash(bash ~/.claude/scripts/sanitize-project-memory.sh:*), Bash(rm:*)
 ---
 
@@ -27,31 +27,33 @@ Read `~/.claude/skills/shared/bash-rules.md` for bash command constraints.
 
 ## CRITICAL CONSTRAINT
 
-**The ONLY direct file changes this skill may make are through `/clean-code` and `/documentation`.** Never move, rename, or delete source files. Never restructure code beyond what those skills do. (Exception: untracked junk artifacts like `*.stackdump` may be discarded — see step 1.)
+**The ONLY direct file changes this skill may make are through `/reflect`, `/clean-code`, and `/documentation`.** Never move, rename, or delete source files. Never restructure code beyond what those skills do. (Exception: untracked junk artifacts like `*.stackdump` may be discarded — see step 1.)
 
 ## Process:
 
-**Pacing:** Steps 1–6 are preparation. Sub-skills may legitimately pause when they find substantive changes needing approval (e.g. clean-code proposing dead-code removal, documentation proposing edits). Honor those gates. But when a sub-skill finishes with nothing to report, continue immediately to the next step — do not insert an extra confirmation gate. The only gates the commit skill itself owns are step 6 (plan-filename warning, if triggered), step 7 (commit-plan approval), and step 8 (push).
+**Pacing:** Steps 1–7 are preparation. Sub-skills may legitimately pause when they find substantive changes needing approval (e.g. reflect proposing items to save, clean-code proposing dead-code removal, documentation proposing edits). Honor those gates. But when a sub-skill finishes with nothing to report, continue immediately to the next step — do not insert an extra confirmation gate. The only gates the commit skill itself owns are step 7 (plan-filename warning, if triggered), step 8 (commit-plan approval), and step 9 (push).
 
 1. **Assess the current state of the repository** (use Context above):
    - **Remote sync check (do this first):** If **Remote ahead by** is > 0, the remote has commits you don't have locally and `git push` will be rejected at the end. Surface this to the user immediately and propose `git pull --rebase origin <branch>` before proceeding. Wait for user confirmation before rebasing — it could conflict with the pending changes. After rebasing, re-check `git status --short` since the working tree may differ.
    - Use **Uncommitted changes**, **Diff summary**, and **Full diff** to understand the total change set against HEAD
    - **Scope guard:** Only commit files that belong to this repository. If earlier work in the conversation touched files in other projects, do not include those changes — each project's commits are handled separately.
    - **Discard junk artifacts:** delete untracked crash-dump / junk files that should never be committed — e.g. `*.stackdump` (Git Bash crash dumps on Windows), `core` dumps. Remove them with `rm` so they don't clutter the change set or get staged. Only delete clearly-disposable, never-source artifacts; if an untracked file's purpose is at all unclear, leave it and mention it rather than deleting.
-   - If there are no uncommitted changes in this repository, stop — there is nothing to commit.
+   - If there are no uncommitted changes in this repository, still run step 2 — reflection may produce files worth committing. If the tree is still clean after reflection, stop — there is nothing to commit.
    - Review the conversation history (if any) to understand what was accomplished — but do not assume all changes come from this session; the repo state is the source of truth
 
-2. **Clean code:** Run `/clean-code` to remove debug prints, dead code, duplication, and optimize imports. **If `/clean-code` reports nothing to clean up, immediately proceed to step 3 in the same response — do not stop, do not ask for confirmation.** Only pause if `/clean-code` proposes substantive changes that need user approval.
+2. **Reflect:** Run `/reflect` to extract and persist conversation learnings before they are lost. Skip this step only if `/reflect` already ran in this conversation with no substantive work since — re-running it would just re-scan the same ground. Honor its save-approval gate. **If `/reflect` finds nothing worth saving, immediately proceed to step 3 in the same response — do not stop, do not ask for confirmation.** If any files were saved, re-run `git status --short` and `git diff HEAD` afterwards — the Context snapshot above predates reflection, so the change set may have grown. Files reflect saves outside this repository (e.g. global memory or learnings living in another repo) are excluded by the scope guard — they get committed in their own repo, not here.
 
-3. **Update stale documentation — do this BEFORE planning commits:**
-   Run `/documentation` to scan and fix stale references in README, docs, CLAUDE.md, and source comments. All documentation fixes become part of the commit(s) — do not commit code with outdated docs. **If `/documentation` reports nothing to fix, immediately proceed to step 4 in the same response — do not stop, do not ask for confirmation.** Only pause if `/documentation` proposes edits that need user approval.
+3. **Clean code:** Run `/clean-code` to remove debug prints, dead code, duplication, and optimize imports. **If `/clean-code` reports nothing to clean up, immediately proceed to step 4 in the same response — do not stop, do not ask for confirmation.** Only pause if `/clean-code` proposes substantive changes that need user approval.
 
-4. **Confidentiality check:**
+4. **Update stale documentation — do this BEFORE planning commits:**
+   Run `/documentation` to scan and fix stale references in README, docs, CLAUDE.md, and source comments. All documentation fixes become part of the commit(s) — do not commit code with outdated docs. **If `/documentation` reports nothing to fix, immediately proceed to step 5 in the same response — do not stop, do not ask for confirmation.** Only pause if `/documentation` proposes edits that need user approval.
+
+5. **Confidentiality check:**
    - Scan the diff for content that should not be committed to a public repository: API keys, tokens, passwords, private URLs, internal hostnames, personal data (emails, phone numbers, real names in test data), or proprietary business logic
    - Pay extra attention to learning files (`claude/learnings/`): these are domain knowledge docs meant to be generic and reusable — flag any project-specific details, internal URLs, proprietary names, or customer data that leaked in from the source project
    - If anything looks sensitive, list the findings and ask the user before proceeding — do not silently include them in the commit plan
 
-5. **Plan your commit(s):**
+6. **Plan your commit(s):**
    - Read `~/.claude/skills/shared/commit-message-rules.md` for commit message formatting and validation rules
    - Group into atomic commits by feature/fix/refactor — no file belongs to more than one group, and each group can be committed independently
    - Identify which files belong together
@@ -60,13 +62,13 @@ Read `~/.claude/skills/shared/bash-rules.md` for bash command constraints.
    - **Plan files (`docs/plans/**`)**: bundle each plan file into the SAME commit as the implementation it describes. Match by filename slug / content keywords against the changed source paths. Only emit a separate `docs(plans):` commit if the plan file is the ONLY change (e.g. editing a plan mid-design without implementing yet, or archiving unrelated historical plans).
    - Draft and validate commit messages following the shared rules
 
-6. **Validate plan filenames:**
+7. **Validate plan filenames:**
    For every plan file under `docs/plans/` that's part of this change set (new, modified, or renamed — check both `docs/plans/*.md` and `docs/plans/completed/*.md`):
    - Read the file and check whether it contains a top-level `# H1` heading (on any line, outside fenced code blocks).
    - If no H1 is found, warn the user explicitly: the `plan-archive.py` hook derives the filename slug from the plan's H1 and falls back to the original random codename (e.g. `zesty-coalescing-crystal`) when no H1 is present. Suggest a descriptive slug based on the plan's content, offer to rename the file and add an H1, and wait for user confirmation before proceeding. Do not silently include a codename-slug plan file in a commit.
    - If the file starts with the `<!-- plan-archive: no ...` fallback marker comment, treat it the same as a missing H1 — the hook explicitly flagged it. If the user fixes the title, offer to remove the now-stale marker comment in the same edit.
 
-7. **Present your plan to the user:**
+8. **Present your plan to the user:**
    - Separate each commit with a unicode line: `━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━`
    - For each commit show:
      1. **Commit N**
@@ -74,7 +76,7 @@ Read `~/.claude/skills/shared/bash-rules.md` for bash command constraints.
      3. Number of files and lines changed, then without an empty line in betweem, file list: each file as `inline code` followed by brief description. Pad each file entry with spaces so all entries match the length of the longest one, aligning descriptions into a column.
    - End with: "I plan to create **N** commit(s) with these changes. Shall I proceed?"
 
-8. **Execute upon confirmation:**
+9. **Execute upon confirmation:**
    - Use `git add` with specific files (never use `-A` or `.`)
    - Create commits with your planned messages using `git commit -S` to GPG-sign them
    - After all commits are done, list all unpushed commits with `git log @{upstream}..HEAD --format="%h %ai %s"` (fall back to `origin/<branch>..HEAD` if no upstream). Format each line as `Mon DD, HH:MM [hash] message` (e.g. `Mar 28, 16:59 [a37da68] feat: add side panel`). Display the full list as the end summary — this gives the user the complete picture of what will be pushed.
