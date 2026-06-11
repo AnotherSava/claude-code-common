@@ -29,6 +29,7 @@
 - [Verify log timing before transcript-based detection](feedback_verify_log_timing.md) — empirically check writer flush behavior; "unresolved X" probes fail silently if the writer buffers
 - [No bluffing external UIs or local internals](feedback_no_bluffing_external_uis.md) — investigate (WebSearch or Bash/Read) before answering; don't guess at dashboards, hook timing, file contents
 - [Honor concrete example](feedback_honor_concrete_example.md) — implement the user's literal example; ask before substituting a more general rule
+- [Discuss before rewriting deliberate behavior](feedback_discuss_before_rewriting_design.md) — don't rewrite considered design off a single offhand comment; propose, preview, confirm first
 - [Resolve symlinks before editing](feedback_resolve_symlinks_before_editing.md) — Write/Edit fail on symlinks; `readlink` first for anything under `~/.claude/`
 - [Don't cache cheap derivations](feedback_no_cache_cheap_derivations.md) — use plain @property for cheap derived values; reserve @cached_property for genuinely expensive computation
 - [Edit replace_all scope safety](feedback_edit_replace_all_scope.md) — replace_all is only safe when matches share indentation/scope; multi-line new_string will mis-indent across different blocks
@@ -40,3 +41,5 @@
 - [Fold by visual volume, not line count](feedback_fold_by_visual_volume.md) — budget folds by lines AND chars; expand control on its own line
 - [No unsolicited past-data fixes](feedback_no_unsolicited_data_fixes.md) — fix going-forward code only; don't proactively migrate/correct stale stored data unless asked or after asking
 - [Verify the symptom, not a proxy](feedback_verify_symptom_not_proxy.md) — confirm the symptom changed under the user's reported conditions (e.g. reboot), not a proxy signal or convenient test scenario
+- [Explicit keywords over positional defaults in APIs](feedback_api_explicit_over_positional.md) — context-dependent params are named keywords; make invalid chains fail by type; drop create() when chain ends are statically known
+- [Place metadata by content ownership](feedback_place_metadata_by_content.md) — product-describing files live next to the artifact they describe (cws-publish.json by manifest.json), not in .claude/
