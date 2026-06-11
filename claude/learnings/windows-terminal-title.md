@@ -1,6 +1,6 @@
-# Windows Terminal tab titles from Claude Code hooks
+# Terminal tab titles from Claude Code hooks
 
-Per-tab title manipulation **is feasible** on Windows Terminal — but not from inside the hook process itself. An external long-lived process (e.g. a dashboard app) can set any tab's title by attaching to the console of a process running in that tab. Proven June 2026 (claude-code-dashboard `terminal_title.rs`); supersedes the April 2026 "not feasible" conclusion below, whose failures are now explained.
+Per-tab title manipulation **is feasible** on Windows Terminal — but not from inside the hook process itself. An external long-lived process (e.g. a dashboard app) can set any tab's title by attaching to the console of a process running in that tab. Proven June 2026 (claude-code-dashboard `terminal_title.rs`); supersedes the April 2026 "not feasible" conclusion below, whose failures are now explained. The macOS equivalent — an OSC write to the tab's controlling tty — is proven too; see the macOS section below.
 
 ## What works: external process + AttachConsole
 
@@ -27,6 +27,17 @@ Claude Code spawns hooks with `CREATE_NO_WINDOW`, which gives the hook a **fresh
 ### Verification trap: Claude's Bash tool has its own hidden console
 
 Claude Code's Bash tool runs commands in a **separate hidden conPTY** — `GetConsoleProcessList` there never includes claude.exe, and titles read/written there are not the user's tab. The PowerShell tool's persistent host *does* share the real terminal console. Verify console-level behavior via PowerShell, not Bash.
+
+## macOS: OSC write to the controlling tty (proven June 2026)
+
+The same external-process pattern works on macOS with no console attach:
+
+- The hook reports its **ancestor pid chain** (one `ps -axo pid=,ppid=` snapshot, nearest first). The hook's own pid is transient, but Claude Code 1–2 levels up is long-lived and shares the controlling tty of the visible tab.
+- The title-setter resolves a candidate's tty with `ps -o tty= -p <pid>` (→ `ttys003`), then writes the OSC escape straight to the device: open `/dev/ttys003` write-only and write `\x1b]0;<title>\x07`. The emulator interprets the sequence without rendering anything; no window focus needed. Works in kitty, Terminal.app, iTerm2.
+- Walk candidates **near-to-far** (opposite of Windows — there is no attach dance whose first success must be the real console): dead transients fail the `ps` lookup and GUI ancestors (the terminal emulator itself) report `??`, so the first resolvable pid is Claude or the user's shell.
+- Same verification trap as Windows: Claude's Bash tool shell has **no controlling tty** (`ps -o tty=` → `??`) — resolve from ancestors, never from the hook/tool process itself.
+
+Proven in claude-code-dashboard `terminal_title.rs` (`push_title` unix arm) + `claude_hook.py` ancestor gathering.
 
 ## What does NOT work (tested April 2026, Windows 11 + Git Bash + WT)
 
