@@ -22,6 +22,8 @@ claude/skills/github-status/config/
 !claude/skills/pr-create/
 !claude/skills/pr-merge/
 !claude/skills/pr-prepare/
+!claude/skills/publish-chrome-extension/
+claude/skills/publish-chrome-extension/config/
 !claude/skills/reflect/
 !claude/skills/release/
 !claude/skills/reset/
