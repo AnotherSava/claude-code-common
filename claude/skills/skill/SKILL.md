@@ -110,18 +110,18 @@ See `~/.claude/learnings/skill-context-evaluator.md` for known limitations, work
 
 When creating or updating a skill, identify every piece of data the skill needs before it can start its real work. For each one, add a labeled `!` line. Place the **Context** section at the top of the skill body (before the first process step).
 
-Format — each line is a labeled command:
+Format — each line is a labeled command (backticks are escaped in these examples so invoking THIS skill doesn't execute them — preprocessing runs `!` lines even inside fenced code blocks; write them unescaped in your skill):
 ```markdown
 ## Context
-- Uncommitted changes: !`git status --short`
-- Diff summary: !`git diff HEAD --stat`
-- Recent history: !`git log --oneline -10`
-- Build errors: !`npm run build 2>&1 | tail -n 50`
+- Uncommitted changes: !\`git status --short\`
+- Diff summary: !\`git diff HEAD --stat\`
+- Recent history: !\`git log --oneline -10\`
+- Build errors: !\`npm run build 2>&1 | tail -n 50\`
 ```
 
 For commands too complex for a single line, use a script:
 ```markdown
-- Precondition checks: !`bash ~/.claude/skills/<skill-name>/scripts/preflight.sh`
+- Precondition checks: !\`bash ~/.claude/skills/<skill-name>/scripts/preflight.sh\`
 ```
 
 ### What qualifies as a context command

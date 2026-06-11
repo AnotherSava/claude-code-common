@@ -1,12 +1,12 @@
 ---
 name: clean-code
-description: Remove dead code, fix duplication, and optimize imports in modified files
+description: Remove dead code, fix duplication, enforce naming conventions, and optimize imports in modified files
 allowed-tools: Read, Edit, Write, Grep, Glob, Bash(git diff:*), Bash(git status:*)
 ---
 
 # Clean Code
 
-Audit modified files for dead code, duplication, and import hygiene. Fix issues with user approval.
+Audit modified files for dead code, duplication, naming conventions, and import hygiene. Fix issues with user approval.
 
 ## Context
 - Uncommitted changes: !`git status --short`
@@ -37,9 +37,16 @@ Audit modified files for dead code, duplication, and import hygiene. Fix issues 
 
    Only flag duplication that hurts maintainability — two similar 2-line blocks are fine; three similar 10-line blocks are not.
 
-4. **Optimize imports in modified source code files**
+4. **Naming convention audit (Python files only):**
+   Check visibility naming in modified Python files:
+   - A method or module-level function referenced only from inside its own class/module should carry a `_` prefix.
+   - A `_`-prefixed member referenced from outside its class/module should either lose the prefix or have the external access refactored away.
 
-5. **Report** what was cleaned up. If nothing was found, say so.
+   Skip dunder methods and members that are public API by design (a library's surface stays public even while temporarily uncalled; tests calling an internal member directly do not make it public). For each mismatch, propose the rename and wait for approval; when renaming, update every usage including tests.
+
+5. **Optimize imports in modified source code files**
+
+6. **Report** what was cleaned up. If nothing was found, say so.
 
 ## Out of scope
 

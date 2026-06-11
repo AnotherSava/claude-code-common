@@ -145,6 +145,8 @@ nav_order: 1
 
 *<One-line tagline — same as README, italicized.>*
 
+<Context paragraph: what kind of thing this is (form factor, supported platforms) plus the one or two core capabilities a visitor sees first — not a features rundown; those stay in the list below.>
+
 <a href="screenshots/<cover>.png"><img src="screenshots/<cover>.png" alt="<descriptive alt>" width="1000"></a>
 
 ## Example  (optional — if a concrete before/after illustrates the value)
@@ -156,7 +158,7 @@ nav_order: 1
 - **<Feature 1>** — one-line user-visible description
 - **<Feature 2>** — ...
 
-## Install
+## Install  (omit when a dedicated Installation page leads the Next steps list below)
 
 <One-line pointer to the Developer guide or distribution channel.>
 
@@ -292,10 +294,11 @@ Keep it short enough to read on one screen. Structure, in order:
 
 1. H1 project title.
 2. One-line italicized tagline — must match `docs/index.md`'s tagline byte-for-byte (excluding the `*…*` italics).
-3. Cover screenshot: `![<descriptive alt>](docs/screenshots/<cover>.png)` — alt text matches `docs/index.md` for consistency.
-4. **Features** bulleted list — copy from `docs/index.md` Features section. Bullets must match exactly (same set, same wording, same order).
-5. **Install** — one-line pointer to the Developer guide on GH Pages.
-6. Footer block listing every page in the docs site:
+3. Context paragraph — copy from `docs/index.md` (form factor, platforms, the one or two headline capabilities). Must match word for word.
+4. Cover screenshot: `![<descriptive alt>](docs/screenshots/<cover>.png)` — alt text matches `docs/index.md` for consistency.
+5. **Features** bulleted list — copy from `docs/index.md` Features section. Bullets must match exactly (same set, same wording, same order). Capabilities already named in the context paragraph don't get a bullet — each feature lives in exactly one of the two.
+6. **Install** — one-line pointer to wherever install instructions live (Developer guide or a dedicated Installation page). Omit entirely when the docs site has a dedicated Installation page sitting at the top of the footer list below — a pointer one line above its own footer link is duplication.
+7. Footer block listing every page in the docs site:
 
 ```markdown
 ---
@@ -315,14 +318,14 @@ The README never contains setup, build, architecture, or API content. If you cat
 
 ## In-app About dialog (if present)
 
-Some projects (desktop apps, browser extensions, IDE plugins) ship an in-app **About** dialog. When one exists, treat it as a third surface that carries the **same descriptive prose** as `README.md` and `docs/index.md`: the tagline plus the short what-it-does description must match across all three, word for word. Pick one source of truth and propagate edits to the other two.
+Some projects (desktop apps, browser extensions, IDE plugins) ship an in-app **About** dialog. When one exists, treat it as a third surface that shares the **tagline** with `README.md` and `docs/index.md`, word for word. Beyond the tagline the surfaces diverge: README and index carry the Features bullet list (see below), while the About dialog carries its own short what-it-does prose — a couple of sentences, not required to mirror README/index paragraphs and never a bullet list.
 
 The About dialog additionally carries two things the README/home page handle elsewhere, and which belong only in the dialog:
 
 - **Version and release date** — the running build's version (and its release date if available).
 - **A link to the project documentation** — pointing at the GitHub Pages home page.
 
-So the rule is: *shared descriptive prose, dialog-only version/date + docs link.* Do not copy screenshots, Features bullets, Install pointers, or the docs footer into the About dialog — those stay on the README/site.
+So the rule is: *shared tagline, dialog-own prose, dialog-only version/date + docs link.* Do not copy screenshots, Features bullets, Install pointers, or the docs footer into the About dialog — those stay on the README/site.
 
 ## Writing process
 
@@ -337,8 +340,8 @@ Follow these steps whenever creating or restructuring docs.
 7. **Write `README.md` last.** Lift the tagline and Features bullets from `index.md`. Footer lists every existing page hierarchically. Verify each footer URL resolves.
 8. **Verify cross-consistency.**
    - Tagline matches across `README.md`, `docs/index.md`, `_config.yml description`, and the in-app About dialog (if present).
-   - Descriptive prose (tagline + what-it-does paragraphs) matches across `README.md`, `docs/index.md`, and the About dialog (if present), word for word.
-   - Features bullets match between `README.md` and `docs/index.md` (set, wording, order).
+   - Context paragraph matches between `README.md` and `docs/index.md`, word for word, and no capability appears in both the paragraph and a Features bullet.
+   - Features bullets match between `README.md` and `docs/index.md` (set, wording, order). When a Features page exists, the list covers the same topics (it may skip lesser, plumbing-level sections like configuration mechanics or naming details) but need not share its order: the summary list is a highlight reel and may rank bullets by impact, while the reference page keeps a logical build-up order — that divergence is deliberate, not drift.
    - Hero-screenshot alt text matches across `README.md` and `docs/index.md`.
    - Footer in `README.md` lists every `docs/pages/**.md` (excluding nav-excluded pages); no listed page is missing on disk.
    - Internal links: bare names for siblings, `..` for cross-level — and search for stale `#anchor-name` references after any section rename.

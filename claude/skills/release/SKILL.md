@@ -114,6 +114,8 @@ Group the bullets under emoji-prefixed `###` headings by kind, in this order, om
 
 Everything else user-visible that doesn't fit (rare) goes under whichever of the above fits best, or an un-headed bullet list when a release has only one kind and the split adds no clarity.
 
+Never add a `**Full Changelog**: …/compare/…` line — GitHub auto-renders a compare link on every release page, so it would just duplicate that. This applies to all stacks.
+
 ### Stack-specific sections
 
 **Chrome extension:**
@@ -122,12 +124,6 @@ Add at the end:
 
 ```
 Download the zip from this release and upload to the Chrome Web Store Developer Dashboard.
-```
-
-Followed by:
-
-```
-**Full Changelog**: https://github.com/{owner}/{repo}/compare/{prev-tag}...vX.Y.Z
 ```
 
 **.NET:**
@@ -154,15 +150,13 @@ After the "What's new" section, include a Downloads table (leave sizes as placeh
 Requires Windows 10+ and .NET 10 SDK.
 
 dotnet build src/
-
-**Full Changelog**: https://github.com/{owner}/{repo}/compare/{prev-tag}...vX.Y.Z
 ```
 
 **Tauri:**
 
 `release.yml` builds a per-OS matrix via `tauri-action` and creates a **draft** release with the installers attached (Windows NSIS `.exe`, macOS `.dmg`). GitHub auto-renders an Assets section at the bottom of every release with filenames and sizes, so the notes should NOT include a Downloads table — it would just duplicate that.
 
-End the notes with a code-signing NOTE callout: the installers aren't signed, so the user hits a first-launch warning on each platform the release ships. Give the concrete bypass step per OS (drop the line for any OS this release doesn't build), and link to the project's install guide for full steps. Omit the `{install-url}` link only if the project has no install-guide page. Do NOT add a Full Changelog line (GitHub's auto-rendered compare link covers it) or a Downloads table.
+End the notes with a code-signing NOTE callout: the installers aren't signed, so the user hits a first-launch warning on each platform the release ships. Give the concrete bypass step per OS (drop the line for any OS this release doesn't build), and link to the project's install guide for full steps. Omit the `{install-url}` link only if the project has no install-guide page. Do NOT add a Downloads table.
 
 ```
 > [!NOTE]
