@@ -40,6 +40,14 @@ A page with `has_children: true` makes just-the-docs auto-render a "Table of con
 
 Set **`has_toc: false`** in the page's front matter to suppress the auto-generated child-list while keeping `has_children: true` (so the sidebar still nests the children). Prefer this when your manual list carries descriptions the bare auto-list lacks.
 
+## Removing the footer attribution
+
+just-the-docs renders "This site uses Just the Docs, a documentation theme for Jekyll." in the page footer. That text is the **default content of the theme's `_includes/footer_custom.html`** — not a config option.
+
+To remove it, create an **empty** `_includes/footer_custom.html` in your own site. Jekyll resolves local `_includes/` before the remote theme (same precedence as the `_sass/` overrides above), so the empty file shadows the theme's default and the line disappears — the rest of the footer (search, "back to top") is untouched. To replace it with your own text (a copyright line, etc.) instead of removing it, put that markup in the same file.
+
+Works identically under `remote_theme: just-the-docs/just-the-docs`.
+
 ## Mermaid diagrams
 
 just-the-docs has **built-in mermaid support** — no plugin needed. Enable it in `_config.yml`:

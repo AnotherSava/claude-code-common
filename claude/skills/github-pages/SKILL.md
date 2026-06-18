@@ -50,6 +50,8 @@ Flat variant (single product, several user-facing capabilities):
 README.md
 docs/
   _config.yml
+  _includes/
+    footer_custom.html        # empty — drops the "This site uses Just the Docs" footer line
   index.md                    # nav_order: 1, the homepage
   pages/
     usage.md                  # nav_order: 2, has_children: true (parent stub)
@@ -120,6 +122,10 @@ $content-width: 87.5rem; // ~1400px at 16px base
 The value **must be in `rem`** — GitHub Pages uses sass 3.x which rejects mixed `px`/`rem` arithmetic.
 
 Do NOT use `_sass/custom/custom.scss` with `.main-content { max-width: ... }` — that class does not exist in just-the-docs. The actual class is `.main`, driven by `$content-width`.
+
+### Footer attribution
+
+just-the-docs renders "This site uses Just the Docs, a documentation theme for Jekyll." in the page footer — that text is the default content of the theme's `_includes/footer_custom.html`, not a config option. Remove it **by default** by shadowing that include with an **empty** `docs/_includes/footer_custom.html` (Jekyll resolves local `_includes/` before the remote theme, same precedence as the `_sass/` overrides). The rest of the footer (search, "back to top") is untouched. To carry a copyright line instead of nothing, put that markup in the same file.
 
 ## Front matter cheat sheet
 
@@ -332,7 +338,7 @@ So the rule is: *shared tagline, dialog-own prose, dialog-only version/date + do
 Follow these steps whenever creating or restructuring docs.
 
 1. **Inventory.** List the user-facing capabilities. Decide which top-level pages exist (Home, Usage, Development, optional Privacy) and what children each has. A long page splits into one child per major section once it exceeds ~200 lines / 5+ H2 headings.
-2. **Set up `_config.yml`.** Use the just-the-docs template above. `baseurl` must match the GitHub repo name.
+2. **Set up `_config.yml`.** Use the just-the-docs template above. `baseurl` must match the GitHub repo name. Also create an empty `docs/_includes/footer_custom.html` to drop the theme's footer attribution (see [Footer attribution](#footer-attribution)).
 3. **Write `docs/index.md`.** Tagline + hero screenshot + (optional Example) + Features bullets + Install pointer + Next steps. Do not include a usage walkthrough — push that to the Usage page tree.
 4. **Write child pages.** One sub-capability per file under `docs/pages/<feature>/`. Each gets `parent: <Feature>` + a local `nav_order`. No nav strips.
 5. **Write the parent stub for each feature.** Brief intro + `has_children: true`. The parent doesn't repeat children's content.
