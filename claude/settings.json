@@ -184,7 +184,7 @@
       }
     }
   },
-  "effortLevel": "xhigh",
+  "effortLevel": "high",
   "awaySummaryEnabled": false,
   "tui": "fullscreen",
   "theme": "dark",
