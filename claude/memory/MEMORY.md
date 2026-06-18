@@ -11,6 +11,7 @@
 - [Attribution style for inherited projects](feedback_attribution_style.md) — keep original LICENSE; "Initially based on…" in `docs/index.md` only
 - [Plan file timestamp format and lifecycle](feedback_plan_timestamp_format.md) — `docs/plans/YYYY-MM-DD_HH-MM-<slug>.md`; move to `docs/plans/completed/` after execution
 - [Claude dotfiles repo](reference_claude_dotfiles_repo.md) — ~/.claude/ + global git files symlinked from a shared repo; edits are version-controlled there
+- [macOS Claude Code daily re-login](macos_claude_code_daily_relogin.md) — keychain OAuth refresh bug forces /login ~daily; Windows plain-file creds unaffected; re-login / "Always Allow"
 - [Verify Node/platform fixes against official docs](feedback_verify_node_platform_docs.md) — check DEP list + child_process docs before defaulting to Stack Overflow workarounds
 - [Per-project plugin scoping](feedback_per_project_plugin_scoping.md) — globally enabled plugins bloat every session's context; prefer project-local settings for niche plugins
 - [Verify unpushed before rewriting history](feedback_verify_unpushed_before_rewrite.md) — check `git log @{upstream}..HEAD` before amending non-HEAD or rebasing; don't conflate "I have unpushed commits" with "recent history is rewritable"
