@@ -37,3 +37,26 @@ The prototype is plain React + semantic CSS. The fastest *and* most faithful por
 - Run the design's accent through a **WCAG-AA contrast check**. Design tools happily ship muted-text tokens and "medium-fill" selected states below 4.5:1; fix interactive-text contrast, and flag pervasive muted-body-text contrast to the user rather than unilaterally restyling their approved palette.
 - The design may introduce UI for features the backend lacks (a notes field, advanced options). Add the small real backing where it's the documented path; **omit non-functional controls** rather than ship fake UI.
 - A multi-agent flow fits well: one **understand** pass (map the design source *and* the existing code's must-preserve contract in parallel), parallel **content-page builds** on a shared kit, then an **adversarial review** (behaviour-preservation, fidelity, backend correctness, a11y) before committing.
+
+## Post-adoption consistency audit
+
+A bulk port lands as one big commit and *always* leaves drift behind — the "prune dead rules" and "`nav()`→`Link`" steps are never applied exhaustively. After the dust settles, sweep these categories (a read-only fan-out finds them; fix in one pass, then `tsc`/lint/test/build):
+
+- **Orphan CSS** — selectors in the ported stylesheet that no `className` references. The inverse also bites: a class used in markup with no rule, i.e. a silently-unstyled element.
+- **Duplicated literal constants** — a fallback colour / magic value declared in several files (and inlined raw in others); hoist to one shared export.
+- **Internal-link mechanism split** — the hash-router→`next/link` conversion gets applied to nav but missed on in-prose body links, leaving a mix of `<a href="/…">` (full reload) and `<Link>`. Standardize; keep `<a>` only for external / `mailto:` / `tel:`.
+- **Inline SVGs duplicating the icon kit** — copy-pasted glyph paths (e.g. the same chevron in two files) instead of the shared `Icon`. Add the glyph once and reuse; preserve any class the CSS animates (e.g. a rotation hook), and note the icon component's `viewBox` may differ from the inline SVG's (rewrite the path to its grid).
+- **Hand-styled elements bypassing the kit** — a raw `<button className="btn btn--…">` instead of `<Button>`; the generated class is identical, so the swap is safe.
+- **Inline styles bypassing tokens** — repeated magic font-sizes/colours in `style={{}}`; promote shared ones to a design-system class (a BEM modifier like `card--msg`, or a text utility like `fineprint`) and keep only genuinely positional one-offs inline.
+- **Missing aria on custom controls** — `aria-current="page"` on active nav, `aria-expanded` on disclosure toggles; the port styles the active/open *state* (a class) but forgets the semantics.
+
+Deliberate non-drift — verify before "fixing": an unused-but-typed component variant (e.g. `btn--quiet` backing `variant="quiet"`) is API surface, not dead code; a stylistically-distinct bespoke SVG (a filled map-marker vs the stroked icon) is intentional, not a duplicate.
+
+## Reconciling against the prototype later (when a user flags a mismatch)
+
+When a user comes back with "this differs from the design," the **handoff bundle's CSS/code is the source of truth — not a screenshot**, even one the user provides:
+
+- A **screenshot captures only the resting state.** Interaction-dependent states are invisible in it: a field's *dimmed-while-default* look, a *reset-to-default* affordance that appears only once detached, a *paler active-fill* on inheriting controls. Inferring "what the design does" from a static image will miss these and cost extra correction rounds — open the bundle and read the rules.
+- **Orphaned CSS classes are positive fingerprints of dropped details.** A selector the port never references (e.g. a `.seg--dim` opacity rule with no `className` using it) usually means a real design state got pruned during the bulk port. Grep the ported stylesheet for unused classes and ask whether each was intentional.
+- **Your own "I changed X" code comments are the other fingerprint.** A note like `/* darkened from the design's medium blue to the accent token for WCAG AA */` records exactly where the port diverged from the prototype — when the user later wants prototype parity, those comments point straight at what to revert (and why it was changed, so you can restore fidelity *and* keep AA, e.g. a paler-but-still-≥4.5:1 token rather than reusing the primary accent).
+- **Distinguish "displays differently" from "behaves differently."** A divergence can be visual (a missing badge), behavioural (explicit apply-to-all vs silent per-field inheritance), or both — name which, and confirm the direction with the user before rewriting interaction, since the original divergence may have been a documented deliberate adaptation.
