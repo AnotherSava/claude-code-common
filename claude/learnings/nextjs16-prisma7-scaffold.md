@@ -70,6 +70,19 @@ export default defineConfig({
 - **Prisma 7 no longer auto-loads `.env`.** The generated `.env` even says so. Add `import "dotenv/config"` at the top of `prisma.config.ts` (and install `dotenv` as a devDependency), or env vars come back undefined during CLI commands.
 - Seeding: set `migrations.seed` (e.g. `"tsx prisma/seed.ts"`); run with `prisma db seed`. The seed script needs its own `import "dotenv/config"` too, since it runs as a standalone process.
 
+## Migrations in a non-interactive / AI-agent shell
+
+`prisma migrate dev` is **interactive** and aborts in a non-interactive shell ("environment is non-interactive, which is not supported") — and `--create-only` still prompts the moment it detects possible data loss. `prisma migrate reset` is additionally blocked by a Prisma guard for AI agents: it refuses unless you pass `PRISMA_USER_CONSENT_FOR_DANGEROUS_AI_ACTION=<the user's exact consent text>`, and it **destroys all data**, so only ever with explicit user sign-off on a *dev* DB.
+
+Reliable non-interactive flow:
+- **Hand-author the migration**: create `prisma/migrations/<YYYYMMDDHHMMSS>_<name>/migration.sql` yourself (timestamp must sort after the last applied one), then apply with **`prisma migrate deploy`** — non-interactive, applies pending migrations, and is **non-destructive** (preserves existing rows, unlike `reset`).
+- SQLite **column drops/renames**: the bundled SQLite (better-sqlite3) supports `ALTER TABLE "T" DROP COLUMN "c"`. For a rename or to preserve data, do a table-rebuild (`CREATE TABLE new_… ; INSERT … SELECT … FROM … ; DROP TABLE … ; ALTER TABLE new_… RENAME TO …`) wrapped in `PRAGMA defer_foreign_keys=ON; PRAGMA foreign_keys=OFF; … PRAGMA foreign_keys=ON;`. A backfill `INSERT … SELECT` must run *before* the `DROP COLUMN` in the same file.
+- After deploying, run `prisma generate` so the client types pick up the change.
+
+**The running `next dev` server caches the generated Prisma client.** After a migration + `prisma generate`, the dev server keeps using the *old* client until you restart it — symptoms are runtime errors like `The column main.T.c does not exist in the current database` (old client still selects a dropped column) or newly-added columns coming back `undefined` (old client doesn't select them). `tsc` / `next build` use the fresh client and pass, so the live app is broken while the build is green. **Restart `next dev` after every migration.**
+
+**DateTime is stored as ISO-8601 UTC TEXT** by the better-sqlite3 adapter — e.g. `2026-06-20T07:01:54.993Z` — for both client-written values and `@default(now())` / `CURRENT_TIMESTAMP`. So a hand-written migration that seeds or backfills a datetime should use that exact format (`'2000-01-01T00:00:00.000Z'`), and `WHERE col <= :date` comparisons then sort lexicographically = chronologically (no mixed-format pitfalls).
+
 ## React 19 — no synchronous setState inside an effect
 
 `eslint-plugin-react-hooks` (shipped with React 19 / Next 16) errors on **`react-hooks/set-state-in-effect`**: calling `setState` synchronously in a `useEffect` body triggers cascading renders. Two fixes that satisfy it:

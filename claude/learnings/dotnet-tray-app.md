@@ -227,11 +227,9 @@ SizeToContent="WidthAndHeight"
 
 **Avoid shadowing Window.Show()**: Name custom show methods `ShowNotification()`, `ShowRecent()`, etc. — not `Show()` which hides the base `Window.Show()`.
 
-**Proportional sizing** — all dimensions relative to screen, not fixed pixels:
-- Window width: 15% of screen width (min 250px)
-- Icon size: 25% of window width (min 32px)
-- Margin from edge: 2% of smaller screen dimension
-- Slide distance: 1.5% of screen height
+**Uniform scaling, not per-element fractions**: scaling only the window width + icon while fonts stay a fixed point size makes the *same* content lay out differently per resolution (more whitespace / different wrapping on bigger screens — "same font, different layout"). Instead lay the popup out at ONE fixed design size (icon, fonts, paddings, text-wrap width all fixed DIP) and scale the whole thing uniformly via a `ScaleTransform` set as the root element's `LayoutTransform`; derive the scale from one display dimension (e.g. `displayLogicalWidth * 0.15 / baseDesignWidth`, clamped to ~[0.75, 2.5]). Font/icon/spacing then scale together → identical layout, only overall size changes. WPF applies the monitor's DPI on top automatically.
+- Use a fixed `Width` (not `MaxWidth`) on the text blocks so every popup is the same width regardless of text length — with `MaxWidth`, `SizeToContent` shrinks short-text popups, so widths vary between notifications.
+- Margin/slide can stay screen-relative; only the content box needs the fixed-design + uniform-scale treatment.
 
 **Animation**: `TranslateTransform` for slide, `Opacity` for fade. CubicEase for slide-in, linear for fade. Use `DispatcherTimer` for hold duration.
 
@@ -258,11 +256,19 @@ WPF then stays at its original render DPI for the window's whole lifetime. DWM b
 
 **Positioning in physical pixels**: In PerMonitorV2, `SetWindowPos` coordinates are physical virtual-screen pixels regardless of any window's DPI state — use it when you need pixel-exact placement across monitors. Force HWND creation with `WindowInteropHelper.EnsureHandle()` so `SetWindowPos` can place the window before `Show()` (avoids a flash at whatever `Left`/`Top` you initialized the Window with).
 
+**`Window.Left/Top` are in the target monitor's own DIPs, not the primary's**: to place a WPF window snug on the foreground window's monitor via `Left/Top` (without `SetWindowPos`), take that monitor's physical work area (`Screen.FromHandle(GetForegroundWindow()).WorkingArea`, physical px under PerMonitorV2) and divide by **that monitor's own** DPI scale — not the primary's. Verified empirically: a `Left`/`Top` you set lands at `physical = value × that-monitor-scale`. The common bug is converting with the primary scale (`PrimaryScreen.Bounds.Height / SystemParameters.PrimaryScreenHeight`), which only matches when the foreground monitor *is* the primary; on a different-DPI secondary the window lands off by the scale ratio. Once the work-area rect is in the target monitor's DIPs, measured `DesiredSize`/`ActualHeight` (DIP-nominal) combine directly — **no** ratio conversions. If you find yourself multiplying sizes by a primary↔target ratio, the rect is in the wrong space.
+
+**Get a monitor's scale with `GetDpiForMonitor`, not `GetDpiForWindow`**: `GetDpiForWindow(hwnd)` returns DPI per the *queried window's process* DPI-awareness — a foreground game/app that's only system-DPI-aware reports the system DPI, not the monitor's actual zoom (symptom: the value doesn't change between monitors). `GetDpiForMonitor(MonitorFromWindow(hwnd, MONITOR_DEFAULTTONEAREST), MDT_EFFECTIVE_DPI, out dpiX, out _)` (shcore.dll) returns the monitor's real effective scale regardless of any process's awareness; `scale = dpiX / 96.0`.
+
 **Don't over-engineer layered vs opaque windows**: An old instinct to avoid `AllowsTransparency="True"` for perf ("DWM recomposites on every topmost-Z disturbance") is real but usually negligible. A single transparent topmost window with a `Border` + a couple of `Line` shapes is simpler, more correct, and fast enough — don't break it into four opaque edge windows just to avoid a layered surface. Go 4-opaque only if profiling shows actual DWM cost.
 
 **Measurement before show**: `window.Measure()` before the window is in the visual tree gives unreliable height. Use `Dispatcher.BeginInvoke` at `DispatcherPriority.Loaded` after `Show()` to read `ActualHeight` and correct position.
 
 **Cascade display**: When showing multiple windows sequentially, track the active `DispatcherTimer` and stop it in `Dismiss()` to prevent orphaned windows appearing after dismiss.
+
+## FileSystemWatcher
+
+**A filename `Filter` does not fire on bare directory creation**: a watcher with `Filter = "data.json"` (even with `IncludeSubdirectories = true`) only raises events for files matching that name — creating an empty subfolder raises nothing. To detect a new subdirectory appearing (e.g. a per-id folder created by another process), add a *second* `FileSystemWatcher` with `NotifyFilter = NotifyFilters.DirectoryName` and handle its `Created` event. Both watchers can share the same root and disposal list.
 
 ## Global Hotkey (Win32)
 
@@ -512,3 +518,35 @@ var exactPath = Path.GetFullPath(Path.Combine(metadataDir, iconName));
 if (exactPath.StartsWith(metaDirFull, OrdinalIgnoreCase) && File.Exists(exactPath))
     return exactPath;
 ```
+
+## High-DPI: PerMonitorV2 vs SystemAware
+
+`Application.SetHighDpiMode(HighDpiMode.SystemAware)` locks the process to the DPI/scale that was active **at launch** — windows opened later (or dragged to a differently-scaled monitor) don't re-scale, and a Windows zoom change isn't picked up until the app restarts (even reopening a dialog reuses the stale scale). Use `HighDpiMode.PerMonitorV2` so each window adapts live, and override `Form.OnDpiChanged` to re-run any manual layout/fit (and not re-center on a DPI change, or the window jumps back to the original monitor mid-drag). DPI awareness is **process-wide**, so flipping it also changes the pixel/DIP math a WPF overlay uses to position itself — re-verify overlay placement after switching.
+
+## Auto-sizing a fixed dialog to its content
+
+`TableLayoutPanel.PreferredSize` is unreliable for a column of stacked AutoSize multi-line (wrapped) labels: it omits the last row and computes wrapped-label heights unwrapped, so the form ends up too short and clips text. To size a form to its content at any DPI:
+1. Set each wrapping label's `MaximumSize = new Size(wrapWidth, 0)` so it wraps.
+2. Call `PerformLayout()`.
+3. Read the panel's realized `Height` (not `PreferredSize`) and set `ClientSize` from it.
+
+For custom rows (e.g. an icon + label checklist), derive the row height from `Font.Height` (DPI-correct) rather than a hard-coded pixel value, or descenders clip at higher scaling. Keep an `AutoScroll` panel as a fallback so content taller than the screen stays reachable instead of being cut off.
+
+## SharpCompress: extracting a solid .7z
+
+For a **solid** `.7z` (e.g. GBE's `emu-win-release.7z`), iterating `archive.Entries` and calling `entry.WriteToDirectory(...)` per entry re-decompresses from the block start each time — O(n²), pathologically slow. Use the sequential reader instead:
+
+```csharp
+using var archive = SevenZipArchive.OpenArchive(new FileInfo(path), new ReaderOptions());
+long total = archive.TotalUncompressedSize, done = 0;
+using var reader = archive.ExtractAllEntries();
+while (reader.MoveToNextEntry()) {
+    ct.ThrowIfCancellationRequested();
+    if (reader.Entry.IsDirectory) continue;
+    using var src = reader.OpenEntryStream();
+    using var dst = File.Create(outPath);
+    // manual copy loop: report done/total as %, and ThrowIfCancellationRequested() mid-file
+}
+```
+
+Streaming each entry yourself (rather than `reader.WriteEntryToDirectory`) lets you report byte-level progress and cancel mid-file — extraction is synchronous and otherwise can't be cancelled until it finishes. Always consume each non-directory entry's stream (write to `Stream.Null` if skipping) so the reader stays in sync on a solid archive.
