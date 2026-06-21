@@ -12,10 +12,28 @@ uncommitted changes (`LOCAL` empty) are auto-pulled with `git pull
 --ff-only --quiet`. Successful pulls are marked with a trailing `✓` in
 the REMOTE column (the original behind count is preserved for display).
 
+Each owned repo's open-issue count is fetched via `gh issue list` (in
+parallel, pinned to the repo's own origin) and shown in the ISSUES column;
+a repo with open issues but no pending git work still earns a row. Repos
+with no open issues, issues disabled, or where `gh` is unavailable/unauthed
+leave the cell blank.
+
+The table fills a target width (--width / GHS_WIDTH, else the terminal,
+else 120); the DESCRIPTION column is elastic, taking the leftover width and
+wrapping long text across lines.
+
+Modes:
+  (default)        scan PROJECTS_ROOT and print the report
+  --render [FILE]  skip the scan and render a final table from a JSON spec
+                   read from FILE (or stdin) — used by SKILL.md step 3 to
+                   draw the table with DESCRIPTION cells filled in
+  --width N        target total table width (also accepted via GHS_WIDTH)
+
 Environment:
   PROJECTS_ROOT — directory to scan (overrides config/config.env)
   GITHUB_USER   — origin-URL owner to filter by (default AnotherSava)
   ROOT_DEPTH    — find -maxdepth value (default 4)
+  GHS_WIDTH     — target table width (else terminal width, then 120)
 
 If PROJECTS_ROOT is not set and config/config.env is missing, exits with
 status 2 — the github-status SKILL.md is expected to prompt the user and
@@ -24,10 +42,13 @@ create the config file before invoking.
 
 from __future__ import annotations
 
+import json
 import os
 import re
+import shutil
 import subprocess
 import sys
+import textwrap
 import time
 from concurrent.futures import ThreadPoolExecutor
 from dataclasses import dataclass
@@ -94,6 +115,7 @@ class Repo:
     lines_added: int  # tracked-only: sum of additions in `git diff HEAD --numstat`
     lines_deleted: int  # tracked-only: sum of deletions in `git diff HEAD --numstat`
     pulled: bool = False  # set True if `git pull --ff-only` succeeded after state collection
+    open_issues: int | None = None  # open-issue count via `gh`; None if gh unavailable/failed
 
 
 def git(args: list[str], cwd: Path) -> str:
@@ -181,12 +203,68 @@ def pull_eligible(repo_rows: list[tuple[Path, "Repo"]]) -> None:
         row.pulled = ok
 
 
+ORIGIN_SLUG = re.compile(r"github\.com[:/](?P<owner>[^/]+)/(?P<repo>[^/]+?)(?:\.git)?/?$")
+
+
+def origin_slug(repo: Path) -> str | None:
+    """Return 'OWNER/REPO' parsed from the repo's `origin` URL, or None."""
+    m = ORIGIN_SLUG.search(git(["remote", "get-url", "origin"], repo))
+    return f"{m['owner']}/{m['repo']}" if m else None
+
+
+def open_issue_count(repo: Path) -> int | None:
+    """Return the count of open issues (PRs excluded) on the repo's OWN fork.
+
+    Targets the `origin` slug explicitly with `--repo` — without it, `gh`
+    auto-resolves a fork to its `upstream` parent and would report the
+    parent's issues instead of the user's. Returns None on any failure — gh
+    not installed, not authenticated, origin not on GitHub, issues disabled
+    on the fork, or unparseable output — so the caller can leave the ISSUES
+    cell blank rather than show a bogus 0 or someone else's count.
+    """
+    slug = origin_slug(repo)
+    if not slug:
+        return None
+    try:
+        r = subprocess.run(
+            ["gh", "issue", "list", "--repo", slug, "--state", "open", "--limit", "200", "--json", "number"],
+            capture_output=True, text=True, timeout=30,
+        )
+    except (OSError, subprocess.SubprocessError):
+        return None
+    if r.returncode != 0:
+        return None
+    try:
+        return len(json.loads(r.stdout or "[]"))
+    except json.JSONDecodeError:
+        return None
+
+
+def fill_issue_counts(repo_rows: list[tuple[Path, "Repo"]]) -> None:
+    """Populate `row.open_issues` for each (path, row) pair, in parallel.
+
+    Run over every owned repo, not just the pending-work set — a repo with
+    open issues but a clean, pushed tree earns a place in the table on issues
+    alone, so its count must be known before the display filter is applied.
+    """
+    if not repo_rows:
+        return
+    print(f"Counting open issues for {len(repo_rows)} repo(s)...", file=sys.stderr)
+    with ThreadPoolExecutor(max_workers=min(16, len(repo_rows))) as ex:
+        results = list(ex.map(lambda pr: open_issue_count(pr[0]), repo_rows))
+    for (_, row), count in zip(repo_rows, results):
+        row.open_issues = count
+
+
 def discover_owned(projects_root: Path, github_user: str, depth: int) -> list[tuple[Path, str]]:
     """Return [(repo_path, rel_to_root)] for repos whose origin matches github_user."""
     owner_pat = re.compile(rf"github\.com[:/]{re.escape(github_user)}/")
     owned: list[tuple[Path, str]] = []
     for repo in find_repos(projects_root, depth):
-        rel = str(repo.relative_to(projects_root))
+        # Forward slashes everywhere (PurePath.as_posix) — on Windows the native
+        # separator is a backslash, which mangles when the project name round-
+        # trips through JSON / shell heredocs in the SKILL's --render step.
+        rel = repo.relative_to(projects_root).as_posix()
         if rel in EXCLUDED:
             continue
         origin = git(["remote", "get-url", "origin"], repo)
@@ -276,12 +354,13 @@ COLUMN_SPECS = [
     ("REMOTE",      "remote",      lambda r: (f"{r.behind} ✓" if r.pulled else r.behind) if r.behind not in ("", "0") else ""),
     ("LOCAL",       "local",       lambda r: format_local(r.uncommitted, r.lines_added, r.lines_deleted)),
     ("AGE",         "age",         lambda r: human_age(time.time() - r.oldest_epoch) if r.oldest_epoch else ""),
+    ("ISSUES",      "issues",      lambda r: str(r.open_issues) if r.open_issues else ""),
     ("DESCRIPTION", "description", lambda r: "<analyze below>" if (r.unpushed_commits or r.changes) else "—"),
 ]
 
 
 def visible_columns(show_branch: bool, show_unpushed: bool, show_remote: bool,
-                    show_local: bool, show_age: bool, show_description: bool):
+                    show_local: bool, show_age: bool, show_issues: bool, show_description: bool):
     skip = set()
     if not show_branch:
         skip.add("branch")
@@ -293,16 +372,38 @@ def visible_columns(show_branch: bool, show_unpushed: bool, show_remote: bool,
         skip.add("local")
     if not show_age:
         skip.add("age")
+    if not show_issues:
+        skip.add("issues")
     if not show_description:
         skip.add("description")
     return [c for c in COLUMN_SPECS if c[1] not in skip]
 
 
 # Column keys whose HEADER renders centered (values stay left-aligned).
-CENTERED_HEADERS = {"unpushed", "remote", "local", "age"}
+CENTERED_HEADERS = {"unpushed", "remote", "local", "age", "issues"}
+
+# Minimum width the DESCRIPTION column is allowed to shrink to before we stop
+# honoring the total-width budget — below this, wrapping produces unreadable
+# one-or-two-word ribbons, so we let the table overflow instead.
+DESC_MIN_WIDTH = 18
 
 
-def print_table(rows: list[Repo], cols) -> None:
+def target_width() -> int:
+    """Total table width to fill. Resolved in order: GHS_WIDTH env var, the
+    GHS_WIDTH line in config.env, then the detected terminal width (120 if
+    that can't be queried — e.g. stdout is a pipe under the Bash tool).
+
+    The DESCRIPTION column stretches to consume whatever this width leaves
+    after the fixed columns, so the table spans the full target width.
+    """
+    config = Path(__file__).resolve().parent.parent / "config" / "config.env"
+    val = config_value(config, "GHS_WIDTH")
+    if val and val.isdigit():
+        return int(val)
+    return shutil.get_terminal_size((120, 24)).columns
+
+
+def print_table(rows, cols) -> None:
     headers = [h for h, _, _ in cols]
     keys = [k for _, k, _ in cols]
     value_lists = [[str(fn(r)) for r in rows] for (_, _, fn) in cols]
@@ -310,6 +411,26 @@ def print_table(rows: list[Repo], cols) -> None:
     # already provides one space of padding on each side, so no extra math.
     widths = [max(len(h), max((len(v) for v in vs), default=0))
               for h, vs in zip(headers, value_lists)]
+
+    # DESCRIPTION is the elastic column: it takes whatever width is left after
+    # the fixed columns so the table fills the full target width — expanding to
+    # pad short text out to the right edge, wrapping text too long to fit. The
+    # floor keeps it readable on very narrow screens (the table overflows the
+    # target instead of crushing the column below it).
+    n = len(cols)
+    table_chrome = 3 * n + 1  # "│ " + " │ "*(n-1) + " │" per row line
+    desc_i = keys.index("description") if "description" in keys else None
+    if desc_i is not None:
+        others = sum(w for i, w in enumerate(widths) if i != desc_i)
+        budget = target_width() - others - table_chrome
+        widths[desc_i] = max(budget, DESC_MIN_WIDTH, len(headers[desc_i]))
+
+    # Per cell, the list of physical lines it occupies (wrapping only ever
+    # splits the description column; every other cell is a single line).
+    def cell_lines(ci: int, value: str) -> list[str]:
+        if ci == desc_i and len(value) > widths[ci]:
+            return textwrap.wrap(value, widths[ci]) or [""]
+        return [value]
 
     bar = lambda left, mid, right: left + mid.join("─" * (w + 2) for w in widths) + right
     header_cells = [
@@ -319,8 +440,11 @@ def print_table(rows: list[Repo], cols) -> None:
     print(bar("┌", "┬", "┐"))
     print("│ " + " │ ".join(header_cells) + " │")
     print(bar("├", "┼", "┤"))
-    for i in range(len(rows)):
-        print("│ " + " │ ".join(f"{value_lists[ci][i]:<{widths[ci]}}" for ci in range(len(cols))) + " │")
+    for ri in range(len(rows)):
+        col_lines = [cell_lines(ci, value_lists[ci][ri]) for ci in range(n)]
+        for line in range(max(len(c) for c in col_lines)):
+            cells = [c[line] if line < len(c) else "" for c in col_lines]
+            print("│ " + " │ ".join(f"{cells[ci]:<{widths[ci]}}" for ci in range(n)) + " │")
     print(bar("└", "┴", "┘"))
 
 
@@ -358,23 +482,69 @@ def print_unpushed_detail(rows: list[Repo]) -> None:
             print(f"  {line}")
 
 
-def resolve_projects_root(config_file: Path) -> str | None:
-    if val := os.environ.get("PROJECTS_ROOT"):
+def config_value(config_file: Path, key: str) -> str | None:
+    """Resolve a setting: the `key` env var first, else its `KEY=value` line
+    in config.env. Returns None if neither is present."""
+    if val := os.environ.get(key):
         return val
     if config_file.exists():
         for line in config_file.read_text().splitlines():
-            if line.startswith("PROJECTS_ROOT="):
+            if line.startswith(f"{key}="):
                 return line.split("=", 1)[1].strip().strip('"')
     return None
 
 
+def resolve_projects_root(config_file: Path) -> str | None:
+    return config_value(config_file, "PROJECTS_ROOT")
+
+
+def render_from_json(text: str) -> None:
+    """Render a final table from a JSON spec (used by SKILL.md step 3).
+
+    Lets the skill hand back the rows with DESCRIPTION cells filled in and
+    reuse this script's wrapping/width-budget renderer instead of hand-drawing
+    a box table. Input shape:
+
+        {"columns": ["project", "local", "issues", "description"],
+         "rows": [{"project": "claude", "local": "20 (+669/-52)",
+                   "issues": "", "description": "..."}, ...]}
+
+    `columns` lists column keys in display order; each row is a dict keyed by
+    those same keys. Unknown keys fall back to an upper-cased header.
+    """
+    data = json.loads(text)
+    header_by_key = {k: h for h, k, _ in COLUMN_SPECS}
+    cols = [(header_by_key.get(k, k.upper()), k, lambda r, k=k: str(r.get(k, ""))) for k in data["columns"]]
+    print_table(data["rows"], cols)
+
+
 def main() -> int:
     # Windows consoles default to a legacy codepage (e.g. cp1251) that can't
-    # encode the Unicode box-drawing characters used in the table. Force UTF-8
-    # on stdout/stderr so the script works identically across platforms.
-    for stream in (sys.stdout, sys.stderr):
+    # encode the Unicode box-drawing characters used in the table, nor decode
+    # UTF-8 JSON on stdin (--render mode). Force UTF-8 on all three streams so
+    # the script works identically across platforms.
+    for stream in (sys.stdin, sys.stdout, sys.stderr):
         if hasattr(stream, "reconfigure"):
             stream.reconfigure(encoding="utf-8")
+
+    # Explicit width: `--width N` overrides detection/config for this run (the
+    # skill detects the real terminal width and passes it, since a piped stdout
+    # hides it from get_terminal_size). Fed through GHS_WIDTH so target_width
+    # picks it up uniformly.
+    argv = sys.argv[1:]
+    if "--width" in argv:
+        i = argv.index("--width")
+        if i + 1 < len(argv) and argv[i + 1].isdigit():
+            os.environ["GHS_WIDTH"] = argv[i + 1]
+
+    # Render-only mode: read a JSON table spec and print it, skipping the whole
+    # scan — used by SKILL.md step 3 to draw the final filled table. Reads the
+    # file path given after --render, or stdin if none is supplied.
+    if "--render" in sys.argv[1:]:
+        rest = sys.argv[sys.argv.index("--render") + 1:]
+        text = Path(rest[0]).read_text(encoding="utf-8") if rest and not rest[0].startswith("-") else sys.stdin.read()
+        render_from_json(text)
+        return 0
 
     github_user = os.environ.get("GITHUB_USER", "AnotherSava")
     depth = int(os.environ.get("ROOT_DEPTH", "4"))
@@ -402,12 +572,15 @@ def main() -> int:
 
     repo_rows = [(repo, collect_state(repo, rel)) for repo, rel in owned]
     pull_eligible(repo_rows)
-    # Keep only repos with something to report: uncommitted local changes,
-    # unpushed commits, or remote-inbound commits (including ones we just
-    # auto-pulled — surfaced once with the ✓ marker, then drop out next run).
+    # Issue counts for every owned repo — a repo can earn a table row on open
+    # issues alone, so the count must be known before the display filter.
+    fill_issue_counts(repo_rows)
+    # Keep repos with something to report: uncommitted local changes, unpushed
+    # commits, remote-inbound commits (including ones we just auto-pulled —
+    # surfaced once with the ✓ marker, then drop out next run), or open issues.
     rows = [
         r for _, r in repo_rows
-        if r.unpushed_commits or r.changes or r.behind not in ("", "0")
+        if r.unpushed_commits or r.changes or r.behind not in ("", "0") or r.open_issues
     ]
     # Sort by AGE ascending: freshest pending work first, oldest at bottom.
     # Sorting by oldest_epoch descending achieves this since age = now - epoch.
@@ -418,8 +591,9 @@ def main() -> int:
     show_remote = any(r.behind not in {"", "0"} for r in rows)
     show_local = any(r.uncommitted for r in rows)
     show_age = any(r.oldest_epoch for r in rows)
+    show_issues = any(r.open_issues for r in rows)
     show_description = any(r.unpushed_commits or r.changes for r in rows)
-    cols = visible_columns(show_branch, show_unpushed, show_remote, show_local, show_age, show_description)
+    cols = visible_columns(show_branch, show_unpushed, show_remote, show_local, show_age, show_issues, show_description)
 
     print_table(rows, cols)
     print_changes_detail(rows)
