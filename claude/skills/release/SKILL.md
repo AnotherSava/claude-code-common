@@ -112,7 +112,7 @@ Group the bullets under emoji-prefixed `###` headings by kind, in this order, om
 - `### 🐛 Fixes` — `fix:` commits
 - `### ⚠️ Breaking changes` — any breaking change
 
-Everything else user-visible that doesn't fit (rare) goes under whichever of the above fits best, or an un-headed bullet list when a release has only one kind and the split adds no clarity.
+Normal `feat:`/`fix:`/breaking bullets always go under their heading, even when the release has only one kind (e.g. a features-only release still uses `### ✨ Features`). Bullets that don't fit any of the above (rare) go under the closest-fitting heading — or, only when the entire release consists of such non-fitting items and headings add no clarity, as a plain un-headed list.
 
 Never add a `**Full Changelog**: …/compare/…` line — GitHub auto-renders a compare link on every release page, so it would just duplicate that. This applies to all stacks.
 
@@ -128,29 +128,26 @@ Download the zip from this release and upload to the Chrome Web Store Developer 
 
 **.NET:**
 
-If **Has signing policy section** is yes, start the notes with this SmartScreen warning verbatim (substitute `{owner}/{repo}`):
+Put the changelog first (the `###` Features/Fixes groups from the generic step above — no `## What's new` parent heading, which GitHub would render with an underline rule). Then append a single combined `> [!NOTE]` callout holding **both** the SmartScreen first-run note and the download guidance — one colored box, not two separate sections. Do NOT list filenames or sizes (GitHub auto-renders the Assets section below); explain only the build *difference* so the reader picks the right asset. For the new release the box is **expanded** (older releases get it collapsed — see step 8). The box is release-independent except `{owner}/{repo}`:
 
 ```
+### ✨ Features
+- …
+
+### 🐛 Fixes
+- …
+
+<br>
+
 > [!NOTE]
 > The executable is not code-signed yet, so Windows SmartScreen may show a warning on first run. Click **More info** → **Run anyway** to proceed. See [Code signing policy](https://github.com/{owner}/{repo}#code-signing-policy) in the README.
+>
+> **Which download should I pick?** Both builds are the same app and differ only in whether the .NET runtime is bundled:
+> - **Framework-dependent** — only a few hundred KB, but needs the [.NET Desktop Runtime 10](https://dotnet.microsoft.com/download/dotnet/10.0) preinstalled.
+> - **Self-contained** — bundles the .NET runtime; larger, but runs anywhere. Pick this if unsure.
 ```
 
-After the "What's new" section, include a Downloads table (leave sizes as placeholders to be filled in step 8) and a Building from source section:
-
-```
-### Downloads
-
-| File | Size | Requirements |
-|---|---|---|
-| `{AssemblyName}-{version}-self-contained-win-x64.zip` | _TBD_ | None — single exe, just unzip and run |
-| `{AssemblyName}-{version}-framework-dependent-win-x64.zip` | _TBD_ | [.NET Desktop Runtime 10](https://dotnet.microsoft.com/download/dotnet/10.0) |
-
-### Building from source
-
-Requires Windows 10+ and .NET 10 SDK.
-
-dotnet build src/
-```
+If **Has signing policy section** is no, drop the SmartScreen sentence and the blank `>` line after it, keeping just the "Which download" box. Do NOT add a "Building from source" section — build instructions belong in the README, not in every release's notes.
 
 **Tauri:**
 
@@ -207,14 +204,27 @@ Once CI succeeds:
    gh release edit vX.Y.Z --notes "..."
    ```
 
-   **.NET**: get actual asset sizes and fill them into the Downloads table:
-   ```bash
-   gh release view vX.Y.Z --json assets --jq '.assets[] | "\(.name) \(.size)"'
-   ```
-   Format sizes for humans (bytes → KB or MB as appropriate), substitute into the Downloads table, then update the release body:
+   **.NET**: replace the auto-generated notes with the drafted notes — no asset-size filling needed (the `[!NOTE]` box explains the build difference rather than listing sizes; the Assets section auto-renders exact filenames and sizes).
    ```bash
    gh release edit vX.Y.Z --notes "..."
    ```
+   Then **collapse the previous release's note box** so only the latest release shows it expanded. Find the prior tag (`git tag --sort=-v:refname | sed -n '2p'`), fetch its body (`gh release view <prev> --json body --jq .body`), and wrap the `> [!NOTE]` box's inner content in a collapsed `<details>` — turn:
+   ```
+   > [!NOTE]
+   > <inner lines…>
+   ```
+   into:
+   ```
+   > [!NOTE]
+   > <details>
+   > <summary>First-run &amp; download info</summary>
+   >
+   > <br>
+   >
+   > <inner lines…>
+   > </details>
+   ```
+   Leave the "What's new" section untouched, then write it back with `gh release edit <prev> --notes "..."`. Skip if the previous release has no `[!NOTE]` box (predates this format) or already collapsed.
 
    **Tauri**: `tauri-action` creates the release as a **draft** with auto-generated notes. Replace those notes with the drafted "What's new" content from step 5 — the Assets section is auto-rendered, no filename/size filling needed:
    ```bash
