@@ -1,4 +1,5 @@
 - [Follow skill instructions exactly](feedback_follow_skill_instructions.md) — never abbreviate or skip steps in skills, even when output feels verbose
+- [Default cursor on non-interactive text](feedback_default_cursor_noninteractive.md) — brand wordmarks/labels use cursor:default (not I-beam/pointer); don't make decorative wordmarks clickable unless asked
 - [Fix failing skills](feedback_fix_skills.md) — fix the skill definition instead of working around failures manually
 - [No unprompted skill edits](feedback_no_unprompted_skill_edits.md) — don't rewrite a working skill's guidance unasked; fixing applies when a skill fails during use
 - [Codify conventions as single rules](feedback_codify_conventions_as_single_rules.md) — one unambiguous rule, no "or Y is also fine" escape hatch; sweep all artifacts after codifying
@@ -44,3 +45,5 @@
 - [Verify the symptom, not a proxy](feedback_verify_symptom_not_proxy.md) — confirm the symptom changed under the user's reported conditions (e.g. reboot), not a proxy signal or convenient test scenario
 - [Explicit keywords over positional defaults in APIs](feedback_api_explicit_over_positional.md) — context-dependent params are named keywords; make invalid chains fail by type; drop create() when chain ends are statically known
 - [Place metadata by content ownership](feedback_place_metadata_by_content.md) — product-describing files live next to the artifact they describe (cws-publish.json by manifest.json), not in .claude/
+- [Probe before declaring infeasible](feedback_probe_before_infeasible.md) — verify a data-driven feature is impossible by inspecting the runtime/library/data before asserting the gap or proposing a lesser workaround
+- [Response/writing style](feedback_response_style.md) — collection: authored text stays plain & factual; no sycophancy, don't echo the request back
