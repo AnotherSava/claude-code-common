@@ -1,7 +1,7 @@
 ---
 name: commit
 description: Reflects on the session, then analyzes changes and generates Conventional Commit messages
-allowed-tools: Read, Edit, Write, Grep, Glob, Bash(git diff:*), Bash(git add:*), Bash(git commit:*), Bash(git status:*), Bash(git log:*), Bash(git reset HEAD:*), Bash(git ls-files:*), Bash(git rev-list:*), Bash(git rev-parse:*), Bash(git push:*), Bash(bash ~/.claude/scripts/sanitize-project-memory.sh:*), Bash(rm:*)
+allowed-tools: Read, Edit, Write, Grep, Glob, Bash(git diff:*), Bash(git add:*), Bash(git commit:*), Bash(git status:*), Bash(git log:*), Bash(git reset HEAD:*), Bash(git ls-files:*), Bash(git rev-list:*), Bash(git rev-parse:*), Bash(git push:*), Bash(gh issue list:*), Bash(bash ~/.claude/scripts/sanitize-project-memory.sh:*), Bash(rm:*)
 ---
 
 # Commit Changes
@@ -20,6 +20,7 @@ Read `~/.claude/skills/shared/bash-rules.md` for bash command constraints.
 - Diff summary: !`git diff HEAD --stat`
 - Full diff: !`git diff HEAD`
 - Recent commits: !`git log --oneline -10`
+- Open issues: !`gh issue list --repo "$(git remote get-url origin 2>/dev/null | sed -E 's#^.*github\.com[:/]##; s#\.git$##; s#/$##')" --state open --limit 30 2>/dev/null || echo "n/a"`
 
 ## Working directory
 
@@ -31,7 +32,7 @@ Read `~/.claude/skills/shared/bash-rules.md` for bash command constraints.
 
 ## Process:
 
-**Pacing:** Steps 1–7 are preparation. Sub-skills may legitimately pause when they find substantive changes needing approval (e.g. reflect proposing items to save, clean-code proposing dead-code removal, documentation proposing edits). Honor those gates. But when a sub-skill finishes with nothing to report, continue immediately to the next step — do not insert an extra confirmation gate. The only gates the commit skill itself owns are step 7 (plan-filename warning, if triggered), step 8 (commit-plan approval), and step 9 (push).
+**Pacing:** Steps 1–7 are preparation. Sub-skills may legitimately pause when they find substantive changes needing approval (e.g. reflect proposing items to save, clean-code proposing dead-code removal, documentation proposing edits). Honor those gates. But when a sub-skill finishes with nothing to report, continue immediately to the next step — do not insert an extra confirmation gate. The only gates the commit skill itself owns are step 1 (related-issue check, only if an open issue matches the change set), step 7 (plan-filename warning, if triggered), step 8 (commit-plan approval), and step 9 (push).
 
 1. **Assess the current state of the repository** (use Context above):
    - **Remote sync check (do this first):** If **Remote ahead by** is > 0, the remote has commits you don't have locally and `git push` will be rejected at the end. Surface this to the user immediately and propose `git pull --rebase origin <branch>` before proceeding. Wait for user confirmation before rebasing — it could conflict with the pending changes. After rebasing, re-check `git status --short` since the working tree may differ.
@@ -40,6 +41,10 @@ Read `~/.claude/skills/shared/bash-rules.md` for bash command constraints.
    - **Discard junk artifacts:** delete untracked crash-dump / junk files that should never be committed — e.g. `*.stackdump` (Git Bash crash dumps on Windows), `core` dumps. Remove them with `rm` so they don't clutter the change set or get staged. Only delete clearly-disposable, never-source artifacts; if an untracked file's purpose is at all unclear, leave it and mention it rather than deleting.
    - If there are no uncommitted changes in this repository, still run step 2 — reflection may produce files worth committing. If the tree is still clean after reflection, stop — there is nothing to commit.
    - Review the conversation history (if any) to understand what was accomplished — but do not assume all changes come from this session; the repo state is the source of truth
+   - **Open-issue triage:** Using **Open issues** from Context, judge whether any open issue relates to the current change set (match issue titles/labels against the changed files and the work done this session).
+     - For each issue that **is related** — the change set fixes, touches, or directly bears on what the issue describes — surface it (number + title) and ask the user whether it should be addressed before committing. Wait for their answer. Do not auto-close issues or add `Fixes #N` / `Closes #N` trailers to commit messages unless the user confirms. If they ask to address it, the resulting code changes flow through the remaining steps normally.
+     - Issues that are **not related** are NOT raised now — hold them and report them after the push (step 9).
+     - If **Open issues** is `n/a` (no `gh`, no GitHub remote, or none open), skip this triage entirely.
 
 2. **Reflect:** Run `/reflect` to extract and persist conversation learnings before they are lost. Skip this step only if `/reflect` already ran in this conversation with no substantive work since — re-running it would just re-scan the same ground. Honor its save-approval gate. **If `/reflect` finds nothing worth saving, immediately proceed to step 3 in the same response — do not stop, do not ask for confirmation.** If any files were saved, re-run `git status --short` and `git diff HEAD` afterwards — the Context snapshot above predates reflection, so the change set may have grown. Files reflect saves outside this repository (e.g. global memory or learnings living in another repo) are excluded by the scope guard — they get committed in their own repo, not here.
 
@@ -81,6 +86,7 @@ Read `~/.claude/skills/shared/bash-rules.md` for bash command constraints.
    - Create commits with your planned messages using `git commit -S` to GPG-sign them
    - After all commits are done, list all unpushed commits with `git log @{upstream}..HEAD --format="%h %ai %s"` (fall back to `origin/<branch>..HEAD` if no upstream). Format each line as `Mon DD, HH:MM [hash] message` (e.g. `Mar 28, 16:59 [a37da68] feat: add side panel`). Display the full list as the end summary — this gives the user the complete picture of what will be pushed.
    - After showing the summary, ask: "Push?" — if the user confirms, run `git push`.
+   - **Post-push issue notice:** If step 1's triage found open issues unrelated to this change set, list them now as a heads-up after the push completes (number + title, with the total count). If the user declined to push, mention them alongside the unpushed-commits summary instead. Keep it brief and don't propose action unless the user asks.
 
 ## Important:
 - **NEVER execute commits without explicit user approval.** Invoking `/commit` (even repeatedly) only restarts skill execution — it is NOT approval to proceed. Wait for a clear "yes", "proceed", or equivalent before running any `git commit` commands.
