@@ -18,6 +18,10 @@ Do not inline Python scripts into Bash commands via `python -c`. Instead, use a 
 
 Do not add logic, data structures, classes, or exports to production code that exist only to support tests. Tests should exercise the public API and real behavior — not rely on test-only hooks, flags, exports, or types in production modules.
 
+## Research Before Trial-and-Error
+
+When a problem resists the first attempt or two — especially browser/CSS quirks, framework behavior, tool errors, or library/API limitations — search the web for the root cause and known fixes instead of iterating blindly or concluding it can't be done. A targeted search often surfaces a proven solution, and explains *why* the naive attempts failed, faster than guess-and-check. Lean toward researching early when the territory is unfamiliar or a fix isn't converging; reserve trial-and-error for cases where simply trying it is genuinely cheaper than a search. The repeated-experiment smell (three tweaks, three failures) is the signal to stop and look it up.
+
 ## Git Workflow
 
 - Do not create git commits unless explicitly asked
@@ -93,6 +97,10 @@ When adding or removing a third-party import, update `requirements.txt` in the s
 
 When changing field/function names, search all usages (including tests) and update accordingly before making breaking changes. Run all tests after refactoring.
 
+### Single Source of Logic
+
+When the same non-trivial computation or step-sequence is needed in two or more places, extract it into one function every call site calls — do not copy-paste it. Copies drift: a later fix or refinement lands in one and silently misses the others (real case: one path scaled a value by the DPI factor, its copy-pasted sibling forgot to, so the two positioned the same element differently). This matters most for **parallel code paths that must stay behaviorally/visually consistent** (two ways of placing or rendering the same thing) — give them a shared helper so they *cannot* diverge. When you touch code near a pre-existing duplicate, consolidate rather than adding a third copy. Balance against premature abstraction (`~/.claude/memory/feedback_no_premature_abstraction.md`): extract once 2–3 real call sites exist, not speculatively — but once they do, share, don't duplicate. Watch for the divergence smell during review: near-identical blocks whose only differences are *unintended* (a missing `* scale`, a different fallback constant).
+
 ## Gitignore
 
 When adding entries to `.gitignore`, choose the right scope:
@@ -127,6 +135,7 @@ Cross-project preferences and feedback. Memory files live in `~/.claude/memory/`
 - [Native dialogs render plain text — no clickable links](~/.claude/memory/feedback_native_dialogs_no_links.md) — `tauri-plugin-dialog`/MessageBox/NSAlert can't embed `<a>`; build a custom Tauri webview window for About-style content with links
 - [About dialogs describe WHAT, not HOW](~/.claude/memory/feedback_about_what_not_how.md) — About copy stays declarative ("Each session keeps a history"), not action-prescriptive ("Double-click to open")
 - [Deploy via the script, not the deploy skill](~/.claude/memory/feedback_deploy_script_not_skill.md) — once a project is configured, run `bash scripts/deploy.sh` directly; reserve the deploy Skill for first-time setup
+- [Use Doppler for secrets](~/.claude/memory/feedback_doppler_secrets.md) — default to Doppler (workplace `sava`) over plaintext .env for keys/secrets/tokens; `doppler run` wraps dev scripts, `doppler secrets set` to add; offer don't impose
 
 ## Reference Material
 
