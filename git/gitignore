@@ -5,6 +5,7 @@ Thumbs.db
 .ralphex/
 .firecrawl/
 config/deploy.env
+.env
 
 **/.claude/settings.local.json
 **/.claude/scheduled_tasks.lock
