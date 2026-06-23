@@ -69,6 +69,7 @@ export default defineConfig({
 
 - **Prisma 7 no longer auto-loads `.env`.** The generated `.env` even says so. Add `import "dotenv/config"` at the top of `prisma.config.ts` (and install `dotenv` as a devDependency), or env vars come back undefined during CLI commands.
 - Seeding: set `migrations.seed` (e.g. `"tsx prisma/seed.ts"`); run with `prisma db seed`. The seed script needs its own `import "dotenv/config"` too, since it runs as a standalone process.
+- **The `import "dotenv/config"` requirement is specific to the `.env`-based workflow.** If secrets come from a process-env injector like **Doppler** (`doppler run -- prisma …`), the import is redundant — the vars are already in `process.env` and `dotenv/config` won't override already-set vars — so for a single source of truth, drop the import from *both* `prisma.config.ts` and `seed.ts` and remove the `dotenv` devDep. Trade-off: running `prisma`/`tsx` raw (without `doppler run`) then fails fast with the var undefined, instead of silently reading a possibly-stale `.env`. All the `db:*` npm scripts must wrap with `doppler run` for this to hold.
 
 ## Migrations in a non-interactive / AI-agent shell
 
