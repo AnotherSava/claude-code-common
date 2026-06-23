@@ -230,6 +230,23 @@ Once CI succeeds:
    ```bash
    gh release edit vX.Y.Z --notes "..."
    ```
+   Then **collapse the previous release's note box** so only the latest release shows the signing warning expanded — the box is byte-for-byte identical on every release, so leaving them all expanded clutters the releases list. Find the prior tag (`git tag --sort=-v:refname | sed -n '2p'`), fetch its body (`gh release view <prev> --json body --jq .body`), and wrap the `> [!NOTE]` box's inner content in a collapsed `<details>` — turn:
+   ```
+   > [!NOTE]
+   > <inner lines…>
+   ```
+   into:
+   ```
+   > [!NOTE]
+   > <details>
+   > <summary>First-run info</summary>
+   >
+   > <br>
+   >
+   > <inner lines…>
+   > </details>
+   ```
+   Leave the "What's new" section untouched, then write it back with `gh release edit <prev> --notes "..."`. Skip if the previous release has no `[!NOTE]` box (predates this format) or is already collapsed.
    Then publish the draft (confirm with the user first if they want to review the draft before it goes public):
    ```bash
    gh release edit vX.Y.Z --draft=false --latest
@@ -253,4 +270,5 @@ After tagging:
 - [ ] GitHub Release created with expected asset(s) attached
 - [ ] Release notes replaced via `gh release edit`
 - [ ] (Chrome ext) Zip downloaded and ready for Chrome Web Store upload
+- [ ] (.NET / Tauri) Previous release's NOTE box collapsed into `<details>`
 - [ ] (Tauri) Draft release published via `gh release edit --draft=false`
