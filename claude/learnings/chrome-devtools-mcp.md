@@ -64,6 +64,7 @@ Gotchas learned driving Craftcloud/Treatstock quote flows:
 - **CAPTCHAs**: don't solve them. The headed window is on the user's desktop — ask the user to click through (AskUserQuestion works well); the session cookie persists for the rest of the flow.
 - **`upload_file`** accepts any element that opens a file chooser (an "Upload files" button works), not just a literal `<input type=file>`.
 - Snapshot `uid`s go stale after the page re-renders (e.g. a price list recomputing); on "uid no longer exists", re-snapshot rather than retrying.
+- **`drag` dispatches native HTML5 drag events** — it won't trigger pointer-sensor libraries (dnd-kit, react-dnd), so the call appears to do nothing. To test those, `evaluate_script` real `PointerEvent`s instead: `pointerdown` on the source → several `pointermove`s crossing the activation distance → `pointerup` over the target. Synthetic events work (libraries don't check `isTrusted`).
 
 ## One-off visual check without the MCP
 

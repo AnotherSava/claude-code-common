@@ -181,3 +181,59 @@ A sticky table header — `thead th { position: sticky; top: 0 }` — needs an o
 ```css
 .stats-table thead th { position: sticky; top: 0; background: #1e1e1e; box-shadow: inset 0 -1px 0 #444; }
 ```
+
+## Form controls don't inherit `font-feature-settings`/smoothing; the `font` shorthand resets them
+
+Regular elements (`<span>`) inherit `font-feature-settings` and `-webkit-font-smoothing`, but form controls (`input`, `button`, `textarea`, `select`) often don't pick them up the same way. Symptom: an editable input renders a font's **default** glyph shapes while the static text beside it shows a character variant — same family and size, but it reads as "a different font/style."
+
+Worse, the **`font` shorthand resets non-constituent font longhands to their initial values** — including `font-feature-settings`. So `font: inherit` (common on inline-edit widgets) silently drops `font-feature-settings`, setting it back to `normal`.
+
+**Fix:** set the typographic props explicitly on the control, and re-declare `font-feature-settings` *after* any `font:` / `font: inherit`:
+
+```css
+.my-input   { font-family: inherit; font-weight: inherit; font-feature-settings: "cv11"; -webkit-font-smoothing: antialiased; }
+.inline-edit { font: inherit; }
+.inline-edit { font-feature-settings: "cv11"; }  /* must come AFTER `font: inherit`, else the shorthand wipes it */
+```
+
+Real case: Hanken Grotesk `cv11` applied via a `.vpl` wrapper showed on display spans but not on the edit `<input>`s, so typed text looked like a different style of the same font.
+
+## Aligning bordered-input text with borderless text needs sub-pixel margins at fractional DPI
+
+To make text typed in a bordered input line up with static text shown without a box, offset the input by its own inset — a negative margin of `(border + padding)` on the alignment side (e.g. `margin-left: -(1px border + 6px padding)` to left-align, `margin-right` to right-align). The nominal value is often **off by ~0.5px** because at fractional device-pixel ratios (Windows 125%/150% display scaling) the 1px border and px paddings round to a non-integer number of CSS pixels. Tuning landed on `margin-left: -6.5px` — a half-pixel — where `-7px` overshot one way and `-6px` the other.
+
+If half-pixels bother you (they can still leave ≤0.5px error since glyphs snap to device pixels), drop the layout border — draw the box edge with `outline` or `box-shadow`, which take no layout space — and zero the padding on the alignment side, so the input's text origin equals the display text origin with no compensation needed.
+
+## Native `<input type="date">` resists CSS sizing — pin a width, don't fight the shadow DOM
+
+Chrome's date control has a minimum intrinsic box width (calibrated for ~16px text) that **ignores** `width: auto` / `fit-content` / `min-content` and any smaller column — instead it overflows, and the surplus shows as a gap between the date text and the right-pinned calendar icon.
+
+What backfires:
+- `width: auto` / `fit-content` / `min-content` → no effect; the box stays at its wide default.
+- `::-webkit-datetime-edit { flex-grow: 0 }` → **collapses the date text to zero width**. Its UA default is `flex: 1 1 0%`; turning off grow while leaving the `0%` basis means zero width. Even `flex: 0 1 auto` didn't shrink the outer box.
+
+What works:
+- An **explicit pixel `width`** (≥ the content) is the only reliable lever to shrink the box and pull the icon up next to the date.
+- The shadow `::-webkit-datetime-edit` does **not** reliably inherit `font-variant-numeric` (tabular figures) or `font-feature-settings` (e.g. `cv11`) from the host — set them on the pseudo-element explicitly if the digits must match adjacent static text.
+- `::-webkit-calendar-picker-indicator { padding: 0; margin-inline-start: <n>px }` controls the icon's spacing/padding.
+- For pixel-perfect layout (no gap, full control), replace the native field: a styled text input plus a button that calls `input.showPicker()`, or an `opacity: 0` date input overlaying a custom field.
+
+Verified in Chromium, June 2026. Note these `-webkit-` pseudo-elements are Chrome/Edge/Safari only.
+
+## A flex-grow `<input>` won't reliably fill-and-truncate — put it in a grid `1fr` cell
+
+Goal: an `<input>` that fills the leftover width of a row and truncates, beside a fixed-width sibling. The obvious `flex: 1 1 0; min-width: 0` on the input **does not reliably shrink it** — it overflows its flex container to the right, even with `min-width: 0` on the input and every ancestor, even after forcing `flex-basis: 0` / `width: 0`. Form controls keep an intrinsic preferred width that flex-shrink doesn't overcome here.
+
+It gets worse when that flex line is itself a **grid item spanning a flexible (`1fr`) track**: the input's intrinsic width blows the `1fr` track wide, stretching the whole line past where it should end — and `min-width: 0` *and* `overflow: hidden` on the grid item both fail to contain it (a Chromium quirk: a flex-container grid item ignores them for track sizing).
+
+**Fix: don't flex-grow the fill — use a grid `1fr` cell and let the input fill it with plain `width: 100%`.** A `1fr` track is sized from free space (definite, not content), so the input fills a definite cell with the base `width: 100%` and no flex-shrink is involved, so it can't overflow.
+
+```css
+/* row: [label][fixed input][label][filling input] */
+.row { display: grid; grid-template-columns: auto 170px auto 1fr; align-items: center; column-gap: 8px; }
+.row input { min-width: 0; }   /* keeps the 1fr cell from blowing out to the input's intrinsic width */
+/* inputs fill their cells via the base `width: 100%`; no flex on them */
+```
+
+Rule of thumb: for "fill the rest and truncate," reach for a grid `1fr` cell, not `flex: 1` on the control. Flex-grow on an `<input>`/`<select>` is the unreliable path.
+

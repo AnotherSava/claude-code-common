@@ -490,6 +490,15 @@ def app_data_dir() -> Path:
 
 If the host app watches `config.json` for external edits (via `notify` / `chokidar` / etc.) and hot-reloads on change, the watcher can self-trigger when your own code writes to the file. Mitigation: compare the freshly-read config serialization byte-for-byte against the in-memory copy and skip the reload when they match. Watch the parent directory rather than the file itself so the watcher survives atomic rewrites (editors commonly rename-into-place rather than truncating).
 
+## Transcripts don't reveal session liveness
+
+Two facts that block any "discover which sessions are currently alive by reading the transcript dir" feature:
+
+- **No session-end marker.** A cleanly-closed session's `*.jsonl` ends with the same ordinary records as a live one (`system/turn_duration`, `mode`, `file-history-snapshot`, …). Nothing in the file content distinguishes "closed" from "still open". Verified across transcripts closed 20h+ ago vs. two currently-running sessions.
+- **Claude doesn't hold the transcript open between writes.** It opens-appends-closes per write. Checked the two live sessions with the Win32 RestartManager API ("who has this file open") — **neither** transcript had a holding process, despite both being active minutes earlier. So "is a process holding the file open" can't be used as a liveness probe: when a session is idle (exactly when you'd need to detect it), there's no open handle.
+
+Net: file mtime gives only "recently active" (includes just-closed, misses idle-open), and there is no cheap cross-platform way to tell a running session from a closed one from disk. Process→cwd mapping works on macOS (`lsof`) but is unreliable on Windows. Treat "session is alive" as knowable only from live signals (hooks firing, or a peer still pushing in a sync setup), not from the transcript files.
+
 ## Reference implementations
 
 - **Dashboard with transcript tailing + state classifier**: `D:/projects/tauri-dashboard/integrations/claude_hook.py` (hook arg dispatcher, chat_id derivation, `?`-heuristic with benign_closers, per-OS `app_data_dir` resolution), `src-tauri/src/log_watcher.rs` (Rust JSONL tail + `infer_state` + token usage extraction + `apply_watcher_update` upgrade-only policy). Earlier Electron predecessor — retired — lived at `D:/projects/ai-agent-dashboard/` and used `src/log-watcher.cjs`.
