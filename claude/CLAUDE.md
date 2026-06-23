@@ -41,6 +41,7 @@ When asking the user to run a command manually (e.g. launching an app, system co
 ## Tooling Defaults
 
 - **Node.js**: default to the current active LTS (Node **24** as of May 2026) for new projects, CI workflows, and `.nvmrc` files — unless the project already pins an older version, a dependency demands otherwise, or there's a specific reason to use something else. Always prefer an existing `.nvmrc` / `engines.node` over this default.
+- **Package-manager pin**: any project with a `package.json` should pin its toolchain via the `packageManager` field (e.g. `"npm@11.17.0"`) with Corepack enabled, so every machine and CI run uses an identical manager version — an unpinned npm drifts the lockfile across machines (`peer: true` markers, `devOptional`→`dev` churn). Offer to add it when missing rather than pinning silently; bump it deliberately like a dependency (typically alongside a Node upgrade), not on every release. Resolve the current stable with `npm view npm version` and avoid prerelease majors. See `~/.claude/learnings/corepack-packagemanager-pin.md`.
 
 ## Best-Practice Adoption
 
