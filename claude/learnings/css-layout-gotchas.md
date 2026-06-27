@@ -237,3 +237,21 @@ It gets worse when that flex line is itself a **grid item spanning a flexible (`
 
 Rule of thumb: for "fill the rest and truncate," reach for a grid `1fr` cell, not `flex: 1` on the control. Flex-grow on an `<input>`/`<select>` is the unreliable path.
 
+## Browser extensions inject global, unscoped class rules — re-assert default-valued properties to defend
+
+**Symptom:** a thin UI indicator (a spinner dot, badge, pip) is displaced or overlaps adjacent text **only in the user's normal browser profile**, never in Incognito — and never in your headless test browser.
+
+**Cause:** an extension's content script injects page-wide CSS like `.dot { position: absolute; width: 3px; background: #fff }` — a **bare single-class** selector. Your `.wrap .chip .dot` (3 classes) out-specifies it on every property you *both* declare (your `width`/`height`/`background` win) — but a property you **don't** declare is left at the injected value, because there's nothing of yours to beat it. Here `position: absolute` (which you never set on the dot) yanks it out of normal flow; the sibling text slides into its vacated slot and the absolutely-positioned dot paints on top.
+
+**Diagnose:** inspect the element → Styles pane shows a rule whose source is `chrome-extension://<id>/…` or "injected stylesheet". Confirm against Incognito (extensions off). Trace a stray content script to its extension via DevTools → Sources → **Content scripts** tree (grouped by extension name).
+
+**Fix:** on your higher-specificity selector, explicitly re-assert the properties an injected rule might hijack but you'd normally leave to defaults — especially `position: static`, plus `background`, `margin`. **No `!important` needed if the injected rule has none** (specificity decides). Don't rely on flex `gap` alone for clearance — an injected `position`/`display` override removes it.
+
+```css
+/* the indicator already wins on width/height/border by specificity; the two
+   resets below close the gap an extension's bare `.dot` rule would otherwise open. */
+.vpl .chip .dot { flex: none; position: static; background: transparent; }
+```
+
+**Principle:** a defensive UI primitive declares not just what it needs, but the defaults an injector could seize.
+

@@ -16,6 +16,23 @@ How to wire a custom-domain sender on Resend and add the verification records vi
   console.log(error ? 'ERROR: ' + error.message : 'OK id=' + data.id);
   ```
 
+### Managing domain verification via the API (full-access key)
+
+A full-access key (not send-only) drives the whole verify flow without the dashboard:
+
+```bash
+# list domains → id, status, region
+curl -s https://api.resend.com/domains -H "Authorization: Bearer $RK"
+# get one domain → expected records + per-record status
+curl -s https://api.resend.com/domains/$ID -H "Authorization: Bearer $RK"
+# trigger verification after the DNS records are live
+curl -s -X POST https://api.resend.com/domains/$ID/verify -H "Authorization: Bearer $RK"
+```
+
+- Domain `status` lifecycle: `not_started` → `pending` (right after POST `/verify`) → `verified` (or `failure`). Verification is **asynchronous** — poll `GET /domains/:id` every ~15s; it typically flips within a minute once records resolve.
+- `GET /domains/:id` returns the exact `records` Resend expects (DKIM/SPF values) — diff these against live DNS to spot a mismatch before triggering verify.
+- Keep the full-access management key **separate** from the app's send-only key (different blast radius); store it outside the app, alongside other registrar/infra creds.
+
 ### Resend domain DNS records (Amazon SES under the hood)
 
 Resend shows these on the domain page; the SPF/feedback host is **region-specific** (e.g. North Virginia → `us-east-1`):
