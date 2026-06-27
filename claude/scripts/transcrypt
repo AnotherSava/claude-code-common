@@ -643,6 +643,14 @@ save_helper_hooks() {
 		return 0 # Bypass helper hook installation on rekey
 	fi
 
+	# Local patch: our committed pre-commit (via global core.hooksPath) already
+	# chains `transcrypt pre_commit`. Skip the redundant helper in that case so
+	# init doesn't drop clutter into the shared, tracked hooks dir. Re-apply on
+	# re-vendoring upstream.
+	if grep -qE 'transcrypt"?[[:space:]]+pre_commit' "${GIT_HOOKS}/pre-commit" 2>/dev/null; then
+		return 0
+	fi
+
 	# Install pre-commit-crypt hook script
 	[[ ! -d "${GIT_HOOKS}" ]] && mkdir -p "${GIT_HOOKS}"
 	pre_commit_hook_installed="${GIT_HOOKS}/pre-commit-crypt"

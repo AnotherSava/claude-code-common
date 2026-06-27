@@ -421,9 +421,14 @@ as opaque blobs to anyone without it.
 root (substitute your Doppler project/config):
 
 ```bash
-bash claude/scripts/transcrypt -c aes-256-cbc \
+bash claude/scripts/transcrypt --yes -c aes-256-cbc \
   -p "$(doppler secrets get TRANSCRYPT_KEY --project <project> --config <config> --plain)"
 ```
+
+The portable `pre-commit` (installed globally via `core.hooksPath`) already chains
+`transcrypt pre_commit`, so init skips writing its own redundant helper hook into
+the shared, committed `git/hooks/` — no leftover, no manual cleanup. (This is a
+local patch to the vendored `transcrypt`; re-apply it if you re-vendor upstream.)
 
 Until then, `*.secret.md` files read as encrypted blobs. Add more by naming them
 `*.secret.md`; the attribute pattern encrypts them automatically.
