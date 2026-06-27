@@ -112,6 +112,8 @@ Group the bullets under emoji-prefixed `###` headings by kind, in this order, om
 - `### 🐛 Fixes` — `fix:` commits
 - `### ⚠️ Breaking changes` — any breaking change
 
+Within each heading, order the bullets by user-facing importance, most important first — not by commit order. Judge importance by how much the change affects what users see or do: a headline feature or a fix for a broken core flow leads; small tweaks and edge-case fixes trail. When two bullets are of comparable importance, keep their relative commit order.
+
 Normal `feat:`/`fix:`/breaking bullets always go under their heading, even when the release has only one kind (e.g. a features-only release still uses `### ✨ Features`). Bullets that don't fit any of the above (rare) go under the closest-fitting heading — or, only when the entire release consists of such non-fitting items and headings add no clarity, as a plain un-headed list.
 
 Never add a `**Full Changelog**: …/compare/…` line — GitHub auto-renders a compare link on every release page, so it would just duplicate that. This applies to all stacks.
