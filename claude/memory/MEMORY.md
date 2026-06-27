@@ -49,3 +49,4 @@
 - [Response/writing style](feedback_response_style.md) — collection: authored text stays plain & factual; no sycophancy, don't echo the request back
 - [Ask before touching local servers](feedback_ask_before_touching_servers.md) — announce when starting a dev server for verification; ask before stopping one you didn't clearly start this turn (the user may have their own)
 - [Perceptible state changes](feedback_perceptible_state_changes.md) — a hover/state change called "barely noticeable" needs a distinct shade token-swap, not a nudged brightness/opacity filter; verify visually
+- [Offer visual options](feedback_offer_visual_options.md) — for visual/UI design choices, render multiple labeled options at real target sizes on a representative bg and let the user pick

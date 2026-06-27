@@ -7,7 +7,7 @@ metadata:
 
 When a project needs secrets, API keys, or tokens, default to managing them in **Doppler** rather than a plaintext `.env`. The user has the Doppler CLI installed (`winget install Doppler.doppler`) and an account in workplace `sava`.
 
-**Why:** The user wants secrets synced across multiple dev machines without committing them and without manual copy-paste drift. Doppler is the single source of truth; a plaintext `.env` per machine drifts and risks accidental commits. (Established 2026-06-23 while wiring the printlab project — see that repo's `doppler-secrets` memory for the concrete setup.)
+**Why:** The user wants secrets synced across multiple dev machines without committing them and without manual copy-paste drift. Doppler is the single source of truth; a plaintext `.env` per machine drifts and risks accidental commits. (Established 2026-06-23 while wiring a project's Doppler setup.)
 
 **How to apply:**
 - Per project: create a Doppler project + `dev` config, import any existing `.env` (`doppler secrets upload .env -p <proj> -c dev`), add a committable `doppler.yaml` (`setup:\n  project: <proj>\n  config: dev`) — it holds no secrets — and wrap the env-dependent dev scripts with `doppler run -- …` (e.g. `dev`, `db:migrate`). Leave `build`/`start`/`test`/`lint` bare so CI and prod aren't forced onto Doppler.
