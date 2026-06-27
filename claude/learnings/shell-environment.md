@@ -50,6 +50,23 @@ build()  { if [ -f scripts/build.sh ]; then bash scripts/build.sh "$@"; else ech
 
 Use `! deploy` or `! build` inside Claude Code, or run directly in any terminal. Each project has a `scripts/deploy.sh` and/or `scripts/build.sh` (gitignored) that delegates to the global script in the corresponding skill directory.
 
+### `memo` — fast backlog access
+
+```bash
+memo() {
+  local py="$HOME/.claude/skills/memo/memos.py" w c
+  if [ $# -gt 0 ]; then python "$py" add "$@"; return; fi
+  if [ -n "$MEMO_WIDTH" ]; then w=$MEMO_WIDTH
+  elif [ -n "$CLAUDECODE" ]; then w=148   # captured CC `!` shell can't detect width — pin to (window − indent − gutter)
+  else c=$(tput cols 2>/dev/null || echo 100); w=$(( c > 40 ? c - 2 : 98 )); fi
+  python "$py" list --width "$w"
+}
+```
+
+`! memo` (or `memo` in any terminal) prints the open backlog at full width in ~0.1 s; `memo <text>` appends that text as a new memo (no quotes needed). This is the **model-free** path — the `/memo` skill is slow because it drives the model through multi-step tool calls, wasted effort for a plain list/append. Reach for the skill only when you want model help: cleaning up an idea on capture, or reviewing with offers to act on items.
+
+**Width (and a Claude Code gotcha).** A real terminal auto-detects (bash `tput cols`, PowerShell `$Host…WindowSize.Width`). But Claude Code captures `!`-command stdout with no tty, so `tput cols` returns the `xterm` default (80) — the real window is unreachable. **Two facts make this work:** (1) Claude Code syncs `.bashrc` *functions* into the `!` shell but **not** its top-level `export`s — so a `MEMO_WIDTH` export in `.bashrc` never reaches `! memo`; the pinned value must live *inside the function*. (2) `CLAUDECODE=1` *is* in CC's environment (it's not from `.bashrc`), so it's the reliable "captured context" flag. Hence: gate the pin on `CLAUDECODE` and hard-code this machine's CC width in the function body; a real terminal (no `CLAUDECODE`) falls through to `tput`. **Set the pin to `window − ~4 − 2`, not the raw window**: CC renders `!`-command output under a `└` tree prefix that indents it ~4 columns, so wrapping at the full width overflows and the terminal re-wraps the overflow (e.g. 156-col window → pin ≈ 148). Adjust the number if you resize.
+
 ## PowerShell `claude` wrapper
 
 ```powershell
@@ -68,6 +85,19 @@ function claude {
 
 Same behavior as the bash version. PowerShell re-asserts its own title on each prompt render after Claude exits.
 
+## PowerShell `memo` wrapper
+
+```powershell
+function memo {
+    $py = "$HOME\.claude\skills\memo\memos.py"
+    if ($args.Count -gt 0) { python $py add @args; return }
+    $w = if ($env:MEMO_WIDTH) { [int]$env:MEMO_WIDTH } else { [Math]::Max(40, $Host.UI.RawUI.WindowSize.Width - 2) }
+    python $py list --width $w
+}
+```
+
+Same as the bash `memo` — fast, model-free backlog access (`memo` to list, `memo <text>` to add).
+
 ## Verification checklist
 
 When setting up a new shell (e.g. WSL), verify:
@@ -75,8 +105,9 @@ When setting up a new shell (e.g. WSL), verify:
 1. **`claude` function exists** — `type claude` should show the function, not the binary path
 2. **`deploy` function exists** — `type deploy`
 3. **`build` function exists** — `type build`
-4. **`notify` function exists** — `type notify`
-5. **Python + deps available** — `python3 -c "import requests, dotenv"` (needed by `notify` and Claude hooks)
-6. **macOS only:** confirm `python3` resolves at all — Apple removed the bundled `python` in recent macOS releases. Install via `brew install python` (or use the Xcode Command Line Tools shim) before running step 5.
-7. **Symlinks intact** — `ls -la ~/.claude` should point to the claude-code-common repo's `claude/` directory
-8. **Git hooks linked** — `git config --global core.hooksPath` should return `~/.git-hooks`
+4. **`memo` function exists** — `type memo`
+5. **`notify` function exists** — `type notify`
+6. **Python + deps available** — `python3 -c "import requests, dotenv"` (needed by `notify` and Claude hooks)
+7. **macOS only:** confirm `python3` resolves at all — Apple removed the bundled `python` in recent macOS releases. Install via `brew install python` (or use the Xcode Command Line Tools shim) before running step 6.
+8. **Symlinks intact** — `ls -la ~/.claude` should point to the claude-code-common repo's `claude/` directory
+9. **Git hooks linked** — `git config --global core.hooksPath` should return `~/.git-hooks`

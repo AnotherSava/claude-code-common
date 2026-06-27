@@ -59,6 +59,14 @@
             "async": true
           }
         ]
+      },
+      {
+        "hooks": [
+          {
+            "type": "command",
+            "command": "python3 \"$HOME/.claude/hooks/memos-surface.py\" on-prompt"
+          }
+        ]
       }
     ],
     "UserPromptExpansion": [
@@ -147,6 +155,15 @@
             "async": true
           }
         ]
+      },
+      {
+        "matcher": "startup|clear",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "python3 \"$HOME/.claude/hooks/memos-surface.py\""
+          }
+        ]
       }
     ]
   },
@@ -189,5 +206,11 @@
   "tui": "fullscreen",
   "theme": "dark",
   "agentPushNotifEnabled": true,
-  "skipAutoPermissionPrompt": true
+  "skipAutoPermissionPrompt": true,
+  "respondToBashCommands": false,
+  "statusLine": {
+    "type": "command",
+    "command": "python3 \"$HOME/.claude/hooks/memos-surface.py\" statusline",
+    "refreshInterval": 2
+  }
 }
