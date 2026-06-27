@@ -38,6 +38,13 @@ When asking the user to run a command manually (e.g. launching an app, system co
 - **on Windows:** provide PowerShell syntax — not bash or cmd.
 - **on macOS / Linux:** provide bash/zsh syntax.
 
+### Background processes I spawn
+
+When I launch a process that outlives the command and that I'll kill later myself (a headless browser, a dev server, a daemon):
+- **Redirect its output.** Detach stdout/stderr to a log file or the null device (PowerShell: `Start-Process … -RedirectStandardError <file>` or wrap in `cmd /c "… >nul 2>&1"`; bash: `… >/tmp/x.log 2>&1 &`). Otherwise the process's async messages — GPU/SwiftShader warnings, crash/shutdown lines — leak into the user's terminal, often after my turn ends. This has happened repeatedly with headless Chrome.
+- **Kill the whole tree, not just the parent.** Such processes fork children (headless Chrome spawns GPU/renderer subprocesses that keep emitting after the parent dies). Match every related PID by a distinguishing flag/profile/temp-dir I chose (e.g. `--headless` or my `--user-data-dir`), not the parent PID alone — and never by a pattern that could match the user's own running instances (their normal browser, their dev server).
+- **Clean up before reporting done.** Remove temp profile dirs, scratch files, and any served generator pages, and confirm zero leftover matching processes.
+
 ## Tooling Defaults
 
 - **Node.js**: default to the current active LTS (Node **24** as of May 2026) for new projects, CI workflows, and `.nvmrc` files — unless the project already pins an older version, a dependency demands otherwise, or there's a specific reason to use something else. Always prefer an existing `.nvmrc` / `engines.node` over this default.
@@ -130,6 +137,8 @@ Cross-project preferences and feedback. Memory files live in `~/.claude/memory/`
 - [Post-iteration cleanup audit](~/.claude/memory/feedback_post_iteration_cleanup.md) — before committing after a debug/optimize session, remove changes from disproven theories; don't leave cruft
 - [Verify before justifying legacy behavior](~/.claude/memory/feedback_verify_before_justifying.md) — if explaining why old code/docs exist (especially defending keeping it), check the source before speculating; defensive guesses preserve cruft
 - [Captured the lesson, drop the code](~/.claude/memory/feedback_research_to_production_cleanup.md) — when research code transitions to production, delete helpers whose rationale lives in docs
+- [No permanent surface for one-time tasks](~/.claude/memory/feedback_no_permanent_logic_for_one_time.md) — do one-offs (backfills, migrations, seeding) as throwaways and delete; don't add a flag/helper/export to production for a single run, and don't justify it with "single source"/"future use"
+- [Stay silent on user `!` commands](~/.claude/memory/feedback_silent_on_bash_input.md) — a bare `!`/bash-input result is the user's own action; return control immediately, no analysis or "looks good" filler, unless they ask
 - [Fix bugs at the source, not in callers](~/.claude/memory/feedback_fix_at_source.md) — if a bug lives in code I can modify, fix it where it originates instead of working around in the caller
 - [Generalize global skills, don't fork project-local](~/.claude/memory/feedback_generalize_global_skills.md) — name collisions silently load the wrong SKILL body; use the deploy skill's Context-probe-and-dispatch pattern instead
 - [No unsolicited past-data fixes](~/.claude/memory/feedback_no_unsolicited_data_fixes.md) — fix the going-forward code only; don't proactively migrate/correct stale stored data unless asked or after asking
@@ -137,6 +146,20 @@ Cross-project preferences and feedback. Memory files live in `~/.claude/memory/`
 - [About dialogs describe WHAT, not HOW](~/.claude/memory/feedback_about_what_not_how.md) — About copy stays declarative ("Each session keeps a history"), not action-prescriptive ("Double-click to open")
 - [Deploy via the script, not the deploy skill](~/.claude/memory/feedback_deploy_script_not_skill.md) — once a project is configured, run `bash scripts/deploy.sh` directly; reserve the deploy Skill for first-time setup
 - [Use Doppler for secrets](~/.claude/memory/feedback_doppler_secrets.md) — default to Doppler (workplace `sava`) over plaintext .env for keys/secrets/tokens; `doppler run` wraps dev scripts, `doppler secrets set` to add; offer don't impose
+- [Private references](~/.claude/memory/refs-private.secret.md) — encrypted (transcrypt); coordinates for ad-hoc third-party credentials Claude uses — read it when a task needs one (decrypted locally; opaque without the key)
+
+## Memos
+
+While working on one task the user often surfaces ideas for *other* work — "we should also debounce that search box", "remind me to cache these responses". They want these parked, not acted on, and they want Claude to hold them rather than carrying them in their own head. Memos are the backlog for exactly that: lighter than a GitHub issue (a half-formed thought, not a tracked unit of work), kept in a single committed file, `<repo>/.claude/memos.md`, as a dated `- [ ]` checklist. The `/memo` skill owns the file format and the read/write mechanics.
+
+**Capture — offer, don't impose, and don't act.** When the user drops an idea that isn't part of the current task, offer to memo it ("Want me to memo that?") and append it only on a yes. Never silently record, and never start on the idea — capturing it is the whole point of *not* doing it now. For deliberate captures the user runs `/memo <text>` themselves. Either way the entry lands in `.claude/memos.md` in the format the `/memo` skill defines. Don't confuse a memo with an instruction: if it's plausibly "do this now", ask which they meant.
+
+**Surface at three moments.** The backlog comes back on its own so the user never has to remember it:
+- **Session start / `/clear`** — the `memos-surface.py` hook surfaces the open items in the **status bar** only (a transient "what's next" reminder), numbered newest-first to match `/memo`. It injects **nothing** into chat — so you never greet with or push the backlog — and the matching `UserPromptSubmit` hook clears the bar the moment the user sends anything. When that first message is a bare number (or "memo N" / "start N"), the hook injects, bound to that message, which memo it maps to; act on it — start that memo as a fresh task and check it off when done. Any other first message just proceeds normally, with memos unmentioned.
+- **Task completion** — when you finish a task during which one or more memos were captured, end the wrap-up with those memos as a numbered list and offer to start one. Don't begin any unasked.
+- **Commit** — `/commit` lists the open backlog after the push, alongside its issue notice.
+
+At task completion and commit, the offer is the same: present a numbered list, let the user pick one or leave them. Picking one begins a fresh task; mark its entry `- [x]` once genuinely done.
 
 ## Reference Material
 

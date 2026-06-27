@@ -21,6 +21,7 @@ Read `~/.claude/skills/shared/bash-rules.md` for bash command constraints.
 - Full diff: !`git diff HEAD`
 - Recent commits: !`git log --oneline -10`
 - Open issues: !`gh issue list --repo "$(git remote get-url origin 2>/dev/null | sed -E 's#^.*github\.com[:/]##; s#\.git$##; s#/$##')" --state open --limit 30 2>/dev/null || echo "n/a"`
+- Pending memos: !`R=$(git rev-parse --show-toplevel 2>/dev/null || pwd) && grep '^- \[ \]' "$R/.claude/memos.md" 2>/dev/null || echo "(none)"`
 
 ## Working directory
 
@@ -39,6 +40,7 @@ Read `~/.claude/skills/shared/bash-rules.md` for bash command constraints.
    - Use **Uncommitted changes**, **Diff summary**, and **Full diff** to understand the total change set against HEAD
    - **Scope guard:** Only commit files that belong to this repository. If earlier work in the conversation touched files in other projects, do not include those changes — each project's commits are handled separately.
    - **Discard junk artifacts:** delete untracked crash-dump / junk files that should never be committed — e.g. `*.stackdump` (Git Bash crash dumps on Windows), `core` dumps. Remove them with `rm` so they don't clutter the change set or get staged. Only delete clearly-disposable, never-source artifacts; if an untracked file's purpose is at all unclear, leave it and mention it rather than deleting.
+   - **Orphaned-data check:** Look for data that has outlived the logic that produced or consumed it — a file/directory left stranded after the code operating on it was removed. Two signals: (a) the current change set **deletes** a module/tool/script, yet its data file or directory (the cache, export, generated output, or config it managed) is still present in the tree; (b) an untracked or tracked data file/directory sits under a tool/module path whose source code is no longer present (removed in a recent commit — check `git log --oneline -10` and `git ls-files <dir>`). The motivating case: a tool's code was removed in a prior commit but a lone `data/<tool>.csv` survived, silently resurrecting the deleted tool's directory. When you spot orphaned data, surface it (the data path + the logic that's gone) and **ask the user whether the data should be removed too** — do not auto-delete, as data is sometimes preserved deliberately. On confirmation, remove it with `rm` so it doesn't get committed or left behind; otherwise leave it and note that the data is being kept.
    - If there are no uncommitted changes in this repository, still run step 2 — reflection may produce files worth committing. If the tree is still clean after reflection, stop — there is nothing to commit.
    - Review the conversation history (if any) to understand what was accomplished — but do not assume all changes come from this session; the repo state is the source of truth
    - **Open-issue triage:** Using **Open issues** from Context, judge whether any open issue relates to the current change set (match issue titles/labels against the changed files and the work done this session).
@@ -56,7 +58,8 @@ Read `~/.claude/skills/shared/bash-rules.md` for bash command constraints.
 5. **Confidentiality check:**
    - Scan the diff for content that should not be committed to a public repository: API keys, tokens, passwords, private URLs, internal hostnames, personal data (emails, phone numbers, real names in test data), or proprietary business logic
    - Pay extra attention to learning files (`claude/learnings/`): these are domain knowledge docs meant to be generic and reusable — flag any project-specific details, internal URLs, proprietary names, or customer data that leaked in from the source project
-   - If anything looks sensitive, list the findings and ask the user before proceeding — do not silently include them in the commit plan
+   - **Absolute / machine-specific paths:** scan every file headed for the commit for absolute filesystem paths — `C:\Users\...`, `D:\projects\...`, `/Users/<name>/...`, `/home/<name>/...`, and the like. The global rule forbids them in committed content (README, docs, comments, **and committed memory under `.claude/memory/`**): they're machine-specific and break for other contributors. This applies even though such a path isn't secret — it's the confidentiality step's job because this is the catch-all for "content that shouldn't go into the repo as-is." When found, propose genericizing: a path relative to the repo for files inside the project, a generic description for external references (e.g. "a local Evernote backup" instead of `D:\backup\Evernote\md\`). Don't silently rewrite wording — surface the findings and let the user decide.
+   - If anything looks sensitive — or any absolute path turned up — list the findings and ask the user before proceeding; do not silently include them in the commit plan
 
 6. **Plan your commit(s):**
    - Read `~/.claude/skills/shared/commit-message-rules.md` for commit message formatting and validation rules
@@ -87,6 +90,12 @@ Read `~/.claude/skills/shared/bash-rules.md` for bash command constraints.
    - After all commits are done, list all unpushed commits with `git log @{upstream}..HEAD --format="%h %ai %s"` (fall back to `origin/<branch>..HEAD` if no upstream). Format each line as `Mon DD, HH:MM [hash] message` (e.g. `Mar 28, 16:59 [a37da68] feat: add side panel`). Display the full list as the end summary — this gives the user the complete picture of what will be pushed.
    - After showing the summary, ask: "Push?" — if the user confirms, run `git push`.
    - **Post-push issue notice:** If step 1's triage found open issues unrelated to this change set, list them now as a heads-up after the push completes (number + title, with the total count). If the user declined to push, mention them alongside the unpushed-commits summary instead. Keep it brief and don't propose action unless the user asks.
+
+10. **Surface pending memos:**
+    Using **Pending memos** from Context (the open `- [ ]` items in `<Repo root>/.claude/memos.md`), give the user their idea backlog as a closing heads-up — the natural moment to decide what's next now that the work is committed.
+    - If there are open memos, list them as a numbered backlog (newest first) right after the post-push issue notice, and offer: address one now (the user picks a number) or leave them. Keep it brief; don't propose action beyond the offer, and don't start any memo unasked.
+    - If a memo's idea was clearly implemented by the commits just made, point that out and offer to check it off (`- [x]`) in the same breath.
+    - If **Pending memos** is `(none)` or the file is absent, say nothing about memos.
 
 ## Important:
 - **NEVER execute commits without explicit user approval.** Invoking `/commit` (even repeatedly) only restarts skill execution — it is NOT approval to proceed. Wait for a clear "yes", "proceed", or equivalent before running any `git commit` commands.

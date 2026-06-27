@@ -156,6 +156,22 @@ Mitigations, in order of preference:
 
 If the skill's own script (`Bash(python3 ~/.claude/skills/<name>/scripts/<script>)`) is also denied when invoked from outside CWD, the user can add a project-local or global permission rule in `settings.json` allowing scripts under `~/.claude/skills/`.
 
+## Full-width terminal output
+
+When a skill renders output meant to fill the terminal — a table, an aligned/wrapped listing — it must detect the terminal width, because the rendering script can't.
+
+**Why the script can't self-detect.** A skill's helper runs with its stdout **piped** (the `!` context capture, or the Bash tool), so `shutil.get_terminal_size()` / `tput cols` *inside the script* return a fallback, not the real window. For the same reason, **width-dependent rendering must not live in a Context `!` line** — that always renders at the fallback width. Render it in a process step instead, after detecting the width.
+
+**The pattern** (reuse the `github-status` skill's implementation):
+
+1. Detect the width yourself, in a process step:
+   - **Windows:** the **PowerShell tool** evaluating `$Host.UI.RawUI.WindowSize.Width` — the PowerShell tool specifically; `powershell.exe` from Bash gets its own console and reports the wrong value.
+   - **macOS/Linux:** `tput cols` (or `$COLUMNS`).
+2. Subtract a small gutter (≈2 columns) — Claude Code's TUI indents tool/message output, so content exactly as wide as the window gets its right edge clipped.
+3. Pass the result to the helper as `--width <N>`; the helper honors `--width`, else falls back to `get_terminal_size()` then a fixed default. If detection fails, omit `--width` and accept the fallback.
+
+Add `PowerShell` and `Bash(tput cols:*)` to `allowed-tools` for the detection step. Working examples: `~/.claude/skills/github-status` (a bordered table) and `~/.claude/skills/memo` (a wrapped, aligned listing).
+
 ## Gitignore
 
 When creating a new global skill, check the global gitignore (`~/.gitignore` or whatever `git config --global core.excludesfile` returns) for patterns that would exclude it. If the skill directory would be ignored, add a negation entry (e.g. `!claude/skills/<skill-name>/`) so it gets tracked.

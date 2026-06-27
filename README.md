@@ -198,6 +198,20 @@ Extracts durable knowledge from the current conversation and persists it to long
 
 ---
 
+### Memo
+
+Parks an off-task idea in the project's memo backlog so it isn't lost — without derailing the current task — or lists the backlog to pick something up.
+
+**Command:** `/memo [idea]`
+
+**Features:**
+- `/memo <text>` appends a dated `- [ ]` item to `<repo>/.claude/memos.md` (created on first use); `/memo` with no args lists the open backlog and offers to address one
+- Memos are deliberately lighter than GitHub issues — half-formed thoughts, committed with the project
+- Open items resurface on their own: at session start / `/clear` (via the `memos-surface.py` hook), at task completion, and after a `/commit` push
+- Capturing a memo never starts the work — that's the point; addressing one is always an explicit, separate choice
+
+---
+
 ### GitHub Status
 
 Cross-project overview of all your GitHub-owned local clones — branch, behind/ahead counts, uncommitted file/line totals, oldest pending work, and a per-repo description synthesized from the pending changes.
@@ -254,6 +268,20 @@ export CLAUDE_AI_AGENT_DASHBOARD="$HOME/projects/tauri-dashboard"
 
 ---
 
+### Memo Backlog
+
+**File:** `claude/hooks/memos-surface.py` (one script, three modes)
+
+Surfaces the open `/memo` backlog (`.claude/memos.md`, resolved at the git root, numbered newest-first) as a **transient status-bar reminder** so a fresh or freshly cleared session shows "what's next" without the user typing anything — then clears it the moment they start working. Three wired entry points:
+
+- **`SessionStart`** (`startup`/`clear`, no arg) — writes a per-session state file with the open memos. Injects **nothing** into chat, so the model never greets with or pushes the backlog — the status bar is the only reminder.
+- **`statusLine`** (`statusline` arg, `refreshInterval: 2`) — renders the compact backlog (top 3 + a `+N more` line) from the state file; the interval makes it appear within ~2s while the session is idle.
+- **`UserPromptSubmit`** (`on-prompt` arg) — clears the state (the bar reminder is done). If the message is a bare number — or `memo N` / `start N` / `do N` / `pick N` — it injects, bound to that prompt, which memo N maps to, so Claude reliably starts it instead of treating the number as noise.
+
+Stays silent when there's no file or nothing open. Needs no environment variable. See the [Memo](#memo) skill for how items get there and the other two moments they resurface (task completion, `/commit`).
+
+---
+
 ## Git Hooks
 
 ### Pre-Push Validation
@@ -267,6 +295,14 @@ Prevents pushing commits that are Claude-attributed or not GPG-signed. Every new
 - Missing good GPG signature (only `G` status passes)
 
 **Global installation** is covered in the [Global Installation](#global-installation) section below.
+
+---
+
+### Encryption guard (pre-commit)
+
+**File:** `git/hooks/pre-commit`
+
+Installed by transcrypt and made portable: in a repo configured for [encrypted memory](#encrypted-memory-secretmd) it blocks a commit if a `*.secret.md` file is staged unencrypted (the last guard against a plaintext leak). Because `core.hooksPath` is global, it guards on the per-repo transcrypt copy and is a **no-op** in any repo that doesn't use transcrypt.
 
 ---
 
@@ -365,6 +401,32 @@ and re-run the command to re-establish the (machine-local) link.
 > In this dotfiles repo the two stores sit side by side: `claude/memory/` is the
 > **global** payload deployed to `~/.claude/memory`; the repo-root
 > `.claude/memory/` is this repo's own **project-specific** memory.
+
+### Encrypted memory (`*.secret.md`)
+
+Memory files holding sensitive coordinates (not secret *values* — those stay in
+Doppler) are committed **encrypted**, so this public repo never exposes them.
+They are transparently decrypted in a working tree that holds the key, and read
+as opaque blobs to anyone without it.
+
+- **Mechanism:** [transcrypt](https://github.com/elasticdog/transcrypt) (vendored
+  at `claude/scripts/transcrypt`) wires Git clean/smudge filters. `.gitattributes`
+  marks `claude/memory/*.secret.md filter=crypt`, so those files are ciphertext in
+  every commit and plaintext only locally.
+- **Key:** a symmetric passphrase kept in Doppler (a `TRANSCRYPT_KEY` secret) — not
+  in this repo. The committed index entry for an encrypted memo is deliberately
+  generic, so even the description gives nothing away.
+
+**Unlock on a new machine** — after cloning and fetching the key, run from the repo
+root (substitute your Doppler project/config):
+
+```bash
+bash claude/scripts/transcrypt -c aes-256-cbc \
+  -p "$(doppler secrets get TRANSCRYPT_KEY --project <project> --config <config> --plain)"
+```
+
+Until then, `*.secret.md` files read as encrypted blobs. Add more by naming them
+`*.secret.md`; the attribute pattern encrypts them automatically.
 
 ## License
 
