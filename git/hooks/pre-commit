@@ -1,0 +1,11 @@
+#!/usr/bin/env bash
+# Transcrypt pre-commit safety hook (global via core.hooksPath).
+#
+# In a transcrypt-configured repo, it fails the commit if a secret file is staged
+# WITHOUT the encrypted "Salted" magic — the last line of defense against leaking a
+# plaintext *.secret.md. In any repo that doesn't use transcrypt it must be a no-op,
+# since this hook runs for every repo, so it guards on the per-repo transcrypt copy.
+RELATIVE_GIT_DIR=$(git rev-parse --git-common-dir 2>/dev/null || printf '')
+CRYPT_DIR=$(git config transcrypt.crypt-dir 2>/dev/null || printf '%s/crypt' "${RELATIVE_GIT_DIR}")
+[ -x "${CRYPT_DIR}/transcrypt" ] || exit 0
+"${CRYPT_DIR}/transcrypt" pre_commit
