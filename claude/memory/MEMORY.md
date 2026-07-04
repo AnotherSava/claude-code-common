@@ -1,6 +1,10 @@
 - [Follow skill instructions exactly](feedback_follow_skill_instructions.md) — never abbreviate or skip steps in skills, even when output feels verbose
+- [Depersonalize memory content](feedback_depersonalize_memory.md) — frame saved memory as preferences/behaviors, not personal traits about the user (body + slug)
+- [Chart neighbour contrast](feedback_chart_neighbour_contrast.md) — categorical charts: adjacent-segment contrast beats even hue spreading; colour by sorted position, not fixed per-category hue
 - [Default cursor on non-interactive text](feedback_default_cursor_noninteractive.md) — brand wordmarks/labels use cursor:default (not I-beam/pointer); don't make decorative wordmarks clickable unless asked
 - [Fix failing skills](feedback_fix_skills.md) — fix the skill definition instead of working around failures manually
+- [Reproduce tool failures early](feedback_reproduce_tool_failures_early.md) — when an external tool keeps failing through code-side fixes, inspect the real artifact + run the real command instead of theorizing
+- [Verify GUI fixes via isolated repro](feedback_verify_gui_via_repro.md) — desktop UI sizing/layout bugs you can't screenshot: build a tiny repro that logs the metrics, don't deploy-and-ask on unverified reasoning
 - [No unprompted skill edits](feedback_no_unprompted_skill_edits.md) — don't rewrite a working skill's guidance unasked; fixing applies when a skill fails during use
 - [Codify conventions as single rules](feedback_codify_conventions_as_single_rules.md) — one unambiguous rule, no "or Y is also fine" escape hatch; sweep all artifacts after codifying
 - [Glob safety for numeric filenames](feedback_glob_safety_windows.md) — `hex_4*.png` matches hex_40, hex_400, AND hex_441; use explicit ranges
@@ -9,6 +13,7 @@
 - [Eliminate the bug class, don't patch paths](feedback_eliminate_bug_class.md) — a bug recurring after a targeted patch means wrong altitude; remove the structural cause (e.g. push→pull) not the trigger path
 - [Pre-push hook rejects unsigned + Claude trailers](reference_push_hook.md) — resign ancestors with `git rebase --exec` before first push
 - [Multiline commit messages via -m flags](feedback_commit_message_m_flags.md) — use repeatable `git commit -m … -m …`, not PowerShell here-strings; Git Bash leaks `@'…'@` literally
+- [Can't pipe into heredoc-python](feedback_heredoc_python_stdin.md) — `cmd | python <<'EOF'` loses the pipe (heredoc overrides stdin, becomes the program); write to a temp file + read sys.argv instead
 - [Attribution style for inherited projects](feedback_attribution_style.md) — keep original LICENSE; "Initially based on…" in `docs/index.md` only
 - [Plan file timestamp format and lifecycle](feedback_plan_timestamp_format.md) — `docs/plans/YYYY-MM-DD_HH-MM-<slug>.md`; move to `docs/plans/completed/` after execution
 - [Claude dotfiles repo](reference_claude_dotfiles_repo.md) — ~/.claude/ + global git files symlinked from a shared repo; edits are version-controlled there
@@ -50,3 +55,5 @@
 - [Ask before touching local servers](feedback_ask_before_touching_servers.md) — announce when starting a dev server for verification; ask before stopping one you didn't clearly start this turn (the user may have their own)
 - [Perceptible state changes](feedback_perceptible_state_changes.md) — a hover/state change called "barely noticeable" needs a distinct shade token-swap, not a nudged brightness/opacity filter; verify visually
 - [Offer visual options](feedback_offer_visual_options.md) — for visual/UI design choices, render multiple labeled options at real target sizes on a representative bg and let the user pick
+- [No retry-poll for init races](feedback_avoid_poll_for_init_races.md) — don't mask a startup race with a poll; init producer first + one authoritative sequenced read (or a readiness barrier if wide/high-stakes)
+- [Microcopy names user-facing state](feedback_microcopy_user_facing_state.md) — tooltips/labels describe the state the user sees, not the internal/API condition ("No usage yet", not "No active window" mirroring resets_at:null)
