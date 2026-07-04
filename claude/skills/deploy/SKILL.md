@@ -9,6 +9,7 @@ See `~/.claude/learnings/shell-environment.md` for the expected bash functions a
 
 ## Context
 - Deploy function in shell rc: !`cat ~/.bashrc ~/.zshrc ~/.bash_profile ~/.zprofile 2>/dev/null | grep -c "deploy()" || echo 0`
+- run_repo_script helper in shell rc: !`cat ~/.bashrc ~/.zshrc ~/.bash_profile ~/.zprofile 2>/dev/null | grep -c "run_repo_script()" || echo 0`
 - Shell rc target: !`case "$(uname -s)" in Darwin) echo "~/.zshrc" ;; MINGW*|MSYS*|CYGWIN*) echo "~/.bashrc" ;; *) [ -n "$ZSH_VERSION" ] || [ "${SHELL##*/}" = "zsh" ] && echo "~/.zshrc" || echo "~/.bashrc" ;; esac`
 - Wrapper script exists: !`test -f scripts/deploy.sh && echo yes || echo no`
 - Wrapper target: !`grep -oE 'deploy(-[a-z]+)?\.sh' scripts/deploy.sh 2>/dev/null | tail -1 || echo none`
@@ -69,9 +70,10 @@ The local-install types (Tauri / IntelliJ / .NET) and the local dev server are m
 
 ## 2. Check prerequisites
 
-1. If **Deploy function in shell rc** is 0, append the function to the file in **Shell rc target** (i.e. `~/.zshrc` on macOS, `~/.bashrc` on Windows Git Bash / Linux-bash):
+1. If **Deploy function in shell rc** is 0, append the `deploy` wrapper to the file in **Shell rc target** (i.e. `~/.zshrc` on macOS, `~/.bashrc` on Windows Git Bash / Linux-bash). It delegates to the shared `run_repo_script` helper, which walks up from the current directory to the repo's `scripts/deploy.sh` and runs it from the directory that holds it — so `deploy` works from any subdirectory (the underlying scripts read `config/deploy.env` relative to that root). If **run_repo_script helper in shell rc** is 0, append the helper too (the `build` skill installs the same one — add it only when missing, so it isn't duplicated):
    ```bash
-   deploy() { if [ -f scripts/deploy.sh ]; then bash scripts/deploy.sh "$@"; else echo "No scripts/deploy.sh in current directory"; fi; }
+   run_repo_script() { local rel="$1"; shift; local d="$PWD"; while [ "$d" != "/" ] && [ ! -f "$d/$rel" ]; do d="$(dirname "$d")"; done; if [ -f "$d/$rel" ]; then ( cd "$d" && bash "$rel" "$@" ); else echo "No $rel in this directory or any parent"; fi; }
+   deploy() { run_repo_script scripts/deploy.sh "$@"; }
    ```
 
 **If `TARGET` is `deploy-cloudflare-pages.sh`, configure via §2a and skip items 2–4. If `TARGET` is `deploy-dev-server.sh`, configure via §2b and skip items 2–4. (Items 2–4 are for the local-install targets.)**

@@ -1,22 +1,25 @@
 ---
 name: build
 description: Configure build script and run it
-allowed-tools: Bash(bash ~/.claude/skills/build/scripts/build.sh), Bash(build), Bash(echo *), Bash(test *), Bash(ls *), Bash(mkdir *), Bash(find *), Bash(grep *), AskUserQuestion, Write(scripts/build.sh), Write(.github/workflows/build.yml), Edit(.gitignore), Read(.gitignore), Edit(~/.bashrc), Read(~/.bashrc), Read(package.json), Read(.nvmrc), Read(global.json)
+allowed-tools: Bash(bash ~/.claude/skills/build/scripts/build.sh), Bash(build), Bash(echo *), Bash(test *), Bash(ls *), Bash(mkdir *), Bash(find *), Bash(grep *), AskUserQuestion, Write(scripts/build.sh), Write(.github/workflows/build.yml), Edit(.gitignore), Read(.gitignore), Edit(~/.bashrc), Read(~/.bashrc), Edit(~/.zshrc), Read(~/.zshrc), Read(package.json), Read(.nvmrc), Read(global.json)
 ---
 
 See `~/.claude/learnings/shell-environment.md` for the expected bash functions and verification checklist.
 
 ## Context
-- Build function in bashrc: !`grep -c "build()" ~/.bashrc 2>/dev/null || echo 0`
+- Shell rc target: !`case "$(uname -s)" in Darwin) echo "~/.zshrc" ;; MINGW*|MSYS*|CYGWIN*) echo "~/.bashrc" ;; *) [ -n "$ZSH_VERSION" ] || [ "${SHELL##*/}" = "zsh" ] && echo "~/.zshrc" || echo "~/.bashrc" ;; esac`
+- Build function in shell rc: !`cat ~/.bashrc ~/.zshrc ~/.bash_profile ~/.zprofile 2>/dev/null | grep -c "build()" || echo 0`
+- run_repo_script helper in shell rc: !`cat ~/.bashrc ~/.zshrc ~/.bash_profile ~/.zprofile 2>/dev/null | grep -c "run_repo_script()" || echo 0`
 - Wrapper script exists: !`test -f scripts/build.sh && echo yes || echo no`
 - Scripts in gitignore: !`grep -cx 'scripts/' .gitignore 2>/dev/null || echo 0`
 - GitHub workflow: !`ls .github/workflows/*.yml 2>/dev/null || echo none`
 
 ## 1. Check prerequisites
 
-1. If **Build function** is 0, append the function to `~/.bashrc`:
+1. If **Build function in shell rc** is 0, append the `build` wrapper to the file in **Shell rc target** (i.e. `~/.zshrc` on macOS, `~/.bashrc` on Windows Git Bash / Linux-bash). It delegates to the shared `run_repo_script` helper, which walks up from the current directory to the repo's `scripts/build.sh` and runs it from the directory that holds it — so `build` works from any subdirectory. If **run_repo_script helper in shell rc** is 0, append the helper too (the `deploy` skill installs the same one — add it only when missing, so it isn't duplicated):
    ```bash
-   build() { if [ -f scripts/build.sh ]; then bash scripts/build.sh "$@"; else echo "No scripts/build.sh in current directory"; fi; }
+   run_repo_script() { local rel="$1"; shift; local d="$PWD"; while [ "$d" != "/" ] && [ ! -f "$d/$rel" ]; do d="$(dirname "$d")"; done; if [ -f "$d/$rel" ]; then ( cd "$d" && bash "$rel" "$@" ); else echo "No $rel in this directory or any parent"; fi; }
+   build() { run_repo_script scripts/build.sh "$@"; }
    ```
 
 ## 2. Set up quick build shortcut
@@ -85,9 +88,9 @@ jobs:
   build:
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v5
 
-      - uses: actions/setup-node@v4
+      - uses: actions/setup-node@v5
         with:
           node-version-file: .nvmrc  # or node-version: '24' if no .nvmrc
           cache: npm
@@ -115,7 +118,7 @@ jobs:
   build:
     runs-on: ubuntu-latest  # or windows-latest for Windows-only targets
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v5
 
       - uses: actions/setup-dotnet@v4
         with:
@@ -145,9 +148,9 @@ jobs:
         os: [windows-latest, macos-latest]
     runs-on: ${{ matrix.os }}
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v5
 
-      - uses: actions/setup-node@v4
+      - uses: actions/setup-node@v5
         with:
           node-version: '24'  # or node-version-file: .nvmrc
           cache: npm
@@ -168,7 +171,7 @@ jobs:
 ## 4. Build
 
 If step 1 or 2 made changes, tell the user:
-> The `build` shortcut has been configured. **Restart Claude Code** for `! build` to work — the shell reads `~/.bashrc` only at startup, so new functions aren't available until the next session.
+> The `build` shortcut has been configured. **Restart Claude Code** for `! build` to work — the shell reads its rc file only at startup, so new functions aren't available until the next session.
 >
 > For now, running the build directly:
 

@@ -44,11 +44,12 @@ claude() {
 ### `deploy` / `build` — project shortcuts
 
 ```bash
-deploy() { if [ -f scripts/deploy.sh ]; then bash scripts/deploy.sh "$@"; else echo "No scripts/deploy.sh in current directory"; fi; }
-build()  { if [ -f scripts/build.sh ]; then bash scripts/build.sh "$@"; else echo "No scripts/build.sh in current directory"; fi; }
+run_repo_script() { local rel="$1"; shift; local d="$PWD"; while [ "$d" != "/" ] && [ ! -f "$d/$rel" ]; do d="$(dirname "$d")"; done; if [ -f "$d/$rel" ]; then ( cd "$d" && bash "$rel" "$@" ); else echo "No $rel in this directory or any parent"; fi; }
+deploy() { run_repo_script scripts/deploy.sh "$@"; }
+build()  { run_repo_script scripts/build.sh "$@"; }
 ```
 
-Use `! deploy` or `! build` inside Claude Code, or run directly in any terminal. Each project has a `scripts/deploy.sh` and/or `scripts/build.sh` (gitignored) that delegates to the global script in the corresponding skill directory.
+Use `! deploy` or `! build` inside Claude Code, or run directly in any terminal. Both delegate to `run_repo_script`, which walks up from the current directory to the repo's `scripts/<name>.sh` and runs it from the directory that holds it — so they work from any subdirectory (the underlying scripts read `config/deploy.env` and other paths relative to that root). `run_repo_script` is generic: reuse it for any future repo shortcut. Each project has a `scripts/deploy.sh` and/or `scripts/build.sh` (gitignored) that delegates to the global script in the corresponding skill directory.
 
 ### `memo` — fast backlog access
 
