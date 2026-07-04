@@ -26,6 +26,9 @@ When a problem resists the first attempt or two — especially browser/CSS quirk
 
 - Do not create git commits unless explicitly asked
 - Do not push to remote unless explicitly requested
+- When you've finished non-trivial feature work and the user pivots to a different feature, ask whether they want to commit the finished work first — don't start the new task on top of an uncommitted change set without offering. Skip the prompt for trivial edits or when changes are already committed.
+- Do not ask whether to commit merely because you finished working — completing a task is not a trigger. The only trigger is the user pivoting to a next, unrelated set of changes (see the previous rule).
+- When a task incidentally changes a file in a *different* repository than the one the task is about (e.g. editing a global skill in the dotfiles repo while working in a project), report the change so the user knows it's there — but do not offer or ask to commit it. Leave the other repo's commits entirely to the user; surface, don't solicit.
 - Follow `~/.claude/skills/shared/commit-message-rules.md`
 - Prefer `git status --short` over `git diff --stat` for change-set summaries. Changes sit unstaged until `/commit` runs, so untracked files are part of the pending commit — and `git diff --stat` silently omits them, producing an incomplete picture.
 
@@ -33,6 +36,7 @@ When a problem resists the first attempt or two — especially browser/CSS quirk
 
 - **Windows (Git Bash):** always use forward slashes (`/`) in paths, not backslashes (`\`). Backslashes are interpreted as escape characters by bash and get stripped.
 - **macOS / Linux:** paths are already Unix-style; no special handling needed.
+- **File tools share the Bash cwd.** Read/Edit/Write/Glob/Grep resolve relative paths against the current Bash working directory, and a `cd` in an earlier Bash call persists across calls — a stray `cd` then silently misdirects file writes (e.g. into a nested `repo/repo/…` tree). Use absolute paths for file tools, or avoid `cd` (use `--prefix`, `-C`, or a `( cd … )` subshell).
 
 When asking the user to run a command manually (e.g. launching an app, system config):
 - **on Windows:** provide PowerShell syntax — not bash or cmd.
