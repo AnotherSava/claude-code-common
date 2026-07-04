@@ -44,7 +44,7 @@ Audit modified files for dead code, duplication, naming conventions, and import 
 
    Skip dunder methods and members that are public API by design (a library's surface stays public even while temporarily uncalled; tests calling an internal member directly do not make it public). For each mismatch, propose the rename and wait for approval; when renaming, update every usage including tests.
 
-5. **Optimize imports in modified source code files**
+5. **Optimize imports in modified source code files** — if the project has a linter/formatter that organizes imports (ruff, isort, …), run its autofix (e.g. `ruff check --fix`) rather than hand-editing; only hand-optimize when none exists. Some projects deliberately exclude import cleanup from their edit-time lint hook and defer it to commit time, so this step is where it actually gets applied.
 
 6. **Report** what was cleaned up. If nothing was found, say so.
 
