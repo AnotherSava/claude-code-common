@@ -180,6 +180,20 @@ When creating a new global skill, check the global gitignore (`~/.gitignore` or 
 
 Skills that configure bash functions (like `build` and `deploy`) should reference `~/.claude/learnings/shell-environment.md` for the canonical list of expected functions and the verification checklist. When adding a new bash function to a skill, update that file too.
 
+## Cross-platform scripts (Windows + macOS)
+
+Skills run on both Windows (Git Bash) and macOS (zsh/bash), so every script and `!` context command a skill emits must work on both — never assume one OS.
+
+- **Shell rc file** — don't hardcode `~/.bashrc`. Detect the target per-OS (zsh on macOS, bash on Windows Git Bash / Linux) and grep across all candidates when checking whether a function is installed. Reuse the probe the `deploy` / `build` skills already use:
+  ```bash
+  case "$(uname -s)" in Darwin) echo "~/.zshrc" ;; MINGW*|MSYS*|CYGWIN*) echo "~/.bashrc" ;; *) [ -n "$ZSH_VERSION" ] || [ "${SHELL##*/}" = "zsh" ] && echo "~/.zshrc" || echo "~/.bashrc" ;; esac
+  ```
+- **OS-specific commands** — branch on `uname -s` and give both arms (as the Full-width terminal section does: `tput cols` on macOS/Linux vs the PowerShell tool on Windows). Never emit a command that exists on only one OS without a fallback.
+- **Stay POSIX** — a snippet appended to the rc may run under bash *or* zsh. Use constructs both accept (`[ … ]`, `case`, `$( )`); avoid bash-only `[[ … ]]`/arrays where a POSIX form works, and avoid zsh-only syntax.
+- **Beware tool flag drift** — macOS ships BSD `sed`/`grep`/`date` whose flags differ from GNU (e.g. `sed -i` needs an arg on BSD). Prefer portable invocations, or cross-platform tools the skill can already rely on (`git`, `node`, `python`).
+- **Paths** — forward slashes everywhere (see Conventions); `~`/`$HOME` resolve on both; never assume drive letters.
+- **Verify on the OS you're on, and reason explicitly about the other** before shipping — a Windows-only `!` command silently breaks a macOS user's skill run, and vice versa.
+
 ## Conventions
 
 - **One command per Bash call** in skills that use `allowed-tools` with Bash patterns (see `~/.claude/skills/shared/bash-rules.md`)
