@@ -33,7 +33,7 @@ Read `~/.claude/skills/shared/bash-rules.md` for bash command constraints.
 
 ## Process:
 
-**Pacing:** Steps 1–7 are preparation. Sub-skills may legitimately pause when they find substantive changes needing approval (e.g. reflect proposing items to save, clean-code proposing dead-code removal, documentation proposing edits). Honor those gates. But when a sub-skill finishes with nothing to report, continue immediately to the next step — do not insert an extra confirmation gate. The only gates the commit skill itself owns are step 1 (related-issue check, only if an open issue matches the change set), step 7 (plan-filename warning, if triggered), step 8 (commit-plan approval), and step 9 (push).
+**Pacing:** Steps 1–7 are preparation. Sub-skills may legitimately pause when they find substantive changes needing approval (e.g. reflect proposing items to save, clean-code proposing dead-code removal, documentation proposing edits). Honor those gates. But when a sub-skill finishes with nothing to report, continue immediately to the next step — do not insert an extra confirmation gate. The only gates the commit skill itself owns are step 1 (related-issue check, only if an open issue matches the change set), step 6 (project commit-checks, if `.claude/commit-checks.sh` exists and its run fails), step 7 (plan-filename warning, if triggered), step 8 (commit-plan approval), and step 9 (push).
 
 1. **Assess the current state of the repository** (use Context above):
    - **Remote sync check (do this first):** If **Remote ahead by** is > 0, the remote has commits you don't have locally and `git push` will be rejected at the end. Surface this to the user immediately and propose `git pull --rebase origin <branch>` before proceeding. Wait for user confirmation before rebasing — it could conflict with the pending changes. After rebasing, re-check `git status --short` since the working tree may differ.
@@ -63,11 +63,13 @@ Read `~/.claude/skills/shared/bash-rules.md` for bash command constraints.
    - If anything looks sensitive — or any absolute path turned up — list the findings and ask the user before proceeding; do not silently include them in the commit plan
 
 6. **Plan your commit(s):**
+   - **Project commit-checks (run first):** If `.claude/commit-checks.sh` exists at the repo root, run it (`bash .claude/commit-checks.sh`) before drafting the plan. This lets a project gate its own commits on tests or linters too slow to run on every edit. On a non-zero exit, surface the output and STOP — do not present a commit plan for code that fails its own checks; hand the failures back to be fixed first. If the script is absent, skip silently.
    - Read `~/.claude/skills/shared/commit-message-rules.md` for commit message formatting and validation rules
    - Group into atomic commits by feature/fix/refactor — no file belongs to more than one group, and each group can be committed independently
    - Identify which files belong together
    - If a single file contains changes that belong to different commits, do NOT attempt to split it with `git add -p` or partial staging — assign the file to the commit where it fits best and note the mixed content in the plan
    - Put tests and documentation changes in the same commit as the feature they cover, unless there is a significant reason to separate
+   - **Implemented memos**: if a pending memo (Context **Pending memos** / `<repo>/.claude/memos.md`) is clearly implemented by this change set, flip its `- [ ]` to `- [x]` **now** and fold `.claude/memos.md` into the commit that implements it — check it off *with the changes*, not as a follow-up after the push. (Only memos this change set actually delivers; still-open ones stay untouched until step 10.)
    - **Plan files (`docs/plans/**`)**: bundle each plan file into the SAME commit as the implementation it describes. Match by filename slug / content keywords against the changed source paths. Only emit a separate `docs(plans):` commit if the plan file is the ONLY change (e.g. editing a plan mid-design without implementing yet, or archiving unrelated historical plans).
    - Draft and validate commit messages following the shared rules
 
@@ -93,9 +95,9 @@ Read `~/.claude/skills/shared/bash-rules.md` for bash command constraints.
    - **Post-push issue notice:** If step 1's triage found open issues unrelated to this change set, list them now as a heads-up after the push completes (number + title, with the total count). If the user declined to push, mention them alongside the unpushed-commits summary instead. Keep it brief and don't propose action unless the user asks.
 
 10. **Surface pending memos:**
-    Using **Pending memos** from Context (the open `- [ ]` items in `<Repo root>/.claude/memos.md`), give the user their idea backlog as a closing heads-up — the natural moment to decide what's next now that the work is committed.
-    - If there are open memos, list them as a numbered backlog (newest first) right after the post-push issue notice, and offer: address one now (the user picks a number) or leave them. Keep it brief; don't propose action beyond the offer, and don't start any memo unasked.
-    - If a memo's idea was clearly implemented by the commits just made, point that out and offer to check it off (`- [x]`) in the same breath.
+    Using **Pending memos** from Context (the open `- [ ]` items in `<Repo root>/.claude/memos.md`), surface the user's idea backlog as a closing informational heads-up so it isn't forgotten now that the work is committed.
+    - If there are open memos, list them as a numbered backlog (newest first) right after the post-push issue notice. Keep it brief. Do NOT ask whether to start one, invite the user to pick a number, or otherwise pose a question — just surface them and stop. Don't start any memo unasked.
+    - A memo this change set implemented was already checked off and folded into the commit back in step 6, so it won't appear here — don't re-offer it. This step only surfaces memos that are still genuinely open.
     - If **Pending memos** is `(none)` or the file is absent, say nothing about memos.
 
 ## Important:
