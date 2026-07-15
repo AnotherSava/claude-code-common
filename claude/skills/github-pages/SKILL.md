@@ -30,7 +30,7 @@ Reference implementations:
 
 - **jsonl-logs-intellij-plugin** — modern just-the-docs reference. Single product with deep splitting (Usage parent + 6 children, Development parent + 2 children).
 - **chrome-assistant** — monorepo variant (one product per subfolder under `docs/pages/`).
-- **bga-assistant** — earlier flat variant.
+- **bga-assistant** — just-the-docs flat variant; game pages grouped under a `Games` parent, a game-agnostic feature page (Play-time tracking) at top level, and a Development page with the data-flow reference nested under it via front matter.
 
 Read the target repo's `README.md`, `docs/index.md`, `docs/_config.yml`, and one or two child pages before writing new docs — copy their tone and shape.
 
