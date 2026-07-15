@@ -38,6 +38,7 @@
 - [Honor concrete example](feedback_honor_concrete_example.md) — implement the user's literal example; ask before substituting a more general rule
 - [Discuss before rewriting deliberate behavior](feedback_discuss_before_rewriting_design.md) — don't rewrite considered design off a single offhand comment; propose, preview, confirm first
 - [Resolve symlinks before editing](feedback_resolve_symlinks_before_editing.md) — Write/Edit fail on symlinks; `readlink` first for anything under `~/.claude/`
+- [Match visuals by tracing, not memory](feedback_match_visual_by_tracing.md) — reproduce an icon/logo/reference by pixel-overlay tracing + iteration; see [[icon-tracing-pixel-overlay]] learning
 - [Don't cache cheap derivations](feedback_no_cache_cheap_derivations.md) — use plain @property for cheap derived values; reserve @cached_property for genuinely expensive computation
 - [Edit replace_all scope safety](feedback_edit_replace_all_scope.md) — replace_all is only safe when matches share indentation/scope; multi-line new_string will mis-indent across different blocks
 - [Side-panel actions refresh, don't navigate](feedback_actions_refresh_not_navigate.md) — explicit clicks navigate the host page; action consequences refresh in place to preserve user context
@@ -57,3 +58,6 @@
 - [Offer visual options](feedback_offer_visual_options.md) — for visual/UI design choices, render multiple labeled options at real target sizes on a representative bg and let the user pick
 - [No retry-poll for init races](feedback_avoid_poll_for_init_races.md) — don't mask a startup race with a poll; init producer first + one authoritative sequenced read (or a readiness barrier if wide/high-stakes)
 - [Microcopy names user-facing state](feedback_microcopy_user_facing_state.md) — tooltips/labels describe the state the user sees, not the internal/API condition ("No usage yet", not "No active window" mirroring resets_at:null)
+- [Understated UI affordances](feedback_understated_affordances.md) — small neutral icon over a bold colored pill; keep resting state muted, reserve brand color for hover/active
+- [Compact interval format](feedback_compact_interval_format.md) — elapsed time as largest unit only ("5m"/"3h"/"12d"), min "1m", no seconds, unbounded days; full spec + code
+- [Overlay legibility on artwork](feedback_overlay_legibility_on_art.md) — affordance over posters/photos: flat dark scrim + solid mark, not a spotlight gradient + translucent mark
