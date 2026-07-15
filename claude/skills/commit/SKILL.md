@@ -1,7 +1,7 @@
 ---
 name: commit
 description: Reflects on the session, then analyzes changes and generates Conventional Commit messages
-allowed-tools: Read, Edit, Write, Grep, Glob, Bash(git diff:*), Bash(git add:*), Bash(git commit:*), Bash(git status:*), Bash(git log:*), Bash(git reset HEAD:*), Bash(git ls-files:*), Bash(git rev-list:*), Bash(git rev-parse:*), Bash(git push:*), Bash(gh issue list:*), Bash(bash ~/.claude/scripts/sanitize-project-memory.sh:*), Bash(rm:*)
+allowed-tools: Read, Edit, Write, Grep, Glob, Bash(git diff:*), Bash(git add:*), Bash(git commit:*), Bash(git status:*), Bash(git log:*), Bash(git reset HEAD:*), Bash(git ls-files:*), Bash(git rev-list:*), Bash(git rev-parse:*), Bash(git push:*), Bash(gh issue list:*), Bash(bash ~/.claude/scripts/sanitize-project-memory.sh:*), Bash(bash ~/.claude/scripts/link-project-memory.sh:*), Bash(rm:*)
 ---
 
 # Commit Changes
@@ -13,13 +13,14 @@ Read `~/.claude/skills/shared/bash-rules.md` for bash command constraints.
 ## Context
 - Repo root: !`git rev-parse --show-toplevel 2>/dev/null || pwd`
 - Ignore rules: !`R=$(git rev-parse --show-toplevel 2>/dev/null || pwd) && cat "$R/.gitignore" 2>/dev/null || true`
+- Wire project memory: !`R=$(git rev-parse --show-toplevel 2>/dev/null || pwd) && PID=$(printf '%s' "$R" | sed 's|[^a-zA-Z0-9]|-|g') && MEM="$HOME/.claude/projects/$PID/memory" && if [ -d "$MEM" ] && [ ! -L "$MEM" ] && [ -n "$(ls -A "$MEM"/*.md 2>/dev/null)" ]; then bash ~/.claude/scripts/link-project-memory.sh "$R" 2>&1; else echo "(already version-controlled or no project memory to wire)"; fi || true`
 - Sanitize project memory: !`R=$(git rev-parse --show-toplevel 2>/dev/null || pwd) && bash ~/.claude/scripts/sanitize-project-memory.sh "$R" 2>/dev/null || true`
 - Unstage all: !`git reset HEAD 2>/dev/null || true`
 - Remote ahead by: !`git fetch origin --quiet 2>/dev/null || true; git rev-list --count HEAD..@{upstream} 2>/dev/null || echo "n/a"`
 - Uncommitted changes: !`git status --short`
-- Diff summary: !`git diff HEAD --stat`
-- Full diff: !`git diff HEAD`
-- Recent commits: !`git log --oneline -10`
+- Diff summary: !`git diff --stat $(git rev-parse -q --verify HEAD || echo 4b825dc642cb6eb9a060e54bf8d69288fbee4904)`
+- Full diff: !`git diff $(git rev-parse -q --verify HEAD || echo 4b825dc642cb6eb9a060e54bf8d69288fbee4904)`
+- Recent commits: !`git log --oneline -10 2>/dev/null || echo "(no commits yet)"`
 - Open issues: !`gh issue list --repo "$(git remote get-url origin 2>/dev/null | sed -E 's#^.*github\.com[:/]##; s#\.git$##; s#/$##')" --state open --limit 30 2>/dev/null || echo "n/a"`
 - Pending memos: !`R=$(git rev-parse --show-toplevel 2>/dev/null || pwd) && grep '^- \[ \]' "$R/.claude/memos.md" 2>/dev/null || echo "(none)"`
 
@@ -71,6 +72,7 @@ Read `~/.claude/skills/shared/bash-rules.md` for bash command constraints.
    - Put tests and documentation changes in the same commit as the feature they cover, unless there is a significant reason to separate
    - **Implemented memos**: if a pending memo (Context **Pending memos** / `<repo>/.claude/memos.md`) is clearly implemented by this change set, flip its `- [ ]` to `- [x]` **now** and fold `.claude/memos.md` into the commit that implements it — check it off *with the changes*, not as a follow-up after the push. (Only memos this change set actually delivers; still-open ones stay untouched until step 10.)
    - **Plan files (`docs/plans/**`)**: bundle each plan file into the SAME commit as the implementation it describes. Match by filename slug / content keywords against the changed source paths. Only emit a separate `docs(plans):` commit if the plan file is the ONLY change (e.g. editing a plan mid-design without implementing yet, or archiving unrelated historical plans).
+   - **Project memory (`.claude/memory/**`)**: the *Wire project memory* context step version-controls it — the first time it runs in a project it migrates the machine-local memory cache into `<repo>/.claude/memory/` and junctions the cache to it (idempotent; it skips already-wired or memory-less repos, so most runs are a no-op). When it *did* migrate files, they show up as untracked in **Uncommitted changes** — fold them into a commit (their own `chore: version-control project memory`, or alongside the session's docs). The Sanitize step already stripped `originSessionId` telemetry, but these are running work-logs that often carry machine-specific absolute paths and ids — the confidentiality check (step 5) MUST still pass over them and genericize/redact before they land.
    - Draft and validate commit messages following the shared rules
 
 7. **Validate plan filenames:**
@@ -90,8 +92,8 @@ Read `~/.claude/skills/shared/bash-rules.md` for bash command constraints.
 9. **Execute upon confirmation:**
    - Use `git add` with specific files (never use `-A` or `.`)
    - Create commits with your planned messages using `git commit -S` to GPG-sign them
-   - After all commits are done, list all unpushed commits with `git log @{upstream}..HEAD --format="%h %ai %s"` (fall back to `origin/<branch>..HEAD` if no upstream). Format each line as `Mon DD, HH:MM [hash] message` (e.g. `Mar 28, 16:59 [a37da68] feat: add side panel`). Display the full list as the end summary — this gives the user the complete picture of what will be pushed.
-   - After showing the summary, ask: "Push?" — if the user confirms, run `git push`.
+   - After all commits are done, list all unpushed commits with `git log @{upstream}..HEAD --format="%h %ai %s"` (fall back to `origin/<branch>..HEAD` if no upstream; and if *that* ref doesn't exist either — a first push to a fresh/empty remote — list every commit with `git log HEAD --format="%h %ai %s"`). Format each line as `Mon DD, HH:MM [hash] message` (e.g. `Mar 28, 16:59 [a37da68] feat: add side panel`). Display the full list as the end summary — this gives the user the complete picture of what will be pushed.
+   - After showing the summary, ask: "Push?" — if the user confirms, run `git push` (on a first push with no upstream yet, `git push -u origin HEAD` to set up tracking).
    - **Post-push issue notice:** If step 1's triage found open issues unrelated to this change set, list them now as a heads-up after the push completes (number + title, with the total count). If the user declined to push, mention them alongside the unpushed-commits summary instead. Keep it brief and don't propose action unless the user asks.
 
 10. **Surface pending memos:**

@@ -11,8 +11,8 @@ Scan project documentation and comments for references that no longer match the 
 ## Context
 - Repo root: !`git rev-parse --show-toplevel 2>/dev/null || pwd`
 - Uncommitted changes: !`git status --short`
-- Diff summary: !`git diff HEAD --stat`
-- Full diff: !`git diff HEAD`
+- Diff summary: !`git diff --stat $(git rev-parse -q --verify HEAD || echo 4b825dc642cb6eb9a060e54bf8d69288fbee4904)`
+- Full diff: !`git diff $(git rev-parse -q --verify HEAD || echo 4b825dc642cb6eb9a060e54bf8d69288fbee4904)`
 - GH Pages index present: !`R=$(git rev-parse --show-toplevel 2>/dev/null || pwd) && test -f "$R/docs/index.md" && echo yes || echo no`
 
 ## Working directory

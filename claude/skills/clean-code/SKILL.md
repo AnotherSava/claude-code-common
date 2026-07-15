@@ -1,7 +1,7 @@
 ---
 name: clean-code
 description: Remove dead code, fix duplication, enforce naming conventions, and optimize imports in modified files
-allowed-tools: Read, Edit, Write, Grep, Glob, Bash(git diff:*), Bash(git status:*)
+allowed-tools: Read, Edit, Write, Grep, Glob, Bash(git diff:*), Bash(git status:*), Bash(git rev-parse:*)
 ---
 
 # Clean Code
@@ -10,8 +10,8 @@ Audit modified files for dead code, duplication, naming conventions, and import 
 
 ## Context
 - Uncommitted changes: !`git status --short`
-- Diff summary: !`git diff HEAD --stat`
-- Full diff: !`git diff HEAD`
+- Diff summary: !`git diff --stat $(git rev-parse -q --verify HEAD || echo 4b825dc642cb6eb9a060e54bf8d69288fbee4904)`
+- Full diff: !`git diff $(git rev-parse -q --verify HEAD || echo 4b825dc642cb6eb9a060e54bf8d69288fbee4904)`
 
 ## Process
 
