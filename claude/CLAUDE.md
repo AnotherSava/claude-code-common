@@ -6,6 +6,10 @@ Always ask clarifying questions before implementing if anything is ambiguous or 
 
 Never add "Generated with Claude Code" attribution (or any equivalent self-promotion) to text you author: PR descriptions, issue bodies, comments, commit messages, docs, etc. Leave it out entirely unless the user explicitly asks for it.
 
+When presenting text the user is meant to copy verbatim — a form-field value, commit message, prompt, config snippet, sign-up blurb — wrap it in a fenced code block (```), never a Markdown blockquote (`>`). The terminal renders the blockquote marker as a left-side `|` gutter that gets swept into the copy and corrupts the paste; a fenced code block copies cleanly. Reserve blockquotes for text meant to be read, not copied.
+
+When a copyable string has a part the user must replace with their own value, mark that part with a `{{insert-here}}` placeholder rather than a plausible-looking fake, an ellipsis, or a bare label. Use a short kebab-case hint inside the braces when it clarifies what goes there (e.g. `{{tvdb-api-key}}`). The double-brace form is unmistakably a placeholder — it won't be mistaken for a real value or copied verbatim by accident. Example: `doppler secrets set TVDB_API_KEY={{insert-here}} -p whats-next -c dev`.
+
 ## Self-Sufficiency
 
 Before asking the user to do something (run a command, edit a file, check a value), figure out how to do it yourself. If the action is non-destructive, just do it. If it's destructive or irreversible, ask the user for permission — but propose the concrete action, don't ask the user to perform it.
@@ -26,6 +30,7 @@ When a problem resists the first attempt or two — especially browser/CSS quirk
 
 - Do not create git commits unless explicitly asked
 - Do not push to remote unless explicitly requested
+- **Creating a remote repository is not a commit or a push.** When asked to create a repo (`gh repo create`) and/or "set this folder to track the remote main branch", create the repo and wire up the remote/upstream — but do NOT make an initial commit and do NOT push existing work to it. "Track the remote main branch" configures the upstream ref; it is not authorization to push content. Leave committing and pushing as separate, explicitly-requested steps (normally via `/commit`). Wait for an explicit push/commit request before anything lands on the remote.
 - When you've finished non-trivial feature work and the user pivots to a different feature, ask whether they want to commit the finished work first — don't start the new task on top of an uncommitted change set without offering. Skip the prompt for trivial edits or when changes are already committed.
 - Do not ask whether to commit merely because you finished working — completing a task is not a trigger. The only trigger is the user pivoting to a next, unrelated set of changes (see the previous rule).
 - When a task incidentally changes a file in a *different* repository than the one the task is about (e.g. editing a global skill in the dotfiles repo while working in a project), report the change so the user knows it's there — but do not offer or ask to commit it. Leave the other repo's commits entirely to the user; surface, don't solicit.
@@ -53,6 +58,7 @@ When I launch a process that outlives the command and that I'll kill later mysel
 
 - **Node.js**: default to the current active LTS (Node **24** as of May 2026) for new projects, CI workflows, and `.nvmrc` files — unless the project already pins an older version, a dependency demands otherwise, or there's a specific reason to use something else. Always prefer an existing `.nvmrc` / `engines.node` over this default.
 - **Package-manager pin**: any project with a `package.json` should pin its toolchain via the `packageManager` field (e.g. `"npm@11.17.0"`) with Corepack enabled, so every machine and CI run uses an identical manager version — an unpinned npm drifts the lockfile across machines (`peer: true` markers, `devOptional`→`dev` churn). Offer to add it when missing rather than pinning silently; bump it deliberately like a dependency (typically alongside a Node upgrade), not on every release. Resolve the current stable with `npm view npm version` and avoid prerelease majors. See `~/.claude/learnings/corepack-packagemanager-pin.md`.
+- **License**: default to **MIT** when a project needs one — a `LICENSE` file at the repo root with the current year and the user's name (from git config). It's a default recommendation, not an imposition: since the choice is legally the user's, confirm before adding, and defer to copyleft/GPL, a company/CLA policy, or an existing license when the project calls for it. The trigger is a repo about to be published or shared without a license, not every scaffold.
 
 ## Best-Practice Adoption
 
@@ -116,8 +122,12 @@ When the same non-trivial computation or step-sequence is needed in two or more 
 ## Gitignore
 
 When adding entries to `.gitignore`, choose the right scope:
-- **Global gitignore** (`~/.gitignore_global`): OS-specific or user-specific files — IDE folders, OS thumbnail caches, tool outputs for tools the user happens to use (e.g. `.idea/`, `Thumbs.db`, `.ralphex/`).
-- **Project gitignore** (`.gitignore`): files that everyone who checks out the project should ignore — build outputs, `.env` files, `node_modules/`, `__pycache__/`.
+- **Global excludes** (`git config --global core.excludesfile` — on this machine `~/.gitignore`, not `~/.gitignore_global`): OS- or user-specific files no contributor shares — IDE folders, OS caches, tool outputs (`.idea/`, `Thumbs.db`, `.ralphex/`), and per-machine wrappers written by personal skills (the deploy/build skills' `scripts/deploy.sh`, `scripts/build.sh`, and `config/deploy.env`). Only narrow **root-anchored file** patterns belong here — never a floating whole-dir pattern like `scripts/`, which would hide that dir in *every* repo, including ones that commit a real `scripts/`. (A file pattern with a mid-string slash like `scripts/deploy.sh` is already root-anchored.)
+- **Project gitignore** (`.gitignore`): files everyone who checks out the project should ignore — build outputs, `.env` files, `node_modules/`, `__pycache__/`, and project-structure-specific artifacts (e.g. a dev server's `<DEV_DIR>/dev-server*.log`). Anchor with a leading slash (`/scripts/`) unless matching at any depth is intended.
+
+See `~/.claude/learnings/gitignore-anchoring-and-scope.md` for the anchoring rules and the per-project→global migration checklist.
+
+**Crash dumps: delete, don't gitignore.** Transient crash artifacts — `*.stackdump` (Cygwin/Git-Bash), core dumps, `*.dmp` (Windows minidumps), `hs_err_pid*.log` (JVM), and the like — are one-off byproducts of a single crash, not recurring build output. Delete them when they turn up; do **not** add them to any gitignore. Gitignoring normalizes them as expected and silences the signal that something actually crashed. Exception: keep a specific dump only while you're actively analyzing that crash — and say you're keeping it — then remove it once done.
 
 ## Symlinks
 
@@ -150,6 +160,7 @@ Cross-project preferences and feedback. Memory files live in `~/.claude/memory/`
 - [About dialogs describe WHAT, not HOW](~/.claude/memory/feedback_about_what_not_how.md) — About copy stays declarative ("Each session keeps a history"), not action-prescriptive ("Double-click to open")
 - [Deploy via the script, not the deploy skill](~/.claude/memory/feedback_deploy_script_not_skill.md) — once a project is configured, run `bash scripts/deploy.sh` directly; reserve the deploy Skill for first-time setup
 - [Use Doppler for secrets](~/.claude/memory/feedback_doppler_secrets.md) — default to Doppler (workplace `sava`) over plaintext .env for keys/secrets/tokens; `doppler run` wraps dev scripts, `doppler secrets set` to add; offer don't impose
+- [Text-control affordances](~/.claude/memory/feedback_no_underline_links.md) — strip resting underlines; shape carries meaning (link=hover-underline for WCAG 1.4.1, toggle=chevron, action=`+`, all icon/soft-fill-pill not underline)
 - [Private references](~/.claude/memory/refs-private.secret.md) — encrypted (transcrypt); coordinates for ad-hoc third-party credentials Claude uses — read it when a task needs one (decrypted locally; opaque without the key)
 
 ## Memos
