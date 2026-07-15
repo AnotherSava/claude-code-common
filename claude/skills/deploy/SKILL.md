@@ -13,8 +13,6 @@ See `~/.claude/learnings/shell-environment.md` for the expected bash functions a
 - Shell rc target: !`case "$(uname -s)" in Darwin) echo "~/.zshrc" ;; MINGW*|MSYS*|CYGWIN*) echo "~/.bashrc" ;; *) [ -n "$ZSH_VERSION" ] || [ "${SHELL##*/}" = "zsh" ] && echo "~/.zshrc" || echo "~/.bashrc" ;; esac`
 - Wrapper script exists: !`test -f scripts/deploy.sh && echo yes || echo no`
 - Wrapper target: !`grep -oE 'deploy(-[a-z]+)?\.sh' scripts/deploy.sh 2>/dev/null | tail -1 || echo none`
-- Scripts in gitignore: !`grep -cx 'scripts/' .gitignore 2>/dev/null || echo 0`
-- Scripts dir has tracked files: !`git ls-files scripts/ 2>/dev/null | grep -q . && echo yes || echo no`
 - Cloudflare Pages configured: !`grep -c '^DEPLOY_TYPE=cloudflare-pages' config/deploy.env 2>/dev/null || echo 0`
 - Wrangler config present: !`(test -f wrangler.toml || test -f wrangler.json || test -f wrangler.jsonc) && echo yes || echo no`
 - package.json build script: !`node -e "try{process.stdout.write(require('./package.json').scripts&&require('./package.json').scripts.build?'yes':'no')}catch(e){process.stdout.write('no')}" 2>/dev/null || echo no`
@@ -167,17 +165,16 @@ First decide whether the wrapper needs the Doppler secret-rendering block: it do
      bash ~/.claude/skills/deploy/scripts/deploy-tauri.sh "$@"
      ```
      The render is gated on the template existing, so the wrapper still works on a checkout that hasn't set up the template yet. The underlying `deploy-tauri.sh` then copies the rendered `config/local.json` to `CONFIG_DEST`.
-2. Keep the wrapper out of git, without clobbering a tracked `scripts/` dir:
-   - If **Scripts dir has tracked files** is yes (the project commits other scripts — common for static/Cloudflare Pages repos), append only the wrapper to `.gitignore` (if not already present):
-     ```
-     # Local convenience wrapper (not committed)
-     scripts/deploy.sh
-     ```
-   - else if **Scripts in gitignore** is 0, append the whole dir:
-     ```
-     # Local convenience scripts (not committed)
-     scripts/
-     ```
+2. Keep the wrapper out of git via the **global** excludes file — never the project's `.gitignore`. The wrapper is a per-machine artifact only this skill generates, so it must not land in a repo other contributors share. Ensure the global excludes file contains the line `scripts/deploy.sh` (the mid-string slash anchors it to each repo's root, so it ignores only the wrapper — never a committed `scripts/` source dir):
+   ```bash
+   gi="$(git config --global core.excludesfile)"; gi="${gi/#\~/$HOME}"; gi="${gi:-$HOME/.gitignore}"
+   grep -qxF 'scripts/deploy.sh' "$gi" 2>/dev/null || {
+     grep -qF 'per-machine wrappers written by Claude Code' "$gi" 2>/dev/null \
+       || printf '\n# per-machine wrappers written by Claude Code deploy/build skills — never committed\n' >> "$gi"
+     printf 'scripts/deploy.sh\n' >> "$gi"
+   }
+   ```
+   This covers every repo at once — do not add the wrapper to a project's `.gitignore`. (Project-specific artifacts like the dev-server logs in §2b still go in the project `.gitignore`.)
 
 ## 4. Deploy
 

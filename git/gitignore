@@ -5,6 +5,11 @@ Thumbs.db
 .ralphex/
 .firecrawl/
 config/deploy.env
+
+# per-machine wrappers written by Claude Code deploy/build skills — never committed
+scripts/deploy.sh
+scripts/build.sh
+
 .env
 
 **/.claude/settings.local.json

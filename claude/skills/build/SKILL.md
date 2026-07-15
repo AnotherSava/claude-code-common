@@ -11,7 +11,6 @@ See `~/.claude/learnings/shell-environment.md` for the expected bash functions a
 - Build function in shell rc: !`cat ~/.bashrc ~/.zshrc ~/.bash_profile ~/.zprofile 2>/dev/null | grep -c "build()" || echo 0`
 - run_repo_script helper in shell rc: !`cat ~/.bashrc ~/.zshrc ~/.bash_profile ~/.zprofile 2>/dev/null | grep -c "run_repo_script()" || echo 0`
 - Wrapper script exists: !`test -f scripts/build.sh && echo yes || echo no`
-- Scripts in gitignore: !`grep -cx 'scripts/' .gitignore 2>/dev/null || echo 0`
 - GitHub workflow: !`ls .github/workflows/*.yml 2>/dev/null || echo none`
 
 ## 1. Check prerequisites
@@ -29,10 +28,14 @@ See `~/.claude/learnings/shell-environment.md` for the expected bash functions a
    #!/bin/bash
    bash ~/.claude/skills/build/scripts/build.sh "$@"
    ```
-2. If **Scripts in gitignore** is 0, append to `.gitignore`:
-   ```
-   # Local convenience scripts (not committed)
-   scripts/
+2. Keep the wrapper out of git via the **global** excludes file — never the project's `.gitignore` (it's a per-machine artifact only this skill generates). Ensure the global excludes file contains the line `scripts/build.sh`:
+   ```bash
+   gi="$(git config --global core.excludesfile)"; gi="${gi/#\~/$HOME}"; gi="${gi:-$HOME/.gitignore}"
+   grep -qxF 'scripts/build.sh' "$gi" 2>/dev/null || {
+     grep -qF 'per-machine wrappers written by Claude Code' "$gi" 2>/dev/null \
+       || printf '\n# per-machine wrappers written by Claude Code deploy/build skills — never committed\n' >> "$gi"
+     printf 'scripts/build.sh\n' >> "$gi"
+   }
    ```
 
 ## 3. Configure GitHub Actions CI (optional)
