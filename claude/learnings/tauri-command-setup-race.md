@@ -17,6 +17,8 @@ The frontend does `config = await getConfig()` at mount, gets `Config::default()
 
 There is **no clean "backend ready → then boot frontend" barrier** — the webview boots itself. So handle it explicitly.
 
+> **CORRECTION (2026-07-11, verified): the "manage-first-in-setup + frontend re-read" pattern below is INSUFFICIENT — it left ~24% of relaunches still broken. The definitive fix is to manage frontend-read state BEFORE any webview exists. The clean way: split `Builder::build(ctx)?` (returns the App with NO windows) from `App::run()` (creates them), and `app.manage(...)` everything the frontend reads in the gap between — `app.path().app_data_dir()` is live there (Tauri's own resolver, no `dirs` dep), and no webview exists yet. Manage the `FrontendLogger`/tracing subscriber there too — a `State<FrontendLogger>` command that races doesn't just log wrong, it drops the log entirely (rejected invoke), hiding the very race you're debugging. (An alternative is to resolve the path yourself pre-Builder via `dirs::data_dir().join(&ctx.config().identifier)` and `.manage()` on the Builder — works, but adds a `dirs` dep pinned to Tauri's major; prefer the build()/run() split.) See `tauri-ipc-startup-race.md` for the full pattern and the 0-vs-~24% measurement. Keep the sections below only as the fallback for a value that genuinely cannot move before run().**
+
 ## Fix pattern (no poll)
 
 1. **Manage frontend-read state FIRST in `setup()`.** Move `app.manage(ConfigState)` (and any other store the mount reads, e.g. a `PromptHistoryStore` backing a `get_setup_state`) above the other stores and window setup. This shrinks the race window toward zero — the frontend's mount fetch happens tens of ms after webview start, after setup's first lines.

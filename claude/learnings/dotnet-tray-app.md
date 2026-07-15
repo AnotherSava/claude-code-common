@@ -168,6 +168,7 @@ const string RunKey = @"SOFTWARE\Microsoft\Windows\CurrentVersion\Run";
 Registry.CurrentUser.OpenSubKey(RunKey, writable: true);
 key.SetValue(AppName, $"\"{exePath}\"");
 ```
+Get `exePath` from `Environment.ProcessPath`, **not** `Assembly.GetExecutingAssembly().Location`: the latter returns `""` in a single-file / self-contained publish (the compiler flags it as `IL3000` — but only during `PublishSingleFile`, so a plain `dotnet build` won't warn and it slips through until a release build), which would write an empty Run-key path. `Environment.ProcessPath` is the running executable's path in every publish mode; guard the (practically-never) null with `?? throw`.
 
 ## Error Dialogs
 
@@ -507,6 +508,16 @@ SetWindowPos(hwnd, IntPtr.Zero, physicalLeft, physicalTop, 0, 0,
              SWP_NOSIZE | SWP_NOZORDER | SWP_NOACTIVATE);
 ```
 This bypasses the WPF DIP pipeline entirely. Particularly relevant when one window places another relative to it (dialog anchored to a frame, popup anchored to a tray target, etc.) and the anchor lives on a non-primary-DPI monitor.
+
+**Drawing text in a custom-painted overlay: GDI `TextRenderer`, not GDI+ `DrawString`**: Painting text with `Graphics.DrawString` onto an overlay (or any custom `OnPaint` / double-buffered surface) renders soft, poorly-hinted glyphs at fractional em sizes on a high-DPI monitor — it reads as blurry or "weirdly scaled." Switch to GDI `TextRenderer.DrawText`, the native ClearType path stock controls use → crisp glyphs. It also fixes vertical centering: GDI+ `StringFormat.LineAlignment = Center` (especially with `GenericTypographic`) centres the typographic line box, not the visual glyphs, so text sits low; `TextFormatFlags.VerticalCenter | SingleLine` (DT_VCENTER|DT_SINGLELINE) centres reliably. Measure and draw with the same font and matching flags:
+```csharp
+const TextFormatFlags Fmt  = TextFormatFlags.NoPadding | TextFormatFlags.SingleLine | TextFormatFlags.NoPrefix;
+const TextFormatFlags Draw = Fmt | TextFormatFlags.VerticalCenter | TextFormatFlags.Left | TextFormatFlags.NoClipping;
+Size sz = TextRenderer.MeasureText(g, text, font, new Size(int.MaxValue, int.MaxValue), Fmt);
+TextRenderer.DrawText(g, text, font, rect, color, Draw);   // rect height = the box to centre in
+```
+- `NoPadding` kills GDI's few-px side padding (else tight layouts break); `NoClipping` stops an exact-width rect trimming the last glyph; use `HorizontalCenter` to centre in the rect instead of left-aligning. `TextRenderer` takes a `Color` (not a `Brush`), honors the Graphics clip region (via the HDC) but ignores its world transform (fine when there's none). Draw GDI+ shapes (FillPath, etc.) FIRST, then TextRenderer text — each `DrawText` flushes pending GDI+ ops when it checks out the HDC, so ordering holds.
+- **Verification trap**: a downscaled screenshot (a 4K capture shrunk to fit) HIDES GDI+ text softness — the shrink looks fine but the user sees full-resolution mush. Judge text/render quality from a 1:1 crop.
 
 ## Achievement Icon Resolution
 

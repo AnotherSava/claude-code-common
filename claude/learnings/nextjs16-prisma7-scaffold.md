@@ -80,7 +80,7 @@ Reliable non-interactive flow:
 - SQLite **column drops/renames**: the bundled SQLite (better-sqlite3) supports `ALTER TABLE "T" DROP COLUMN "c"`. For a rename or to preserve data, do a table-rebuild (`CREATE TABLE new_… ; INSERT … SELECT … FROM … ; DROP TABLE … ; ALTER TABLE new_… RENAME TO …`) wrapped in `PRAGMA defer_foreign_keys=ON; PRAGMA foreign_keys=OFF; … PRAGMA foreign_keys=ON;`. A backfill `INSERT … SELECT` must run *before* the `DROP COLUMN` in the same file.
 - After deploying, run `prisma generate` so the client types pick up the change.
 
-**The running `next dev` server caches the generated Prisma client.** After a migration + `prisma generate`, the dev server keeps using the *old* client until you restart it — symptoms are runtime errors like `The column main.T.c does not exist in the current database` (old client still selects a dropped column), newly-added columns coming back `undefined` (old client doesn't select them), or a `PrismaClientValidationError` naming a brand-new field on a create/update (the old client rejects the unknown argument before the query reaches the DB). `tsc` / `next build` use the fresh client and pass, so the live app is broken while the build is green. **Restart `next dev` after every migration.**
+**The running `next dev` server caches the generated Prisma client.** After a migration + `prisma generate`, the dev server keeps using the *old* client until you restart it — symptoms are runtime errors like `The column main.T.c does not exist in the current database` (old client still selects a dropped column), or a `PrismaClientValidationError: Unknown field 'X'` naming a brand-new field on a create/update **or an explicit `select`/`where`** — Prisma 7 validates the field set against the stale client and rejects the unknown field before the query reaches the DB (it does *not* silently return `undefined`; that only happens for fields you never referenced). `tsc` / `next build` use the fresh client and pass, so the live app is broken while the build is green. **Restart `next dev` after every migration.**
 
 **DateTime is stored as ISO-8601 UTC TEXT** by the better-sqlite3 adapter — e.g. `2026-06-20T07:01:54.993Z` — for both client-written values and `@default(now())` / `CURRENT_TIMESTAMP`. So a hand-written migration that seeds or backfills a datetime should use that exact format (`'2000-01-01T00:00:00.000Z'`), and `WHERE col <= :date` comparisons then sort lexicographically = chronologically (no mixed-format pitfalls).
 
@@ -93,14 +93,54 @@ Reliable non-interactive flow:
 
 Refs to `useRef` (e.g. a request token to ignore superseded async results) are fine in the effect body — the rule is specifically about `setState`.
 
+## React 19 — no impure calls in a component render body
+
+The same `eslint-plugin-react-hooks` also errors on **`react-hooks/purity`**: **"Cannot call impure function during render"** for `Date.now()`, `Math.random()`, or an argless `new Date()` invoked directly in a component/hook body. It fires even in async **Server Components** (the render function is still "impure"). Fix: read the value in a plain lib helper and call *that*, or compute it in the data layer and pass it in as a prop — the rule only flags the bare impure *identifiers* in a component/hook body, not calls to your own functions.
+
+```ts
+// lib/datetime.ts — wrapping Date.now() satisfies the linter (same trick as todayISO wrapping new Date())
+export function nowMs(): number { return Date.now(); }
+```
+
+```tsx
+// component: read "now" once via the helper, then pass it down for request-time relative labels ("3d ago")
+const now = nowMs();
+return <Row now={now} … />;   // Row computes formatInterval(now - t) — pure, uses only props
+```
+
+So a live-relative timestamp on a server-rendered page is stamped once per request (in the data function or via a `nowMs()` call), not recomputed in JSX.
+
 ## Running ad-hoc TS scripts via tsx
 
 For one-off smokes and maintenance scripts run with `tsx` (e.g. `npx tsx scripts/foo.ts`), watch two traps in this kind of project:
 
 - **CJS target → no top-level await.** esbuild/tsx transforms the script to CommonJS, so a top-level `await` throws `Top-level await is currently not supported with the "cjs" output format`. Wrap the body in an async function and call it: `async function main(){ … } main()`. (The same applies to `tsx -e "…"` snippets.)
 - **`process.exit()` truncates piped stdout.** Calling `process.exit(0)` right after an `await` discards not-yet-flushed `console.log`/`console.info` output when stdout is a pipe — the script appears to produce *nothing*. Let the process exit naturally (the event loop drains after `main()` resolves), or flush before exiting.
-- The `@/…` path alias resolves fine under tsx (tsconfig `paths`), so scripts can import app modules directly (`import { x } from "@/lib/…"`).
+- The `@/…` path alias resolves under tsx **for a script FILE** (`npx tsx scripts/foo.ts`), so file scripts import app modules directly (`import { x } from "@/lib/…"`). **But `tsx -e "…"` inline mode does NOT resolve tsconfig `paths`** (and relative `./src/…` imports are unreliable there too) — an inline snippet that imports app modules fails silently (no output) or with module-not-found. For any ad-hoc check that needs to import app code, write a throwaway `.ts` file and run it, don't reach for `-e`.
 - **Smoke-testing server actions outside Next.** `revalidatePath`/`revalidateTag` throw `Invariant: static generation store missing` when a server action runs outside a request scope (e.g. called directly from a tsx script). The action's DB writes and other side effects execute *before* that trailing call, so wrap the invocation in try/catch and assert on the side effects (DB rows, logged email) — the throw at `revalidatePath` is expected, not a failure. Early-return paths (validation rejections) never reach it and return their result normally.
+
+## Prisma + SQLite — a nullable column in a compound `@@unique` breaks upsert idempotency
+
+`@@unique([a, b, c])` where `c` is **nullable** does NOT dedupe rows with `c IS NULL`: SQLite treats every NULL as distinct, so the unique index never fires on null-`c` rows, and `upsert` / `findUnique` on that compound key won't match an existing null-`c` row. Re-running an "idempotent" upsert then inserts duplicates.
+
+For idempotency on such rows, replace the compound-key upsert with a manual `findFirst({ where: { a, b, c: null } })` then `update`/`create`. (Hit with a `ListItem(listId, mediaItemId, episodeId?)` where `episodeId` is null for show/movie-level entries — every re-import added another copy until switched to find-then-create.) A full-snapshot writer (delete-all-for-scope + `createMany`) sidesteps it entirely.
+
+## Prisma migrate — destructive migrations are interactive-only
+
+`prisma migrate dev` (Prisma 7) aborts with **"Prisma Migrate has detected that the environment is non-interactive, which is not supported"** whenever a migration would DROP a column or table (potential data loss) — it wants to prompt for confirmation first. Even `--create-only` fails the same way. Additive migrations (add column/table/index) run fine non-interactively, which is why most agent-driven migrations "just work" until the first destructive one.
+
+Workaround (also the way to do **data-preserving** transforms): hand-author `prisma/migrations/<timestamp>_<name>/migration.sql` yourself.
+- SQLite drops/renames go through the **RedefineTables** pattern: `PRAGMA defer_foreign_keys=ON; PRAGMA foreign_keys=OFF;` → `CREATE TABLE "new_<T>" (…)` → `INSERT INTO "new_<T>" (…) SELECT …` → `DROP TABLE "<T>";` → `ALTER TABLE "new_<T>" RENAME TO "<T>";` → recreate every index/unique → `PRAGMA foreign_keys=ON; PRAGMA defer_foreign_keys=OFF;`. Copy the exact FK/index DDL from the original `migration.sql` so the rebuilt table matches.
+- Put a `CASE` in the `INSERT … SELECT` to **map old data to the new shape** — the auto-generated migration would just drop the old column and default the new one, silently losing the mapping (e.g. `CASE WHEN "tracking" = 'stopped' THEN false ELSE true END` to fold a 4-value enum into a boolean).
+- Timestamp must sort lexicographically AFTER the last existing migration or ordering breaks.
+- Apply with **`prisma migrate deploy`** (non-interactive; records the migration in `_prisma_migrations`), then run **`prisma generate`** separately — `deploy` does NOT regenerate the client, so `tsc`/the app will fail on the new fields until you generate. (`migrate dev` *does* generate, but you can't use it here.)
+
+Hand-authored migrations still work with a test harness that concatenates every `migration.sql` and execs it against a fresh SQLite DB, as long as the SQL is valid standalone (the RedefineTables PRAGMA/multi-statement form is).
+
+## Dev-server gotchas (Turbopack)
+
+- **One dev server per project directory.** Next 16 lets only one `next dev` run per project: start a second one for the same project (even on a *different* port) and it defers to the already-running instance instead of binding — so the new port never actually serves, though the command may print "ready" and the port briefly opens. Symptom: the intended URL is unreachable while a stray same-project `next dev` is alive; fix by killing the stray instance. Servers of *different* projects (different dirs) don't conflict — the lock is per-project, not machine-wide (easy to misdiagnose as a global lock).
+- **Restart after `prisma generate`.** A running `next dev` caches the Prisma client (module singleton on `globalThis`); regenerating the client on disk doesn't refresh it, so pages touching a newly added model/field throw `Cannot read properties of undefined (reading 'findMany')` / "unknown field" 500s until you restart the server. (Complements the `migrate dev` doesn't-regenerate note above — that one is a compile-time `tsc` failure; this is a runtime 500.)
 
 ## Quick checklist for a fresh Next 16 + Prisma 7 + SQLite app
 
