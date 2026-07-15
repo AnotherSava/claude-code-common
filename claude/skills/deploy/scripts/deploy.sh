@@ -13,7 +13,9 @@ if [ "$OS" != "win" ]; then
 fi
 
 START=${1:-1}
-REPO_DIR="$(pwd)"
+# Resolve the repo root that holds config/deploy.env, so this works from any subdir — not only the repo root.
+source "$(dirname "${BASH_SOURCE[0]}")/_repo-dir.sh"
+REPO_DIR="$(resolve_repo_dir)"
 DEPLOY_ENV="$REPO_DIR/config/deploy.env"
 
 # Read install dir from deploy.env

@@ -13,7 +13,9 @@
 #   plus any build-time vars the BUILD_CMD needs (e.g. MAPBOX_TOKEN)
 set -e
 
-REPO_DIR="$(pwd)"
+# Resolve the repo root that holds config/deploy.env, so this works from any subdir — not only the repo root.
+source "$(dirname "${BASH_SOURCE[0]}")/_repo-dir.sh"
+REPO_DIR="$(resolve_repo_dir)"
 DEPLOY_ENV="$REPO_DIR/config/deploy.env"
 
 if [ ! -f "$DEPLOY_ENV" ]; then

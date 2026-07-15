@@ -20,7 +20,9 @@ case "$(uname -s)" in
     *) OS=linux ;;
 esac
 
-REPO_DIR="$(pwd)"
+# Resolve the repo root that holds config/deploy.env, so this works from any subdir — not only the repo root.
+source "$(dirname "${BASH_SOURCE[0]}")/_repo-dir.sh"
+REPO_DIR="$(resolve_repo_dir)"
 DEPLOY_ENV="$REPO_DIR/config/deploy.env"
 getval() { [ -f "$DEPLOY_ENV" ] && grep "^$1=" "$DEPLOY_ENV" | head -1 | cut -d= -f2- || true; }
 
