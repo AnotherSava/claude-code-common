@@ -122,11 +122,7 @@ Never add a `**Full Changelog**: …/compare/…` line — GitHub auto-renders a
 
 **Chrome extension:**
 
-Add at the end:
-
-```
-Download the zip from this release and upload to the Chrome Web Store Developer Dashboard.
-```
+No stack-specific section — the release body is just the generic "What's new" changelog.
 
 **.NET:**
 
@@ -201,14 +197,16 @@ Once CI succeeds:
 
 2. Stack-specific finalization:
 
+   **Release title = the tag, for every stack.** Fold `--title "vX.Y.Z"` into the notes-replacement edit below. CI (or `tauri-action`) often names the release with the product name (e.g. `Foo App vX.Y.Z`) — redundant on the repo's own releases page, and in the narrow release **sidebar** the product-name prefix truncates off the version, the one part that distinguishes releases. The tag alone (`vX.Y.Z`) is GitHub's own default for an unset name and keeps the list scannable. (Fixing a project's CI to leave the name unset / use the tag is a nice-to-have; forcing `--title` here makes every release the skill publishes correct regardless.)
+
    **Chrome extension**: replace the auto-generated notes with the drafted notes — no asset-size filling needed.
    ```bash
-   gh release edit vX.Y.Z --notes "..."
+   gh release edit vX.Y.Z --title "vX.Y.Z" --notes "..."
    ```
 
    **.NET**: replace the auto-generated notes with the drafted notes — no asset-size filling needed (the `[!NOTE]` box explains the build difference rather than listing sizes; the Assets section auto-renders exact filenames and sizes).
    ```bash
-   gh release edit vX.Y.Z --notes "..."
+   gh release edit vX.Y.Z --title "vX.Y.Z" --notes "..."
    ```
    Then **collapse the previous release's note box** so only the latest release shows it expanded. Find the prior tag (`git tag --sort=-v:refname | sed -n '2p'`), fetch its body (`gh release view <prev> --json body --jq .body`), and wrap the `> [!NOTE]` box's inner content in a collapsed `<details>` — turn:
    ```
@@ -230,7 +228,7 @@ Once CI succeeds:
 
    **Tauri**: `tauri-action` creates the release as a **draft** with auto-generated notes. Replace those notes with the drafted "What's new" content from step 5 — the Assets section is auto-rendered, no filename/size filling needed:
    ```bash
-   gh release edit vX.Y.Z --notes "..."
+   gh release edit vX.Y.Z --title "vX.Y.Z" --notes "..."
    ```
    Then **collapse the previous release's note box** so only the latest release shows the signing warning expanded — the box is byte-for-byte identical on every release, so leaving them all expanded clutters the releases list. Find the prior tag (`git tag --sort=-v:refname | sed -n '2p'`), fetch its body (`gh release view <prev> --json body --jq .body`), and wrap the `> [!NOTE]` box's inner content in a collapsed `<details>` — turn:
    ```
@@ -259,6 +257,8 @@ Once CI succeeds:
    gh release view vX.Y.Z --json url --jq .url
    ```
 
+4. **Chrome extension only** — the GitHub release is done, but the extension isn't live in the store yet. Point the user at the `/publish-chrome-extension` skill, which downloads this release's zip and submits it to the Chrome Web Store.
+
 ## Checklist
 
 Before tagging:
@@ -270,7 +270,7 @@ Before tagging:
 After tagging:
 - [ ] CI workflow green
 - [ ] GitHub Release created with expected asset(s) attached
-- [ ] Release notes replaced via `gh release edit`
-- [ ] (Chrome ext) Zip downloaded and ready for Chrome Web Store upload
+- [ ] Release notes replaced and title set to the tag (`--title "vX.Y.Z"`) via `gh release edit`
+- [ ] (Chrome ext) User pointed to `/publish-chrome-extension` for the store submission
 - [ ] (.NET / Tauri) Previous release's NOTE box collapsed into `<details>`
 - [ ] (Tauri) Draft release published via `gh release edit --draft=false`
