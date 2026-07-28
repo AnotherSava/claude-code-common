@@ -86,15 +86,13 @@ Extract durable knowledge from the current conversation and persist it to long-t
    - Ephemeral task details or in-progress work
    - Anything already captured in existing memory, learnings, or CLAUDE.md
 
-5. **Present findings to the user.** For each proposed change, show:
-   - **Category** (feedback / project / user / reference / CLAUDE.md update / skill update / learning)
-   - **Destination** (which file will be created or updated)
-   - **Content preview** (the actual text to be written, or a summary for long learning docs)
-   - Whether it's a **new entry** or an **update** to an existing one
+5. **Save research findings directly; gate only feedback-derived ones.** Split the findings by where they came from, and lean toward less interactivity:
+   - **Agent-research findings** — neutral technical facts and context you uncovered yourself through investigation, debugging, or trial-and-error: learnings (g), references (d), and project context (b) you discovered by reading or probing the system. **Default to saving these directly** (step 6), then reporting them — they're your own observations, not claims about the user, so an approval gate just adds friction.
+   - **Feedback-derived findings** — anything that encodes what the user wants, prefers, corrected, or decided: feedback (a), user profile (c), and any CLAUDE.md (e) or skill (f) change that stems from a user correction. These change how you'll behave or assert something about the user, so present them for approval.
 
-   Format as a numbered list. Ask: "Save these? (all / numbers / none)"
+   When there ARE feedback-derived findings, present them as a numbered list showing **Category** (feedback / project / user / reference / CLAUDE.md update / skill update / learning), **Destination** (which file will be created or updated), **Content preview** (the text to be written, or a summary for long docs), and whether it's a **new entry** or an **update**. Then ask: "Save these? (all / numbers / none)". When there are none, skip the gate — save the research findings and go straight to the report.
 
-6. **Save approved items.** For each approved item:
+6. **Save the items** (auto-saved research findings and any approved feedback items). For each:
    - Memory files: write with proper frontmatter (name, description, type), then add/update the index entry in the relevant MEMORY.md
    - Learning files: write directly to `~/.claude/learnings/<topic>.md` as long-form markdown. No frontmatter. No index update (the flat directory uses filenames as the index).
    - CLAUDE.md updates: edit the relevant section in place
@@ -105,7 +103,7 @@ Extract durable knowledge from the current conversation and persist it to long-t
 
 ## Important
 
-- Never save without user approval
+- Save agent-research findings (learnings, references, discovered project context) directly, then report them; only feedback-derived findings — feedback, user profile, and feedback-driven CLAUDE.md/skill changes — need the user's approval before saving
 - Convert relative dates to absolute dates (e.g. "Thursday" to "2026-04-17")
 - Use the memory frontmatter format: name, description (one-line, specific), type (user/feedback/project/reference)
 - Keep MEMORY.md index entries under 150 characters each
