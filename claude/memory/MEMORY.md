@@ -61,3 +61,4 @@
 - [Understated UI affordances](feedback_understated_affordances.md) — small neutral icon over a bold colored pill; keep resting state muted, reserve brand color for hover/active
 - [Compact interval format](feedback_compact_interval_format.md) — elapsed time as largest unit only ("5m"/"3h"/"12d"), min "1m", no seconds, unbounded days; full spec + code
 - [Overlay legibility on artwork](feedback_overlay_legibility_on_art.md) — affordance over posters/photos: flat dark scrim + solid mark, not a spotlight gradient + translucent mark
+- [Confirm state ≠ completion glyph](feedback_confirm_state_not_completion_glyph.md) — a two-step confirm's armed state is a labeled CTA ("＋ Add" pill), not a ✓ that reads as already-done
