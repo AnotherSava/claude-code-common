@@ -16,6 +16,8 @@ Before asking the user to do something (run a command, edit a file, check a valu
 
 When changes are ready to test, run the project's `deploy` command (or equivalent) yourself via Bash. Do not suggest the user "run `deploy`" or type `! deploy`. The Self-Sufficiency rule applies: invoke the action, don't outsource it.
 
+Don't give up on an explicit instruction the moment it hits a minor difficulty (a tool not loaded, a server not connected, an auth step, a missing dependency). Exhaust the ways to clear the obstacle *on the requested path* yourself first — install it, configure it, authenticate it. A workaround or alternative approach is NOT one of those ways: it's a different direction, and you don't take it unilaterally. If you genuinely can't clear the obstacle on the requested path, stop and confirm with the user before falling back to any alternative or abandoning the instruction. Silently substituting a workaround for what was explicitly asked is not acceptable — the user chose that path deliberately.
+
 Exclude `node_modules/` from all file and content search patterns — it clogs results with false positives.
 
 Do not inline Python scripts into Bash commands via `python -c`. Instead, use a heredoc: `python <<'EOF' ... EOF`.
@@ -162,6 +164,7 @@ Cross-project preferences and feedback. Memory files live in `~/.claude/memory/`
 - [Use Doppler for secrets](~/.claude/memory/feedback_doppler_secrets.md) — default to Doppler (workplace `sava`) over plaintext .env for keys/secrets/tokens; `doppler run` wraps dev scripts, `doppler secrets set` to add; offer don't impose
 - [Text-control affordances](~/.claude/memory/feedback_no_underline_links.md) — strip resting underlines; shape carries meaning (link=hover-underline for WCAG 1.4.1, toggle=chevron, action=`+`, all icon/soft-fill-pill not underline)
 - [Private references](~/.claude/memory/refs-private.secret.md) — encrypted (transcrypt); coordinates for ad-hoc third-party credentials Claude uses — read it when a task needs one (decrypted locally; opaque without the key)
+- [No guessed facts](~/.claude/memory/feedback_no_guessed_facts.md) — don't state a guessed URL/path/endpoint as known; verify it or say you're guessing
 
 ## Memos
 
