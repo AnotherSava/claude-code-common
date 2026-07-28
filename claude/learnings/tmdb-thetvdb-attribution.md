@@ -15,6 +15,17 @@ Sources: https://developer.themoviedb.org/docs/faq · logos: https://www.themovi
   `https://www.themoviedb.org/assets/2/v4/logos/v2/blue_long_1-<hash>.svg` — primary horizontal wordmark, gradient, works on light **or** dark. Also `blue_long_2`, `blue_short`, `blue_square_1`, `blue_square_2`.
 - Free for non-commercial with attribution; contact them for commercial licensing.
 
+### Image hotlinking, caching & usage limits (verified July 2026)
+
+Sources: TMDB API Terms of Use (https://www.themoviedb.org/api-terms-of-use) + TMDB staff forum posts.
+
+- **Hotlinking `image.tmdb.org` is explicitly allowed.** Build `https://image.tmdb.org/t/p/{size}{file_path}` (e.g. `w342`, `w500`, `original`) and use it directly from the browser (still attribute TMDB). This is the documented, supported pattern — not a hack; staff: *"Yes, no problems. Just remember to properly attribute."*
+- **The image CDN is NOT rate-limited** — staff: *"this service is not rate limited like the api is."* Unlike the JSON API (which is), per-viewer hotlinking of posters/backdrops/profile photos won't get throttled. So storing only the *path* and hotlinking at view time is a legitimate architecture (no local image cache required).
+- **Caching is encouraged but capped:** don't cache TMDB data (metadata or images) for **longer than 6 months**; you acknowledge you don't own the data and must **purge it on request or on license termination**.
+- **Commercial use needs a separate commercial API key** (a written agreement) — the free key is non-commercial only.
+- **Training ML/AI on TMDB content is prohibited** (LLMs/chatbots, collecting datasets of TMDB content, or redistributing cached datasets for training).
+- **Bandwidth abuse is barred** (don't degrade their servers) — normal app hotlinking is nowhere near this threshold.
+
 ## TheTVDB
 
 Source: https://www.thetvdb.com/api-information

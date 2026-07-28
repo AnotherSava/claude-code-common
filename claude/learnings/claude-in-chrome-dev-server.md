@@ -25,6 +25,16 @@ trip it, not just Next.
 - **chrome-devtools MCP** (`mcp__chrome-devtools__*`) uses CDP and does *not* wait for idle, but it needs Chrome
   started with `--remote-debugging-port=9222`; it errors ("Could not connect to Chrome") otherwise. See
   `chrome-devtools-mcp.md`.
+- **A one-shot headless Chrome `--screenshot` gives a real image** without the extension or a CDP port — it
+  captures after `load` + a timeout instead of waiting for `document_idle`, so HMR (and slow hotlinked images —
+  a page full of `image.tmdb.org` posters kept the extension off idle here) don't block it:
+  ```bash
+  chrome --headless=new --disable-gpu --hide-scrollbars --window-size=1320,2400 \
+    --user-data-dir="$(mktemp -d)" --screenshot=out.png --timeout=25000 http://localhost:3939/<path>
+  ```
+  It runs in a fresh profile (no auth cookie → the app renders **view-only**, so owner-gated controls won't show),
+  and `--window-size` height is the capture height (a tall value grabs more of a long page). Ideal for verifying
+  overall **layout / design fidelity**; the process exits on its own, so there's nothing to clean up.
 - **A production build has no HMR**, so `next build` + `next start` renders screenshot-able — but `next build`
   clobbers `.next` (conflicts with a running dev server) and Next refuses a 2nd dev server for the same project,
   so it's rarely worth it just for a screenshot.
