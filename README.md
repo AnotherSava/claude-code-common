@@ -137,6 +137,21 @@ Configures the deployment pipeline for a supported project (.NET, Tauri, or Inte
 
 ---
 
+### Cleanup
+
+The destructive counterpart to `deploy`: stops the running app, removes the installed bundle, and wipes its user-data and cache directories — the "before a clean install" reset. Reuses `config/deploy.env`, so the install location is never entered twice.
+
+**Command:** `/cleanup`
+
+**Features:**
+- Auto-configures `cleanup()` shell function in the platform-appropriate rc file (`~/.zshrc` on macOS, `~/.bashrc` on Windows Git Bash / Linux)
+- Creates `scripts/cleanup.sh` wrapper pointing to the global cleanup script
+- Always asks which of bundle / app data / caches to remove — never assumes
+- Backs up paths listed in `BACKUP_FILES=` to `.cleanup-backups/<timestamp>/` before wiping data
+- Recognizes Tauri projects; after first `/cleanup`, use `! cleanup` for instant runs
+
+---
+
 ### Build
 
 Configures a build shortcut for any project. On first use, sets up the `build` bash function, creates a local `scripts/build.sh` wrapper, and updates `.gitignore`. Then auto-detects the project type and builds. Optionally generates a GitHub Actions CI workflow.
@@ -237,6 +252,20 @@ Force-updates the plannotator plugin by clearing stale caches and reinstalling.
 - Removes the marketplace cache (stale git clone that prevents updates)
 - Removes the plugin cache
 - Guides through reinstallation after restart
+
+---
+
+### Transcrypt
+
+Encrypts designated files with [transcrypt](https://github.com/elasticdog/transcrypt) so they are ciphertext in git history but plaintext in the working tree, or unlocks an already-encrypted repo after a fresh clone. See [Encrypted memory](#encrypted-memory-secretmd) for how this repo uses it.
+
+**Command:** `/transcrypt`
+
+**Features:**
+- Uses one shared passphrase from Doppler (`tools/prd` → `TRANSCRYPT_KEY`), never a freshly generated one
+- Marks files by the `*.secret.*` naming convention in `.gitattributes`
+- Verifies the index holds ciphertext while the working tree stays readable, and stages without committing
+- Relies on the global pre-commit guard as a safety net against committing an unencrypted secret
 
 ---
 

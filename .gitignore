@@ -9,6 +9,7 @@ claude/skills/*
 !claude/skills/annotate/
 !claude/skills/build/
 !claude/skills/clean-code/
+!claude/skills/cleanup/
 !claude/skills/commit/
 !claude/skills/deploy/
 !claude/skills/document-data-flow/
