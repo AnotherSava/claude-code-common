@@ -14,9 +14,17 @@ When a copyable string has a part the user must replace with their own value, ma
 
 Before asking the user to do something (run a command, edit a file, check a value), figure out how to do it yourself. If the action is non-destructive, just do it. If it's destructive or irreversible, ask the user for permission — but propose the concrete action, don't ask the user to perform it.
 
+Before asking the user *for missing context*, search past conversation history. A request that assumes shared knowledge I don't have ("my schedule spreadsheet", "that script we fixed", "the usual config") almost always refers to something established in an earlier session. Transcripts live in `~/.claude/projects/<slugified-cwd>/*.jsonl` — one file per session, and other project directories are worth checking when the topic isn't repo-specific. Grep them for the distinguishing term rather than reading whole files; they run to hundreds of KB each. Ask only after that comes up empty, and say what I already searched.
+
 When changes are ready to test, run the project's `deploy` command (or equivalent) yourself via Bash. Do not suggest the user "run `deploy`" or type `! deploy`. The Self-Sufficiency rule applies: invoke the action, don't outsource it.
 
 Don't give up on an explicit instruction the moment it hits a minor difficulty (a tool not loaded, a server not connected, an auth step, a missing dependency). Exhaust the ways to clear the obstacle *on the requested path* yourself first — install it, configure it, authenticate it. A workaround or alternative approach is NOT one of those ways: it's a different direction, and you don't take it unilaterally. If you genuinely can't clear the obstacle on the requested path, stop and confirm with the user before falling back to any alternative or abandoning the instruction. Silently substituting a workaround for what was explicitly asked is not acceptable — the user chose that path deliberately.
+
+**Retry `API Error: Connection closed mid-response. The response above may be incomplete.` automatically.** It is transport flakiness, not a real failure — the work was usually done and only the response was lost. Treat it like a 503: retry silently rather than reporting it, abandoning the step, or switching to a different approach. Retry up to three times; only surface it if it still fails, and then say how many attempts were made. Applies wherever it appears — subagents, workflow agents, tool calls.
+
+- **Workflows:** relaunch with `Workflow({scriptPath, resumeFromRunId})`. Unchanged `agent()` calls replay from cache, so only the dead ones re-run.
+- **Subagents:** re-issue the same call. Before assuming the work is lost, check the agent's transcript — a large structured return value is the most common thing to die, and the research behind it may be recoverable.
+- If the *same* step dies three times, stop retrying and say so. Repeated death in one place usually means an oversized structured output; a leaner schema is the fix, not another attempt.
 
 Exclude `node_modules/` from all file and content search patterns — it clogs results with false positives.
 
@@ -70,6 +78,12 @@ When the offer is accepted:
 - **Measure before proposing rules**: run the candidate tool against the codebase and triage the real baseline per rule; adopt with a clean baseline (fix or explicitly scope every existing violation).
 - **Fit the tool to the project's documented style**, never the reverse — skip or configure rules that fight an established preference, and document every deliberately disabled rule and its reason inside the tool's config file.
 - **Prefer enforcement at generation time** (e.g. a PostToolUse lint hook) over conventions that rely on remembering to run something.
+
+## Overused Phrases
+
+A live list of phrases I lean on too heavily. They are banned in all authored text — chat responses, commit messages, PR and issue bodies, docs, comments. Replace each with a plain, specific alternative rather than a synonym of the same reflex. The list grows: when a new tic surfaces, add it here with its replacement. Rationale in `~/.claude/memory/feedback_overused_phrases.md`.
+
+- **"landed"** — banned in every sense, not just the merge/ship one. Also covers a feature being implemented ("the retry logic landed in `client.ts`"), a fix taking effect, or a value settling. Say what actually happened instead: "added", "implemented", "merged", "committed", "is in `main`", "now lives in `client.ts`".
 
 ## Code Style
 
@@ -147,24 +161,29 @@ Cross-project preferences and feedback. Memory files live in `~/.claude/memory/`
 **Project memory is version-controlled too.** Repos wired with `~/.claude/scripts/link-project-memory.sh` redirect their machine-local memory cache (`~/.claude/projects/<hash>/memory/`, a symlink) into a committed `<repo>/.claude/memory/`. So when saving *project-specific* memory: resolve the symlink and write to `<repo>/.claude/memory/`, then commit it with the rest of the work. On a fresh clone, re-run the script to re-establish the symlink. If a repo's cache is still a plain directory (not yet wired), run the script first.
 
 - [User GitHub account](~/.claude/memory/user_github_account.md) — handle is `AnotherSava`; use to filter "my repos" vs third-party clones
+- [Screenshots live on the Desktop](~/.claude/memory/user_screenshot_location.md) — "see the screenshot" with nothing attached means the newest PNG in `~/Desktop`; go look before saying none arrived
 - [Follow skill instructions exactly](~/.claude/memory/feedback_follow_skill_instructions.md) — never abbreviate or skip steps in skills, even when output feels verbose
 - [Fix failing skills](~/.claude/memory/feedback_fix_skills.md) — fix the skill definition instead of working around failures manually
 - [Glob safety for numeric filenames](~/.claude/memory/feedback_glob_safety_windows.md) — `hex_4*.png` matches hex_40, hex_400, AND hex_441; use explicit ranges
 - [Post-iteration cleanup audit](~/.claude/memory/feedback_post_iteration_cleanup.md) — before committing after a debug/optimize session, remove changes from disproven theories; don't leave cruft
 - [Verify before justifying legacy behavior](~/.claude/memory/feedback_verify_before_justifying.md) — if explaining why old code/docs exist (especially defending keeping it), check the source before speculating; defensive guesses preserve cruft
 - [Captured the lesson, drop the code](~/.claude/memory/feedback_research_to_production_cleanup.md) — when research code transitions to production, delete helpers whose rationale lives in docs
-- [No permanent surface for one-time tasks](~/.claude/memory/feedback_no_permanent_logic_for_one_time.md) — do one-offs (backfills, migrations, seeding) as throwaways and delete; don't add a flag/helper/export to production for a single run, and don't justify it with "single source"/"future use"
+- [No permanent surface for one-time tasks](~/.claude/memory/feedback_no_permanent_logic_for_one_time.md) — do one-offs (backfills, migrations, seeding) as throwaways and delete; don't add a flag/helper/export to production — or a menu item/button to the UI — for a single run, and don't justify it with "single source"/"future use"
 - [Stay silent on user `!` commands](~/.claude/memory/feedback_silent_on_bash_input.md) — a bare `!`/bash-input result is the user's own action; return control immediately, no analysis or "looks good" filler, unless they ask
 - [Fix bugs at the source, not in callers](~/.claude/memory/feedback_fix_at_source.md) — if a bug lives in code I can modify (including vendored copies), fix it at the source instead of working around or suppressing it (gitignore, filtering, silencing)
 - [Generalize global skills, don't fork project-local](~/.claude/memory/feedback_generalize_global_skills.md) — name collisions silently load the wrong SKILL body; use the deploy skill's Context-probe-and-dispatch pattern instead
 - [No unsolicited past-data fixes](~/.claude/memory/feedback_no_unsolicited_data_fixes.md) — fix the going-forward code only; don't proactively migrate/correct stale stored data unless asked or after asking
+- [Check for a live sibling session](~/.claude/memory/feedback_check_live_sibling_session.md) — an instruction that doesn't fit this repo likely belongs to another live session; grep widget.jsonl + git status there before editing its files; siblings also overwrite the shared clipboard
 - [Native dialogs render plain text — no clickable links](~/.claude/memory/feedback_native_dialogs_no_links.md) — `tauri-plugin-dialog`/MessageBox/NSAlert can't embed `<a>`; build a custom Tauri webview window for About-style content with links
 - [About dialogs describe WHAT, not HOW](~/.claude/memory/feedback_about_what_not_how.md) — About copy stays declarative ("Each session keeps a history"), not action-prescriptive ("Double-click to open")
 - [Deploy via the script, not the deploy skill](~/.claude/memory/feedback_deploy_script_not_skill.md) — once a project is configured, run `bash scripts/deploy.sh` directly; reserve the deploy Skill for first-time setup
+- [Overused phrases](~/.claude/memory/feedback_overused_phrases.md) — live blocklist of verbal tics; the list itself is the **Overused Phrases** section above
 - [Use Doppler for secrets](~/.claude/memory/feedback_doppler_secrets.md) — default to Doppler (workplace `sava`) over plaintext .env for keys/secrets/tokens; `doppler run` wraps dev scripts, `doppler secrets set` to add; offer don't impose
 - [Text-control affordances](~/.claude/memory/feedback_no_underline_links.md) — strip resting underlines; shape carries meaning (link=hover-underline for WCAG 1.4.1, toggle=chevron, action=`+`, all icon/soft-fill-pill not underline)
+- [Find the override before stacking a setting](~/.claude/memory/feedback_check_overrides_first.md) — a global setting that looks ignored is usually cancelled by a local rule; remove that rule instead of adding a redundant copy
 - [Private references](~/.claude/memory/refs-private.secret.md) — encrypted (transcrypt); coordinates for ad-hoc third-party credentials Claude uses — read it when a task needs one (decrypted locally; opaque without the key)
 - [No guessed facts](~/.claude/memory/feedback_no_guessed_facts.md) — don't state a guessed URL/path/endpoint as known; verify it or say you're guessing
+- [Machine coordinates](~/.claude/memory/machines-private.secret.md) — encrypted (transcrypt); Tailscale tailnet names/IPs for the user's machines — use these to make any project reach one machine from another, never `*.local` or LAN IPs
 
 ## Memos
 

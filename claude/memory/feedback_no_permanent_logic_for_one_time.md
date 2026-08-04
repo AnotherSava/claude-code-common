@@ -1,6 +1,6 @@
 ---
 name: feedback-no-permanent-logic-for-one-time
-description: Don't add durable production surface (flag, helper, export, class, branch) to serve a one-time operation — do it as a throwaway and delete it
+description: Don't add durable surface — production (flag, helper, export, branch) or UI (menu item, button) — to serve a one-time operation; do it as a throwaway and delete it
 metadata:
   type: feedback
 ---
@@ -9,4 +9,6 @@ Don't grow a tool's permanent interface to handle a one-off. If a task runs once
 
 **Why:** Twice in one day (2026-06-26) I added durable surface for an ephemeral need — production logic for a one-time data-setup task in a project, and an `--at "<ts>"` override on the `/memo` helper purely to backfill two existing memos. I justified the `--at` flag with "single source of logic," but that principle governs *durable parallel call sites*, not a one-time task. A throwaway that duplicates a few lines and is then deleted has zero drift risk precisely because it doesn't survive; permanent surface does. Reaching for a durable-code rule to rationalize durable surface for an ephemeral job is the tell.
 
-**How to apply:** Before adding a flag/param/helper/export/branch, ask "is this serving a recurring need, or just this one run?" If one run: script it inline or in scratch, execute, delete — the persistent artifact is the *result* (the backfilled file, the seeded rows), not the tool that made it. "Handy for future backfills/imports" is speculative (YAGNI); wait for the second real instance to justify durable surface. Related: [[feedback-no-premature-abstraction]] (don't abstract on one example) and [[feedback_research_to_production_cleanup]] (delete helpers whose rationale lives in docs).
+The same applies to **UI surface**. A once-ever action — an uninstall/teardown, a one-time migration button — doesn't earn permanent space in a menu the user opens constantly, and it's worse sitting next to routine controls, where a misclick is destructive. Put the commands in the docs instead. (2026-07-29: added a "Remove privileged setup…" tray item for a teardown the user would run once or never; it sat one slot below a routine setting and would have fired a surprise password prompt on a misclick. The user's "why do i need this menu item?" was the tell.)
+
+**How to apply:** Before adding a flag/param/helper/export/branch — or a menu item, button, or settings row — ask "is this serving a recurring need, or just this one run?" If one run: script it inline or in scratch, execute, delete — the persistent artifact is the *result* (the backfilled file, the seeded rows), not the tool that made it. For UI, document the manual steps and record *why* it isn't a control, so it isn't re-added later as an apparent oversight. "Handy for future backfills/imports" is speculative (YAGNI); wait for the second real instance to justify durable surface. Related: [[feedback-no-premature-abstraction]] (don't abstract on one example) and [[feedback_research_to_production_cleanup]] (delete helpers whose rationale lives in docs).

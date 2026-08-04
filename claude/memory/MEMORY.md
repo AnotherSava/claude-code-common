@@ -53,6 +53,7 @@
 - [Place metadata by content ownership](feedback_place_metadata_by_content.md) — product-describing files live next to the artifact they describe (cws-publish.json by manifest.json), not in .claude/
 - [Probe before declaring infeasible](feedback_probe_before_infeasible.md) — verify a data-driven feature is impossible by inspecting the runtime/library/data before asserting the gap or proposing a lesser workaround
 - [Response/writing style](feedback_response_style.md) — collection: authored text stays plain & factual; no sycophancy, don't echo the request back
+- [Overused phrases](feedback_overused_phrases.md) — live blocklist of verbal tics (starting with "landed"); list lives in CLAUDE.md, grows as new ones surface
 - [Ask before touching local servers](feedback_ask_before_touching_servers.md) — announce when starting a dev server for verification; ask before stopping one you didn't clearly start this turn (the user may have their own)
 - [Perceptible state changes](feedback_perceptible_state_changes.md) — a hover/state change called "barely noticeable" needs a distinct shade token-swap, not a nudged brightness/opacity filter; verify visually
 - [Offer visual options](feedback_offer_visual_options.md) — for visual/UI design choices, render multiple labeled options at real target sizes on a representative bg and let the user pick
@@ -62,3 +63,5 @@
 - [Compact interval format](feedback_compact_interval_format.md) — elapsed time as largest unit only ("5m"/"3h"/"12d"), min "1m", no seconds, unbounded days; full spec + code
 - [Overlay legibility on artwork](feedback_overlay_legibility_on_art.md) — affordance over posters/photos: flat dark scrim + solid mark, not a spotlight gradient + translucent mark
 - [Confirm state ≠ completion glyph](feedback_confirm_state_not_completion_glyph.md) — a two-step confirm's armed state is a labeled CTA ("＋ Add" pill), not a ✓ that reads as already-done
+- [Never blind-splice a file region](feedback_no_blind_splice.md) — read what lies between the anchors first; marker/index splices silently delete unrelated code with no error at edit time
+- [Find the override first](feedback_check_overrides_first.md) — an ignored global setting is usually cancelled locally; remove it, don't stack a copy
