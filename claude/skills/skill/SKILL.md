@@ -174,7 +174,33 @@ Add `PowerShell` and `Bash(tput cols:*)` to `allowed-tools` for the detection st
 
 ## Gitignore
 
-When creating a new global skill, check the global gitignore (`~/.gitignore` or whatever `git config --global core.excludesfile` returns) for patterns that would exclude it. If the skill directory would be ignored, add a negation entry (e.g. `!claude/skills/<skill-name>/`) so it gets tracked.
+A skills directory is usually covered by an ignore-everything-then-allowlist rule, so a new skill can end up untracked with no signal at all: it never appears in `git status`, and the only copy lives on the machine that created it. Verify tracking as the final step of creating a skill — don't skip it because the skill obviously sits inside a tracked repo.
+
+Ask git instead of reading an ignore file by hand:
+
+1. Resolve the symlink — `readlink ~/.claude/skills` gives the real directory inside the dotfiles repo.
+2. From that repo, check the new skill by its **repo-relative** path: `git check-ignore -v claude/skills/<skill-name>/`
+
+Interpret the result:
+
+| Result | Meaning | Action |
+|---|---|---|
+| exit 1, no output | not ignored | tracked — done |
+| exit 0 + a `<file>:<line>:<pattern>` citation | ignored | add `!claude/skills/<skill-name>/` to the cited file, beside its siblings, and re-run until it exits 1 |
+| exit 128, `is outside repository` | the `~/.claude/...` symlink path was passed | retry with the resolved path from step 1 |
+
+Two traps this avoids:
+
+- **Checking a file that can't hold the pattern.** The allowlist normally lives in the dotfiles repo's own `.gitignore`, not the global one (`git config --global core.excludesfile`). Inspecting only the global file reports "nothing excludes it" while the skill stays untracked. Only `check-ignore` names the file and line that actually decides.
+- **Reading exit 128 as success.** It is non-zero, so a bare `if git check-ignore …; then` classifies the skill as tracked when the path was merely unresolvable.
+
+To catch skills that are already missing an entry, audit them all from the repo root:
+
+```bash
+ls claude/skills | sed 's|^|claude/skills/|; s|$|/|' | git check-ignore -v --stdin
+```
+
+Every line of output is an untracked skill; no output means all are tracked. A skill that should also be *published* needs its `### <Title>` section in the repo README — being tracked is necessary, not sufficient.
 
 ## Shell environment
 

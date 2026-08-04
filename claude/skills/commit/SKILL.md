@@ -22,7 +22,7 @@ Read `~/.claude/skills/shared/bash-rules.md` for bash command constraints.
 - Full diff: !`git diff $(git rev-parse -q --verify HEAD || echo 4b825dc642cb6eb9a060e54bf8d69288fbee4904)`
 - Recent commits: !`git log --oneline -10 2>/dev/null || echo "(no commits yet)"`
 - Open issues: !`gh issue list --repo "$(git remote get-url origin 2>/dev/null | sed -E 's#^.*github\.com[:/]##; s#\.git$##; s#/$##')" --state open --limit 30 2>/dev/null || echo "n/a"`
-- Pending memos: !`R=$(git rev-parse --show-toplevel 2>/dev/null || pwd) && grep '^- \[ \]' "$R/.claude/memos.md" 2>/dev/null || echo "(none)"`
+- Pending memos: !`R=$(git rev-parse --show-toplevel 2>/dev/null || pwd) && cat "$R/.claude/memos.md" 2>/dev/null | grep '^- \[ \]' || echo "(none)"`
 
 ## Working directory
 
@@ -86,7 +86,16 @@ Read `~/.claude/skills/shared/bash-rules.md` for bash command constraints.
    - For each commit show:
      1. **Commit N**
      2. Commit message with only the type prefix in **bold** (e.g. **refactor**: description), no code block
-     3. Number of files and lines changed, then without an empty line in betweem, file list: each file as `inline code` followed by brief description. Pad each file entry with spaces so all entries match the length of the longest one, aligning descriptions into a column.
+     3. Number of files and lines changed, then without an empty line in between, the file list — produced by `scripts/format_files.py`, not by hand:
+
+        ```bash
+        printf '%s\n' \
+          $'path/one.ts\tBrief description' \
+          $'path/two.css\tBrief description' \
+          | python3 ~/.claude/skills/commit/scripts/format_files.py
+        ```
+
+        Paste its output verbatim. It emits a fenced code block with the paths padded to a common width, which is the only way the columns survive — rendered markdown collapses runs of spaces, so hand-padding (or `&nbsp;` entities, which render literally in a terminal) does not align.
    - End with: "I plan to create **N** commit(s) with these changes. Shall I proceed?"
 
 9. **Execute upon confirmation:**
@@ -111,15 +120,16 @@ Read `~/.claude/skills/shared/bash-rules.md` for bash command constraints.
 ```
 **Commit 1**
 
-**chore**: simplify commit skill, remove script
-- Drop format_files.py in favor of inline alignment
-- Make skill portable for global use
+**chore**: align commit plan file lists via script
+- Restore format_files.py; inline padding cannot survive markdown
 - Add Claude Code skills section to README
 
 3 files, +7/−35 lines
-`claude/skills/commit/SKILL.md`                  Remove script references, simplify formatting
-`claude/skills/commit/scripts/format_files.py`   Deleted
-`README.md`                                       Add Claude Code skills section
+```
+claude/skills/commit/SKILL.md                  Call format_files.py for the file list
+claude/skills/commit/scripts/format_files.py   Restore column-aligning helper
+README.md                                      Add Claude Code skills section
+```
 ```
 
 ## Out of scope:
