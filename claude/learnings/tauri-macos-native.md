@@ -184,6 +184,73 @@ ProgramArguments path to the binary, and `RunAtLoad: true`. Caveats:
   not a bundle path — for a `.app` bundle, point it at
   `Contents/MacOS/<binary>`.
 
+## Control+click on a tray icon must open the menu (secondary-click convention)
+
+On macOS, Control+click is the system-wide **secondary click** — Apple defines
+it as the exact equivalent of a right-click / two-finger click, and a menu bar
+item is expected to open its menu on it. But if you bind left-click to a custom
+action (toggle a widget, pause/resume) via `show_menu_on_left_click(false)`,
+Control+click silently does the *left* action instead of opening the menu.
+
+Root cause, confirmed down to the crate source: AppKit delivers Control+click as
+a **`leftMouseDown` with the Control modifier flag set** — it does *not*
+synthesize a `rightMouseDown`. The `tray-icon` crate's macOS handler reports it
+as `MouseButton::Left` and **drops the modifier** — `TrayIconEvent::Click`
+carries no modifier field (still true on the newest 0.24.x and `dev`; upstream
+issue [#112](https://github.com/tauri-apps/tray-icon/issues/112) has been open
+with no PR since 2024). Tauri's wrapper exposes no modifier either. So you can't
+learn it from the event — you must query the live modifier state yourself.
+
+**Step 1 — recover the modifier** via CoreGraphics C FFI (same style as
+`idle.rs`, avoids an Objective-C runtime dep). `kCGEventFlagMaskControl` is
+`1 << 18`, identical to `NSEventModifierFlagControl`:
+
+    #[cfg(target_os = "macos")]
+    fn control_key_held() -> bool {
+        #[link(name = "CoreGraphics", kind = "framework")]
+        extern "C" {
+            fn CGEventSourceFlagsState(state_id: i32) -> u64; // 0 = combined session state
+        }
+        unsafe { CGEventSourceFlagsState(0) } & (1 << 18) != 0
+    }
+
+(Objective-C alternative: `msg_send![class!(NSEvent), modifierFlags]` via
+`objc2` — equivalent, but adds a direct dep.)
+
+**Step 2 — open the menu. Strongly prefer the native `show_menu()`** so
+Control+click renders the *identical* menu to right-click. `show_menu()` landed
+in **tray-icon 0.22.0** (PR #294) and drives the same `performClick` path as a
+right-click, so the status item highlights and the menu anchors flush under the
+icon. Tauri's tray wrapper doesn't re-export it, but you can reach it through the
+public `with_inner_tray_icon` — and the `on_tray_icon_event` closure's first
+param already *is* the Tauri `TrayIcon` handle:
+
+    // tauri >= 2.11 pins tray-icon 0.24 (has show_menu); otherwise require tray-icon >= 0.22
+    #[cfg(target_os = "macos")]
+    if control_key_held() {
+        let _ = tray.with_inner_tray_icon(|inner| inner.show_menu());
+        return;
+    }
+    toggle_window(tray.app_handle()); // normal left-click
+
+**Fallback for tray-icon < 0.22 (no `show_menu`):** pop the menu yourself with
+Tauri's public `ContextMenu::popup` (`use tauri::menu::ContextMenu`; keep a
+`menu.clone()`, since the builder only borrows it), branching in the `Left`/`Up`
+arm on `control_key_held()`. **Caveat — this does NOT look like the native
+menu:** `popup` renders a *floating context menu* at the cursor with **no
+status-item highlight**, not anchored to the icon — visibly different from the
+right-click menu. That cosmetic mismatch is the reason to bump tray-icon and use
+`show_menu` instead. If you must use `popup`: it takes `position: None`, so muda
+pops at `NSEvent::mouseLocation()` in **screen** coords (right under the icon); do
+**not** use `popup_at`, whose position is **window-relative** (lands over the
+widget, not the icon).
+
+Either way, don't add an explicit `Right`/`Up` arm — right-click and two-finger
+click already pop the menu **natively** (the crate calls `performClick` on
+`rightMouseDown`, regardless of `show_menu_on_left_click`); a manual popup there
+double-pops. Only the Control+Left path needs handling. Gate it all to macOS — on
+Windows the menu convention is right-click and Ctrl+click keeps the left action.
+
 ## Testing tray menus via AppleScript
 
 NSStatusBar items are `menu bar item N of menu bar 2 of process "<binary>"`

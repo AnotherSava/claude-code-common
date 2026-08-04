@@ -332,6 +332,87 @@ If you cast a test fixture as `chrome.tabs.TabChangeInfo`, `tsc` errors with `Na
 
 Use `@types/chrome` instead if you need the full set of named types — but be aware it may lag newer APIs.
 
+## Injecting UI into a Host Page
+
+**`insertCSS` and `executeScript` are independent promises — order them yourself.** Firing both un-awaited lets the injected DOM land before its stylesheet, so the UI renders as unstyled markup until the CSS catches up (and then silently "fixes itself", which makes it look intermittent). Await the CSS, then inject the DOM.
+
+**Cache the injection *promise* per tab, not a boolean.** Marking the tab "styled" when injection *starts* lets a second push overtake the first one's CSS — the race survives a naive `await`:
+
+```ts
+let styles = inPageStyles.get(tabId);
+if (!styles) {
+  styles = chrome.scripting.insertCSS({ target: { tabId, allFrames: true }, css });
+  inPageStyles.set(tabId, styles);
+}
+try { await styles; } catch { inPageStyles.delete(tabId); }  // let the next push retry
+await chrome.scripting.executeScript({ ... });
+```
+
+**Injected CSS does not survive a document navigation.** A per-tab cache outlives the document, so navigating away and back renders unstyled while the cache claims otherwise. Invalidate on `chrome.tabs.onUpdated` (`changeInfo.status === "loading"`, before any active-tab guard) *as well as* `webNavigation.onCompleted` — a single path misses some ways back into a page.
+
+**`import iconUrl from "./icon.png?inline"` embeds an asset as a data URI** at build time (Vite), letting injected UI use extension artwork with no `web_accessible_resources` entry — and therefore without exposing the extension ID to the host page. Interpolate it into the injected CSS string; a relative `url()` in injected CSS resolves against the *host page* and 404s.
+
+**A host page's CSP can forbid `chrome-extension://` fonts in your injected CSS — `data:` is often the only way in.** `insertCSS` lands your stylesheet in the page, but the *page's* `Content-Security-Policy` still governs what it may fetch. A site whose `font-src` lists its own hosts and `data:` but no extension scheme silently refuses an `@font-face` at a `chrome-extension://` URL, and `web_accessible_resources` does not change that — that manifest field controls *your* exposure, not the host's policy. The failure is quiet and asymmetric: the sheet loads, every colour and position applies, and only the typeface falls back to the system default, which reads as "I styled the font wrong" rather than "the font never loaded". Check the header before theorising: `curl -sI <host> | grep -i content-security-policy`. Fix by inlining the font as a `data:` URI. Read the packaged file at injection time and cache the *promise* per worker lifetime rather than base64-ing it into the bundle — two woff2 files cost ~38KB of base64 against ~2KB of code. Chunk the encoding; a whole font spread into `String.fromCharCode(...bytes)` overflows the call stack:
+
+```ts
+let binary = "";
+for (let offset = 0; offset < bytes.length; offset += 0x8000) {
+  binary += String.fromCharCode(...bytes.subarray(offset, offset + 0x8000));
+}
+return `data:font/woff2;base64,${btoa(binary)}`;
+```
+
+**Injected CSS loses to the host's *inline* styles — restyle JS-managed boxes with `!important`.** `insertCSS` lands in the author origin, so it outranks the host's stylesheet but never `element.style`, which JS-driven sites write constantly (sizing a bar on resize, positioning a panel). The tell is an asymmetric failure: most of your rules visibly apply — proving the sheet loaded and the selectors match — while one property refuses to move. That is not a specificity problem you can out-select; it needs `!important`. Guard the whole family at once (`height` *and* `min-height`, `top` *and* `margin`), or the host holds the box open with the one you left unguarded.
+
+**Restyling a host's icons with `transform: scale()` silently destroys any `transform` the host was already using.** `transform` is one property, not a list you contribute to — so a scale rule wipes a host's `rotate()`, and hosts lean on rotation to derive variants from a single sprite (one arrow image serving left/right/up via `rotate(180deg)`/`rotate(90deg)`). The symptom is not a missing icon but a *wrong* one: every variant renders in the sprite's native orientation, which looks like a data bug until you diff the computed `transform`. Grep the host's stylesheet for `rotate(` before scaling anything of theirs. Composing it back is not just appending `rotate()`: if you scale from a corner (`transform-origin: top left`), a square rotated about that corner lands outside it, so a compensating translate is needed — and because a percentage translation resolves against the element's own box, it holds at any scale. Read right to left:
+
+```css
+/* origin top-left: rotate, put the box back over the origin, then scale */
+transform: scale(0.5) translate(100%, 100%) rotate(180deg);   /* 180° */
+transform: scale(0.5) translate(100%, 0)    rotate(90deg);    /*  90° */
+/* origin bottom-left */
+transform: scale(0.5) translate(100%, -100%) rotate(180deg);
+transform: scale(0.5) translate(0, -100%)    rotate(90deg);
+```
+
+**Replacing a host icon's `background-image` leaves `background-position` pointing into the sheet it came from.** Hosts draw icon sets from one sprite and pick the variant with a per-colour/per-type offset (`background-position-y: -154.5px`). Override `background-image` and `background-size` and that offset survives, so your replacement is shoved clean out of a 36px box — loaded, correctly sized, hit-testable, and invisible. It looks like the image failed to load, so the instinct is to check the URL, which is fine, and to check `display`/`opacity`/z-order, which are also fine. Diagnose it by reading the *computed* `background-position`, not by staring at pixels. Always restate `background-position: center` (and `background-size`) alongside any `background-image` override of a host's sprite. The failure is per-variant: a slot that happens to sit at offset `0 0` renders correctly, so a handful of working cases is not evidence the rule is right.
+
+Two checks that settle "is it actually painting?" without pixel-peeping:
+
+```js
+const r = el.getBoundingClientRect();
+document.elementFromPoint(r.left + r.width / 2, r.top + r.height / 2) === el;  // topmost, unoccluded?
+const img = new Image();                                                       // does the URL load?
+img.onload = () => console.log(img.naturalWidth);
+img.src = getComputedStyle(el).backgroundImage.slice(5, -2);
+```
+
+When you fix one of these, grep your own stylesheet for every other place you overrode a host background — this exact bug shipped twice in one session because the guard went on one rule and was forgotten on its sibling.
+
+**Shrinking a host's elements strands everything the host sized around them.** Hosts floor containers at their own element's dimensions (`.pile { min-height: 126px }` = exactly one card), and position siblings *after* that container. Shrink the element and the floor does not follow: the container still reserves its old height, and any control that follows it — a splay arrow, a counter, a label — floats far from the thing it describes. The tell is a control that used to sit snug now separated by roughly (old size − new size). Fixing the element alone is never enough; grep the host's stylesheet for `min-height`/`min-width`/fixed `height` on the ancestors and restate each as *your* element's size. Note these live outside the element you restyled, so a custom property scoped to it will not reach them — publish the scale on `:root` and read it with a fallback.
+
+**Never set `display` on a host element the page reveals from JS.** Hosts commonly ship a control as `display: none` in their stylesheet and show it by writing an inline `display`. Your author-origin rule outranks their stylesheet, so a `display: flex` added to centre its contents pins that control *visible on every page* in the states the host meant to hide it. Reach for `line-height`, `vertical-align`, or flex properties on the parent instead — anything but `display`.
+
+**Move the host's nodes, don't clone them.** Rearranging a host page by copying markup breaks as soon as the host updates its own element by id: the copy goes stale while the original updates offscreen. Moving the node keeps every `$("someId").innerHTML = ...` working in its new home. To keep it reversible, leave a hidden placeholder where the node came from — a later injection has no memory of what an earlier one moved, so that placeholder is the only record of where things belong.
+
+**Pulling a host element out of `position: absolute` makes everything inside it count.** Absolutely-positioned host blocks often contain hard-sized boxes (banner and ad slots, avatar panels) that cost nothing while out of flow. Put the block into the flow — say, to stop it overlapping something you moved — and those sizes start dictating layout, including invisible ones. A container measuring far taller than anything you can see is the signature.
+
+**Host pages you cannot run locally are still measurable.** Fetch the host's real stylesheet and a saved DOM dump, load them in headless Chrome alongside your injected CSS, and drive your actual mount function over it — then measure with `getBoundingClientRect()` instead of reading screenshots. Two cautions: ink extents are not box extents (glyphs sit above a box's centre, so text always measures "high" from pixels), and a static dump reproduces nothing the host's JS does at runtime. When the reproduction and the live page disagree, the live page is right — get one `console.table` of the real boxes rather than guessing again.
+
+**macOS elastic overscroll drags a stuck `position: sticky` element even though layout shows nothing wrong.** Chrome visually pulls a `position: sticky` element along during the trackpad rubber-band bounce past a scroll boundary, then springs it back — invisible to JS: `window.scrollY` and `getBoundingClientRect().top` read the correct resting value throughout, because the bounce is a compositor-only transform never surfaced to layout. `position: fixed` is exempted from this drag (Chrome M105+); `position: sticky` is not ([w3c/csswg-drafts#8309](https://github.com/w3c/csswg-drafts/issues/8309)). Fix: `overscroll-behavior-y: none` — but it must be on `<html>`/`:root`, not `<body>`. Chrome had a long-standing bug reading the *viewport's* overscroll-behavior from `<body>` instead of the spec-mandated `document.scrollingElement`; fixed in Chrome 139 (Aug 2025), so `body`-scoped `overscroll-behavior` is now a silent no-op for the viewport in current Chrome.
+
+**Prefer temporary diagnostic `console.log` over asking the user to manually inspect DevTools.** For a bug in injected page code you can't reproduce locally (auth-gated third-party page, physical-hardware effects like trackpad bounce), add tagged `console.log` statements to the injected function, rebuild, and ask the user to reproduce and paste the output — cheaper than describing what to click through in DevTools, and gives exact values instead of a description. Remove the logging once the bug is understood.
+
+**Prototype DOM/CSS changes live in an authenticated browser session before writing them into source.** With a tool that drives the user's actual logged-in browser (Claude in Chrome, or similar), executing a candidate DOM move / CSS rule directly via a JS-eval tool and screenshotting the result is a much faster loop than edit → rebuild → ask the user to reload the extension → ask for a screenshot. Once the live experiment confirms the approach, port the exact same logic into the source file — the live page is throwaway (reload discards it), so there's no cleanup cost to iterating there first.
+
+**Driving the user's browser to debug an extension steals the active tab from the extension.** Automation tooling opens its tab in a new window and focuses that window on every screenshot and script call — so an extension tracking `activeTabId` through `tabs.onActivated`/`windows.onFocusChanged` now points at *your* tab, not the user's. Anything it pushes to "the active tab" lands in the automation tab. The user reports that a setting does nothing, and the code looks correct because it *is* correct. The tell is a feature that works when you inject its CSS by hand but not when toggled through the UI, with the expected state present in the automation tab and absent in theirs. Close the automation tab before asking the user to retest — and treat "only the active tab gets the push" as a design smell in its own right, since a background tab holding the same page is a real case with or without automation. Broadcast to every matching tab instead (`chrome.tabs.query({ url })`), keeping the active tab in the set unconditionally so the page in front still updates if the query fails or the permission is absent.
+
+**A "smallest/largest value seen so far" adaptive baseline can't catch an anomaly present from the very first measurement.** Un-sticking a folded header once it grew past 3× the smallest height ever recorded broke for a host page whose own bulky content (a piece-picker, board art) lives inside what gets folded and is present from the first render — that first tall reading becomes the baseline itself, so `height > height * 3` is never true. The bug isn't in the ratio or the tracking logic; it's structural: any "learn what's normal from what I've seen" heuristic is blind to an anomaly with no prior "normal" sample to compare against. Use a fixed threshold, not a learned one, whenever the anomaly can be present at first measurement rather than only arriving via transient growth.
+
+**Beware injecting into a container your own MutationObserver watches.** Mounting a node inside the observed subtree fires the observer and triggers whatever it drives (re-extraction, refetch) on every page load. Either mount as a sibling, or have the observer ignore records whose added/removed nodes are all yours.
+
+**`chrome-types` declares `func?: () => void`.** The arg-taking form needs a cast: `func: myFn as unknown as () => void` with `args: [...]`.
+
 ## CSS in Extension Pages
 
 **`display:none` `<img>` elements are still downloaded — use a CSS `background-image` to defer.** A hover tooltip built as `<div class="tip" style="display:none"><img src="big.webp"></div>` fetches every `<img>` up front, because Chrome downloads `<img>` src regardless of the ancestor's `display:none`. With hundreds of cards each embedding a ~60KB full-res face image in a hidden tooltip, that's ~25MB downloaded on every render, making "load" feel slow even though the tooltips are never opened. Fix: put the image on the tooltip element itself as a `background-image` (`<div class="tip" style="background-image:url(big.webp)"></div>` + `.tip { width; height; background-size: contain }`). Browsers do **not** fetch background images of `display:none` elements, so each face loads only when its tooltip is first shown on hover (then cached). Trade-off: a brief blank on first hover while the ~60KB loads from local disk — far better than 25MB eagerly. Diagnose with a render-side count: `(html.match(/<img /g)||[]).length` and how many reference the heavy asset. (Inline `style="background-image:url(...)"` is fine under the default MV3 extension-page CSP — inline styles are allowed; only `script-src`/`object-src` are locked to `'self'`.)

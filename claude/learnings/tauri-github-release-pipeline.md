@@ -148,3 +148,18 @@ This advances `published_at` to now without affecting `created_at`. The release 
 ## Re-publishing a draft has a quirk in the gh CLI output
 
 When toggling `--draft=true` on an already-published release, `gh release edit` prints a URL of the form `.../releases/tag/untagged-<random>` — the URL a draft uses when it has no tag binding. This is just the draft-mode URL; the release entity still exists and its tag binding returns when you flip `--draft=false`. No clean-up needed.
+
+## reqwest's rustls (aws-lc-rs) backend needs NASM on the Windows CI build
+
+reqwest 0.13's default `rustls` feature pulls in **aws-lc-rs** (crate `aws-lc-sys`), whose Windows-MSVC build assembles its crypto with **NASM** — not present on the `windows-latest` runner by default, so the build fails at `aws-lc-sys`. Add a Windows-gated NASM step before the cargo build in every workflow that compiles the crate (both the PR/build check and the release build):
+
+```yaml
+- name: Install NASM (Windows, for aws-lc-sys)
+  if: runner.os == 'Windows'
+  uses: ilammy/setup-nasm@v1
+```
+
+Notes:
+- reqwest 0.12's `rustls-tls` used **ring** (no NASM); switching to the aws-lc-rs backend is what introduces the requirement.
+- To avoid the build dep entirely, reqwest 0.13's `rustls-no-provider` keeps ring but then you must install a crypto provider at startup — `rustls::crypto::ring::default_provider().install_default()` once before the first HTTPS call — or every TLS request panics with "no process-level CryptoProvider available".
+- aws-lc-rs also switches cert validation to the **OS trust store** (via `rustls-platform-verifier`) instead of bundled webpki roots. Fine for public CAs, but a runtime behavior change worth a post-upgrade smoke test (one real request per host).
