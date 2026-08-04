@@ -72,10 +72,12 @@ From Context and the user's request:
 2. Ensure `.gitattributes` carries the encrypt pattern; add this line if missing (**encrypt attribute** is
    `NONE`):
    ```
-   *.secret.* filter=crypt diff=crypt merge=crypt -text
+   *.secret.* filter=crypt diff=crypt merge=crypt
    ```
-   The `-text` matters: it treats the encrypted blob as binary so git's line-ending (CRLF/LF) normalization
-   can never interact with the crypt filter and produce spurious cross-platform diffs.
+   Do **not** add `-text` here. Transcrypt stores base64, which is text — marking it binary disables git's
+   line-ending normalization, so a Windows clone commits CRLF-wrapped ciphertext and a macOS/Linux clone
+   rewrites it to LF, churning the file on every cross-platform round trip. Leaving it normalizable is what
+   keeps the blob byte-identical across platforms (see `~/.claude/learnings/git-line-endings.md`).
 3. Ensure the target matches the pattern. If it isn't already `*.secret.*`, rename it —
    `mv <dir>/<name>.<ext> <dir>/<name>.secret.<ext>` — and update any references to the old name (grep the
    repo).

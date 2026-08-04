@@ -86,6 +86,49 @@ git checkout -- .
 
 This re-writes the working tree from the index, and with `autocrlf=input` the checkout produces LF files. Now disk matches the index stat cache and status is clean.
 
+## `-text` Disables eol Conversion Entirely
+
+Marking a path `-text` does not merely leave `text` unspecified — it declares the file **binary**, and git then skips end-of-line conversion for it completely. An `eol=lf` inherited from a global gitattributes still *appears* in `git check-attr` but is dead:
+
+```
+$ git check-attr text eol -- notes.secret.md
+notes.secret.md: text: unset     <- binary, so the eol below never applies
+notes.secret.md: eol: lf
+```
+
+Internally `crlf_action = CRLF_BINARY` short-circuits before `eol` is consulted. A global `* text=auto eol=lf` therefore protects nothing on a path that a repo-local rule opted out with `-text`.
+
+Symptom: one file churns CRLF↔LF across machines while every other file in the same repo stays LF.
+
+## Filters Run Before eol Normalization (check-in)
+
+On `git add`, git applies the **clean filter first**, then normalizes the filter's *output*. So a filter that emits platform-dependent line endings still produces a canonical blob — provided the path is treated as text:
+
+| local attribute | effective | resulting blob |
+|---|---|---|
+| `-text` | `unset eol=lf` | keeps whatever the filter emitted |
+| `text eol=lf` | `set eol=lf` | normalized to LF |
+| *(none, inherits global `text=auto eol=lf`)* | `auto eol=lf` | normalized to LF |
+
+On checkout the order reverses: eol conversion happens *before* the smudge filter.
+
+This matters for base64-armored filters (transcrypt, git-crypt in ASCII mode). Their stored form is text, so leaving it normalizable is exactly what keeps blobs byte-identical across platforms — marking it `-text` is what makes them diverge. Only genuinely binary filter output needs `-text`.
+
+## Diagnosing a Filtered Blob That Churns
+
+To tell "content actually changed" from "only the encoding changed", compare size and CR count rather than the diff (git shows filtered files as `Bin`):
+
+```bash
+git cat-file blob <sha> | wc -c
+git cat-file blob <sha> | grep -c $'\r'
+```
+
+A byte delta exactly equal to the line count is CRLF vs LF, not a content change. For transcrypt specifically, the 8-byte salt after the `Salted__` magic is derived by HMAC over the plaintext, so two blobs sharing a salt hold identical plaintext:
+
+```bash
+git cat-file blob <sha> | openssl base64 -d | head -c 16 | xxd -p
+```
+
 ## Key Insight
 
 The `eol=lf` setting only affects what git writes on checkout — it does not retroactively fix existing working copies. Files created or edited by Windows tools between checkouts will have CRLF until the next `git checkout` or manual conversion.

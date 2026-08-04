@@ -1,1 +1,1 @@
-claude/memory/*.secret.md filter=crypt diff=crypt merge=crypt -text
+claude/memory/*.secret.md filter=crypt diff=crypt merge=crypt
