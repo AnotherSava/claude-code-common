@@ -148,3 +148,35 @@ Practical setup:
 - **Don't verify enforcement with server-side curl.** A spoofed `Referer`/`Origin` from a
   shell does not reliably reproduce Mapbox's browser-based enforcement (it returns 200
   regardless). Trust the dashboard config; test blocking in a real browser if needed.
+
+## Diagnosing a blank white globe
+
+The globe, its atmosphere/fog and the Mapbox logo all render from the main thread and need no
+tiles — so **a blank white globe with correct chrome means the style loaded but the vector
+source did not**. Nothing in the console says so. Two causes look identical; separate them by
+whether the TileJSON request was *refused* or *never sent*:
+
+```js
+const sc = map.style._sourceCaches['other:composite'];
+sc._source._loaded          // false  -> source never finished
+sc._source._tileJSONRequest // still an object -> request outstanding
+map.style._loaded           // true -> the style itself is fine
+```
+
+**1. Sent and refused (403) — a URL-restricted token off its allowed origin.** The tell is that
+*everything except tiles works*: style JSON, `sprite.json` and the glyph `.pbf` all return 200,
+and `/tokens/v2` reports `TokenValid`, so the token looks healthy and the restriction is the
+last thing suspected. Only `/v4/<tileset>` and `styles/.../tiles/...` 403. A wrong **port**
+counts as a wrong origin (see the restriction rules above) — serving the same files on 8001
+instead of 8000 is enough.
+
+**2. Never sent — the tab is hidden.** GL JS defers source and tile loading while
+`document.visibilityState === 'hidden'`. The source cache is created and `_tileJSONRequest`
+exists, but no HTTP request is ever issued: nothing in the network panel, no `error` event,
+`isStyleLoaded()` false forever, and the globe paints once and sits there. This bites under
+browser automation, where the driven tab is often backgrounded — and manually `fetch`ing the
+same TileJSON URL *from that page* returns 200, which makes it look even more like an app bug.
+**Check `document.visibilityState` before spending time on the token.**
+
+GeoJSON overlays are parsed in the worker too, so a custom star/pin layer stays invisible under
+both causes — missing *your own* markers is not extra evidence of a data problem.
