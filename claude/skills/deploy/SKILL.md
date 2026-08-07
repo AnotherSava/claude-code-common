@@ -1,9 +1,24 @@
 ---
 name: deploy
-description: Configure deployment script and run it, verifying it succeeds
+description: Configure and run the LOCAL deploy — install the app on this machine or start its dev server — verifying it succeeds
 disable-model-invocation: false
-allowed-tools: Bash(bash ~/.claude/skills/deploy/scripts/deploy.sh), Bash(bash ~/.claude/skills/deploy/scripts/deploy-tauri.sh), Bash(bash ~/.claude/skills/deploy/scripts/deploy-intellij-plugin.sh), Bash(bash ~/.claude/skills/deploy/scripts/deploy-cloudflare-pages.sh), Bash(bash ~/.claude/skills/deploy/scripts/deploy-dev-server.sh), Bash(bash ~/.claude/skills/deploy/scripts/detect-intellij-target.sh:*), Bash(bash scripts/deploy.sh), Bash(deploy), Bash(echo *), AskUserQuestion, Read(config/deploy.env), Write(config/deploy.env), Write(scripts/deploy.sh), Read(scripts/deploy.sh), Edit(.gitignore), Read(.gitignore), Edit(~/.bashrc), Read(~/.bashrc), Edit(~/.zshrc), Read(~/.zshrc)
+allowed-tools: Bash(bash ~/.claude/skills/deploy/scripts/deploy.sh), Bash(bash ~/.claude/skills/deploy/scripts/deploy-tauri.sh), Bash(bash ~/.claude/skills/deploy/scripts/deploy-intellij-plugin.sh), Bash(bash ~/.claude/skills/deploy/scripts/deploy-dev-server.sh), Bash(bash ~/.claude/skills/deploy/scripts/detect-intellij-target.sh:*), Bash(bash scripts/deploy.sh), Bash(deploy), Bash(echo *), AskUserQuestion, Read(config/deploy.env), Write(config/deploy.env), Write(scripts/deploy.sh), Read(scripts/deploy.sh), Edit(.gitignore), Read(.gitignore), Edit(~/.bashrc), Read(~/.bashrc), Edit(~/.zshrc), Read(~/.zshrc)
 ---
+
+**Scope — `deploy` is local only.** It makes the current code runnable *on this machine*: it
+installs the built app locally (Tauri / IntelliJ plugin / .NET) or starts the project's local
+server. It never ships anywhere public. Shipping outward is a different verb:
+
+| Means | Where it lives |
+| --- | --- |
+| Run it *here*, on this machine | this skill |
+| Cut a version: tag → CI → GitHub Release | the `release` skill |
+| Ship a site to a public host | the project's own CI (e.g. a GitHub Actions workflow) |
+
+Publishing to a host is deliberately **not** a skill. Publishing from a developer's working tree
+lets the wrong environment's credentials, or uncommitted work, reach production silently — CI
+builds a clean checkout with one pinned configuration and removes that whole failure class. A
+project having both a local `deploy` and a publish pipeline is normal and not a conflict.
 
 See `~/.claude/learnings/shell-environment.md` for the expected bash functions and verification checklist.
 
@@ -13,10 +28,9 @@ See `~/.claude/learnings/shell-environment.md` for the expected bash functions a
 - Shell rc target: !`case "$(uname -s)" in Darwin) echo "~/.zshrc" ;; MINGW*|MSYS*|CYGWIN*) echo "~/.bashrc" ;; *) [ -n "$ZSH_VERSION" ] || [ "${SHELL##*/}" = "zsh" ] && echo "~/.zshrc" || echo "~/.bashrc" ;; esac`
 - Wrapper script exists: !`test -f scripts/deploy.sh && echo yes || echo no`
 - Wrapper target: !`grep -oE 'deploy(-[a-z]+)?\.sh' scripts/deploy.sh 2>/dev/null | tail -1 || echo none`
-- Cloudflare Pages configured: !`grep -c '^DEPLOY_TYPE=cloudflare-pages' config/deploy.env 2>/dev/null || echo 0`
-- Wrangler config present: !`(test -f wrangler.toml || test -f wrangler.json || test -f wrangler.jsonc) && echo yes || echo no`
-- package.json build script: !`node -e "try{process.stdout.write(require('./package.json').scripts&&require('./package.json').scripts.build?'yes':'no')}catch(e){process.stdout.write('no')}" 2>/dev/null || echo no`
 - Static web entry (index.html): !`(ls index.html web/index.html public/index.html src/index.html dist/index.html 2>/dev/null | grep -q .) && echo yes || echo no`
+- Static web dir (dir holding index.html; empty if none): !`for d in . web public src dist; do [ -f "$d/index.html" ] && { echo "$d"; break; }; done; true`
+- Project start script (a committed scripts/dev.sh the project already provides): !`test -f scripts/dev.sh && echo yes || echo no`
 - Dev-server configured: !`grep -c '^DEPLOY_TYPE=dev-server' config/deploy.env 2>/dev/null || echo 0`
 - Dev-server dir (package.json with a 'dev' script; empty if none): !`for d in . web app apps/web client frontend site www server; do [ -f "$d/package.json" ] && node -e "p=require('./'+process.argv[1]+'/package.json');process.exit(p.scripts&&p.scripts.dev?0:1)" "$d" 2>/dev/null && { echo "$d"; break; }; done; true`
 - Dev-server start command guess: !`for d in . web app apps/web client frontend site www server; do [ -f "$d/package.json" ] || continue; node -e "p=require('./'+process.argv[1]+'/package.json');process.exit(p.scripts&&p.scripts.dev?0:1)" "$d" 2>/dev/null || continue; if [ -f "$d/pnpm-lock.yaml" ]; then echo "pnpm dev"; elif [ -f "$d/yarn.lock" ]; then echo "yarn dev"; elif [ -f "$d/bun.lockb" ]; then echo "bun run dev"; else echo "npm run dev"; fi; break; done; true`
@@ -44,27 +58,23 @@ See `~/.claude/learnings/shell-environment.md` for the expected bash functions a
 
 Pick the matching underlying deploy script based on the **Context** flags. Already-configured markers win first (a prior run picked the type):
 
-- **Cloudflare Pages configured** ≥ 1 (`config/deploy.env` marks `DEPLOY_TYPE=cloudflare-pages`) → `TARGET=deploy-cloudflare-pages.sh`
-- else **Dev-server configured** ≥ 1 (`config/deploy.env` marks `DEPLOY_TYPE=dev-server`) → `TARGET=deploy-dev-server.sh`
+- **Dev-server configured** ≥ 1 (`config/deploy.env` marks `DEPLOY_TYPE=dev-server`) → `TARGET=deploy-dev-server.sh`
 - else **Tauri project** is yes → `TARGET=deploy-tauri.sh`
 - else **IntelliJ plugin project** is yes → `TARGET=deploy-intellij-plugin.sh`
 - else **.NET project** is yes → `TARGET=deploy.sh`
-- else decide from two signals — **Cloud target** = (**Wrangler config present** is yes **or** **Static web entry (index.html)** is yes), and **Dev server** = (**Dev-server dir** is non-empty, i.e. a `package.json` with a `dev` script was found):
-  - **both** present (e.g. a Vite SPA you both run locally and ship to Pages) → ask the user what `deploy` should mean here:
-    > This project can be deployed two ways. What should `deploy` do? **(a)** Restart the local dev server (run it on this machine), or **(b)** Ship a build to Cloudflare Pages?
+- else **Dev-server dir** is non-empty (a `package.json` with a `dev` script — Next.js, Remix, SvelteKit, Vite, a plain Node server) → `TARGET=deploy-dev-server.sh` (§2a)
+- else **Static web entry (index.html)** is yes (a static site with no `dev` script — plain HTML/JS served from a directory) → `TARGET=deploy-dev-server.sh` (§2a), configured as a static file server
+- else → **STOP**. Tell the user:
+  > The `deploy` skill recognizes Tauri (`src-tauri/tauri.conf.json`), IntelliJ plugins (`build.gradle[.kts]` using `org.jetbrains.intellij[.platform]`), .NET (`src/*.csproj`), and local web servers (a `package.json` with a `dev` script, or a static `index.html`). None was found in the current directory. If this is a different stack, add a new underlying script in `~/.claude/skills/deploy/scripts/` and extend the skill.
+  >
+  > If you meant to ship this somewhere public, that isn't `deploy`: a site goes live through the project's CI pipeline, and a versioned artifact through the `release` skill.
 
-    (a) → `TARGET=deploy-dev-server.sh` (§2b); (b) → `TARGET=deploy-cloudflare-pages.sh` (§2a).
-  - only **Cloud target** → ask the user:
-    > This looks like a static web project. Deploy it to **Cloudflare Pages** (build + `wrangler` direct upload)?
+  Do not create `config/deploy.env` or the wrapper. Exit.
 
-    If yes → `TARGET=deploy-cloudflare-pages.sh` (§2a). If no → **STOP** with the message below.
-  - only **Dev server** (a web app you develop and run locally — Next.js, Remix, SvelteKit, a plain Node server — with no install/cloud target) → `TARGET=deploy-dev-server.sh` (§2b). Here `deploy` means "restart the local dev server" — the run-it-for-me counterpart to the install targets, not a production ship.
-  - **neither** → **STOP**. Tell the user:
-    > The `deploy` skill recognizes Tauri (`src-tauri/tauri.conf.json`), IntelliJ plugins (`build.gradle[.kts]` using `org.jetbrains.intellij[.platform]`), .NET (`src/*.csproj`), local dev servers (a `package.json` with a `dev` script), and static sites deployed to Cloudflare Pages. None was found in the current directory. If this is a different stack, add a new underlying script in `~/.claude/skills/deploy/scripts/` and extend the skill.
-
-    Do not create `config/deploy.env` or the wrapper. Exit.
-
-The local-install types (Tauri / IntelliJ / .NET) and the local dev server are mutually exclusive with Cloudflare Pages (cloud). If more than one local target's flag is yes (mixed repo), ask the user which one to deploy — do not guess.
+A project that also ships to a public host is not a conflict — `deploy` configures the local
+side only, and CI handles shipping. Never ask the user to choose between the two. If
+more than one *local* target's flag is yes (mixed repo), ask which one `deploy` should mean —
+do not guess.
 
 ## 2. Check prerequisites
 
@@ -74,36 +84,22 @@ The local-install types (Tauri / IntelliJ / .NET) and the local dev server are m
    deploy() { run_repo_script scripts/deploy.sh "$@"; }
    ```
 
-**If `TARGET` is `deploy-cloudflare-pages.sh`, configure via §2a and skip items 2–4. If `TARGET` is `deploy-dev-server.sh`, configure via §2b and skip items 2–4. (Items 2–4 are for the local-install targets.)**
+**If `TARGET` is `deploy-dev-server.sh`, configure via §2a and skip items 2–4. (Items 2–4 are for the local-install targets.)**
 
-### 2a. Cloudflare Pages configuration
+### 2a. Local web server configuration
 
-Write `config/deploy.env` with these keys (ask only for keys not already present; use the Context-derived defaults):
-
-- `DEPLOY_TYPE=cloudflare-pages` — always write this; it's the marker that routes future runs straight to this target.
-- `CF_PAGES_PROJECT=` — the Pages project name. Default = **Repo folder name** lowercased with any character outside `[a-z0-9-]` replaced by `-`. The deploy script auto-creates the project on first run if it doesn't exist.
-- `OUTPUT_DIR=` — directory uploaded to Pages (relative to repo root). Default `dist` (common alternatives: `build`, `out`, `public`).
-- `BUILD_CMD=` — command that produces `OUTPUT_DIR`. Derive the default:
-  - if `scripts/build_site.mjs` exists → `node --env-file=.env scripts/build_site.mjs`
-  - else if **package.json build script** is yes → `npm run build`
-  - else → leave empty (the script uploads `OUTPUT_DIR` as-is)
-- `BRANCH=` — deploy branch. Default = **Production branch** Context value; deploys equal the production branch are production deploys.
-
-Then handle auth and secrets:
-
-1. The deploy reads `CLOUDFLARE_API_TOKEN` and `CLOUDFLARE_ACCOUNT_ID` from the project's `.env` at deploy time (or falls back to a prior `wrangler login`). If `.env` has neither and there's no wrangler session, tell the user to add them to `.env` or run `! npx wrangler login`. The token needs **Account → Cloudflare Pages → Edit** (add **Zone → DNS → Edit** only if managing the custom domain via API too).
-2. Ensure `.env` is gitignored (it holds the Cloudflare token) — if it isn't in `.gitignore`, add it.
-
-`config/deploy.env` holds no secrets (only project/build settings), so it is safe to commit. After writing it, go to **step 3**.
-
-### 2b. Dev-server configuration
-
-For a local dev server, `deploy` stops whatever holds the port and relaunches the dev command detached (so it outlives the Claude session), then waits for the port to come up. Write `config/deploy.env` with these keys (ask only for keys not already present; use the Context-derived defaults — confirm them with the user rather than asking blind):
+For a local web server, `deploy` stops whatever holds the port and relaunches the start command detached (so it outlives the Claude session), then waits for the port to come up. Write `config/deploy.env` with these keys (ask only for keys not already present; use the Context-derived defaults — confirm them with the user rather than asking blind):
 
 - `DEPLOY_TYPE=dev-server` — always write this; it's the marker that routes future runs straight to this target.
-- `DEV_DIR=` — subdir holding the `package.json` with the `dev` script, relative to repo root. Default = **Dev-server dir** Context value (`.` for a root app, e.g. `web` for a monorepo subdir).
-- `DEV_PORT=` — port the server listens on (used to stop the old instance and health-check the new one). Default = **Dev-server port guess** Context value if non-empty, else `3000` (note: Vite defaults to `5173`). Confirm with the user — the guess only catches ports written explicitly in the dev script.
-- `DEV_CMD=` — command that starts the server. Default = **Dev-server start command guess** Context value (picks `pnpm`/`yarn`/`bun`/`npm` from the lockfile). Keep it as the package-manager script (e.g. `npm run dev`) even when that script itself wraps another tool (Doppler, env loaders) — the wrapping lives in `package.json`, not here.
+- `DEV_DIR=` — the directory `DEV_CMD` is **run from** (not necessarily the one being served), relative to repo root; logs are written here too. Decide it together with `DEV_CMD` below:
+  - using the project's own `scripts/dev.sh` → `.`, since that path is repo-root-relative and the script decides for itself what to serve. Setting this to the web dir instead makes the command not found.
+  - using a package-manager `dev` script → the **Dev-server dir** Context value (`.` for a root app, `web` for a monorepo subdir).
+  - serving a static directory directly → the **Static web dir** value.
+- `DEV_PORT=` — port the server listens on (used to stop the old instance and health-check the new one). Default = **Dev-server port guess** Context value if non-empty, else `3000` (note: Vite defaults to `5173`). Confirm with the user — the guess only catches ports written explicitly in the dev script. **If the project pins its port for an external reason** (an API key restricted to `http://localhost:<port>`, an OAuth redirect URI, a CORS allowlist), use that port and say so in the config comment — a "sensible" default silently breaks those.
+- `DEV_CMD=` — command that starts the server. Derive the default:
+  - if **Project start script** is yes → `bash scripts/dev.sh` — prefer the project's own committed starter, which may do setup the skill can't know about (rendering a gitignored config, fetching a token). It runs in the foreground and this target detaches it, which is the right shape.
+  - else if **Dev-server dir** is non-empty → **Dev-server start command guess** Context value (picks `pnpm`/`yarn`/`bun`/`npm` from the lockfile). Keep it as the package-manager script (e.g. `npm run dev`) even when that script itself wraps another tool (Doppler, env loaders) — the wrapping lives in `package.json`, not here.
+  - else (static site, no `dev` script) → `python -m http.server <DEV_PORT> --directory <DEV_DIR>`
 
 `config/deploy.env` holds no secrets, so it is safe to commit (and committing it gives every contributor the same `! deploy`). The dev server writes `dev-server.log` / `dev-server.err.log` into `DEV_DIR` — ensure those are gitignored: if `<DEV_DIR>/dev-server*.log` (or a broader `dev-server*.log`) isn't already covered by `.gitignore`, add it. After writing the config, go to **step 3**.
 
@@ -174,7 +170,7 @@ First decide whether the wrapper needs the Doppler secret-rendering block: it do
      printf 'scripts/deploy.sh\n' >> "$gi"
    }
    ```
-   This covers every repo at once — do not add the wrapper to a project's `.gitignore`. (Project-specific artifacts like the dev-server logs in §2b still go in the project `.gitignore`.)
+   This covers every repo at once — do not add the wrapper to a project's `.gitignore`. (Project-specific artifacts like the dev-server logs in §2a still go in the project `.gitignore`.)
 
 ## 4. Deploy
 

@@ -14,9 +14,29 @@ npx --yes wrangler pages deploy <dir> --project-name <name> --branch <branch> --
 ```
 
 `--branch <branch>` equal to the production branch makes it a production deploy.
-`--commit-dirty=true` silences the "working directory has uncommitted changes" warning.
 First deploy prints a `https://<hash>.<project>.pages.dev` URL; the project root is
 `https://<project>.pages.dev`.
+
+### `--commit-dirty=true` hides a real trap
+
+It silences the "working directory has uncommitted changes" warning — but wrangler still stamps
+the deployment's metadata (`deployment_trigger.metadata.commit_hash` / `commit_message`) from
+the **local git HEAD**, while uploading whatever bytes are in the folder. Publish a dirty tree
+and the dashboard shows a deployment perfectly reconciled to a commit that does not describe
+what is being served. Nothing surfaces the divergence; it only shows up if someone diffs the
+live bundle against the repo, which can be weeks later.
+
+Two consequences worth designing around:
+- **Prefer publishing from CI**, which builds a clean checkout of one commit. That removes the
+  whole class rather than guarding it, and also removes the sibling failure of a developer
+  building with the wrong environment's secrets.
+- If publishing locally anyway, **gate on a clean, pushed tree** rather than passing
+  `--commit-dirty=true` reflexively, and pass `--commit-hash "$GITHUB_SHA"` (or the local rev)
+  explicitly so the metadata is meaningful.
+
+Related: a direct-upload project reports `"source": null` in the API, and *stays* direct-upload —
+adding a GitHub Actions workflow that calls `wrangler pages deploy` does **not** convert it to a
+Git-connected project, so the two approaches don't conflict.
 
 Auth: either `CLOUDFLARE_API_TOKEN` + `CLOUDFLARE_ACCOUNT_ID` in the environment, or a
 prior interactive `wrangler login`. Direct upload sidesteps the GitHub OAuth handshake

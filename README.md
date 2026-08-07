@@ -124,7 +124,9 @@ Arranges a project's README and GitHub Pages docs into a consistent user-first l
 
 ### Deploy
 
-Configures the deployment pipeline for a supported project (.NET, Tauri, or IntelliJ plugin) and runs it. On first use in a project, sets up the `deploy` bash function, creates a local `scripts/deploy.sh` wrapper, and updates `.gitignore`. Then builds, deploys to the install directory, and verifies the app starts.
+Configures and runs the **local** deploy — it makes the current code runnable on this machine and never ships anywhere public. Either installs the built app locally (Tauri, IntelliJ plugin, .NET) or starts the project's local web server. On first use in a project, sets up the `deploy` bash function, creates a local `scripts/deploy.sh` wrapper, and updates `.gitignore`.
+
+Shipping outward is a different verb: a versioned artifact goes through the `release` skill, and a public site through the project's own CI — deliberately not a skill, since publishing from a working tree can leak uncommitted work or the wrong environment's credentials.
 
 **Command:** `/deploy`
 
@@ -132,7 +134,8 @@ Configures the deployment pipeline for a supported project (.NET, Tauri, or Inte
 - Auto-configures `deploy()` shell function in the platform-appropriate rc file (`~/.zshrc` on macOS, `~/.bashrc` on Windows Git Bash / Linux)
 - Creates `scripts/deploy.sh` wrapper pointing to the global deploy script
 - Reads install path from `config/deploy.env` (asks on first run)
-- Runs the full pipeline: stop app → build → clean install dir → copy → launch → verify
+- Install targets run the full pipeline: stop app → build → clean install dir → copy → launch → verify
+- Local web servers (a `package.json` with a `dev` script, or a plain static `index.html`) relaunch detached on the configured port, then get health-checked
 - After first `/deploy`, use `! deploy` for instant deploys without LLM overhead
 
 ---
@@ -208,6 +211,8 @@ Extracts durable knowledge from the current conversation and persists it to long
 **Features:**
 - Scans the conversation for feedback, project context, user profile, and external reference pointers
 - Writes new memories or updates existing ones in global or project-scoped memory dirs
+- Re-checks every project-scoped finding against "would this help in another repo tomorrow?", promoting what is actually global and splitting what is only partly so
+- Audits already-stored project memories the same way, proposing promotions rather than performing them silently
 - Flags candidate skill updates and learnings worth distilling
 - Falls back to direct file reads when the gather-context helper is blocked by permissions
 
