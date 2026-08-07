@@ -1,6 +1,6 @@
 # Global Guidelines
 
-Never use absolute paths in committed documentation (README, CLAUDE.md, docs/, comments). Use relative paths for files within the project and generic descriptions for external references (e.g. "the BGA extension repo" not `D:\projects\bga\assistant`). Absolute paths are machine-specific and break for other contributors.
+Never use absolute paths in committed documentation (README, CLAUDE.md, docs/, comments, and any committed memory or learnings files). Use relative paths for files within the project and generic descriptions for external references (e.g. "the BGA extension repo" not `D:\projects\bga\assistant`). Absolute paths are machine-specific: they break for other contributors, and for the user themselves — these repos are used from both a Windows and a macOS machine, so a `D:/projects/...` pointer is wrong on one of them.
 
 Always ask clarifying questions before implementing if anything is ambiguous or unclear.
 
