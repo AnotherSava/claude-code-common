@@ -1,6 +1,6 @@
 # GBE (Goldberg Steam Emulator) — gbe_fork
 
-Notes on Detanup01's [gbe_fork](https://github.com/Detanup01/gbe_fork) of the Goldberg Steam Emulator. Local copy at `D:/projects/games/gbe_fork/`.
+Notes on Detanup01's [gbe_fork](https://github.com/Detanup01/gbe_fork) of the Goldberg Steam Emulator, cloned locally under the games projects directory.
 
 ## `steam_appid.txt` resolution priority
 
@@ -61,7 +61,7 @@ Older Goldberg installs may have data at `%appdata%/Goldberg SteamEmu Saves/<APP
 ## Two GBE-derived overlays at play in this workspace
 
 - **GBE's experimental overlay** — built into `release/experimental/x64/steam_api64.dll`, hooks DX/GL/Vulkan via `ingame_overlay`. Can trigger anti-tamper (e.g. Red Dead Redemption error 25D11007). Disable via `configs.overlay.ini` → `enable_experimental_overlay=0` and use `release/regular/x64/steam_api64.dll` instead.
-- **achievement-overlay** (`D:/projects/games/achievement-overlay/`, installed at `C:/Programs/achievement-overlay/`) — standalone WPF app that monitors `%appdata%/GSE Saves/` filesystem changes and shows toast-style notifications. No game process interaction. Survives anti-tamper. Its `GameCache` scans `gamesPaths` recursively for `steam_appid.txt`, detecting it in either the game root or inside `steam_settings/` (the `generate_emu_config` placement). The displayed game name is the first-level subfolder under the configured games root, so deeply-nested UE layouts render correctly (e.g. `C:\Games\Aphelion\...\Win64\steam_settings\` → "Aphelion").
+- **achievement-overlay** (a sibling project, installed under the programs directory) — standalone WPF app that monitors `%appdata%/GSE Saves/` filesystem changes and shows toast-style notifications. No game process interaction. Survives anti-tamper. Its `GameCache` scans `gamesPaths` recursively for `steam_appid.txt`, detecting it in either the game root or inside `steam_settings/` (the `generate_emu_config` placement). The displayed game name is the first-level subfolder under the configured games root, so deeply-nested UE layouts render correctly (e.g. `<games-root>\Aphelion\...\Win64\steam_settings\` → "Aphelion").
 
 ## Hidden achievement descriptions (Steam redacts; SteamDB via Firecrawl)
 

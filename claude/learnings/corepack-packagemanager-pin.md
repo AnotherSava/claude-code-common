@@ -43,7 +43,7 @@ local npm manually with `npm install -g npm@<version>` on each machine.
 ## Windows gotcha: `corepack enable` needs admin
 
 `corepack enable` (and `corepack enable npm`) writes its shims into the Node install's bin dir. If
-Node lives in a protected location (e.g. `C:\programming\nodejs\` or `C:\Program Files\nodejs\`),
+Node lives in a protected location (e.g. `C:\Program Files\nodejs\`),
 it fails with:
 
 ```

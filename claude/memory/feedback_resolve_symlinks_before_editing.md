@@ -13,6 +13,6 @@ Write and Edit tools refuse to write through symlinks. All of `~/.claude/` is sy
 
 **How to apply:**
 - Use `readlink <path>` (or `realpath`) to get the canonical path, then pass that to Write/Edit.
-- On this macOS machine the resolved root is `/Users/olegsavelyev/Projects/claude/claude/` — but always verify with `readlink` rather than hardcoding, since the path differs per machine.
+- The resolved root is the `claude/` directory inside the dotfiles repo, but it differs per machine — always verify with `readlink` rather than hardcoding it.
 - Symlinked items: `CLAUDE.md`, `settings.json`, `skills/`, `hooks/`, `learnings/`, `memory/`.
 - `~/.claude.json` and `~/.claude/projects/` are NOT symlinked — those can be written directly.

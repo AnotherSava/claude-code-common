@@ -286,7 +286,7 @@ When a hook command needs a path outside `~/.claude/` or this repo, reference it
 **Set on Windows** (User scope, persistent):
 
 ```powershell
-[Environment]::SetEnvironmentVariable('CLAUDE_AI_AGENT_DASHBOARD', 'D:/projects/tauri-dashboard', 'User')
+[Environment]::SetEnvironmentVariable('CLAUDE_AI_AGENT_DASHBOARD', '{{path-to-tauri-dashboard}}', 'User')
 ```
 
 **Set on Linux / macOS** (in your shell profile):

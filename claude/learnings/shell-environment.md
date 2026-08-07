@@ -7,7 +7,7 @@ Shell configuration across the user's environments. Use this to verify correct s
 | Shell | Config file |
 |---|---|
 | Git Bash (Windows) | `~/.bashrc` |
-| WSL Ubuntu | `/home/sava/.bashrc` |
+| WSL Ubuntu | `~/.bashrc` |
 | macOS zsh | `~/.zshrc` (interactive). Put `export` lines that need to apply to non-interactive shells (cron, hooks) in `~/.zshenv` instead. |
 | PowerShell 7 | `Documents/PowerShell/Microsoft.PowerShell_profile.ps1` |
 | PowerShell 5 | `Documents/WindowsPowerShell/Microsoft.PowerShell_profile.ps1` |

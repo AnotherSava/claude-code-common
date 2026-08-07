@@ -24,7 +24,7 @@ MSYS_NO_PATHCONV=1 docker run --rm \
 
 `child_process.spawn` bypasses MSYS, but Node hands you backslash host paths.
 Docker Desktop accepts forward-slash absolute paths *with* the drive letter —
-`D:/projects/x:/prof:ro` — so normalize with `p.replace(/\\/g, "/")` before
+`D:/work/x:/prof:ro` — so normalize with `p.replace(/\\/g, "/")` before
 building the `-v` spec. Docker Desktop shares `D:` and
 `C:\Users\…\AppData\Local\Temp` (i.e. `os.tmpdir()`) by default, so staging temp
 dirs there mounts without extra config.

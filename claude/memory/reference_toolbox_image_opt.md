@@ -4,7 +4,7 @@ description: Canonical WebP/AVIF encoding settings — check toolbox/tools/image
 type: reference
 ---
 
-`D:/projects/toolbox/tools/image_opt/src/main.py` is the canonical source
+The toolbox repo's `tools/image_opt/src/main.py` is the canonical source
 for image-conversion defaults used across my projects (Python PIL-based).
 
 - WebP: `format=WEBP`, `method=6`, `quality=60`

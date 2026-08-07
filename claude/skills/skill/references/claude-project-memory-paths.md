@@ -20,20 +20,20 @@ Claude Code stores per-project data at:
 
 Replace **every non-alphanumeric character** in the absolute path with a single `-`. Only `[a-zA-Z0-9]` survive unchanged (case included); separators, dots, underscores, and spaces all become `-`. Hyphens already in the path map to themselves, so they pass through unchanged.
 
-| Input path                                  | Project ID                                |
-| ------------------------------------------- | ----------------------------------------- |
-| `D:\projects\my-app`                        | `D--projects-my-app`                      |
-| `D:\projects\games\achievement-overlay`     | `D--projects-games-achievement-overlay`   |
-| `D:\projects\instagram\ai.answers.daily`    | `D--projects-instagram-ai-answers-daily`  |
-| `/home/oleg/projects/claude`                | `-home-oleg-projects-claude`              |
+| Input path                       | Project ID                       |
+| -------------------------------- | -------------------------------- |
+| `D:\projects\my-app`             | `D--projects-my-app`             |
+| `D:\work\team\build-tools`       | `D--work-team-build-tools`       |
+| `D:\work\site\api.answers.daily` | `D--work-site-api-answers-daily` |
+| `/home/user/projects/claude`     | `-home-user-projects-claude`     |
 
-**Dots and underscores collapse to dashes too** — `ai.answers.daily` becomes `ai-answers-daily`, not `ai.answers.daily`. Verified against a real harness-written transcript path; do not assume dots are preserved.
+**Dots and underscores collapse to dashes too** — `api.answers.daily` becomes `api-answers-daily`, not `api.answers.daily`. Verified against a real harness-written transcript path; do not assume dots are preserved.
 
 **Common mistake:** do NOT replace path separators with `--` (double dash). Each character becomes exactly one `-`. `D:\` is `D--` only because `:` and `\` are two consecutive non-alphanumeric characters, each getting its own single replacement.
 
 ## Cross-platform CWD recipe
 
-On Git Bash / MSYS, plain `pwd` returns Unix-style paths (`/d/projects/claude`), which mangle incorrectly. `pwd -W` returns the Windows-style path (`D:/projects/claude`), which mangles correctly. Linux and macOS use plain `pwd`.
+On Git Bash / MSYS, plain `pwd` returns Unix-style paths (`/d/work/my-app`), which mangle incorrectly. `pwd -W` returns the Windows-style path (`D:/work/my-app`), which mangles correctly. Linux and macOS use plain `pwd`.
 
 Two-line bash snippet that works on all three:
 

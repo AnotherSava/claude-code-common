@@ -45,7 +45,7 @@ None of the usual MSYS escapes rescue it:
 
 ```bash
 link_win="$(cygpath -w "$cache_dir")"     # C:\Users\...\memory
-target_win="$(cygpath -w "$repo_dir")"    # D:\projects\...\memory
+target_win="$(cygpath -w "$repo_dir")"    # D:\...\memory
 powershell -NoProfile -Command "New-Item -ItemType Junction -Path '$link_win' -Target '$target_win'"
 ```
 
@@ -66,7 +66,7 @@ is true. But `readlink` returns a POSIX path with a **lowercased drive and
 trailing slash**:
 
 ```
-readlink C:/Users/.../memory  ->  /d/projects/.../.claude/memory/
+readlink C:/Users/.../memory  ->  /d/.../.claude/memory/
 ```
 
 So a naive string compare against the stored Windows/forward-slash target fails.

@@ -73,13 +73,13 @@ When `manifest` shows no `.locres` paths but plenty of `STB_*.uasset` files, you
 
 ```bash
 # Find achievement assets without extracting
-retoc.exe manifest C:/Games/Aphelion/Aphelion/PIO/Content/Paks/pakchunk2-Windows.utoc
+retoc.exe manifest <games-root>/Aphelion/Aphelion/PIO/Content/Paks/pakchunk2-Windows.utoc
 grep -oE '"filename":"[^"]*Achievements/[^"]*"' pakstore.json | sort -u
 
 # Returns: DA_ACH_END_CHAPTER01.uasset ... DA_ACH_NEM_NOALERT.uasset (30 files)
 
 # Raw extract chunk2 (only chunk with Achievements/ paths)
-retoc.exe unpack C:/Games/Aphelion/Aphelion/PIO/Content/Paks/pakchunk2-Windows.utoc /tmp/extract/
+retoc.exe unpack <games-root>/Aphelion/Aphelion/PIO/Content/Paks/pakchunk2-Windows.utoc /tmp/extract/
 # 12k files, ~20GB
 
 # Each DA_ACH_*.uasset is 300-340 bytes, contains only the asset path string and metadata

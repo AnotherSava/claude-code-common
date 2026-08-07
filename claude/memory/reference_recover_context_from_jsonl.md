@@ -7,7 +7,7 @@ metadata:
 
 Claude Code session transcripts are persisted at `~/.claude/projects/<project-id>/*.jsonl` — one file per session. When `/clear` was forced (e.g., a persistent "API Error: 400 Could not process image" that survived across turns), reconstruct the prior context by parsing those JSONL files.
 
-**Project ID format:** the working directory mangled by replacing every non-alphanumeric character (separators, dots, underscores) with `-`. Examples: `D:\projects\chrome-assistant` → `D--projects-chrome-assistant`; `D:\projects\instagram\ai.answers.daily` → `D--projects-instagram-ai-answers-daily`.
+**Project ID format:** the working directory mangled by replacing every non-alphanumeric character (separators, dots, underscores) with `-`. Examples: `D:\work\chrome-assistant` → `D--work-chrome-assistant`; `D:\work\site\api.answers.daily` → `D--work-site-api-answers-daily`.
 
 **How to apply:**
 1. List the project's `.jsonl` files sorted by mtime to identify the immediately prior session (the most recent one whose mtime is *before* the current session start).
