@@ -3,7 +3,7 @@ name: reflect
 description: >-
   Extract and persist conversation learnings before context loss.
   TRIGGER when: user runs /reflect, or before /clear or compaction.
-allowed-tools: Bash(bash ~/.claude/skills/reflect/gather-context.sh), Read, Write, Edit, Glob, Grep, Bash(git rev-parse:*)
+allowed-tools: Bash(bash ~/.claude/skills/reflect/gather-context.sh), Read, Write, Edit, Glob, Grep, Bash(git rev-parse:*), Bash(readlink:*), Bash(rm:*)
 ---
 
 # Reflect
@@ -79,6 +79,8 @@ Extract durable knowledge from the current conversation and persist it to long-t
    - Destination: `~/.claude/learnings/<topic>.md` — topic-named, flat directory, no frontmatter, no index file
    - If an existing learning covers the same topic, update it in place rather than creating a duplicate
 
+   The project-vs-global destinations above are a first pass, not the final call — step 5 re-checks every one that came out project-scoped.
+
 4. **Filter ruthlessly.** Do NOT save:
    - Code patterns or architecture derivable by reading current files
    - Git history or recent changes (use `git log`)
@@ -86,24 +88,49 @@ Extract durable knowledge from the current conversation and persist it to long-t
    - Ephemeral task details or in-progress work
    - Anything already captured in existing memory, learnings, or CLAUDE.md
 
-5. **Save research findings directly; gate only feedback-derived ones.** Split the findings by where they came from, and lean toward less interactivity:
-   - **Agent-research findings** — neutral technical facts and context you uncovered yourself through investigation, debugging, or trial-and-error: learnings (g), references (d), and project context (b) you discovered by reading or probing the system. **Default to saving these directly** (step 6), then reporting them — they're your own observations, not claims about the user, so an approval gate just adds friction.
+5. **Re-check scope before anything is written project-local.** Re-examine every finding that came out **project-scoped** — memory under `~/.claude/projects/<project-id>/memory/`, or a project `CLAUDE.md` edit. Misfiling in this direction is silently expensive: a preference filed under one project is invisible from every other, so the same correction gets re-learned repeatedly and the user has to repeat themselves.
+
+   Apply one test — **would I want this while working in a different repo tomorrow?**
+   - **No** → keep it project-scoped.
+   - **Yes, all of it** → make it **global**: `~/.claude/memory/<name>.md`, indexed in `~/.claude/memory/MEMORY.md`.
+   - **Yes, part of it** → **split it.** The transferable rule goes global, keeping the project detail only as a one-line illustration; whatever is genuinely repo-specific stays project-local and links to the global file with `[[name]]`. Never write the same text to both — duplicated rules drift and eventually contradict each other.
+
+   Reclassify to global when the finding:
+   - states how you should work, with nothing repo-specific in it ("ask before X", "never phrase Y that way")
+   - is about a tool, language, framework, OS, or service rather than this codebase
+   - describes the user — role, expertise, communication style (category **c** is always global)
+   - still reads correctly after deleting the project's name from it
+
+   Keep it project-scoped when the finding:
+   - names this repo's files, modules, services, schema, or deploy target
+   - records a decision or trade-off made for this codebase
+   - holds only because of this project's stack version, config, or constraint
+
+   **Audit what is already stored.** Run the same test over each line of the `=== project-memory-index ===` block from Context. Read the file body before judging any entry whose index blurb is too terse to place. Raise only entries that clearly fail — leave borderline ones where they are rather than reopening the same argument every run. A promotion moves a file and rewrites two indexes, so it never happens silently: put the candidates in the step 6 gate and act only on approval.
+
+6. **Save research findings directly; gate only feedback-derived ones.** Split the findings by where they came from, and lean toward less interactivity:
+   - **Agent-research findings** — neutral technical facts and context you uncovered yourself through investigation, debugging, or trial-and-error: learnings (g), references (d), and project context (b) you discovered by reading or probing the system. **Default to saving these directly** (step 7), then reporting them — they're your own observations, not claims about the user, so an approval gate just adds friction.
    - **Feedback-derived findings** — anything that encodes what the user wants, prefers, corrected, or decided: feedback (a), user profile (c), and any CLAUDE.md (e) or skill (f) change that stems from a user correction. These change how you'll behave or assert something about the user, so present them for approval.
+   - **Scope promotions** — existing project memories step 5 flagged for promotion or splitting. These move or rewrite files you did not create this session, so they are gated too, however clear-cut the call looks. A *new* finding rerouted to global by step 5 is not a promotion — gate it on its own category, as above.
 
-   When there ARE feedback-derived findings, present them as a numbered list showing **Category** (feedback / project / user / reference / CLAUDE.md update / skill update / learning), **Destination** (which file will be created or updated), **Content preview** (the text to be written, or a summary for long docs), and whether it's a **new entry** or an **update**. Then ask: "Save these? (all / numbers / none)". When there are none, skip the gate — save the research findings and go straight to the report.
+   When there ARE gated findings, present them as a numbered list showing **Category** (feedback / project / user / reference / CLAUDE.md update / skill update / learning / scope promotion), **Destination** (which file will be created, updated, or moved), **Content preview** (the text to be written, or a summary for long docs), and whether it's a **new entry**, an **update**, or a **promotion** (name both the old and new home). Then ask: "Save these? (all / numbers / none)". When there are none, skip the gate — save the research findings and go straight to the report.
 
-6. **Save the items** (auto-saved research findings and any approved feedback items). For each:
+7. **Save the items** (auto-saved research findings and any approved gated items). For each:
    - Memory files: write with proper frontmatter (name, description, type), then add/update the index entry in the relevant MEMORY.md
    - Learning files: write directly to `~/.claude/learnings/<topic>.md` as long-form markdown. No frontmatter. No index update (the flat directory uses filenames as the index).
    - CLAUDE.md updates: edit the relevant section in place
    - Skill updates: edit the target `SKILL.md` in place. Keep edits minimal and consistent with the surrounding style; don't rewrite sections that aren't affected by the finding.
+   - Promotions: write the file to `~/.claude/memory/<name>.md`, add its line to `~/.claude/memory/MEMORY.md`, then delete the project copy and remove its line from the project `MEMORY.md`. A promotion is a move — finish with the entry in exactly one index. Listed in both, it reads as two separate rules that are free to drift.
+   - Splits: write the global file first, then rewrite (don't delete) the project file down to its repo-specific remainder, pointing at the global one with `[[name]]`. If nothing repo-specific survives the trim, it was a promotion — remove the project file and its index line.
+   - Writing to `~/.claude/memory/` or `~/.claude/CLAUDE.md` goes through a symlink, which Write/Edit refuse. Resolve with `readlink` and pass the real path — the same rule step 2 applies to project memory.
    - Check that no duplicate index entries or same-topic learning files are created
 
-7. **Report** what was saved and where. If nothing was worth saving, say so — a clean conversation with no new learnings is fine.
+8. **Report** what was saved and where. If nothing was worth saving, say so — a clean conversation with no new learnings is fine. List any promotions or splits separately from new saves, naming both homes, since those changed files from earlier sessions.
 
 ## Important
 
-- Save agent-research findings (learnings, references, discovered project context) directly, then report them; only feedback-derived findings — feedback, user profile, and feedback-driven CLAUDE.md/skill changes — need the user's approval before saving
+- Save agent-research findings (learnings, references, discovered project context) directly, then report them; only feedback-derived findings — feedback, user profile, feedback-driven CLAUDE.md/skill changes — and scope promotions of existing memories need the user's approval before saving
+- Mentioning this project does not make a finding project-scoped. The test is whether it would be useful in a different repo tomorrow; if only part of it would be, split it rather than filing the whole thing locally or copying it to both homes
 - Convert relative dates to absolute dates (e.g. "Thursday" to "2026-04-17")
 - Use the memory frontmatter format: name, description (one-line, specific), type (user/feedback/project/reference)
 - Keep MEMORY.md index entries under 150 characters each

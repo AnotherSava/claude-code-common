@@ -67,3 +67,7 @@
 - [Never blind-splice a file region](feedback_no_blind_splice.md) — read what lies between the anchors first; marker/index splices silently delete unrelated code with no error at edit time
 - [Find the override first](feedback_check_overrides_first.md) — an ignored global setting is usually cancelled locally; remove it, don't stack a copy
 - [Specific, not categorical](feedback_specific_not_categorical.md) — a generated description must describe the item; a category statement repeats down the list or restates the name
+- [Fetch when history confuses](feedback_fetch_when_history_confuses.md) — local refs look exhaustive but exclude unfetched remote commits; `git fetch` before theorising about missing work
+- [Terminal width detection](reference_terminal_width_detection.md) — real width only via the PowerShell tool's `$Host.UI.RawUI.WindowSize.Width`; subtract ~2 for the TUI gutter
+- [Run the other platform's branch](feedback_cross_platform_scripts.md) — platform-branching scripts are tested only on the authoring OS; run the other branch, don't ship a print-only stub
+- [Memory scope by reuse, not origin](feedback_memory_scope_default_global.md) — "it came up here" doesn't make it project-scoped; test reuse in another repo, split mixed findings
