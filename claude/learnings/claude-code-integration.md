@@ -244,6 +244,24 @@ The naive install — `PreToolUse` without a matcher — fires for every tool ca
 
 `PostToolUse` for the same tools usually doesn't need to be wired — once the user answers, the watcher sees the now-flushed `tool_result` and reverts to `working`; a later `Stop` carries the row to `done`.
 
+## Hook matchers scope by tool name only
+
+The `matcher` is tested against the **tool name** (`Bash`, `Edit`, a regex over names). There is no per-hook conditional field for the tool's *arguments*, and a plausible-looking permission-style `if` sitting next to the command is silently ignored rather than honoured:
+
+```json
+{ "matcher": "Bash",
+  "hooks": [ { "type": "command",
+      "command": "python3 \"$HOME/.claude/hooks/doppler-guard.py\"",
+      "if": "Bash(doppler *)" } ] }
+```
+
+Observed 2026-08-06: that hook fired on a Bash call whose command began `cd <repo> && …`, which `Bash(doppler *)` would have excluded — so the key gated nothing. The `Bash(cmd *)` syntax is for `permissions.allow`/`deny`; it is not a hook field, and an unknown key raises no error.
+
+A hook that should act on only *some* invocations of a tool must therefore read `tool_input` from its stdin payload and decide for itself, exiting 0 silently otherwise. Two consequences worth designing around:
+
+- The hook process is still forked for **every** call to the matched tool, so put the cheap early-out at the top.
+- Self-filtering matches the whole argument blob, not the command verb — a script grepping for `doppler` also fires on `cd repo && ls doppler-guard.py`. Anchor the pattern (e.g. to the start of the command) when incidental mentions would be noise.
+
 ## `/clear` fires SessionEnd → SessionStart with a new transcript
 
 Typing `/clear` in Claude Code is two sequential hook invocations, ~30ms apart:

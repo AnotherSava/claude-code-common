@@ -57,6 +57,7 @@ When a problem resists the first attempt or two — especially browser/CSS quirk
 When asking the user to run a command manually (e.g. launching an app, system config):
 - **on Windows:** provide PowerShell syntax — not bash or cmd.
 - **on macOS / Linux:** provide bash/zsh syntax.
+- **Never route a plaintext secret through the `!` prefix.** A command the user runs via `!` has its full text — the secret value included — recorded in the session transcript/logs. When a command must carry a secret value (`doppler secrets set KEY="…"`, an API key, a token, a DB URL), have them run it in a **separate terminal outside Claude Code**, or use the service's dashboard — never `!`. `--silent`-style flags hide command *output*, not the `!`-recorded *input*.
 
 ### Background processes I spawn
 
@@ -179,12 +180,13 @@ Cross-project preferences and feedback. Memory files live in `~/.claude/memory/`
 - [About dialogs describe WHAT, not HOW](~/.claude/memory/feedback_about_what_not_how.md) — About copy stays declarative ("Each session keeps a history"), not action-prescriptive ("Double-click to open")
 - [Deploy via the script, not the deploy skill](~/.claude/memory/feedback_deploy_script_not_skill.md) — once a project is configured, run `bash scripts/deploy.sh` directly; reserve the deploy Skill for first-time setup
 - [Overused phrases](~/.claude/memory/feedback_overused_phrases.md) — live blocklist of verbal tics; the list itself is the **Overused Phrases** section above
-- [Use Doppler for secrets](~/.claude/memory/feedback_doppler_secrets.md) — default to Doppler (workplace `sava`) over plaintext .env for keys/secrets/tokens; `doppler run` wraps dev scripts, `doppler secrets set` to add; offer don't impose
+- [Use Doppler for secrets](~/.claude/memory/feedback_doppler_secrets.md) — **when a task touches secrets/keys/tokens/`.env`/encryption/Doppler, OPEN this file before planning secret storage or writing any project/config/command; this line is a pointer, not the answer.** Landmines it prevents: workplace `sava` ≠ a project (create/verify a per-app project via `doppler projects`); default config is **`dev`** (not `prd`); set with `doppler secrets set KEY="value" -p <proj> -c dev --silent` (quote the value); commit a `doppler.yaml`; offer don't impose
 - [Text-control affordances](~/.claude/memory/feedback_no_underline_links.md) — strip resting underlines; shape carries meaning (link=hover-underline for WCAG 1.4.1, toggle=chevron, action=`+`, all icon/soft-fill-pill not underline)
 - [Find the override before stacking a setting](~/.claude/memory/feedback_check_overrides_first.md) — a global setting that looks ignored is usually cancelled by a local rule; remove that rule instead of adding a redundant copy
 - [Private references](~/.claude/memory/refs-private.secret.md) — encrypted (transcrypt); coordinates for ad-hoc third-party credentials Claude uses — read it when a task needs one (decrypted locally; opaque without the key)
 - [No guessed facts](~/.claude/memory/feedback_no_guessed_facts.md) — don't state a guessed URL/path/endpoint as known; verify it or say you're guessing
 - [Machine coordinates](~/.claude/memory/machines-private.secret.md) — encrypted (transcrypt); Tailscale tailnet names/IPs for the user's machines — use these to make any project reach one machine from another, never `*.local` or LAN IPs
+- [Minimal UI chrome](~/.claude/memory/feedback_minimal_ui_chrome.md) — no duplicate state signals, no field help text, no card blurbs; icon over text button; state in a badge, never a placeholder
 
 ## Memos
 

@@ -19,6 +19,15 @@
             "async": true
           }
         ]
+      },
+      {
+        "matcher": "^(Bash|Write|Edit)$",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "python3 \"$HOME/.claude/hooks/doppler-guard.py\""
+          }
+        ]
       }
     ],
     "PostToolUse": [
