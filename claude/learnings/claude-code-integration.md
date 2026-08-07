@@ -44,7 +44,7 @@ Each hook receives a JSON payload on stdin. Common fields:
 
 - `session_id` — UUID string, stable for the lifetime of one Claude Code session. **Not** preserved across `/clear` — that mints a new session_id and a new transcript file (verified: the transcript rotated `83a08d40….jsonl` → `62af8740….jsonl` on `/clear`). `/compact` may preserve it, but don't assume — check `transcript_path`.
 - `transcript_path` — absolute path to the session's JSONL transcript.
-- `cwd` — the Claude Code process's **live** working directory. It is the project root at launch but **changes mid-session** when the agent `cd`s into a subdirectory (verified: one session's events reported `D:/projects/bga/assistant`, `…/assistant/data`, and `…/assistant/data/_rt_inspect`). Do NOT derive a stable row/identity from `cwd` alone — a single conversation will fragment across multiple ids. Key identity on `session_id`; if you want a readable name, derive it from cwd only on the first event and lock it for the rest of the session. Note the transcript's folder is the mangled **session-start** cwd and stays put across `cd`, so it is not a source for the live cwd but is a stable session anchor.
+- `cwd` — the Claude Code process's **live** working directory. It is the project root at launch but **changes mid-session** when the agent `cd`s into a subdirectory (verified: one session's events reported the project root, then `<root>/data`, then `<root>/data/_rt_inspect`). Do NOT derive a stable row/identity from `cwd` alone — a single conversation will fragment across multiple ids. Key identity on `session_id`; if you want a readable name, derive it from cwd only on the first event and lock it for the rest of the session. Note the transcript's folder is the mangled **session-start** cwd and stays put across `cd`, so it is not a source for the live cwd but is a stable session anchor.
 - `prompt` — present only on `UserPromptSubmit`.
 - `message` — present on `Notification` (the notification text).
 - `notification_type` — present on `Notification`: `permission_prompt`, `idle_prompt`, `plan_approval`, or other attention signals. **Critical for state classification** (see next section).
@@ -117,7 +117,7 @@ def last_assistant_ends_with_question(transcript_path: str) -> bool:
     return last_text.endswith("?")
 ```
 
-Reference implementation: `D:/projects/tauri-dashboard/integrations/claude_hook.py` — see the `classify` function and the `benign_closers`-aware variant below.
+Reference implementation: the Tauri dashboard's `integrations/claude_hook.py` — see the `classify` function and the `benign_closers`-aware variant below.
 
 Accuracy is ~80–90% in practice. Known misses:
 - "Anything else?" at the end of a true completion → false `awaiting`.
@@ -213,6 +213,12 @@ So `UserPromptExpansion` is the early "work started" signal; `UserPromptSubmit` 
 
 **`StopFailure`** fires when a turn ends on an API error (a normal `Stop` does **not** fire then, so a Stop-keyed tracker sits stuck until the next prompt). Matcher values: `rate_limit, overloaded, authentication_failed, oauth_org_not_allowed, billing_error, invalid_request, model_not_found, server_error, max_output_tokens, unknown`.
 
+**`StopFailure` cannot block, so it cannot drive an auto-retry.** It sits in the group whose output only reaches the user as stderr (with `InstructionsLoaded`, `MessageDisplay`, `PermissionDenied`) — the turn has already ended, so there is nothing left to block. It is also command-only: unsupported for the `http`, `prompt` and `agent` hook types. Good for logging, notification and alerting; useless for control flow. The event is still undocumented (anthropics/claude-code#35620), so capture the real payload with a throwaway stdin-dumping hook rather than building against a guess.
+
+This matters most for `API Error: Connection closed mid-response. The response above may be incomplete.` **Claude Code already retries that itself — but only when the drop lands before any block completes.** Once a text block or tool call has finished it deliberately keeps the output and stops, so a completed tool call is never re-run. The retry logic arrived in v2.1.198 (backoff on transient errors like `ECONNRESET`) and v2.1.214 (drop connection pooling after a stale-connection error); before v2.1.198 the turn just died. Documented recovery for the non-retried half is to reply **`continue`**, which resumes from the last completed block — better than `retry`, which reads as a fresh instruction and can redo finished work.
+
+Consequence for instruction files: a CLAUDE.md rule telling *Claude* to retry its own dropped turn can never fire, because by then the turn is over and the model is not running. The transcript does record it (`type: "assistant"`, `isApiErrorMessage: true`, `error: "server_error"`), so a watcher can detect and report it — it just cannot resume it. Only the subagent/workflow-agent case is retryable by the model, since those deaths come back as tool results.
+
 **Other useful events:** `PreCompact`/`PostCompact` (matcher `manual`/`auto`) for compaction boundaries; `PermissionRequest`/`PermissionDenied` (carry `tool_name`) for permission prompts; `Elicitation`/`ElicitationResult` for MCP user-input prompts; `SubagentStart`/`SubagentStop` (carry `agent_type`) for subagent activity; `SessionStart.source ∈ {startup, resume, clear, compact}`.
 
 ## User-gating tools and the buffered-write problem
@@ -277,7 +283,7 @@ Since both the pre-interrupt and post-interrupt assistant responses are in the s
 
 Path: `~/.claude/projects/<mangled-cwd>/<session-id>.jsonl`.
 
-CWD mangling replaces **every non-alphanumeric character** with `-` — separators, dots, and underscores all collapse (`D:\projects\instagram\ai.answers.daily` → `D--projects-instagram-ai-answers-daily`); existing `-` maps to itself. The mangling is **lossy** — `D:/projects/foo-bar`, `D:/projects/foo/bar`, and `D:/projects/foo.bar` all mangle to `D--projects-foo-bar`. Reverse lookup from mangled path back to cwd is unreliable. **Always use the `transcript_path` passed by the hook, never reconstruct it from cwd.**
+CWD mangling replaces **every non-alphanumeric character** with `-` — separators, dots, and underscores all collapse (`/projects/example/ai.answers.daily` → `-projects-example-ai-answers-daily`, and on Windows a drive colon collapses too, so a `D:` prefix becomes `D--`); existing `-` maps to itself. The mangling is **lossy** — `/projects/foo-bar`, `/projects/foo/bar`, and `/projects/foo.bar` all mangle to `-projects-foo-bar`. Reverse lookup from mangled path back to cwd is unreliable. **Always use the `transcript_path` passed by the hook, never reconstruct it from cwd.**
 
 ## Transcript entry types
 
@@ -359,7 +365,7 @@ none exists yet).
 
 Readable names beat session UUIDs for UI. Common scheme:
 
-1. If cwd is under a configured `projects_root` (e.g. `D:/projects`), use the relative path with `/`, `-`, `_` translated to spaces: `D:/projects/bga/assistant` → `bga assistant`.
+1. If cwd is under a configured `projects_root`, use the relative path with `/`, `-`, `_` translated to spaces: `<projects_root>/bga/assistant` → `bga assistant`.
 2. Otherwise, use the cwd basename unchanged.
 3. Fallback when cwd is absent: `claude-<session_id[:8]>`.
 
@@ -453,7 +459,7 @@ Pattern for running a linter/checker on every file Claude edits, with auto-fix a
 - **Anchor every path to the script's own location** (`PROJECT_ROOT = Path(__file__).resolve().parents[2]`): Windows `CreateProcess` does not reliably resolve relative executable paths like `venv/Scripts/ruff.exe`, and the inside-project guard shouldn't depend on CWD either.
 - **Guards**: skip non-target extensions; skip files outside the project (`Path(file).resolve().relative_to(PROJECT_ROOT)` in try/except) — otherwise edits to other repos get linted under the wrong config.
 - **Feedback contract**: run with auto-fix (`ruff check --fix <file>`); exit 0 when clean (silent), else print the report to **stderr** and **exit 2** — Claude receives it as blocking feedback and corrects the code in the same turn.
-- **Pipe-test before wiring**: `echo '<payload>' | python .claude/hooks/script.py` — but hand-written payloads must be valid JSON; raw Windows paths (`"D:\projects\..."`) are invalid escapes that crash `json.load` and look like script bugs. Use forward slashes in test payloads.
+- **Pipe-test before wiring**: `echo '<payload>' | python .claude/hooks/script.py` — but hand-written payloads must be valid JSON; raw Windows paths (`"...\project\path"`) are invalid escapes that crash `json.load` and look like script bugs. Use forward slashes in test payloads.
 - **Settings watcher caveat**: a newly created `.claude/settings.json` hot-loads only if the directory already contained some settings file at session start (e.g. `settings.local.json`); otherwise the user must open `/hooks` or restart.
 - Verified-live check: Edit a probe file to introduce an auto-fixable violation; if the hook is live, the harness reports "PostToolUse hook modified <file> after your edit" and re-reading shows the fix.
 
@@ -463,7 +469,7 @@ When a hook script needs to read the same config file as a desktop app built on 
 
 | OS | Path |
 |---|---|
-| Windows | `%APPDATA%\<bundle-identifier>\` (e.g. `C:\Users\<name>\AppData\Roaming\com.example.myapp\`) |
+| Windows | `%APPDATA%\<bundle-identifier>\` (e.g. `%USERPROFILE%\AppData\Roaming\com.example.myapp\`) |
 | macOS | `~/Library/Application Support/<bundle-identifier>/` |
 | Linux | `$XDG_CONFIG_HOME/<bundle-identifier>/` — falls back to `~/.config/<bundle-identifier>/` when `XDG_CONFIG_HOME` is unset |
 
@@ -501,5 +507,5 @@ Net: file mtime gives only "recently active" (includes just-closed, misses idle-
 
 ## Reference implementations
 
-- **Dashboard with transcript tailing + state classifier**: `D:/projects/tauri-dashboard/integrations/claude_hook.py` (hook arg dispatcher, chat_id derivation, `?`-heuristic with benign_closers, per-OS `app_data_dir` resolution), `src-tauri/src/log_watcher.rs` (Rust JSONL tail + `infer_state` + token usage extraction + `apply_watcher_update` upgrade-only policy). Earlier Electron predecessor — retired — lived at `D:/projects/ai-agent-dashboard/` and used `src/log-watcher.cjs`.
-- **Telegram idle notifier with per-state thresholds**: `D:/projects/tauri-dashboard/src-tauri/src/notifications.rs` (1s reconcile loop, per-notifier `Outstanding` map keyed by session id, dismiss-on-state-change) + `src-tauri/src/telegram.rs` (`sendMessage` / `deleteMessage`, credential-change detection). Folds into the dashboard's existing state machine so there's no duplicate activity tracking.
+- **Dashboard with transcript tailing + state classifier**: the Tauri dashboard's `integrations/claude_hook.py` (hook arg dispatcher, chat_id derivation, `?`-heuristic with benign_closers, per-OS `app_data_dir` resolution) and `src-tauri/src/log_watcher.rs` (Rust JSONL tail + `infer_state` + token usage extraction + `apply_watcher_update` upgrade-only policy). Its earlier Electron predecessor — retired — used `src/log-watcher.cjs`.
+- **Telegram idle notifier with per-state thresholds**: the same dashboard's `src-tauri/src/notifications.rs` (1s reconcile loop, per-notifier `Outstanding` map keyed by session id, dismiss-on-state-change) + `src-tauri/src/telegram.rs` (`sendMessage` / `deleteMessage`, credential-change detection). Folds into the dashboard's existing state machine so there's no duplicate activity tracking.
