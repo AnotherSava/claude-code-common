@@ -34,6 +34,29 @@ Namespace custom images, e.g. "visited-star".
   all-or-nothing top guard — a partial state otherwise throws "already exists".
 - Use `map.setStyle(url, { diff: false })` for a clean swap.
 
+## Prefer a circle layer to an SDF symbol when you can't verify rendering
+
+An SDF icon fails *invisibly* when the image isn't built as a distance ramp (see
+above) — nothing draws and no error is raised. A `type: "circle"` layer needs no
+image, supports the same data-driven colour and radius, and has no equivalent silent
+failure mode. Reach for SDF only when the mark must be a real shape.
+
+Splitting marks and labels across two layers costs little: `text-optional` only pairs
+icon and text *within one symbol layer*, but a circle layer plus a text-only symbol
+layer gives the same behaviour — the label yields under collision while the mark
+always draws.
+
+## clusterMaxZoom hides data-driven colour
+
+`clusterMaxZoom` is the **last zoom at which clustering applies**, so a high value
+keeps every point a grey cluster bubble across the whole normal viewing range: the
+per-feature colours never appear and the legend describes something invisible. Set it
+below the zoom the map actually opens at — and check what `fitBounds` chooses, because
+fitting *all* features pulls the view out to the widest outlier and can drop the
+opening zoom below the cluster threshold on its own. Fitting a core percentile (say
+the closest 80%) keeps the initial view usable and leaves outliers reachable from the
+accompanying list.
+
 ## Cross-provider cluster label fonts
 
 `text-font` must name a font the active style's glyphs provide, which differs per
