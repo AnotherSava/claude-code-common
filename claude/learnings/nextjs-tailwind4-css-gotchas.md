@@ -53,3 +53,37 @@ Distinct from the stale-cache case above: a small set of arbitrary utilities ref
 **Fix when a utility stubbornly won't generate:** stop fighting the scanner — use a **named class in `globals.css`** (`.wn-dl:hover { … }`), the **semantic `@theme` utility** (`bg-border` instead of `bg-[var(--color-border)]`), or an **inline `style`** for the resting bits. Named hand-written rules always emit (subject only to the stale-cache clear above); the design reference's own hover affordances (`.wn-icobtn`, `.wn-dllink`) are done exactly this way.
 
 **Confirm it's really missing** (not just stale) before clearing `.next` yet again: iterate `document.styleSheets` for a rule whose `selectorText` matches the element (or contains the escaped class) — an empty result after a clean rebuild means the utility genuinely wasn't emitted, so switch approaches instead.
+
+## Preflight resets `button, input, select, optgroup, textarea` — but NOT `fieldset`
+
+Tailwind v4's preflight does not touch `fieldset`, so a `<fieldset>` used purely as a grouping wrapper arrives with the browser's UA defaults intact: a `2px groove` border, `~0.35em 0.75em 0.625em` padding, `2px` inline margin, and `min-inline-size: min-content`. The last one is the nastiest — it can stop the element shrinking inside a flex/grid parent.
+
+This is worth knowing because `<fieldset disabled>` is the *right* tool for "disable this whole block of controls" (it disables every descendant natively, including buttons, so a control added later can't be forgotten), and reaching for it is where you meet the missing reset.
+
+**Verify rather than assume** — grep the served bundle for the element name:
+
+```bash
+css=$(curl -s http://localhost:PORT/ | grep -oE '/_next/static/[^"?]+\.css' | head -1)
+curl -s "http://localhost:PORT$css" | grep -c 'fieldset'      # 0 = preflight doesn't reset it
+curl -s "http://localhost:PORT$css" | grep -o 'button, input[^{]*{'   # what it DOES reset
+```
+
+**Fix:** clear the defaults explicitly on the element:
+
+```tsx
+<fieldset disabled={!enabled} className="mx-0 grid min-w-0 grid-cols-1 gap-3 border-0 p-0 disabled:opacity-45">
+```
+
+`disabled:opacity-45` works on the fieldset itself — a disabled fieldset matches `:disabled`, so the variant applies to the container, not just its children.
+
+## Container queries are core in v4 (no plugin)
+
+`@container` + `@sm:`/`@2xl:`… ship in Tailwind v4 itself. Reach for them when a component renders at more than one width — e.g. a form that appears both full-width and in a half-width column: viewport breakpoints (`sm:grid-cols-2`) can't tell those apart and will pair fields up inside a narrow column.
+
+```tsx
+<div className="@container">
+  <fieldset className="grid grid-cols-1 gap-3 @2xl:grid-cols-2">…</fieldset>
+</div>
+```
+
+Generated as `.@container { container-type: inline-size }` and `@container (min-width: 42rem) { .\@2xl\:grid-cols-2 { … } }`. Both are subject to the stale-bundle problem at the top of this file — a first check showed `container-type` present while the `@2xl:` rule was missing entirely, and `rm -rf .next` + restart emitted it.

@@ -55,6 +55,29 @@ required by Mapbox TOS, and OSM data needs the OSM credit (ODbL). Compliant decl
 `new mapboxgl.Map({ attributionControl: false })` + `addControl(new
 mapboxgl.AttributionControl({ compact: true }))` → collapses to an ⓘ button.
 
+## Custom controls (IControl) — the control-button CSS trap
+`map.addControl(new MyControl(), "top-right")` where `onAdd` returns a
+`<div class="mapboxgl-ctrl mapboxgl-ctrl-group">` means **every `<button>` inside your
+control inherits Mapbox's own control-button rules** from mapbox-gl.css — which quietly
+override your styles by specificity:
+- `.mapboxgl-ctrl-group button` — forces fixed **29×29px** sizing, transparent bg, no
+  border-radius on the button itself (0,1,1).
+- `.mapboxgl-ctrl-group button:last-child { border-radius: 0 0 4px 4px }` — rounds only the
+  **bottom** two corners (0,2,1). Symptom: your button shows square top corners, rounded
+  bottom ones, no matter what `border-radius` you set at (0,1,0)/(0,0,1).
+- `.mapboxgl-ctrl button:not(:disabled):hover { background-color: #eee }` — forces a light
+  grey hover (0,3,1). Symptom: your `:hover` background "blends into the panel" / won't take.
+Two fixes:
+- **Out-specify** — prefix with enough extra classes to beat the numbers above, e.g.
+  `.panel .row .submit:hover:not(:disabled)` clears the `#eee` hover (which is a high 0,3,1).
+  Whack-a-mole: each Mapbox rule needs its own higher-specificity counterpart.
+- **Better: escape the group** — don't put styleable buttons inside the `mapboxgl-ctrl-group`
+  DOM at all. Give your container only a positioning class (drop `mapboxgl-ctrl-group`), or
+  render the interactive panel/popup outside the control element, so none of the
+  `.mapboxgl-ctrl(-group) button` rules apply and your CSS wins at base specificity.
+Confirm which rule is winning by `curl`-ing the pinned mapbox-gl.css and reading the actual
+selector + value, rather than guessing at the override.
+
 ## Symbol overlays & label placement
 - **Label collision priority is TOP-DOWN**: layers higher in the stack are placed
   first and win collisions (that's why country labels beat city labels). An overlay
