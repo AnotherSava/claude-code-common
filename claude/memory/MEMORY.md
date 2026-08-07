@@ -29,6 +29,7 @@
 - [Clean up safety backups proactively](feedback_clean_up_backups.md) — delete `*.bak` files/dirs once the new state is verified; don't leave them lingering
 - [Toolbox image-opt reference](reference_toolbox_image_opt.md) — canonical WebP/AVIF settings (method=6, quality=60); check toolbox before deriving fresh params
 - [Recover context from jsonl logs](reference_recover_context_from_jsonl.md) — after forced /clear, parse `~/.claude/projects/<id>/*.jsonl` to reconstruct prior session
+- [Ship the ladder, not the goal](feedback_ship_the_ladder.md) — a spec's stated goal is the last rung; decompose into independently shippable layers and ship those
 - [No premature abstraction](feedback_no_premature_abstraction.md) — don't build interfaces/registries until 2-3 concrete instances reveal the pattern
 - [Ask before keeping for backcompat](feedback_ask_before_backcompat.md) — internal symbols going unused → ask the user before silently preserving "for backwards compatibility"
 - [CSS variant classes, not base-class overrides](feedback_css_variant_classes_not_overrides.md) — base class holds layout-agnostic styles; each view declares its own variant class with grid/flex shape
@@ -65,3 +66,4 @@
 - [Confirm state ≠ completion glyph](feedback_confirm_state_not_completion_glyph.md) — a two-step confirm's armed state is a labeled CTA ("＋ Add" pill), not a ✓ that reads as already-done
 - [Never blind-splice a file region](feedback_no_blind_splice.md) — read what lies between the anchors first; marker/index splices silently delete unrelated code with no error at edit time
 - [Find the override first](feedback_check_overrides_first.md) — an ignored global setting is usually cancelled locally; remove it, don't stack a copy
+- [Specific, not categorical](feedback_specific_not_categorical.md) — a generated description must describe the item; a category statement repeats down the list or restates the name
