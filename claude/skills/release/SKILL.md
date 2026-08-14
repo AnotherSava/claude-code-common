@@ -75,7 +75,7 @@ Stack-specific:
    - **.NET**: ask user for new version (default = recommended bump). Skip step 4 — version is tag-injected.
    - **Tauri**: if **Tauri config version** > latest tag's version, the bump is already committed — use it and skip step 4. Else proceed to step 4 with the recommended version (or user override).
 
-Tag format is always `vX.Y.Z`.
+Tag format is always `vX.Y.Z`, or `vX.Y.Z-rcN` when the user asks for a prerelease and the project's CI marks hyphenated tags as prereleases (so "Latest release" keeps pointing at the last stable tag). A prerelease gets the same notes treatment as a stable one — only the collapse rules in step 8 differ.
 
 ## 4. Bump version (Chrome extension and Tauri)
 
@@ -208,45 +208,13 @@ Once CI succeeds:
    ```bash
    gh release edit vX.Y.Z --title "vX.Y.Z" --notes "..."
    ```
-   Then **collapse the previous release's note box** so only the latest release shows it expanded. Find the prior tag (`git tag --sort=-v:refname | sed -n '2p'`), fetch its body (`gh release view <prev> --json body --jq .body`), and wrap the `> [!NOTE]` box's inner content in a collapsed `<details>` — turn:
-   ```
-   > [!NOTE]
-   > <inner lines…>
-   ```
-   into:
-   ```
-   > [!NOTE]
-   > <details>
-   > <summary>First-run &amp; download info</summary>
-   >
-   > <br>
-   >
-   > <inner lines…>
-   > </details>
-   ```
-   Leave the "What's new" section untouched, then write it back with `gh release edit <prev> --notes "..."`. Skip if the previous release has no `[!NOTE]` box (predates this format) or already collapsed.
+   Then collapse the superseded note boxes — see **Collapsing superseded NOTE boxes** below, using `First-run &amp; download info` as the summary text.
 
    **Tauri**: `tauri-action` creates the release as a **draft** with auto-generated notes. Replace those notes with the drafted "What's new" content from step 5 — the Assets section is auto-rendered, no filename/size filling needed:
    ```bash
    gh release edit vX.Y.Z --title "vX.Y.Z" --notes "..."
    ```
-   Then **collapse the previous release's note box** so only the latest release shows the signing warning expanded — the box is byte-for-byte identical on every release, so leaving them all expanded clutters the releases list. Find the prior tag (`git tag --sort=-v:refname | sed -n '2p'`), fetch its body (`gh release view <prev> --json body --jq .body`), and wrap the `> [!NOTE]` box's inner content in a collapsed `<details>` — turn:
-   ```
-   > [!NOTE]
-   > <inner lines…>
-   ```
-   into:
-   ```
-   > [!NOTE]
-   > <details>
-   > <summary>First-run info</summary>
-   >
-   > <br>
-   >
-   > <inner lines…>
-   > </details>
-   ```
-   Leave the "What's new" section untouched, then write it back with `gh release edit <prev> --notes "..."`. Skip if the previous release has no `[!NOTE]` box (predates this format) or is already collapsed.
+   Then collapse the superseded note boxes — see **Collapsing superseded NOTE boxes** below, using `First-run info` as the summary text.
    Then publish the draft (confirm with the user first if they want to review the draft before it goes public):
    ```bash
    gh release edit vX.Y.Z --draft=false --latest
@@ -258,6 +226,44 @@ Once CI succeeds:
    ```
 
 4. **Chrome extension only** — the GitHub release is done, but the extension isn't live in the store yet. Point the user at the `/publish-chrome-extension` skill, which downloads this release's zip and submits it to the Chrome Web Store.
+
+### Collapsing superseded NOTE boxes (.NET and Tauri)
+
+The `> [!NOTE]` box is byte-for-byte identical on every release, so leaving them all expanded clutters the releases list. Only what GitHub puts at the top of the page keeps it expanded: the current **Latest** (newest stable), plus the newest **prerelease** if one has been published since that stable. What you just published decides which boxes it supersedes:
+
+- **Stable `vX.Y.Z`** → collapse the previous **stable** release *and* the newest **prerelease** (the rc series leading up to this release is superseded by it).
+- **Prerelease `vX.Y.Z-rcN`** → collapse the previous **prerelease** only. Leave the newest stable expanded — it is still GitHub's "Latest release" and the download most users take.
+
+Resolve those tags from two separate lists. A single `git tag --sort=-v:refname` is wrong here: git's versionsort ignores semver prerelease precedence unless `versionsort.suffix` is configured, so `v1.6.0-rc2` sorts *above* `v1.6.0` and the second line is not the previous release.
+
+```bash
+git tag --sort=-v:refname | grep -v -- '-'   # stable tags, newest first
+git tag --sort=-v:refname | grep -- '-'      # prerelease tags, newest first
+```
+
+The tag just published is line 1 of its own list. So after a stable release, collapse line 2 of the stable list plus line 1 of the prerelease list; after a prerelease, collapse line 2 of the prerelease list.
+
+For each tag to collapse, fetch its body (`gh release view <tag> --json body --jq .body`) and wrap the `> [!NOTE]` box's inner content in a collapsed `<details>` — turn:
+
+```
+> [!NOTE]
+> <inner lines…>
+```
+
+into:
+
+```
+> [!NOTE]
+> <details>
+> <summary>{summary}</summary>
+>
+> <br>
+>
+> <inner lines…>
+> </details>
+```
+
+Take `{summary}` from the stack branch above. Leave the "What's new" section untouched, then write it back with `gh release edit <tag> --notes "..."`. Skip a tag whose release has no `[!NOTE]` box (predates this format) or is already collapsed.
 
 ## Checklist
 
@@ -272,5 +278,5 @@ After tagging:
 - [ ] GitHub Release created with expected asset(s) attached
 - [ ] Release notes replaced and title set to the tag (`--title "vX.Y.Z"`) via `gh release edit`
 - [ ] (Chrome ext) User pointed to `/publish-chrome-extension` for the store submission
-- [ ] (.NET / Tauri) Previous release's NOTE box collapsed into `<details>`
+- [ ] (.NET / Tauri) Superseded NOTE boxes collapsed into `<details>` — a stable release supersedes the previous stable *and* the newest rc; an rc supersedes only the previous rc
 - [ ] (Tauri) Draft release published via `gh release edit --draft=false`

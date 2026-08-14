@@ -24,6 +24,19 @@ Summarize the "why" not just the "what".
 - Do not list files or file-level descriptions in the body
 - Focus on why the changes were made, not just what
 
+## Match the body to the change's reach
+
+- **A data-only change gets a subject and almost nothing else.** Adding, removing, or
+  correcting entries in a data file (a place, a record, a list value) has the least effect on a
+  project of any change it can carry, so keep the message proportional: write the subject, and
+  add at most one short line for something the subject can't hold. Regenerated artifacts need
+  no mention at all.
+- **Don't explain the data in the commit.** How an entry was chosen, pinned, spelled, or
+  verified is project knowledge — it belongs in project memory, where the next session will
+  read it, not in a message nobody consults while adding the next entry.
+- Save the "why" body for code, schema, and workflow changes, where a later reader has to
+  reconstruct intent from the diff.
+
 ## Attribution
 
 - Do NOT include any AI attribution or Co-Authored-By trailers
