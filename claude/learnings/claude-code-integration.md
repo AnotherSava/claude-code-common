@@ -257,10 +257,11 @@ The `matcher` is tested against the **tool name** (`Bash`, `Edit`, a regex over 
 
 Observed 2026-08-06: that hook fired on a Bash call whose command began `cd <repo> && …`, which `Bash(doppler *)` would have excluded — so the key gated nothing. The `Bash(cmd *)` syntax is for `permissions.allow`/`deny`; it is not a hook field, and an unknown key raises no error.
 
-A hook that should act on only *some* invocations of a tool must therefore read `tool_input` from its stdin payload and decide for itself, exiting 0 silently otherwise. Two consequences worth designing around:
+A hook that should act on only *some* invocations of a tool must therefore read `tool_input` from its stdin payload and decide for itself, exiting 0 silently otherwise. Three consequences worth designing around:
 
 - The hook process is still forked for **every** call to the matched tool, so put the cheap early-out at the top.
 - Self-filtering matches the whole argument blob, not the command verb — a script grepping for `doppler` also fires on `cd repo && ls doppler-guard.py`. Anchor the pattern (e.g. to the start of the command) when incidental mentions would be noise.
+- **An injected `additionalContext` is written into the transcript**, so the hook's own reminder text becomes a permanent false positive for any later search on its keywords. Grepping `~/.claude/projects/**/*.jsonl` for `doppler` matched 915 files once the guard hook was live — nearly all of them the injected reminder, not a real Doppler session. Frequency counts over transcripts are meaningless for any term a hook injects; search for a distinctive phrase the *hook* never emits (an error string, a flag) instead.
 
 ## `/clear` fires SessionEnd → SessionStart with a new transcript
 

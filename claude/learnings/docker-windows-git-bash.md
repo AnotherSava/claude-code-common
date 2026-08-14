@@ -14,6 +14,15 @@ even a `/tmp/x.mjs` arg handed to `node` — gets silently rewritten to e.g.
 Fix: prefix the command with `MSYS_NO_PATHCONV=1`. (Double-slash `//out/...` is an
 alternative but applies per-arg and reads worse.)
 
+The same rewrite hits *any* native Windows binary, not just `docker` — e.g.
+`doppler secrets set UPLOAD_DIR='/data/uploads'` silently stored
+`C:/Program Files/Git/data/uploads` in Doppler (a value with a non-slash prefix like
+`file:/data/db.sqlite` is NOT converted — only args that *start* like a path). Besides
+`MSYS_NO_PATHCONV=1`, a *value* (as opposed to a real path arg) can be **piped via
+stdin**, which dodges the conversion entirely and, for a secret, also keeps it off the
+command line: `printf '%s' '/data/uploads' | doppler secrets set UPLOAD_DIR -p proj -c cfg --silent`.
+Verify by reading the value back — a native tool reading it doesn't re-convert.
+
 ```bash
 MSYS_NO_PATHCONV=1 docker run --rm \
   -v "$PWD/web/slicer/profiles:/out" \

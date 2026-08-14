@@ -70,6 +70,12 @@ Read `~/.claude/skills/shared/bash-rules.md` for bash command constraints.
 Read `~/.claude/skills/shared/commit-message-rules.md` for commit message formatting.
 ```
 
+### Don't leave the detail in two places
+
+When a new skill covers ground an existing memory or learning already documents, the skill takes the operational detail and the older file slims to a pointer — never both in full. Two full copies drift the moment one is updated, and which one gets read depends on whichever trigger fired first.
+
+Update the pointer sites in the same change: the `CLAUDE.md` index line, and any hook whose injected reminder cites the old file. Keep in the memory only what the skill can't carry — the preference itself and the *why* — since a memory is always loaded while a skill is invoked on demand.
+
 ### Extract optional depth into `references/`
 
 SKILL.md should carry only what every invocation needs. Deep, situational, or rarely-touched knowledge belongs in `references/<topic>.md` with a short pointer from SKILL.md describing *when* to consult it. The model reads the reference on demand, so the entry point stays lean and the detail loads only when relevant.

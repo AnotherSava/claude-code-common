@@ -32,6 +32,22 @@ The `||` operator works in context commands:
 ```
 This works because if the first command fails, the second runs and (if it succeeds) the overall exit code is 0.
 
+## In a pipeline, `|| fallback` sees only the LAST command's exit code
+
+A fallback appended to a pipeline binds to the pipeline's status, which is the **last** element's — not the failure of the command that actually produced no data. So this silently renders an empty label instead of the fallback when `doppler` fails:
+
+```
+!`doppler projects --json 2>&1 | tr ',' '\n' | grep -o '"name":"[^"]*"' | head -30 || echo UNAVAILABLE`
+```
+
+`head` exits 0 on empty input, so `|| echo` never fires. Put a command that *discriminates* last — `grep` exits 1 when it matches nothing:
+
+```
+!`doppler projects --json 2>&1 | tr ',' '\n' | grep -o '"name":"[^"]*"' || echo UNAVAILABLE`
+```
+
+Verified both directions: the working form renders the project list normally, and forcing the failure (`--token bogus`) renders `UNAVAILABLE`. The cost is losing `head`'s output cap, so only drop it where the result set is inherently small. Always test the failure path — the success path looks identical either way, and a silently-empty context label is far harder to diagnose later than a loud one.
+
 ## Commands that work reliably in context
 
 - `git status --short`
