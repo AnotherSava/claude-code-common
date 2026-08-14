@@ -19,6 +19,23 @@ navigation-day-v1, standard (v3 flagship 3D).
 - `GeoJSONSource.getClusterExpansionZoom(clusterId, callback)` is CALLBACK-based,
   not promise-based (MapLibre v4 made it a promise).
 
+## Clustering: `clusterMaxZoom` is the LAST zoom that still clusters
+`clusterMaxZoom: 8` keeps points clustered AT z8; they separate only above it. So a
+camera the app lands on programmatically (an opening view, a "fly to X") must sit
+strictly ABOVE the cutoff, not at it — an off-by-one is invisible in review and
+obvious on screen. Couple them in code (`clusterMaxZoom: LANDING_ZOOM - 1`) so the
+invariant can't drift.
+
+The failure is worse when the app renders its own labels and suppresses the
+basemap's for the same features: a clustered point is filtered out of the symbol
+layer (`filter: ["!", ["has", "point_count"]]`) AND has no basemap label left, so
+the city you deliberately framed carries no name from either source — the user sees
+an anonymous count bubble. Verify with
+`map.queryRenderedFeatures({ layers: ["clusters"] })` at the landing zoom: a
+non-empty `point_count` there is the bug. Whether a given city clusters depends on
+`clusterRadius` (screen px) against its nearest neighbour, so it bites only part of
+a dataset — spot-checking two cities proves nothing.
+
 ## The Standard (v3) custom-source trap — AVOID for dynamic overlays
 Standard is an "import" style (basemap fragment + slots). Adding your OWN GeoJSON
 source/layers dynamically does NOT work reliably:
@@ -77,6 +94,23 @@ Two fixes:
   `.mapboxgl-ctrl(-group) button` rules apply and your CSS wins at base specificity.
 Confirm which rule is winning by `curl`-ing the pinned mapbox-gl.css and reading the actual
 selector + value, rather than guessing at the override.
+
+## Built-in control layout: corners stack, and ScaleControl's width is a ceiling
+- **A corner container stacks its controls vertically** — `.mapboxgl-ctrl-bottom-right` and its three
+  siblings are flex columns, so two controls added to the same corner sit one above the other in
+  `addControl` order. To lay them out side by side instead — a scale bar to the LEFT of the compact
+  attribution ⓘ — override the corner:
+  `.mapboxgl-ctrl-bottom-right { display: flex; flex-direction: row; align-items: flex-end }`.
+  Row order follows add order, so add the scale first for it to end up leftmost; `align-items:
+  flex-end` bottom-aligns a 22px bar against a 24px button so they read as one strip.
+- **In a row, give the scale `flex: none`.** Clicking ⓘ expands the attribution leftwards, which
+  otherwise squeezes the neighbouring scale bar — and a squeezed ruler no longer matches the distance
+  it prints. With `flex: none` the row grows past it instead; even on a 360px-wide map the expanded
+  attribution wraps and the bar stays on screen.
+- **`ScaleControl`'s `maxWidth` (default 100) is a ceiling, not the drawn width.** The bar renders the
+  largest round distance that fits under it, so its pixel length swings between roughly half and all
+  of the budget as you zoom — at `maxWidth: 200`, 151px for "30 km" in one view and ~50px in another.
+  Pick the number as a budget; don't expect a stable bar length or a proportional bump when raising it.
 
 ## Symbol overlays & label placement
 - **Label collision priority is TOP-DOWN**: layers higher in the stack are placed

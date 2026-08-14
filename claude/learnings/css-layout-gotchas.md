@@ -204,6 +204,18 @@ To make text typed in a bordered input line up with static text shown without a 
 
 If half-pixels bother you (they can still leave ≤0.5px error since glyphs snap to device pixels), drop the layout border — draw the box edge with `outline` or `box-shadow`, which take no layout space — and zero the padding on the alignment side, so the input's text origin equals the display text origin with no compensation needed.
 
+## A themed `<select>` adds 4px of internal padding — only `appearance: none` removes it
+
+The negative-margin trick above **does not work on a `<select>`**. With `padding: 4px 8px; border: 1px` its selected-option text should sit 9px from the box's left edge; it actually sits ~13px, so pulling the box left by 9px still leaves it out of line with plain text beside it. The gap is a fixed 4px, not a rounding artifact.
+
+**Cause:** Chromium adds theme padding *inside* the control, on top of the author's. `HTMLSelectElement::ClientPaddingLeft()` calls `LayoutTheme::PopupInternalPaddingStart()`, and `LayoutThemeDefault::MenuListInternalPadding()` returns `4 * zoom` — gated on `if (!style.HasEffectiveAppearance()) return 0`. It is *not* in the UA stylesheet (`html.css` sets `padding-inline: 0` for the auto-appearance case), so computed styles don't reveal it and no amount of author padding/margin math accounts for it.
+
+**Fix:** `appearance: none` makes `HasEffectiveAppearance()` false, so every `PopupInternalPadding*` returns 0 and the text lands at exactly `border-left + padding-left`. That is the whole fix — `text-indent` hacks are unnecessary and fragile. The cost is the native arrow: draw your own (absolutely-positioned SVG in a `position: relative` wrapper, `pointer-events: none` so clicks fall through to the select, plus `padding-right` to clear it).
+
+Caveats: Firefox needs `-moz-appearance: none` or it draws a second arrow; Safari ignores `text-align` on selects (`direction: rtl` is the usual workaround). Set `font`/`line-height` explicitly — the inherited `-webkit-small-control` font shifts text more than the padding does. Chrome 135+ adds opt-in `appearance: base-select`, which swaps the theme padding for real overridable UA padding (`padding-block: .25em; padding-inline: .5em`); Chromium-only, so wrap it in `@supports (appearance: base-select)`.
+
+Sources: Chromium `third_party/blink/renderer/core/layout/layout_theme_default.cc` and `core/html/forms/html_select_element.cc`. Verified August 2026.
+
 ## Native `<input type="date">` resists CSS sizing — pin a width, don't fight the shadow DOM
 
 Chrome's date control has a minimum intrinsic box width (calibrated for ~16px text) that **ignores** `width: auto` / `fit-content` / `min-content` and any smaller column — instead it overflows, and the surplus shows as a gap between the date text and the right-pinned calendar icon.
@@ -255,3 +267,42 @@ Rule of thumb: for "fill the rest and truncate," reach for a grid `1fr` cell, no
 
 **Principle:** a defensive UI primitive declares not just what it needs, but the defaults an injector could seize.
 
+## `grid-column` (and margins, background) on a `display: contents` element are ignored
+
+A `display: contents` element generates **no box** — it's replaced in the layout by its children, which participate in the parent grid/flex as if they were direct children. So any property that applies to the element's *own box* — `grid-column` / `grid-row`, `margin`, `padding`, `background`, `width`, `align-self` — has **no effect** when set on the `display: contents` element. It must go on the child that actually generates the box.
+
+**Bug case:** a wrapper is `display: contents` so a two-child "label + description" pair drops straight into a `grid-template-columns: auto 1fr` grid. A single-child variant is meant to span both columns:
+
+```css
+.item { display: contents; }
+.item:not(:has(.label)) { grid-column: 1 / -1; }  /* BROKEN — .item has no box, ignored */
+```
+
+The lone child auto-places into ONE column instead of spanning. With `auto 1fr` columns, a long paragraph in the `auto` track makes it wide and squeezes the next label-less item into a 1-word-wide `1fr` sliver — the visible symptom.
+
+**Fix: target the child, which is the real grid item.**
+
+```css
+.item:not(:has(.label)) > * { grid-column: 1 / -1; margin-bottom: 8px; }  /* works */
+```
+
+The latent version can sit unnoticed for a long time — it only misbehaves once *two or more* single-child items are adjacent (one grabs `auto`, the next gets the squeezed `1fr`); a lone one just looks slightly narrow. Same trap for `<details>`: `grid-column`/`margin` on a `display: contents` wrapper is ignored, and (separately) placement set on a `<details>`/`<summary>` is fine because those DO generate boxes — the rule is specifically about `display: contents`.
+
+
+## A keypress makes an already-focused element show its ring — it reads as "focus moved"
+
+`:focus-visible` matches on the document's current *keyboard modality*, not on how focus arrived. Per spec, any keystroke flips the document into keyboard modality, so an element focused earlier by mouse suddenly paints its focus ring the first time the user presses a key — for a shortcut that has nothing to do with focus. It looks like the key moved focus somewhere; it didn't, the ring was always owed and just wasn't drawn.
+
+It bites hardest on surfaces that fill the viewport, where the ring outlines the whole screen:
+
+- A modal `<dialog>` — `showModal()` focuses the dialog element itself when nothing inside is an autofocus candidate, and `<video controls>` is not one.
+- A fullscreened `<video controls>` — it holds focus for as long as it is the fullscreen element.
+
+**Fix — drop the ring on the surfaces that are content rather than controls, and only those:**
+
+```css
+dialog.player:focus,
+dialog.player video:focus { outline: none; }
+```
+
+Plain `:focus` rather than `:focus-visible`, since the latter is a subset — one selector covers both. Real controls keep their rings: other buttons in the dialog, and the video's native controls, which live in its shadow tree and are untouched by a rule on the host element. The cost to weigh is that a keyboard user tabbing onto the `<video>` loses the cue that arrows and space will act on it; scoping the rule to `:fullscreen` keeps that cue in the windowed case.

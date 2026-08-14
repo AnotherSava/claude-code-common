@@ -53,6 +53,47 @@ React runs a render-phase `setState` synchronously and re-renders before committ
 - Any **derived / sibling views** that read the same server data (a totals breakdown, a summary panel, per-row computed figures, a preview list). If the refresh will change them, hold a snapshot for each.
 - Freeze a **computed** view (e.g. an already-mapped list) via a ref that mirrors the last render (`ref.current = computed` during render), then read the ref at save time — you can't recompute it after you've cleared the inputs.
 
+## Mutating through a route handler: `revalidatePath` is not enough, and ordering is yours to get right
+
+A Server Action gets both halves for free — it re-renders the tree as part of its own response, so the client sees
+fresh props when the action resolves. A mutation sent to a **route handler** with `fetch` (the usual reason: only
+`fetch(..., { keepalive: true })` survives the page going away, so unload-time reports must be routes) gets neither:
+
+1. **`revalidatePath()` inside the handler only empties the server's cache.** A page already on screen never
+   refetches on its own — the client must call `router.refresh()`. Easy to miss, because the revalidate call is
+   right there in the handler and *looks* like it updates the page.
+2. **The refresh has to be chained onto the request, not fired beside it.** `router.refresh()` issues its own
+   round-trip immediately; if the handler is still writing (a DB write plus, say, pushes to external services), the
+   refetch wins the race and re-renders the state the mutation is about to change.
+
+```tsx
+// The mutating request, with its failure swallowed so awaiting it never means awaiting a rejection.
+function report(body: Body): Promise<void> | null {
+  if (nothingToSay(body)) return null;
+  return fetch("/api/thing", { method: "POST", body: JSON.stringify(body), keepalive: true }).then(
+    () => undefined,
+    () => {},
+  );
+}
+
+// …later, when the view that dispatched it goes away:
+void Promise.resolve(pendingRef.current).then(() => router.refresh());
+```
+
+`Promise.resolve(null)` covers the two "nothing in flight" cases — already reported, or never worth reporting —
+which still want the refresh, they just have nothing to wait on. Hold the promise in a **ref**, not in the return
+value of whatever runs at teardown: the mutation is often dispatched long before the component goes away.
+
+Verify the ordering rather than assuming it. In the browser, the resource timeline names both requests, and an
+App Router refetch is identifiable by its `_rsc=` query param:
+
+```js
+const after = performance.getEntriesByType("resource").filter((e) => e.startTime > mark);
+const post = after.find((e) => /api\/thing/.test(e.name));
+const rsc = after.find((e) => /_rsc=/.test(e.name));
+rsc.startTime >= post.responseEnd; // chained, not raced
+```
+
 ## Notes
 
 - `router.refresh()` returns `void` — you cannot `await` it. That's *why* you need the hold + prop-change detector rather than "await, then clear."

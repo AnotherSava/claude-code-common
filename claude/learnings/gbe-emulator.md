@@ -63,6 +63,31 @@ Older Goldberg installs may have data at `%appdata%/Goldberg SteamEmu Saves/<APP
 - **GBE's experimental overlay** — built into `release/experimental/x64/steam_api64.dll`, hooks DX/GL/Vulkan via `ingame_overlay`. Can trigger anti-tamper (e.g. Red Dead Redemption error 25D11007). Disable via `configs.overlay.ini` → `enable_experimental_overlay=0` and use `release/regular/x64/steam_api64.dll` instead.
 - **achievement-overlay** (a sibling project, installed under the programs directory) — standalone WPF app that monitors `%appdata%/GSE Saves/` filesystem changes and shows toast-style notifications. No game process interaction. Survives anti-tamper. Its `GameCache` scans `gamesPaths` recursively for `steam_appid.txt`, detecting it in either the game root or inside `steam_settings/` (the `generate_emu_config` placement). The displayed game name is the first-level subfolder under the configured games root, so deeply-nested UE layouts render correctly (e.g. `<games-root>\Aphelion\...\Win64\steam_settings\` → "Aphelion").
 
+## Other emulators write into GSE Saves too (Goldberg Uplay R2)
+
+The `%appdata%\GSE Saves\<id>\achievements.json` layout is not exclusively GBE's. The **Goldberg uplay r2 Emulator** — Mr_Goldberg's open-source v0.0.2, continued as binary-only `GoldbergUplayR2-<MM-DD-YYYY>.7z` builds by cs.rin.ru user `demde` — can be pointed at it via two INI keys in `uplay_r2.ini` / `upc_r2.ini` (whichever loader pair the game uses):
+
+- **`AchSavePath`** (added 2026-06-07) — absolute directory for `achievements.json`. `%APPDATA%` is **not** expanded by the emulator, so the path is written out with a literal username. The GSE Saves layout is therefore a *convention the user or setup script types in*, not something the emulator computes — and by that convention the folder is named with the **Steam** AppID (not the Ubisoft one) precisely so Steam-oriented trackers find it.
+- **`AchKeyPrefix`** (added 2026-02-20) — the game only passes a numeric achievement id, so the emulator emits `<AchKeyPrefix>Ach_<id>` (e.g. `AFOP_Ach_7`). That happens to be the game's real Steam API name, which is why achievements "only work with games that also have achievements on Steam".
+
+It also needs an `achievements_schema.json` next to the emulator DLL (required since 2026-03-28).
+
+**Format divergences from GBE — both will break a strict reader:**
+
+| | GBE | Goldberg Uplay R2 |
+|---|---|---|
+| `earned` | JSON bool (`true`/`false`) | **JSON number (`0`/`1`)** |
+| `earned_time` | always present | added only on unlock |
+| per-entry text | none (schema lives in `steam_settings/`) | carries `displayName` + `description` inline |
+| icons | `achievement_images/` | **none anywhere** — `UPC_AchievementImageGet` is a stub in every open-source R2 variant |
+| schema shape | JSON **array** of definitions | JSON **object** keyed by achievement name |
+
+The unlock file starts as a byte-identical copy of `achievements_schema.json`, so it is fully self-describing — a reader can resolve display text from the save file alone, without locating the game folder. There is no `steam_appid.txt` anywhere: the game isn't running the Steam emulator at all, and the id appears only inside the `AchSavePath` value.
+
+**Id-space collision:** Ubisoft/Uplay ids are small integers (`4` = AC2, `720` = AC Unity, `4740` = Avatar FoP) that fully overlap the Steam appid range. Anything keyed on a bare numeric id from a GSE Saves folder name can therefore mix up a Uplay and a Steam game — real enough that PSerban93/Achievements ships a `uplay-steam.json` mapping table for it.
+
+Most of the above is forum-derived (cs.rin.ru thread `f=29&t=111722`) rather than read from source — treat the INI key names and "no icon field" as strong but unverified.
+
 ## Hidden achievement descriptions (Steam redacts; SteamDB via Firecrawl)
 
 Steam's Web API `GetSchemaForGame` returns `description: ""` for `hidden=1` achievements (`displayName` is still present). The real text lives on SteamDB at `https://steamdb.info/app/<APPID>/stats/`, **but SteamDB is behind Cloudflare**. A plain `HttpClient`/curl gets **403 even with a valid `cf_clearance` cookie** — the cookie is bound to the browser's TLS/JA3 fingerprint (plus IP and a short-lived `__cf_bm` cookie), which a non-browser client can't reproduce; no User-Agent fixes it. SteamHunters and Completionist.me are also Cloudflare-blocked.

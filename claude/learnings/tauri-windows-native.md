@@ -218,6 +218,33 @@ extern "system" {
 
 `SUBCLASS_ID` is any `usize` unique to your subclass — pick a distinctive value (e.g. ASCII bytes packed) for debugger visibility.
 
+## Blocking maximize on a frameless window
+
+The vertical-resize block above does **not** cover maximizing, and a frameless window is maximizable by default. Two routes reach it, neither of them an edge drag:
+
+- **Windows snap** — dragging the custom title bar to the top edge of the screen. That runs in the *move* loop, so no `WM_NCHITTEST` / `WM_NCLBUTTONDOWN` filter of yours is consulted.
+- **Drag-region double-click** — Tauri's injected `drag.js` invokes `plugin:window|internal_toggle_maximize` straight from the webview on `e.detail === 2` over a `data-tauri-drag-region` element. The OS never sees a caption double-click at all.
+
+Both are shut off by one declarative flag rather than more message filtering:
+
+```json
+{ "label": "main", "decorations": false, "resizable": true, "maximizable": false }
+```
+
+- tao drops `WS_MAXIMIZEBOX` for a non-maximizable window, and that bit is what Windows gates snap-to-top maximize on. `WS_SIZEBOX` is untouched, so edge-drag width resizing survives.
+- `internal_toggle_maximize` (tauri 2.11) guards only its *maximize* branch, so double-click still **un**-maximizes — a window left maximized by an older build stays recoverable:
+
+```rust
+if window.is_resizable()? {
+  if window.is_maximized()? { window.unmaximize()? }
+  else if window.is_maximizable()? { window.maximize()? }
+}
+```
+
+macOS needs nothing: an undecorated `NSWindow` has no zoom button, and tao's `is_maximizable()` returns false when that button is absent, so the double-click path is already inert there.
+
+Verify it end-to-end with a scripted drag (`windows-gesture-simulation.md`) — and take the control seriously, since the pass condition is "nothing happened". Re-adding `WS_MAXIMIZEBOX` to the live HWND flips snap-to-top back on and proves the gesture works; the double-click path can't be controlled that way, because tao answers `is_maximizable()` from its own `WindowFlags` rather than the live style.
+
 ## White flash during horizontal resize
 
 When the window grows wider, the OS paints the newly-exposed area with the **window class's `hbrBackground`** brush before the WebView catches up and renders content into it. Default class brush is white → white flash against a dark theme.

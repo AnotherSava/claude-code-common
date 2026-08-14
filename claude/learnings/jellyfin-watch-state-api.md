@@ -129,3 +129,68 @@ curl -s "$JF/web/main.jellyfin.bundle.js" | grep -o '#/details?id='
 ```
 
 `serverId` comes from `GET /System/Info` → `Id`.
+
+## Resume position (partly-watched items)
+
+Separate from `Played`, and what an in-app player needs to continue where a TV client stopped.
+
+- **Read/write:** `GET|POST /UserItems/{itemId}/UserData?userId=`. The POST body (`UpdateUserItemDataDto`) takes
+  `PlaybackPositionTicks`, `Played`, `PlayCount`, `LastPlayedDate`, `PlayedPercentage`, `IsFavorite`. Also readable as
+  the `UserData` block on any item, or in bulk via `GET /UserItems/Resume?userId=&mediaTypes=Video`.
+- **Unit: 10,000,000 ticks = 1 second.** Live sample:
+  `{"PlayedPercentage":85.79,"PlaybackPositionTicks":31923138320,"PlayCount":2,"Played":false}`.
+- **Do NOT report through `/Sessions/Playing*`** when authenticated with a server API key — those return 204 and write
+  nothing, because the API-key session's `UserId` is the all-zero GUID and the server iterates zero users. The
+  `?userId=`-taking endpoints work because an API key carries the Administrator role.
+
+### Server-side thresholds decide what "finished" means
+
+From `GET /System/Configuration` (defaults, confirmed on 10.11.11): `MinResumePct: 5`, `MaxResumePct: 90`,
+`MinResumeDurationSeconds: 300`. `UserDataManager.UpdatePlayState` computes `pctIn = position / runtime * 100`:
+
+| condition | result |
+|---|---|
+| below `MinResumePct` (5%) | position reset to 0 — no resume point |
+| above `MaxResumePct` (90%), or within 1s of the end | position 0 **and** `Played: true` |
+| in between, runtime ≥ 300s | position kept |
+| in between, runtime < 300s | position 0 + `Played: true` |
+
+Mirror these client-side if your app decides "watched" itself, or the two stores disagree about the same playback.
+Two traps: a `Stopped` report that **omits** `PositionTicks` is treated as completion and marks the item played; and
+anything under five minutes never gets a resume point at all.
+
+### Write semantics, probed on 10.11.11
+
+Three things worth knowing before building on these endpoints. All verified reversibly on one unwatched movie.
+
+- **`POST /UserItems/{id}/UserData` MERGES — it does not replace.** A body of `{"PlaybackPositionTicks": N}` alone
+  leaves every other field intact, so there is no read-modify-write and no race with whatever else touches the item.
+  Prove this with a **non-default** canary: set `IsFavorite: true` first, then POST the position and check it
+  survived. A probe that only inspects fields already sitting at their C# defaults (`false`/`0`) is worthless —
+  "kept" and "reset to default" look identical.
+- **`DELETE /UserPlayedItems/{id}` also zeroes `PlaybackPositionTicks`.** Clearing played leaves no stranded resume
+  point, so "unwatch" really does return the item to untouched.
+- **`POST /UserPlayedItems/{id}` increments `PlayCount` every call** (measured 1 → 2 → 3), including when re-posting
+  the same `datePlayed`. So correcting a stored watch *date* through this endpoint inflates the count. The
+  alternative is `POST /UserItems/{id}/UserData` with `{"Played": true, "LastPlayedDate": "…"}`, which sets both and —
+  being a merge — leaves `PlayCount` exactly as it was. Choose by whether you care more about the count staying
+  honest or about getting whatever else the server does when an item transitions to played. Marking played by either
+  route clears the resume position.
+
+Plex, for contrast: `GET /:/scrobble` and `GET /:/unscrobble`, both with
+`?identifier=com.plexapp.plugins.library&key={ratingKey}`. They answer 200 with an **empty body**, so a JSON-parsing
+client throws on them — issue them as bare requests. Plex has no way to say *when* something was watched; a scrobble
+always stamps "now".
+
+### `MinResumePct` is a PERCENTAGE — and it only applies on write
+
+Easy to mirror thoughtlessly and then chase a phantom bug. 5% scales with the runtime, so on a 102-minute film the
+resume floor is **5 min 06 s**: stop at five minutes and the position is discarded, by design, with no error. A
+percentage is the wrong unit for "did you actually start watching this" — an absolute floor (say 60 s) matches what
+a viewer expects and does not stretch with the film.
+
+Crucially the rule is applied when a position is **stored**, never when one is read. So a client that writes
+`PlaybackPositionTicks` directly (via `POST /UserItems/{id}/UserData`) may store a sub-threshold position that the
+server itself would have thrown away, and **every other Jellyfin client will happily resume from it**. Diverging
+downward is safe; diverging on `MaxResumePct` is not, because that one also decides "played".
+

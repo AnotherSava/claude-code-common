@@ -290,8 +290,27 @@ RegisterHotKey(hWnd, id, MOD_CONTROL | MOD_SHIFT | MOD_NOREPEAT, vk);
 - Subscribe to `Error` event for overflow detection
 - Debounce change events (100ms) — FSW fires multiple times per write
 - Use `ConcurrentDictionary<string, CancellationTokenSource>` for per-file debounce
-- Check `File.GetLastWriteTimeUtc` to skip truly unchanged files
 - Retry on `IOException` (file locked by game writing) with async delay
+
+**Subscribe `Renamed`, not just `Changed` + `Created`.** A writer that saves atomically — write `x.tmp`, then move it over `x` — raises **`Renamed`** on the destination and *neither* of the other two. A watcher missing that handler sees nothing: no event, no exception, no log line, indistinguishable from "the feature doesn't work". `RenamedEventArgs` derives from `FileSystemEventArgs`, so one handler takes all three:
+
+```csharp
+watcher.Changed += OnFileChanged;
+watcher.Created += OnFileChanged;
+watcher.Renamed += OnFileChanged;   // temp-file-plus-rename saves
+```
+
+Verified live: `mv -f x.tmp x` over the watched file was picked up only after adding the third line, and the existing debounce collapsed the overlapping events into exactly one notification.
+
+**Last-write-time alone is a weak change check.** Skipping a file whose `LastWriteTimeUtc` matches the last seen value is the obvious debounce companion, but Windows can defer the timestamp update for a file the writer still holds open — so a real change is hard-skipped and every record in it is lost silently. Compare length too; it costs one extra field:
+
+```csharp
+var info = new FileInfo(path);
+var stamp = (info.LastWriteTimeUtc, info.Length);
+if (_lastSeen.TryGetValue(path, out var last) && stamp == last) return false;
+```
+
+Whatever the check, log the skip at **warn** — when it misfires, that line is the only evidence of why nothing happened.
 
 ## Testing
 

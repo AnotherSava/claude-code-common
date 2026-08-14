@@ -46,3 +46,44 @@ nothing valid to accept; don't go hunting for an authenticator app.
 `git push git@github.com:OWNER/REPO.git main` works with no config change and no re-auth —
 useful when the interactive refresh isn't practical, though granting the scope is the durable
 fix since it recurs the first time any project gains a workflow.
+
+## `gh api` endpoints must not start with a slash on Git Bash
+
+MSYS path translation rewrites a leading-slash argument into a filesystem path before gh ever sees it:
+
+```
+$ gh api /licenses/mit
+invalid API endpoint: "C:/Program Files/Git/licenses/mit". Your shell might be
+rewriting URL paths as filesystem paths. To avoid this, omit the leading slash
+from the endpoint argument
+```
+
+Write `gh api licenses/mit`. The error names the fix, but the symptom reads like a wrong endpoint rather than a shell problem, and the same command works unchanged on macOS — so it only breaks on one of two machines. Applies to every `gh api` call; drop the leading slash unconditionally and it's portable.
+
+## `gh config get git_protocol` returns the wrong value without `--host`
+
+The bare form reports the **global** default; git actually uses the per-host setting:
+
+```
+$ gh config get git_protocol                      # https
+$ gh config get git_protocol --host github.com    # ssh
+```
+
+`gh auth status` prints the host-scoped one ("Git operations protocol: ssh"), which is why the two can disagree unnoticed. Reading the global value when constructing a remote URL yields an HTTPS remote in an account where every existing repo is SSH — it works, so nothing fails loudly, it just drifts.
+
+## `gh repo create --license` can leave the repo empty
+
+GitHub's `POST /user/repos` applies `license_template` only while auto-initialising, and gh sets the `auto_init` field solely from `--add-readme` (`pkg/cmd/repo/create/http.go`, where `InitReadme bool` carries the `auto_init` JSON tag). So `--license mit` on its own can produce a repo with no commit and no LICENSE.
+
+Adding `--add-readme` does force the initial commit, but puts `README.md` in it — which collides with the README an existing project already has. `--source` is no escape either: gh rejects it with *"the `--source` option is not supported with `--clone`, `--template`, `--license`, or `--gitignore`"*.
+
+For an initial commit containing **only** a license, create the repo bare and commit the file through the Contents API:
+
+```bash
+gh repo create OWNER/NAME --public
+gh api -X PUT repos/OWNER/NAME/contents/LICENSE -f message="Initial commit" -f content="<base64>"
+```
+
+`PUT /contents/{path}` is GitHub's documented way to bootstrap an empty repo. The Git Database endpoints (blob → tree → commit → ref) can't do it — they return 409 with no parent commit to build on. Cost: Contents-API commits aren't signed, so that root commit shows unverified.
+
+The `github-create` skill implements this; its `references/repo-init-flags.md` carries the full failure matrix for rebasing an existing local project onto such a commit.

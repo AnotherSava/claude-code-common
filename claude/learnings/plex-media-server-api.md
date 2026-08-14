@@ -97,3 +97,36 @@ https://app.plex.tv/desktop/#!/server/{machineIdentifier}/details?key=%2Flibrary
 - The `?X-Plex-Container-Size=0` "just give me `totalSize`" trick often returns `totalSize: null` on recent Plex — count `Metadata.length` from a real fetch instead.
 - **Multiple libraries can share a `type`** (e.g. two `movie` sections — a main one and a private/adult one). Don't assume one library per type: filter by section `title` via an allowlist so you don't scan (or surface titles from) libraries the user doesn't want tracked.
 - Some real items still have an empty `Guid` (Plex couldn't match them) — they're indistinguishable from junk files at the API level; treat "no external id" as unresolvable uniformly.
+
+## Writing watch state — and what Plex cannot do
+
+Verified live against **PMS 1.43.3** with a reversible test on an item that had `viewCount: 0` and no history rows.
+
+```
+PUT /:/scrobble?identifier=com.plexapp.plugins.library&key={ratingKey}     → 200
+PUT /:/unscrobble?identifier=com.plexapp.plugins.library&key={ratingKey}   → 200
+```
+
+- **Scrobble sets `lastViewedAt`** (to *now*) and `viewCount: 1`. This settles a doubt raised by the PMS 1.40 change:
+  the timestamp still moves even though the write no longer creates a view-history row.
+- **It creates no history entry.** Global `/status/sessions/history/all` `totalSize` was unchanged across the write.
+  The spec says so outright: scrobble "does not create any view history of this item but rather just sets the state".
+- **Unscrobble restored the item exactly** (`viewCount: 0`, `lastViewedAt: null`) and left the global history count
+  untouched — the reported 1.40 regression where unwatching deleted real playback rows did **not** reproduce here.
+  Caveat: the subject deliberately had no history, which is what made it safe to test; an item *with* genuine history
+  is the case those reports describe and remains unverified.
+- **There is no way to backdate a watch.** Grepping all 404 operations in the community OpenAPI spec: `viewedAt`
+  appears only as a GET *filter* on the history endpoint. No `datePlayed`/`lastViewedAt`/`playedAt` parameter exists
+  on any write. Jellyfin's `POST /UserPlayedItems/{id}?datePlayed=` has no Plex counterpart. The only route to a
+  historical date is editing `com.plexapp.plugins.library.db` offline with Plex's own bundled SQLite build
+  (`metadata_item_views` **and** `metadata_item_settings`) — unsupported.
+- Plex's user-facing "Edit Watched Date" is a plex.tv cloud feature over a different store; it does not write the PMS
+  `lastViewedAt` that a library scan reads.
+- Deleting one history row: `DELETE /status/sessions/history/{historyId}` (a **path** segment — the `?id=` form in
+  forum posts is not in the spec), admin token only. `historyKey` comes back as `/status/sessions/history/653`.
+- Scrobbling a show or season ratingKey **cascades** to its children — an accidental write at the wrong level marks
+  a whole series.
+- `viewCount` and `viewOffset` are independent: a scrobbled part-watched item can read as both played and resumable.
+
+**Consequence for any app syncing both servers:** Plex can carry the watched *boolean* but not the *date*. If your UI
+is built around watch dates, Jellyfin can be a lossless writable replica and Plex cannot.
