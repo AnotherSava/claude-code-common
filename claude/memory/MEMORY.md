@@ -4,7 +4,7 @@
 - [Default cursor on non-interactive text](feedback_default_cursor_noninteractive.md) — brand wordmarks/labels use cursor:default (not I-beam/pointer); don't make decorative wordmarks clickable unless asked
 - [Fix failing skills](feedback_fix_skills.md) — fix the skill definition instead of working around failures manually
 - [Reproduce tool failures early](feedback_reproduce_tool_failures_early.md) — when an external tool keeps failing through code-side fixes, inspect the real artifact + run the real command instead of theorizing
-- [Verify GUI fixes via isolated repro](feedback_verify_gui_via_repro.md) — desktop UI sizing/layout bugs you can't screenshot: build a tiny repro that logs the metrics, don't deploy-and-ask on unverified reasoning
+- [Find a signal before proposing a fix](feedback_verify_gui_via_repro.md) — can't observe it? read the log or build a repro; never deploy-and-ask
 - [No unprompted skill edits](feedback_no_unprompted_skill_edits.md) — don't rewrite a working skill's guidance unasked; fixing applies when a skill fails during use
 - [Codify conventions as single rules](feedback_codify_conventions_as_single_rules.md) — one unambiguous rule, no "or Y is also fine" escape hatch; sweep all artifacts after codifying
 - [Glob safety for numeric filenames](feedback_glob_safety_windows.md) — `hex_4*.png` matches hex_40, hex_400, AND hex_441; use explicit ranges
@@ -71,3 +71,7 @@
 - [Terminal width detection](reference_terminal_width_detection.md) — real width only via the PowerShell tool's `$Host.UI.RawUI.WindowSize.Width`; subtract ~2 for the TUI gutter
 - [Run the other platform's branch](feedback_cross_platform_scripts.md) — platform-branching scripts are tested only on the authoring OS; run the other branch, don't ship a print-only stub
 - [Memory scope by reuse, not origin](feedback_memory_scope_default_global.md) — "it came up here" doesn't make it project-scoped; test reuse in another repo, split mixed findings
+- [Branch features only a reporter can validate](feedback_branch_for_external_validation.md) — externally-verifiable feature goes on its own branch to test; unrelated bugs found on the way ship to main
+- [Draft external-facing text short](feedback_draft_external_text_short.md) — issue replies/PR bodies lead with the actionable thing; park secondary questions for a follow-up
+- [Overwatch needs a non-ViewSonic display](overwatch_needs_non_viewsonic_display.md) — 0xE0070100 in single-display mode: DXGI reports 0 modes for that panel; read the game log, keep the LG on
+- [Off state recedes, on state is plain](feedback_off_state_recedes.md) — parallel controls are one species; ON copies its always-on sibling, OFF dims the whole group (no colour, no strike-through)
