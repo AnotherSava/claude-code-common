@@ -14,6 +14,8 @@ claude/skills/*
 !claude/skills/deploy/
 !claude/skills/document-data-flow/
 !claude/skills/documentation/
+!claude/skills/doppler/
+!claude/skills/github-create/
 !claude/skills/github-pages/
 !claude/skills/github-status/
 claude/skills/github-status/config/

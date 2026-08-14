@@ -108,6 +108,22 @@ Scans project documentation for stale references and fixes them.
 
 ---
 
+### Create GitHub Repository
+
+Creates a GitHub repo for a local project that has content but no remote yet, then wires it up without publishing anything. The remote ends up holding exactly one commit — a LICENSE — with local history rebased on top of it and still unpushed.
+
+**Command:** `/github-create`
+
+**Features:**
+- Proposes repository names derived from the folder, manifest, and README, filtered against names already taken on the account
+- Confirms visibility with public preselected, so an autopilot invocation can't silently publish
+- Seeds a LICENSE-only initial commit through the Contents API, avoiding the README that `gh repo create --add-readme` would otherwise force into it
+- Detects the states that break the rebase up front — a pre-existing LICENSE, a staged or dirty index, a local branch that doesn't match the remote default
+- Subscribes the repo so new issues generate email, and explains the account-level toggle that delivery also depends on
+- Leaves committing and pushing to `/commit`, per the rule that creating a repo is neither
+
+---
+
 ### GitHub Pages Layout
 
 Arranges a project's README and GitHub Pages docs into a consistent user-first layout — short README that links out, Jekyll site with a user-facing index, one page per user-facing feature, and exactly one developer page.
@@ -260,6 +276,22 @@ Force-updates the plannotator plugin by clearing stale caches and reinstalling.
 
 ---
 
+### Doppler
+
+Manages env-style secrets — API keys, tokens, passwords, connection strings — in [Doppler](https://www.doppler.com/) instead of a plaintext `.env`. Owns every `doppler` command template, so the coordinates and quoting are never reconstructed from memory.
+
+**Command:** `/doppler`
+
+**Features:**
+- Reads the real project list up front, so `-p`/`-c` are never guessed (the workplace name is not a project, and the config is `dev`)
+- Emits a copy-ready, fenced command for every operation, with `{{placeholder}}` marking only what the user supplies
+- Routes any command carrying a plaintext value to a separate terminal — the `!` prefix records the value in the transcript
+- Prefers stdin over the command line, which also dodges Git Bash's path mangling on Windows
+- Reads values without materializing them, deriving a boolean via `doppler run` instead of printing the secret
+- Separate references for project wiring (`doppler.yaml`, directory binding, second-machine onboarding) and for failure modes that succeed silently with a wrong value
+
+---
+
 ### Transcrypt
 
 Encrypts designated files with [transcrypt](https://github.com/elasticdog/transcrypt) so they are ciphertext in git history but plaintext in the working tree, or unlocks an already-encrypted repo after a fresh clone. See [Encrypted memory](#encrypted-memory-secretmd) for how this repo uses it.
@@ -313,6 +345,19 @@ Surfaces the open `/memo` backlog (`.claude/memos.md`, resolved at the git root,
 - **`UserPromptSubmit`** (`on-prompt` arg) — clears the state (the bar reminder is done). If the message is a bare number — or `memo N` / `start N` / `do N` / `pick N` — it injects, bound to that prompt, which memo N maps to, so Claude reliably starts it instead of treating the number as noise.
 
 Stays silent when there's no file or nothing open. Needs no environment variable. See the [Memo](#memo) skill for how items get there and the other two moments they resurface (task completion, `/commit`).
+
+---
+
+### Doppler Guard
+
+**File:** `claude/hooks/doppler-guard.py`
+
+A `PreToolUse` backstop on `Bash`, `Write`, and `Edit`. Hook matchers scope by tool *name* only, so the script self-filters: it exits silently unless the call's command, content, or path mentions Doppler anywhere.
+
+When it matches, it does two things:
+
+- **Injects the conventions** — a condensed reminder citing the [Doppler](#doppler) skill, so a wrong project or config gets corrected at the moment of the command even if the skill was never invoked.
+- **Denies a `doppler secrets set`/`delete` that omits `--silent`** — without it Doppler prints the full secrets table, every value included, into the transcript. The deny inspects only the Bash `command`, so prose or docs that merely mention the command still get the reminder rather than a block.
 
 ---
 

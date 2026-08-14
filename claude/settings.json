@@ -219,11 +219,11 @@
       }
     }
   },
-  "effortLevel": "high",
+  "effortLevel": "xhigh",
   "awaySummaryEnabled": false,
   "tui": "fullscreen",
+  "skipWorkflowUsageWarning": true,
   "theme": "dark",
   "agentPushNotifEnabled": true,
-  "skipAutoPermissionPrompt": true,
-  "skipWorkflowUsageWarning": true
+  "skipAutoPermissionPrompt": true
 }
