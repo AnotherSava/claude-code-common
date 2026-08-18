@@ -35,6 +35,34 @@ Bash tool inherit whatever shell the harness picked — usually fine, but
 if a command fails with `command not found: mapfile` (or similar
 bash-4-only feature), suspect bash 3.2 and rewrite portably.
 
+## Process spawns are ~100× more expensive on Windows — never fork per line
+
+Forking a process costs ~1ms on Linux/macOS and **~100–200ms in Git Bash on Windows**. A loop body
+that shells out therefore scales catastrophically: a `$(printf … | tr …)` used to trim whitespace,
+run over a 28-line file for each of 4 items, turned a script that should take milliseconds into a
+**30-second stall** — long enough to blow a Claude Code skill's two-minute context-probe budget and
+kill skill loading outright. The same script measured 263ms once the forks were removed.
+
+Do the work with parameter expansion, which is builtin and free:
+
+```bash
+line=${line%%#*}                          # strip a trailing comment
+line=${line#"${line%%[![:space:]]*}"}     # ltrim
+line=${line%"${line##*[![:space:]]}"}     # rtrim
+```
+
+Read each file **once** into a variable rather than re-reading it per item, and test membership with
+a `case` glob over a newline-delimited string instead of calling `grep` per candidate:
+
+```bash
+case $declared in *$'\n'"$name"$'\n'*) continue ;; esac
+```
+
+The rule of thumb: inside any loop, treat `$( )`, pipes, `grep`, `sed`, `tr`, `cut`, and `awk` as
+expensive. One invocation over the whole input is fine; one per line is not. This bites hardest in
+scripts a skill runs synchronously, where the cost lands in the user's latency rather than in a
+background job.
+
 ## bash vs zsh — the Bash tool is not the shell your script will run in
 
 On macOS the Bash tool runs **zsh**, while committed scripts, CI `run:` blocks and
