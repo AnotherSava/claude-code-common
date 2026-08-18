@@ -160,7 +160,16 @@ gh api -X PUT repos/<owner>/<name>/subscription -F subscribed=true -F ignored=fa
 
 Expect `true`. This subscribes the account to the repo so new issues (and PRs, releases, discussions) generate a notification. Do this explicitly rather than relying on GitHub's "Automatically watch repositories" account setting, which is off for many accounts and silently leaves new repos unwatched.
 
-There is no API for issues-only notifications. The REST subscription endpoint takes only `subscribed` and `ignored`; the UI's Custom → Issues dropdown is backed by an internal endpoint. Tell the user this once if they ask for issues-only, and point them at the repo's Watch dropdown.
+There is no *public* API for issues-only notifications — the REST subscription endpoint takes only `subscribed` and `ignored`, so `gh api` cannot express a Custom subscription. Leave the repo on plain `subscribed=true` unless the user explicitly asks to drop an event type; do not offer the fallback below as part of this skill.
+
+When they do ask, the UI's Custom dropdown is backed by an internal endpoint that browser automation can drive:
+
+- **Request** — `POST https://github.com/notifications/subscribe`, `FormData` carrying `do=custom`, `repository_id=<numeric id>` (from `gh api repos/<owner>/<name> --jq .id`), and one `thread_types[]` entry per event to *keep*: `Issue`, `PullRequest`, `Release`, `Discussion`, `SecurityAlert`. Omitted types are the ones switched off.
+- **Auth** — no CSRF token in the body. It rides on session cookies plus the headers GitHub's own fetch wrapper sends (`GitHub-Verified-Fetch: true`, `X-Requested-With: XMLHttpRequest`, and a page-scoped `X-Fetch-Nonce`), so it is reachable only from a logged-in github.com page, never from `gh api`. Capture the headers by intercepting `window.fetch` during one real Apply, then replay for other repos from that same page.
+- **Semantics** — Custom is additive on top of "Participating and @mentions", not "All Activity minus X".
+- **Verify** with `gh api repos/<owner>/<name>/subscription`: a custom subscription makes it return 404, because the endpoint cannot represent one. An All Activity watch returns `subscribed: true`.
+
+That endpoint is undocumented and can change without notice; the shape above was verified in August 2026.
 
 Delivery also depends on one **account-level** setting with no API: Settings → Notifications → Subscriptions → Watching → Email. It is on by default and applies to every repo, so it is a one-time thing, not per-repo. Do not try to read it with browser automation as part of this skill. To confirm it cheaply, check whether past GitHub mail carries the `subscribed@noreply.github.com` cc — that cc is GitHub's marker for "you receive this because you are watching the repository", so its presence proves the toggle is on.
 

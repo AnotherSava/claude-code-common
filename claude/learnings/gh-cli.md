@@ -60,6 +60,28 @@ from the endpoint argument
 
 Write `gh api licenses/mit`. The error names the fix, but the symptom reads like a wrong endpoint rather than a shell problem, and the same command works unchanged on macOS — so it only breaks on one of two machines. Applies to every `gh api` call; drop the leading slash unconditionally and it's portable.
 
+## An error body goes to stdout, and `--jq` is not applied to it
+
+On a 4xx, `gh api` prints the error JSON to **stdout**, not stderr, and skips the `--jq` filter entirely. So the two obvious ways to test a response both misfire:
+
+```bash
+resp=$(gh api "repos/$r/subscription" --jq '.subscribed' 2>/dev/null)
+[ -z "$resp" ]        # expected: true on 404. Actually false —
+                      # resp holds {"message":"Not Found",...,"status":"404"}
+[ "$resp" = "true" ]  # also false, so every repo falls to the else branch
+```
+
+A loop written that way reports every item as the *unexpected* case, which reads as "the change didn't apply" rather than "the check is broken" — the failure is uniform and confident-looking. Match on the body, or branch on the exit status:
+
+```bash
+case $(gh api "repos/$r/subscription" 2>/dev/null) in
+  *'"status":"404"'*)     ... ;;
+  *'"subscribed":true'*)  ... ;;
+esac
+```
+
+Redirecting stderr does not help, because the payload was never on stderr. `--silent` suppresses the body but not the exit code, so `gh api ... --silent; [ $? -eq 0 ]` is the terse form when only success matters.
+
 ## `gh config get git_protocol` returns the wrong value without `--host`
 
 The bare form reports the **global** default; git actually uses the per-host setting:

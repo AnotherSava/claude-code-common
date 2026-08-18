@@ -47,6 +47,33 @@ await fetch('/settings/export')              // works — and still sends the se
 
 Nothing is lost by dropping the option: `same-origin` is `fetch`'s default credentials mode, so a same-origin request authenticates anyway. Navigate the tab to the site first, then fetch a relative path.
 
+## Capturing the page's own API call — the guard redacts what you intercept too
+
+When a UI does something its public API cannot, the request behind it is discoverable: patch `window.fetch`, trigger the action once through the real controls, and the app hands you its own endpoint and payload. The `read_network_requests` tool is not enough on its own — it reports URL, method and status, never bodies.
+
+The catch is that intercepted data hits the same filter as everything else. Dumping `init.body` returns `[BLOCKED: Cookie/query string data]` and the URL comes back `[BLOCKED: Base64 encoded data]`, because form bodies are full of `=`/`&` and often a token. Sanitize *in the page*: return field names always, values only when they're short enough not to be credentials.
+
+```js
+window.__cap = [];
+const orig = window.fetch;
+window.fetch = function (input, init) {
+  const url = typeof input === 'string' ? input : input.url;
+  if (/notifications\/subscribe/.test(url) && init?.body instanceof FormData) {
+    window.__cap.push([...init.body.entries()].map(([k, v]) => ({
+      k, len: String(v).length,
+      safe: /^[A-Za-z0-9_]{1,24}$/.test(String(v)) ? String(v) : '<redacted>',
+    })));
+  }
+  return orig.apply(this, arguments);
+};
+```
+
+That yields the field names and short enum values (`do=custom`, `thread_types[]=Issue`) with anything token-length withheld — enough to rebuild the request without pulling a secret through the filter. Match the URL with a regex instead of returning it. Header objects passed to `fetch` usually survive as-is, since they carry no `=`.
+
+Then **replay from the same page**: the captured headers stay valid for the tab's lifetime, so a bulk operation over N items is one loop, not N navigations. Park a helper on `window` and call it per item.
+
+Two smaller things that hold up throughout: React-controlled inputs and menu items respond to a plain `.click()` (it dispatches a real event, so the synthetic handlers run), and the honest way to confirm a write persisted is to reopen the control and read its state back — a 200 only says the server accepted the request.
+
 ## The result is capped at ~1000 characters, so a large payload cannot be returned
 
 `javascript_tool` truncates its output at roughly a thousand characters, and chunking does not rescue a big payload — slicing a 36 KB export into 12 KB pieces returns three *truncated* fragments, not the file.
