@@ -190,3 +190,5 @@ Run the deploy now (bypassing the shell function, which needs a restart to load)
   ```
 
 Report the output to the user. If it fails, analyze the error and suggest a fix. On success, remind the user to restart Claude Code if they haven't already, then `! deploy` will work.
+
+**A deploy overwrites the installed config — warn before running one.** When `config/local.json` exists, the deploy copies it over the installed `config.json`, so anything the *app itself* wrote there at runtime — an API key typed into an in-app settings dialog, an OAuth token — is destroyed, silently, if `local.json` carries an empty placeholder for that field. Nothing in the output says a value was lost. Before deploying an app that persists its own settings to the installed config, check `local.json` for empty credential fields and tell the user; the repo's `local.json` is the source of truth, so that is where their keys belong.

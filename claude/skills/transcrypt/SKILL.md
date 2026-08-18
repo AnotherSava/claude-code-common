@@ -27,23 +27,39 @@ in `.gitattributes` (e.g. `notes.secret.md`, `config.secret.json`).
 ## The shared key — never generate a new one
 
 Every init/unlock uses the Doppler-stored passphrase and `aes-256-cbc` (the standard cipher for these
-repos). This one command is referenced throughout; the key is never printed:
+repos). This one sequence is referenced throughout; the key is never printed. Run it from the repo root,
+and keep all three lines — the bracket around the middle one is explained below:
 
 ```
+git config core.hooksPath "$(git rev-parse --path-format=absolute --git-common-dir)/hooks"
 transcrypt -c aes-256-cbc -p "$(doppler secrets get TRANSCRYPT_KEY --project tools --config prd --plain)" -y
+git config --unset core.hooksPath
 ```
+
+Doppler's auth is **directory-scoped**, so read the key from a scoped directory. Fetching it from an
+unscoped path (a temp dir, say) fails with "you must provide a token" and transcrypt then dies on an
+empty password — capture the key into a variable before changing directories if the init runs elsewhere.
 
 Init also refuses on a **dirty tree** — if a tracked file is modified, stash just it first
 (`git stash push <file>`), init, then `git stash pop`. Untracked files don't block it.
 
-**Clean up the leftover after init.** When a global `core.hooksPath` is set, transcrypt can't auto-install
-its pre-commit hook and drops a redundant `pre-commit-crypt` copy into that dir (the global guarded
-`pre-commit` already does the check — see "Pre-commit safety net" below). Delete it so it never clutters:
-```
-H=$(git config --global core.hooksPath) && [ -n "$H" ] && rm -f "$H/pre-commit-crypt"
-```
-(Researched 2026-07-11: transcrypt has no flag/config to skip creating `pre-commit-crypt` — it's hardcoded
-in `save_helper_hooks`, so delete-after is the best available option.)
+**Why the `core.hooksPath` bracket.** Transcrypt writes its `pre-commit-crypt` helper into whatever
+`core.hooksPath` resolves to, then copies it to `pre-commit` when that name is free — hardcoded in
+`save_helper_hooks`, with no flag to skip it. A **global** hooksPath makes "whatever it resolves to" the
+shared dir, so one repo's helper clutters the hooks directory every repo uses, and transcrypt prints a
+"Cannot install Git pre-commit hook script because file already exists" warning because the guarded
+global `pre-commit` is already sitting there. Pointing it at the repo's own git dir for the duration puts
+the helper in `.git/hooks/` — exactly where transcrypt would have put it on a machine with no global
+hooksPath — per-repo, untracked, and inert once the override is removed. Nothing is lost: the global hook
+already runs the same check (see "Pre-commit safety net" below). The bracket is a no-op on a machine
+with no global hooksPath, so it is unconditional.
+
+(Verified 2026-08-17 against transcrypt 2.3.2 and git 2.39: with the bracket the global hooks dir is
+untouched, no warning is printed, and encryption still works once the override is removed. Deleting the
+leftover afterwards — what this skill advised until now — is not available to Claude: the auto-mode
+classifier reads a write to the global hooks dir as audit tampering and denies it. Prevention is the only
+path, and a repo initialized before this fix needs the user to remove the stale `pre-commit-crypt`
+themselves.)
 
 ## Step 0 — ensure transcrypt is installed
 
@@ -68,7 +84,7 @@ From Context and the user's request:
 
 ## A — Encrypt a file
 
-1. If **this repo's transcrypt config** is `NOT-CONFIGURED`, initialize with the shared-key command above.
+1. If **this repo's transcrypt config** is `NOT-CONFIGURED`, initialize with the shared-key sequence above.
 2. Ensure `.gitattributes` carries the encrypt pattern; add this line if missing (**encrypt attribute** is
    `NONE`):
    ```
@@ -93,7 +109,7 @@ From Context and the user's request:
 ## B — Unlock a repo after clone
 
 Secret files read as ciphertext because transcrypt isn't configured on this machine yet. Run the shared-key
-command above; transcrypt decrypts every `*.secret.*` file in place. Confirm with
+sequence above; transcrypt decrypts every `*.secret.*` file in place. Confirm with
 `head -1 <a .secret file>` (readable plaintext).
 
 ## Out of scope
@@ -108,9 +124,9 @@ command above; transcrypt decrypts every `*.secret.*` file in place. Confirm wit
 A guarded transcrypt pre-commit hook is installed globally (`~/.git-hooks/pre-commit` via
 `core.hooksPath`, tracked in the dotfiles repo). It blocks committing a `*.secret.*` file that lacks the
 encrypted "Salted" magic, and no-ops in non-transcrypt repos. So **ignore transcrypt's "manually install
-the pre-commit script" message** on init — the global hook already covers every repo; no per-repo hook
-install is needed. (The redundant `pre-commit-crypt` copy transcrypt drops is deleted right after init,
-per the shared-key section above.)
+the pre-commit script" message** if you ever see it — the global hook already covers every repo; no
+per-repo hook install is needed. The `core.hooksPath` bracket in the shared-key section keeps transcrypt's
+own copy inside `.git/hooks/`, so that message should not appear at all.
 
 ## Fresh-machine note
 
