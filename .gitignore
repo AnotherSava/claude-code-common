@@ -4,6 +4,10 @@ __pycache__/
 # Machine-local project config (keep .claude/memory/ tracked)
 .claude/settings.local.json
 
+# Machine-local: which skills are deliberately not committed. Per-machine because
+# the set of locally-installed skills differs between them.
+claude/untracked-skills.local.txt
+
 # Ignore all skills, whitelist ours
 claude/skills/*
 !claude/skills/annotate/
@@ -21,6 +25,7 @@ claude/skills/*
 claude/skills/github-status/config/
 !claude/skills/memo/
 !claude/skills/move-project/
+!claude/skills/notion/
 !claude/skills/plan-ralphex/
 !claude/skills/plannotator-update/
 !claude/skills/pr-create/

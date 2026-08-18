@@ -21,6 +21,11 @@ skills/<skill-name>/
 - Entry point is always `SKILL.md`
 - Place in `~/.claude/skills/` for global skills, `.claude/skills/` for project-local
 - Shared resources go in `~/.claude/skills/shared/`
+- **Creating the directory is not enough to keep the skill.** A skills directory is normally
+  ignore-everything-then-allowlist, so a new skill is untracked and invisible until you add its
+  un-ignore line — see [Gitignore](#gitignore) for the exact check. Do it when you create the
+  directory, not at the end; the `skill-tracked.py` hook flags a miss when the SKILL.md is
+  written, but the hook is a net, not the plan.
 
 ## Addressing Claude project data (per-project memory, sessions, etc.)
 
@@ -180,7 +185,15 @@ Add `PowerShell` and `Bash(tput cols:*)` to `allowed-tools` for the detection st
 
 ## Gitignore
 
-A skills directory is usually covered by an ignore-everything-then-allowlist rule, so a new skill can end up untracked with no signal at all: it never appears in `git status`, and the only copy lives on the machine that created it. Verify tracking as the final step of creating a skill — don't skip it because the skill obviously sits inside a tracked repo.
+A skills directory is usually covered by an ignore-everything-then-allowlist rule, so a new skill can end up untracked with no signal at all: it never appears in `git status`, and the only copy lives on the machine that created it. Add the un-ignore line **when you create the directory** — don't defer it to a final check, and don't skip it because the skill obviously sits inside a tracked repo.
+
+Do not "simplify" this by inverting the rule to commit-everything-except. The allowlist is
+deliberate: the skills directory also holds third-party skills the user installed (plugins,
+`~/.agents/skills`), and an inverted rule would start tracking those into the dotfiles repo.
+Deny-by-default with a per-skill opt-in is the correct posture; its one cost is the missed line,
+which the audit and the write hook below exist to catch.
+
+The `skill-tracked.py` PostToolUse hook runs this check automatically when a `SKILL.md` is written, and reports the ignoring file, line and pattern. Treat it as a backstop for the case you forgot, not as the mechanism — it fires only on `Write`, only for a file named exactly `SKILL.md`, and only after the fact. A skill added any other way still slips through, which is what the audit below is for.
 
 Ask git instead of reading an ignore file by hand:
 
@@ -203,8 +216,38 @@ Two traps this avoids:
 To catch skills that are already missing an entry, audit them all from the repo root:
 
 ```bash
-ls claude/skills | sed 's|^|claude/skills/|; s|$|/|' | git check-ignore -v --stdin
+bash ~/.claude/scripts/audit-skill-tracking.sh
 ```
+
+It prints one line per skill that a wildcard rule is swallowing, and nothing when all are
+accounted for. It covers both layouts (`claude/skills/` and a project's `.claude/skills/`).
+
+An entry is cleared one of two ways, and both are durable:
+
+- **Keep the skill** — add `!claude/skills/<name>/` to `.gitignore` beside its siblings.
+- **Keep it local on purpose** — add its directory name to `claude/untracked-skills.local.txt`
+  (next to `skills/`, so the blanket `skills/*` rule cannot swallow the file recording the
+  decision). That file is itself gitignored and per-machine: which skills are deliberately unshared
+  differs between machines, so committing it would push one machine's decisions onto the other. A
+  fresh clone has no file and decides each skill again there.
+
+Two further cases are filtered without needing an entry: symlinked skills, whose content is
+installed elsewhere and was never this repo's to commit, and skills matched by an *exact*,
+wildcard-free path in `.gitignore`, which already reads as a deliberate exclusion.
+
+Never leave such a decision in conversation alone — it dies at the next `/clear`, and the skill is
+raised again on every commit thereafter.
+
+`/commit` runs the same script, so a forgotten skill also surfaces at the moment it would
+otherwise be left out of a commit — the case the write hook cannot see, because it only fires
+when a `SKILL.md` goes through the Write tool. A directory that was copied, moved, renamed, or
+unpacked by a plugin reaches the repo without one.
+
+Don't hand-roll this with `ls`. A shell that classifies (`ls -F`, or an `ls` alias) appends `/` to
+directories and `@` to symlinks, so piping `ls` through `sed 's|$|/|'` yields `annotate//` and
+`firecrawl@/` — paths that do not exist. `check-ignore` still matches those against a broad
+pattern like `claude/skills/*`, so the audit looks correct while silently mis-reporting under a
+narrower one.
 
 Every line of output is an untracked skill; no output means all are tracked. A skill that should also be *published* needs its `### <Title>` section in the repo README — being tracked is necessary, not sufficient.
 

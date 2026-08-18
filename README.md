@@ -306,6 +306,22 @@ Encrypts designated files with [transcrypt](https://github.com/elasticdog/transc
 
 ---
 
+### Notion
+
+Works with [Notion](https://www.notion.so/) through whichever of its two APIs can actually do the job — the MCP integration by default, and the internal v3 API (`token_v2` cookie, `/api/v3/`) only for operations MCP cannot express.
+
+**Command:** `/notion`
+
+**Features:**
+- Routes each operation to a surface from a decision table up front, so v3 is a deliberate choice rather than the first thing tried after an error
+- Names the closed list of v3-only operations — select-option recolor and removal, date formats, reminders, conditional row colours, column widths, grouped views, trashing a row or view, and bulk row edits
+- Flags the two operations impossible on both surfaces (column text alignment, enabling Sub-items) so neither gets chased
+- Treats MCP as destructive too, calling out the three calls that wipe data despite MCP having no delete verb
+- Degrades to the MCP half alone when the `notion_tools` package or the v3 token is missing
+- Separate references for the MCP surface, reading data, and v3 transaction recipes
+
+---
+
 ## Hooks
 
 ### External Hook Paths
@@ -319,17 +335,20 @@ When a hook command needs a path outside `~/.claude/` or this repo, reference it
 **Currently used env vars** — set these on a fresh machine before the corresponding hooks will work:
 
 - **`CLAUDE_AI_AGENT_DASHBOARD`** — points to a local clone of the `tauri-dashboard` repo. Used by the `Notification`, `UserPromptSubmit`, `Stop`, `SessionEnd`, and `SessionStart` hooks for live session-status updates.
+- **`CLAUDE_AGWINTERM`** — points to the directory holding `agwintermctl.exe`. Used by the `PostToolUse`, `Notification`, `UserPromptSubmit`, and `Stop` hooks to report session status (active / blocked / completed) to the terminal. Each of those commands is additionally guarded on `$AGWINTERM_SESSION_ID`, so it stays inert outside an agwinterm session — leaving this unset costs nothing on a machine that doesn't run one.
 
 **Set on Windows** (User scope, persistent):
 
 ```powershell
 [Environment]::SetEnvironmentVariable('CLAUDE_AI_AGENT_DASHBOARD', '{{path-to-tauri-dashboard}}', 'User')
+[Environment]::SetEnvironmentVariable('CLAUDE_AGWINTERM', '{{path-to-agwinterm}}', 'User')
 ```
 
 **Set on Linux / macOS** (in your shell profile):
 
 ```bash
 export CLAUDE_AI_AGENT_DASHBOARD="$HOME/projects/tauri-dashboard"
+export CLAUDE_AGWINTERM="$HOME/programs/agwinterm"
 ```
 
 ---
@@ -358,6 +377,19 @@ When it matches, it does two things:
 
 - **Injects the conventions** — a condensed reminder citing the [Doppler](#doppler) skill, so a wrong project or config gets corrected at the moment of the command even if the skill was never invoked.
 - **Denies a `doppler secrets set`/`delete` that omits `--silent`** — without it Doppler prints the full secrets table, every value included, into the transcript. The deny inspects only the Bash `command`, so prose or docs that merely mention the command still get the reminder rather than a block.
+
+---
+
+### Skill Tracking
+
+**Files:** `claude/hooks/skill-tracked.py` and `claude/scripts/audit-skill-tracking.sh`
+
+A skills directory is ignore-everything-then-allowlist (`claude/skills/*` plus one `!claude/skills/<name>/` line per skill), so a skill whose line was never added is invisible: it never appears in `git status`, nothing signals the omission, and the only copy stays on the machine that made it. Two complementary guards:
+
+- **The hook** — a `PostToolUse` on `Write`, gated by `"if": "Write(//**/SKILL.md)"`. It asks git the moment a `SKILL.md` is written and names the exact file, line and pattern doing the ignoring. The `if` rule is what keeps it affordable: a matcher scopes by tool *name* alone, and on Windows an unfiltered Python hook costs ~200ms of interpreter startup on every edit. That pattern must stay root-anchored (`//`) — an unanchored `**/SKILL.md` matches nothing and silently disables the hook.
+- **The audit script** — a sweep over every skill directory regardless of how it arrived (copied, moved, renamed, or unpacked by a plugin), which is the case the hook cannot see. Run by `/commit` before it drafts a plan, and standalone with `bash ~/.claude/scripts/audit-skill-tracking.sh`. It prints one line per skill a wildcard rule is swallowing, and nothing when all are accounted for.
+
+A flagged skill is cleared one of two ways, both durable: add `!claude/skills/<name>/` to `.gitignore` to keep it, or record its directory name in `claude/untracked-skills.local.txt` to keep it machine-local on purpose. That decisions file is itself gitignored and per-machine, since which skills are deliberately unshared differs between machines; a fresh clone has none and decides each skill again there. Symlinked skills and those matched by an exact, wildcard-free path are filtered out without needing an entry.
 
 ---
 

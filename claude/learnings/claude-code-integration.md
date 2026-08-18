@@ -244,22 +244,44 @@ The naive install — `PreToolUse` without a matcher — fires for every tool ca
 
 `PostToolUse` for the same tools usually doesn't need to be wired — once the user answers, the watcher sees the now-flushed `tool_result` and reverts to `working`; a later `Stop` carries the row to `done`.
 
-## Hook matchers scope by tool name only
+## Hook matchers scope by tool name; `if` scopes by argument
 
-The `matcher` is tested against the **tool name** (`Bash`, `Edit`, a regex over names). There is no per-hook conditional field for the tool's *arguments*, and a plausible-looking permission-style `if` sitting next to the command is silently ignored rather than honoured:
+The `matcher` is tested against the **tool name** (`Bash`, `Edit`, a regex over names). Argument-level
+scoping is the separate per-hook `if` field, in permission-rule syntax — and it **is** honoured, which
+corrects an earlier note here that called it silently ignored:
 
 ```json
-{ "matcher": "Bash",
+{ "matcher": "^Write$",
   "hooks": [ { "type": "command",
-      "command": "python3 \"$HOME/.claude/hooks/doppler-guard.py\"",
-      "if": "Bash(doppler *)" } ] }
+      "if": "Write(//**/SKILL.md)",
+      "command": "python3 \"$HOME/.claude/hooks/skill-tracked.py\"" } ] }
 ```
 
-Observed 2026-08-06: that hook fired on a Bash call whose command began `cd <repo> && …`, which `Bash(doppler *)` would have excluded — so the key gated nothing. The `Bash(cmd *)` syntax is for `permissions.allow`/`deny`; it is not a hook field, and an unknown key raises no error.
+Verified 2026-08-17 in both directions, using a sentinel file appended to by the hook command: writing
+a `SKILL.md` fired it; writing any other file left the sentinel untouched — so `if` stops the process
+from spawning at all, rather than merely suppressing its output.
 
-A hook that should act on only *some* invocations of a tool must therefore read `tool_input` from its stdin payload and decide for itself, exiting 0 silently otherwise. Three consequences worth designing around:
+**The pattern must be root-anchored, and a wrong one fails silently.** `Write(**/SKILL.md)` matched
+*nothing*, so the hook never ran even for `SKILL.md` — it looked configured and was dead. Absolute
+patterns anchor with `//`, the same form `permissions.allow` uses (`Read(//c/Users/<user>/**)`).
+Always test the **positive** case after adding an `if`: a hook that never fires passes any negative
+test, so "it didn't run on an unrelated file" proves nothing on its own.
 
-- The hook process is still forked for **every** call to the matched tool, so put the cheap early-out at the top.
+This is worth getting right because the per-call cost is real. On Windows a `python3` hook is ~200ms
+of interpreter startup **before** the script can read its stdin and bail — paid on every matched call.
+Measured on a `^(Write|Edit)$` matcher: ~198ms per non-matching call with an in-script early-out,
+versus 0 with `if`. An early-out inside the script cannot recover that, because the process has
+already started; only `if` can.
+
+The 2026-08-06 observation behind the old claim — a `Bash` hook with `"if": "Bash(doppler *)"` firing
+on a command beginning `cd <repo> && …` — is more likely Claude Code splitting the compound command
+and matching its `doppler` sub-command than the key being ignored. Not re-tested; treat Bash-rule
+semantics over `&&` as unverified.
+
+A hook needing finer discrimination than `if` offers still reads `tool_input` from its stdin payload
+and decides for itself, exiting 0 silently otherwise. Consequences worth designing around:
+
+- Without `if`, the hook process is forked for **every** call to the matched tool, so put the cheap early-out at the top.
 - Self-filtering matches the whole argument blob, not the command verb — a script grepping for `doppler` also fires on `cd repo && ls doppler-guard.py`. Anchor the pattern (e.g. to the start of the command) when incidental mentions would be noise.
 - **An injected `additionalContext` is written into the transcript**, so the hook's own reminder text becomes a permanent false positive for any later search on its keywords. Grepping `~/.claude/projects/**/*.jsonl` for `doppler` matched 915 files once the guard hook was live — nearly all of them the injected reminder, not a real Doppler session. Frequency counts over transcripts are meaningless for any term a hook injects; search for a distinctive phrase the *hook* never emits (an error string, a flag) instead.
 
