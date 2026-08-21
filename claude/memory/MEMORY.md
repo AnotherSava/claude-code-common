@@ -83,3 +83,6 @@
 - [Check the network exists](feedback_check_the_network_exists.md) — a feature needing other users is worthless at launch; ask what it does with one user
 - [Rename the control, do not invert it](feedback_rename_dont_invert.md) — when a mechanism can only express one direction, name the control for what it does; no inverted wiring behind a label
 - [No manufactured distinctions](feedback_no_manufactured_distinctions.md) — don't invent a state, filter option or button the source doesn't require; fold optional actions into the routine one
+- [Validate edits to self-gating files](feedback_validate_self_gating_edits.md) — blocking hooks/git hooks/rc files: edit a temp copy, run the configured commands, then copy over; valid syntax ≠ working command
+- [spctl --assess blocks on a password dialog](macos_spctl_assess_blocks.md) — macOS 26 prompts via Touch ID and hangs subagents; use codesign/xattr instead, and ban prompt-raising commands by name
+- [Compare downsides to current state](feedback_compare_to_current_state.md) — judge a change against what ships today, not an ideal baseline; separate regressions from unchanged and improved

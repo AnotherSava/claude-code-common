@@ -120,7 +120,11 @@ up a change. This is the usual reason a just-added hook "doesn't work".
 3. Test the *discard* path as well as the acting path — that is the path that runs most.
 4. Time it: `time (for i in $(seq 20); do ... ; done)` and divide. Compare against
    `references/performance.md`; a hook meaningfully above the floor is doing work it could defer.
-5. Confirm the JSON still parses after any `settings.json` edit.
+5. After any `settings.json` edit, confirm the JSON parses **and that every command string still
+   runs**. Parsing is not sufficient — `python -S` fused to the quoted path with no separating
+   space is valid JSON and dies with `Unknown option: -/`. Build the edit in a temp copy, execute
+   each command, and only then copy it over the live file: settings hot-reloads on write, so the
+   first bad save is already in force.
 6. Clean up temp dirs and confirm nothing reached the real log.
 
 ## 9. Findings log
@@ -155,6 +159,11 @@ dated line here rather than leaving it in a session transcript.
   will misfire, however good its checks are. `plan-archive.py done` inferred "the plan is
   finished" from an idle timeout and archived a plan four minutes after it was written. Ask what
   the event actually proves before hanging an action on it.
+- **2026-08-21** — A malformed command in a blocking `PreToolUse` hook matched on
+  `^(Bash|Write|Edit)$` disables all three mutation tools at once, leaving no way to repair
+  `settings.json` from inside the session — the user has to run a shell command. The JSON-parses
+  check does not catch it, because the file stays well-formed. Validate a candidate copy by
+  running its commands before overwriting the live file (§8.5).
 
 ## Out of scope
 

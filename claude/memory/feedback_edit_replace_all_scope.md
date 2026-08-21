@@ -14,3 +14,4 @@ metadata:
 - If indentation or scope differs between matches, prefer per-occurrence `Edit` calls (with extra context in `old_string` to disambiguate).
 - Single-line replacements (`name[:50]` → `name[:100]` *alone*) are usually fine across scopes — the risk is specifically with multi-line `new_string` that has internal structure expecting a particular outer indent.
 - After a `replace_all` that adds structure, eyeball both call sites with `Read` to confirm indentation is intact.
+- **`new_string` loses trailing whitespace.** A replacement meant to end in a space silently doesn't — `"command": "python` → `"command": "python -S ` produced `python -S"$HOME/…`, fusing the flag to its argument. Put the separator on the *left* of the following text instead of trailing the replacement, or use a stream editor. Verify by reading back the exact bytes, not by assuming the edit applied as typed. See [[feedback_validate_self_gating_edits]].

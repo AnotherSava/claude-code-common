@@ -39,6 +39,41 @@ print([hex(ord(c)) for c in line if ord(c) > 126 or c == chr(92)])
 
 This is ASCII-safe as well, which matters on Windows: printing the character itself raises `UnicodeEncodeError` from a cp1251 stdout (see `claude-code-integration.md`).
 
+## The one you will actually hit: `settings.json`
+
+Claude Code serialises its own settings file with `"` written as `\u0022` inside hook command
+strings:
+
+```json
+"command": "python -S \u0022$HOME/.claude/hooks/doppler-guard.py\u0022"
+```
+
+Every hook command is therefore an un-editable line by the rule above — `old_string` containing
+`\u0022` arrives as a plain `"` and matches nothing. Two further traps compound it:
+
+- **Edit strips trailing whitespace from `new_string`.** A replacement meant to end in a space
+  silently loses it. Replacing `"command": "python` with `"command": "python -S ` yields
+  `python -S\u0022$HOME/…` — no separator — and the shell hands Python the single argument
+  `-S/Users/…`, which dies with `Unknown option: -/`.
+- **A broken command string can lock you out of your own tools.** `doppler-guard.py` runs as a
+  blocking `PreToolUse` hook matched on `^(Bash|Write|Edit)$`. Break its command and all three
+  mutation tools start failing on the hook error — there is no way to repair the file from inside
+  the session, and the user has to run a shell command to undo it.
+
+**Procedure — never edit the live file in place:**
+
+```bash
+cp claude/settings.json /tmp/candidate.json
+sed -i '' 's|"python |"python -S |g' /tmp/candidate.json   # sed sees real bytes; no escape games
+python3 -c 'import json; json.load(open("/tmp/candidate.json"))'   # 1. still valid JSON?
+# 2. execute every command string and check none report "Unknown option" / "can't open file"
+cp /tmp/candidate.json claude/settings.json                # only now touch the live file
+```
+
+Use a stream editor, not Edit, for these files: `sed`/`python` operate on the bytes on disk, so
+`\u0022` is just six ordinary characters to them. And validate *before* the copy — settings
+hot-reloads on write, so the first bad save is already in force.
+
 ## Why it's worth the trouble
 
 Nothing breaks if the literal character goes in — the code runs identically. What breaks is the convention: the file's own comment claims an escape "rather than the literal character, which is invisible in source", and the next reader sees an empty-looking string with no way to tell U+2003 from U+2009 or a plain space. Whole-file greps for the constant also stop working.
