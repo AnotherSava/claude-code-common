@@ -120,7 +120,8 @@ When setting up a new shell (e.g. WSL), verify:
 4. **`publish` function exists** — `type publish`
 5. **`memo` function exists** — `type memo`
 6. **`notify` function exists** — `type notify`
-7. **Python + deps available** — `python3 -c "import requests, dotenv"` (needed by `notify` and Claude hooks)
-8. **macOS only:** confirm `python3` resolves at all — Apple removed the bundled `python` in recent macOS releases. Install via `brew install python` (or use the Xcode Command Line Tools shim) before running step 7.
-9. **Symlinks intact** — `ls -la ~/.claude` should point to the claude-code-common repo's `claude/` directory
-10. **Git hooks linked** — `git config --global core.hooksPath` should return `~/.git-hooks`
+7. **A real `python` on `PATH`** — `python -V`. Hooks and the statusline invoke the bare name, never `python3`, because `python3` is an indirection on both platforms (bash shim on Windows, `xcode-select` dispatcher on macOS). A machine without it runs no hooks, silently.
+8. **macOS only:** Apple ships no `python`, and the Command Line Tools `python3` is 3.9 — old enough that `str | None` annotations fail at import. Run `brew install python && ln -s /opt/homebrew/bin/python3 ~/.local/bin/python`, and check `~/.local/bin` is on `PATH`. See the README's [Python interpreter](../../README.md#python-interpreter) section.
+9. **Deps for `notify`** — `python -c "import requests, dotenv"`. The Claude hooks themselves are stdlib-only, so this gates `notify`, not them.
+10. **Symlinks intact** — `ls -la ~/.claude` should point to the claude-code-common repo's `claude/` directory
+11. **Git hooks linked** — `git config --global core.hooksPath` should return `~/.git-hooks`

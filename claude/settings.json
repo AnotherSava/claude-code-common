@@ -15,7 +15,7 @@
         "hooks": [
           {
             "type": "command",
-            "command": "python \u0022$CLAUDE_AI_AGENT_DASHBOARD/integrations/claude_hook.py\u0022 awaiting",
+            "command": "python -S \u0022$CLAUDE_AI_AGENT_DASHBOARD/integrations/claude_hook.py\u0022 awaiting",
             "async": true
           }
         ]
@@ -25,7 +25,7 @@
         "hooks": [
           {
             "type": "command",
-            "command": "python \u0022$HOME/.claude/hooks/doppler-guard.py\u0022"
+            "command": "python -S \u0022$HOME/.claude/hooks/doppler-guard.py\u0022"
           }
         ]
       }
@@ -36,7 +36,7 @@
         "hooks": [
           {
             "type": "command",
-            "command": "python \u0022$HOME/.claude/hooks/plan-archive.py\u0022 start",
+            "command": "python -S \u0022$HOME/.claude/hooks/plan-archive.py\u0022 start",
             "async": true
           }
         ]
@@ -47,7 +47,7 @@
           {
             "type": "command",
             "if": "Write(//**/SKILL.md)",
-            "command": "python \u0022$HOME/.claude/hooks/skill-tracked.py\u0022"
+            "command": "python -S \u0022$HOME/.claude/hooks/skill-tracked.py\u0022"
           }
         ]
       },
@@ -59,6 +59,15 @@
             "async": true
           }
         ]
+      },
+      {
+        "hooks": [
+          {
+            "type": "command",
+            "command": "[ -n \"$AGTERM_SESSION_ID\" ] && \"$HOME/.config/agterm/agent-status/agterm-agent-status.sh\" active --blink >/dev/null 2>&1 || true",
+            "async": true
+          }
+        ]
       }
     ],
     "Notification": [
@@ -66,7 +75,7 @@
         "hooks": [
           {
             "type": "command",
-            "command": "python \u0022$CLAUDE_AI_AGENT_DASHBOARD/integrations/claude_hook.py\u0022 idle",
+            "command": "python -S \u0022$CLAUDE_AI_AGENT_DASHBOARD/integrations/claude_hook.py\u0022 idle",
             "async": true
           }
         ]
@@ -76,7 +85,7 @@
         "hooks": [
           {
             "type": "command",
-            "command": "python \u0022$HOME/.claude/hooks/plan-archive.py\u0022 done",
+            "command": "python -S \u0022$HOME/.claude/hooks/plan-archive.py\u0022 done",
             "async": true
           }
         ]
@@ -90,6 +99,16 @@
           }
         ],
         "matcher": "permission_prompt"
+      },
+      {
+        "hooks": [
+          {
+            "type": "command",
+            "command": "[ -n \"$AGTERM_SESSION_ID\" ] && \"$HOME/.config/agterm/agent-status/agterm-agent-status.sh\" blocked >/dev/null 2>&1 || true",
+            "async": true
+          }
+        ],
+        "matcher": "permission_prompt"
       }
     ],
     "UserPromptSubmit": [
@@ -97,7 +116,7 @@
         "hooks": [
           {
             "type": "command",
-            "command": "python \u0022$CLAUDE_AI_AGENT_DASHBOARD/integrations/claude_hook.py\u0022 working",
+            "command": "python -S \u0022$CLAUDE_AI_AGENT_DASHBOARD/integrations/claude_hook.py\u0022 working",
             "async": true
           }
         ]
@@ -106,7 +125,7 @@
         "hooks": [
           {
             "type": "command",
-            "command": "python \u0022$HOME/.claude/hooks/memos-surface.py\u0022 on-prompt"
+            "command": "python -S \u0022$HOME/.claude/hooks/memos-surface.py\u0022 on-prompt"
           }
         ]
       },
@@ -118,6 +137,15 @@
             "async": true
           }
         ]
+      },
+      {
+        "hooks": [
+          {
+            "type": "command",
+            "command": "[ -n \"$AGTERM_SESSION_ID\" ] && \"$HOME/.config/agterm/agent-status/agterm-agent-status.sh\" active --blink >/dev/null 2>&1 || true",
+            "async": true
+          }
+        ]
       }
     ],
     "UserPromptExpansion": [
@@ -125,7 +153,7 @@
         "hooks": [
           {
             "type": "command",
-            "command": "python \u0022$CLAUDE_AI_AGENT_DASHBOARD/integrations/claude_hook.py\u0022 working",
+            "command": "python -S \u0022$CLAUDE_AI_AGENT_DASHBOARD/integrations/claude_hook.py\u0022 working",
             "async": true
           }
         ]
@@ -136,7 +164,7 @@
         "hooks": [
           {
             "type": "command",
-            "command": "python \u0022$CLAUDE_AI_AGENT_DASHBOARD/integrations/claude_hook.py\u0022 error",
+            "command": "python -S \u0022$CLAUDE_AI_AGENT_DASHBOARD/integrations/claude_hook.py\u0022 error",
             "async": true
           }
         ]
@@ -147,7 +175,7 @@
         "hooks": [
           {
             "type": "command",
-            "command": "python \u0022$CLAUDE_AI_AGENT_DASHBOARD/integrations/claude_hook.py\u0022 awaiting",
+            "command": "python -S \u0022$CLAUDE_AI_AGENT_DASHBOARD/integrations/claude_hook.py\u0022 awaiting",
             "async": true
           }
         ]
@@ -158,7 +186,7 @@
         "hooks": [
           {
             "type": "command",
-            "command": "python \u0022$CLAUDE_AI_AGENT_DASHBOARD/integrations/claude_hook.py\u0022 awaiting",
+            "command": "python -S \u0022$CLAUDE_AI_AGENT_DASHBOARD/integrations/claude_hook.py\u0022 awaiting",
             "async": true
           }
         ]
@@ -169,7 +197,7 @@
         "hooks": [
           {
             "type": "command",
-            "command": "python \u0022$CLAUDE_AI_AGENT_DASHBOARD/integrations/claude_hook.py\u0022 boundary",
+            "command": "python -S \u0022$CLAUDE_AI_AGENT_DASHBOARD/integrations/claude_hook.py\u0022 boundary",
             "async": true
           }
         ]
@@ -180,7 +208,7 @@
         "hooks": [
           {
             "type": "command",
-            "command": "python \u0022$CLAUDE_AI_AGENT_DASHBOARD/integrations/claude_hook.py\u0022 done",
+            "command": "python -S \u0022$CLAUDE_AI_AGENT_DASHBOARD/integrations/claude_hook.py\u0022 done",
             "async": true
           }
         ]
@@ -193,6 +221,15 @@
             "async": true
           }
         ]
+      },
+      {
+        "hooks": [
+          {
+            "type": "command",
+            "command": "[ -n \"$AGTERM_SESSION_ID\" ] && \"$HOME/.config/agterm/agent-status/agterm-agent-status.sh\" completed --auto-reset >/dev/null 2>&1 || true",
+            "async": true
+          }
+        ]
       }
     ],
     "SessionEnd": [
@@ -200,7 +237,7 @@
         "hooks": [
           {
             "type": "command",
-            "command": "python \u0022$CLAUDE_AI_AGENT_DASHBOARD/integrations/claude_hook.py\u0022 clear",
+            "command": "python -S \u0022$CLAUDE_AI_AGENT_DASHBOARD/integrations/claude_hook.py\u0022 clear",
             "async": true
           }
         ]
@@ -211,7 +248,7 @@
         "hooks": [
           {
             "type": "command",
-            "command": "python \u0022$CLAUDE_AI_AGENT_DASHBOARD/integrations/claude_hook.py\u0022 idle",
+            "command": "python -S \u0022$CLAUDE_AI_AGENT_DASHBOARD/integrations/claude_hook.py\u0022 idle",
             "async": true
           }
         ]
@@ -221,7 +258,7 @@
         "hooks": [
           {
             "type": "command",
-            "command": "python \u0022$HOME/.claude/hooks/memos-surface.py\u0022"
+            "command": "python -S \u0022$HOME/.claude/hooks/memos-surface.py\u0022"
           }
         ]
       }
@@ -230,7 +267,7 @@
   "respondToBashCommands": false,
   "statusLine": {
     "type": "command",
-    "command": "python \u0022$HOME/.claude/hooks/memos-surface.py\u0022 statusline",
+    "command": "python -S \u0022$HOME/.claude/hooks/memos-surface.py\u0022 statusline",
     "refreshInterval": 2
   },
   "enabledPlugins": {

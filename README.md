@@ -371,6 +371,8 @@ When a hook command needs a path outside `~/.claude/` or this repo, reference it
 - **`CLAUDE_AI_AGENT_DASHBOARD`** — points to a local clone of the `tauri-dashboard` repo. Used by the `Notification`, `UserPromptSubmit`, `Stop`, `SessionEnd`, and `SessionStart` hooks for live session-status updates.
 - **`CLAUDE_AGWINTERM`** — points to the directory holding `agwintermctl.exe`. Used by the `PostToolUse`, `Notification`, `UserPromptSubmit`, and `Stop` hooks to report session status (active / blocked / completed) to the terminal. Each of those commands is additionally guarded on `$AGWINTERM_SESSION_ID`, so it stays inert outside an agwinterm session — leaving this unset costs nothing on a machine that doesn't run one.
 
+The macOS counterpart needs no env var. The same four events also report status to **agterm** via `$HOME/.config/agterm/agent-status/agterm-agent-status.sh` — the app installs that script at a fixed `$HOME`-relative path, so there is nothing to configure. Those commands are guarded on `$AGTERM_SESSION_ID` and stay inert outside an agterm session, which is what lets one committed `settings.json` carry both machines' status hooks.
+
 **Set on Windows** (User scope, persistent):
 
 ```powershell
@@ -511,6 +513,24 @@ git config --global core.hooksPath ~/.git-hooks
 git config --global core.excludesFile "~/.gitignore"
 git config --global core.attributesFile "~/.gitattributes"
 ```
+
+### Python interpreter
+
+Every Python hook and the statusline in `claude/settings.json` invoke the interpreter as `python`, never `python3`. That is deliberate and measured: on both platforms the `python3` name resolves to an indirection rather than the real binary — a bash shim on Windows and an `xcode-select` dispatcher on macOS — and each costs a spawn on every hook. Nothing else on `PATH` may shadow it, so a machine that lacks a real `python` runs no hooks at all. Figures live in `claude/skills/hooks/references/performance.md`.
+
+Windows satisfies this out of the box. macOS does not — Apple ships no `python`, and the Command Line Tools `python3` is stuck on 3.9, which is old enough that ordinary annotations like `str | None` fail at import. Install a current Python and expose it under the bare name:
+
+```bash
+brew install python
+mkdir -p ~/.local/bin
+ln -s /opt/homebrew/bin/python3 ~/.local/bin/python
+```
+
+Point the symlink at `/opt/homebrew/bin/python3`, not at the versioned `libexec/bin/python`, so it follows future upgrades. Make sure `~/.local/bin` is on `PATH`, then confirm with `python -V`.
+
+Because the symlink lives outside the repo, it is the one setup step no `git clone` restores. A machine missing it fails silently — hooks simply never fire.
+
+Every invocation also passes `-S`, which skips `site` — the single largest slice of interpreter startup. **The cost is that `site-packages` is off `sys.path`, so every hook must stay stdlib-only.** All of them currently are. A hook needing a third-party package must drop `-S` on its own command line rather than for all of them.
 
 ## Memory
 
