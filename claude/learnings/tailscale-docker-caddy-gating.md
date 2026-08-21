@@ -77,3 +77,105 @@ Two ways to gate `/admin`:
 - **Separate hostname** (`admin.example.com`, tailnet-only): the public site stays 100% public and normally-browsed. This works with **zero app changes** *iff* the admin session cookie is **host-only** (no `Domain=`) and redirects are **relative** (`redirect("/admin")`, not `APP_BASE_URL`-absolute) — verify both in the app before assuming. If the app hardcodes an absolute base URL for admin or a domain-scoped cookie, a separate hostname breaks login. Prefer the separate hostname; check the cookie/redirect assumptions first.
 
 The `/admin` path prefix stays load-bearing even with a dedicated host: it's one app serving both customer and admin routes, so the prefix is the namespace the proxy gates on. Don't try to strip it — the app's own nav links and redirects assume it.
+
+### The gate is worthless without a resolution path to the tailnet IP
+
+A `remote_ip 100.64.0.0/10` matcher only fires when the request genuinely **arrives over the tunnel**. Tailscale
+routes only traffic addressed to 100.64/10; a browser resolving your hostname to the box's **public** A record
+goes out over the ordinary internet, so the source is the operator's public IP and the gate 404s *them* along with
+everyone else. Writing the matcher is the easy half — the half that's easy to forget is making the name resolve to
+`100.x` on operator devices (split-DNS via dnsmasq, or no public record at all).
+
+That is the real reason the separate-hostname option above wins. It is not merely tidier: with one hostname you
+must choose between the public path and the gated one, because a name resolves to exactly one address per device.
+Point it at the tailnet and you can never see your own site as a visitor does; point it at the public IP and the
+gate never matches. A site whose *whole point* is being publicly browsable cannot use same-host path gating.
+
+Cost to budget for: the tailnet-only hostname has no public record, so its cert must come from **DNS-01** — which
+means the Caddy image needs the plugin for *that zone's* DNS provider. Two domains on two providers means two
+plugins in the same `xcaddy` build; a Porkbun-only build cannot issue for a Cloudflare-hosted name.
+
+### Windows: the NRPT rule is a *suffix* match, so the bare hostname isn't routed
+
+A split-DNS route can be correct on the Tailscale side and still not reach the browser. On Windows the client
+implements it as an NRPT (Name Resolution Policy Table) rule, and it registers the namespace with a **leading
+dot**:
+
+```powershell
+(Get-DnsClientNrptRule).Namespace   # -> .whats-next.example.com
+```
+
+A leading-dot namespace is a DNS *suffix* rule: it matches `anything.whats-next.example.com` but **not
+`whats-next.example.com` itself**. So a gate keyed on the source being `100.x` keeps refusing the operator, on a
+machine where everything looks configured.
+
+What makes it confusing is that Tailscale's own resolver is fine — only the OS isn't pointed at it:
+
+```
+tailscale dns query whats-next.example.com   # Forwarding to resolver: 100.x.y.z -> RCodeSuccess
+nslookup whats-next.example.com 100.x.y.z    # correct tailnet answer
+nslookup whats-next.example.com              # the PUBLIC address
+```
+
+So diagnose in that order — resolver first, then the OS. `ipconfig /flushdns` does not help; the rule never
+matched. Tailscale's docs offer per-device hosts entries as the supported fallback, and that is the quickest way
+to unblock one machine:
+
+```powershell
+Add-Content -Path "$env:SystemRoot\System32\drivers\etc\hosts" -Value "100.x.y.z name.example.com"
+```
+
+TLS still validates — the same proxy serves the same certificate on the tailnet interface.
+
+## Giving a tailnet service a real https origin (`tailscale serve`)
+
+The sections above gate a *public* hostname to tailnet sources. The opposite problem — a plain-HTTP service on a
+private address that an https page must load from — has a one-command answer, and it needs no DNS record and no
+DNS-01 dance:
+
+```bash
+tailscale serve --bg --https=443 http://127.0.0.1:8096   # undo: tailscale serve --https=443 off
+```
+
+The service is then `https://<node>.<tailnet>.ts.net` with a real Let's Encrypt certificate, reachable by every
+tailnet device. That is what unblocks fetching from it inside an https page, where mixed-content rules refuse
+`http://192.168.x.x` outright.
+
+**HTTPS certificates must be enabled for the tailnet first**, and this is togglable by API even though the docs
+present it as an admin-console switch:
+
+```bash
+curl -u "$TAILSCALE_API_KEY:" https://api.tailscale.com/api/v2/tailnet/-/settings          # → {"httpsEnabled": false, …}
+curl -X PATCH -u "$TAILSCALE_API_KEY:" -H 'Content-Type: application/json' \
+     -d '{"httpsEnabled": true}' https://api.tailscale.com/api/v2/tailnet/-/settings       # → 200, body `null`
+```
+
+Side effect worth naming before flipping it: the tailnet name and every node you request a certificate for are
+published to the public Certificate Transparency logs.
+
+**MagicDNS names do not resolve off-tailnet.** `nslookup <node>.<tailnet>.ts.net 8.8.8.8` returns no address. That
+is a useful property: a client that wrongly believes it is on the tailnet fails at DNS in milliseconds rather than
+hanging on a TCP connect to an unroutable 100.x address, so "guess, then fall back" is a viable strategy.
+
+## Gating inside the app instead of at the proxy
+
+When the *application* (not Caddy) has to decide whether a request came over the tailnet, it reads
+`X-Forwarded-For` — and there is one trap that makes this silently never fire in development:
+
+**Next.js's dev server sets `x-forwarded-for: ::ffff:127.0.0.1` itself.** So code that reads the *last* entry (the
+usual "the value my own proxy appended" reasoning) gets loopback on every local request, concludes "not tailnet",
+and the feature never engages while you develop it. Read the **first** entry instead — the original client, which
+is the standard reading of the header and the only one that survives more than one hop.
+
+```js
+const TAILNET_V4 = /^100\.(6[4-9]|[7-9]\d|1[01]\d|12[0-7])\./;   // 100.64.0.0/10 — NOT /^100\./
+const TAILNET_V6 = /^fd7a:115c:a1e0:/i;
+const LOOPBACK   = /^(127\.|::1$|::ffff:127\.)/;                  // dev: browser is on the app's own machine
+const [first] = (headers().get("x-forwarded-for") ?? "").split(",");
+```
+
+`100.64.0.0/10` is `100.64.x` – `100.127.x`. A lazy `/^100\./` also matches `100.63.…` and `100.200.…`, which are
+ordinary public space. Accepting loopback alongside it is what makes the same code path testable in development.
+
+Spoofing the first entry is trivial, so this must not be the only thing protecting anything — pair it with real
+authentication and treat the address purely as a routing hint.

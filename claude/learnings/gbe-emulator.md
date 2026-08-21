@@ -35,6 +35,30 @@ The `steam_gameserver.cpp` flow is similar but only checks game_dir → cwd (no 
 
 Auth: reads `GSE_CFG_USERNAME` / `GSE_CFG_PASSWORD` env vars or `my_login.txt` beside the exe. **Steam Guard 2FA** prompts interactively on first run — cannot complete in non-interactive sessions (e.g. agent-driven). If the game already has a valid `steam_settings/`, prefer reusing it.
 
+## A game usually has more than one `steam_settings/`, and some are hidden
+
+Two traps for any tool that locates a game's config by scanning for `steam_appid.txt` or `steam_settings/`:
+
+**Several folders per install, holding different things.** A repack commonly drops a decorated `steam_settings/` at the game root while the emulator reads a bare one beside the DLL it loads — `bin/coldclient/`, `www/greenworks/lib/` (NW.js/greenworks games), `…/Binaries/Win64/`. GBE resolves its config folder from `get_full_program_path()`, the directory of the **loaded emulator DLL**, so the nested copy is the one that counts at runtime. But the root copy is frequently the *richer* one — it is where a repack puts a themed `configs.overlay.ini`, `fonts/` and `sounds/`, none of which the emulator ever reads there. Across a real games library roughly a third of installs had more than one. Keying a cache by appid and letting the last scanned win discards the others silently and in filesystem order; collect them all, then decide per use whether you want the authoritative one (schema, icons) or the union (stated preferences).
+
+**Repacks mark `steam_settings/` hidden.** .NET's default `EnumerationOptions.AttributesToSkip` is `Hidden | System`, so such a folder is never enumerated — see `dotnet-filesystem-windows.md`. A game whose *only* config folder is hidden is invisible to a default recursive scan, with no error to explain it.
+
+## Nothing but a third party writes `configs.overlay.ini`
+
+The four config files — `configs.app.ini`, `configs.main.ini`, `configs.overlay.ini`, `configs.user.ini` — merge into **one key space**, where the `[section]` decides a key's meaning and the *filename does not*, with the **first file to define a key winning** in that order. Local `steam_settings/` then beats the global `%APPDATA%\GSE Saves\settings\`, per key.
+
+The emulator only ever writes back `configs.user.ini` (account name, Steam ID, language, country) via `save_global_ini_value`. The release README's "some default configurations are saved" means that file alone. Everything else arrives from a repack, an older generator, or the user renaming `steam_settings.EXAMPLE/configs.overlay.EXAMPLE.ini` by hand — which is why such a file is best read as *a statement of what someone wanted*, not as a description of what the emulator is currently doing. It is routinely present in installs where it is never read at all: the **regular** (non-experimental) GBE build contains no overlay code and ignores the file entirely.
+
+Parser quirks (vendored SimpleIni, configured without quote handling):
+
+- **`[overlay::appearance]` keys are effectively case-sensitive** — the parser enumerates keys and compares stored spellings with `std::string::compare`, so `font_size=22` is silently discarded. `[overlay::general]` uses `GetBoolValue` and *is* case-insensitive. Worse: if a local file and the global one spell one key differently, SimpleIni keeps the first-inserted spelling and **both** are lost.
+- Comments are whole lines only (`;` or `#`); there are no trailing comments, so `Font_Size=16 # big` has the literal value `16 # big`.
+- Quotes are not stripped: `Font_Override="a.ttf"` looks for a filename including the quotes.
+- Numbers go through `std::stof`, which takes the leading numeric prefix (`7.0s` → 7.0); an unparseable value costs that one key, not the file. An empty value reads as absent; a repeated key inside one file means last wins.
+- Durations in `[overlay::appearance]` are **seconds** in the file, stored as milliseconds. Zero means "show nothing" — but the unlock sound still plays, since it is invoked separately.
+- An unrecognised `PosAchievement` falls back to `top_right`, *not* to the `bot_right` default that applies when the key is absent — so a typo moves the notification rather than leaving it alone.
+- The EXAMPLE ini's comment pointing at "GSE Settings/settings/fonts" is a doc typo; the real global folder is `%APPDATA%\GSE Saves\settings\`, with `fonts/` and `sounds/` beneath it.
+
 ## Achievement icon path resolution (runtime)
 
 When the overlay loads an achievement icon, GBE (`dll/steam_user_stats_achievements.cpp`, ~lines 99–110) tries two locations, in order:

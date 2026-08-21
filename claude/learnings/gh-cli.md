@@ -109,3 +109,29 @@ gh api -X PUT repos/OWNER/NAME/contents/LICENSE -f message="Initial commit" -f c
 `PUT /contents/{path}` is GitHub's documented way to bootstrap an empty repo. The Git Database endpoints (blob → tree → commit → ref) can't do it — they return 409 with no parent commit to build on. Cost: Contents-API commits aren't signed, so that root commit shows unverified.
 
 The `github-create` skill implements this; its `references/repo-init-flags.md` carries the full failure matrix for rebasing an existing local project onto such a commit.
+
+## Forks and stars say nothing about who copied a repo — `traffic/clones` does, for 14 days
+
+Before concluding that a repo nobody starred was never taken, check the traffic API. Forks and stars measure
+*social* engagement; a mirror, an archiver or a crawler clones without touching either.
+
+```bash
+gh api repos/{owner}/{repo}/traffic/clones     # needs push access
+```
+
+Returns `count` (total clones) and `uniques` (distinct cloners), plus a per-day breakdown. Real case: a personal
+repo with **0 stars, 0 watchers, 0 forks** had been cloned **115 times by 58 unique cloners** in a fortnight.
+
+Three properties that decide how you use it:
+
+- **The window is the last 14 days**, updated hourly. There is no way to ask for more. If the period you care
+  about is about to roll out of it, snapshot the JSON — the data is simply gone afterwards.
+- **Making a repo private erases the star and watcher counts** (GitHub's own doc for
+  `setting-repository-visibility` says so). So a private repo's zeros are an artefact of the transition and carry
+  no information at all. `forks_count` / `network_count` survive and stay meaningful.
+- **Fetches and pulls are not counted** — only full clones. Identity and IP are never exposed, so you learn that
+  copies were taken and nothing about by whom.
+
+Cross-check for a durable public copy with Software Heritage, the main systematic archiver of public GitHub:
+`https://archive.softwareheritage.org/api/1/origin/https://github.com/{owner}/{repo}/get/` — `NotFoundExc` means
+no archived snapshot.

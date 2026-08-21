@@ -247,3 +247,82 @@ This settled a multi-day misdiagnosis: runs of exactly ten fragments with jumps 
 viewer had been scrubbing, never watching — so "no progress was ever reported" was correct behaviour, not a bug in
 the reporting code. Reach for it before theorising about the client.
 
+
+## Letting the BROWSER fetch the stream (instead of proxying it)
+
+Proxying every byte through your own origin is the safe default, but it is the wrong shape once your app is hosted
+somewhere the media isn't: the server pulls the film across the internet and pushes it back, so a viewer sitting
+next to the media server pays for two traversals of their own uplink. Pointing the player straight at Jellyfin
+removes both. Measured on Jellyfin **10.11.11**.
+
+**Jellyfin is already CORS-open**, so cross-origin fetching needs nothing on the server:
+
+```
+GET  /System/Info/Public        → access-control-allow-origin: *
+OPTIONS /Videos/{id}/stream     → 204, access-control-allow-headers: authorization,range
+                                       access-control-allow-methods: GET
+```
+
+**Only some of the player can carry a credential.** This is what decides the design:
+
+| what fetches it | can send a header? | so the credential goes |
+|---|---|---|
+| hls.js (manifest + segments) | yes — `xhrSetup` | in the `Authorization` header |
+| `<video src>` (direct play) | no | `?api_key=` on that one URL |
+| `<track>` (subtitles) | no | nowhere — keep these on your own proxy |
+| native HLS, no MSE (older iOS Safari) | no | nowhere — fall back to the proxy |
+
+```js
+new Hls({ xhrSetup: (xhr) => xhr.setRequestHeader("Authorization", mediaBrowserAuth) })
+```
+
+The header route matters for more than tidiness: per the section above, a query-authenticated manifest request
+comes back with the token stamped into every child URL. Header auth keeps it out of all of them — verified, 0
+occurrences in a real transcode manifest. Subtitles are a few hundred KB, so leaving them same-origin costs
+nothing and avoids both a second credential-bearing URL and the `crossorigin` attribute entirely.
+
+### Credentials: an API key is not the scoped option
+
+**Every Jellyfin API key is admin-equivalent** — there is no scoping. The credential a *page* holds should instead
+be a **user access token** from `POST /Users/AuthenticateByName` (needs the `Authorization: MediaBrowser Client=…,
+Device=…, DeviceId=…` header on the request itself). Create a dedicated account for it: `POST /Users/New`, then
+`POST /Users/{id}/Policy` with `IsHidden: true`, `IsAdministrator: false`, `EnableContentDeletion: false`,
+`EnableContentDownloading: false`, `EnableAllFolders: true`, and the three playback/transcoding flags left on.
+Start from the policy the server generated (`GET /Users` → `.Policy`) and mutate it; posting a hand-built policy
+drops required fields.
+
+What such a token can and cannot do, verified against a real server:
+
+| call | result |
+|---|---|
+| `GET /Videos/{id}/master.m3u8`, segments, subtitles | 200 |
+| `GET /Auth/Keys` | **403** |
+| `POST /UserItems/{item}/UserData?userId=<other user>` | **403** |
+| `GET /Users`, `GET /System/Info`, `GET /Sessions` | 200 — but filtered to itself for Sessions |
+
+That last row is the reason to bother: a token scoped to a *user* who happens to be the one you sync can still
+rewrite the watch history your app curates. A stream-only account cannot. And the exposure is real even on an
+owner-only page — an `httpOnly` session cookie is unreadable by page JS, while this token must be readable to be
+attached to a request, so XSS or a hostile extension reaches one and not the other.
+
+### Credentials do not have to match across a play
+
+Negotiating with one credential and streaming with another works, which is what lets the server keep its admin key
+while the browser holds a scoped one:
+
+- `PlaybackInfo` requested with the API key; the returned `TranscodingUrl` fetched with the user token → 200.
+- The transcode that starts is then **torn down by the API key**: `DELETE /Videos/ActiveEncodings?deviceId=…&
+  playSessionId=…` → 204, `ffmpeg` count 1 → 0. Teardown keys on the ids, not on who started the job.
+
+### Streaming alone writes no watch state
+
+A stream request creates **no** `NowPlayingItem` session (`GET /Sessions` stayed empty while a 4.4 MB segment was
+being served) and moves no `UserData`. Watch state only moves when a client explicitly reports it. So the account
+whose token fetches the bytes never accumulates history, and there is nothing to reconcile between it and the
+account your app reports progress for.
+
+### Small 10.11 API notes
+
+- `GET /Users/{userId}/Items/{itemId}` is gone — returns an empty body. Use `GET /Items?userId=…&ids=…`.
+- `GET /Users/Me` answers 400 even with valid auth; `/System/Info` is a better auth smoke test (401 unauthenticated).
+- `POST /Auth/Keys?App=<name>` returns 204 with no body — list `GET /Auth/Keys` afterwards to find what was made.

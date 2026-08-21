@@ -22,6 +22,56 @@ for (const y of offsets) { window.scrollTo(0, y); read(); }
 
 If a page's own animation loop wedges the renderer (a framework relayout with 1s slide animations is enough), that tab stays unresponsive — open a fresh tab rather than waiting.
 
+## A virtualized list renders zero rows when the tab is never composited
+
+Worse than throttling: the tab can be laid out but never painted, and a list that virtualizes on
+viewport intersection then renders **nothing**. The page looks half-alive — Google Contacts drew its
+sidebar, toolbar and column headers (labels, counts, group headers all present) while `main` held 456
+elements and 1067 characters of `textContent`, and not one contact row. No console errors, because
+nothing failed.
+
+The tell is the window geometry disagreeing with itself:
+
+```
+innerWidth 2560   innerHeight 1319     ← layout is real
+outerWidth 0      outerHeight 0        ← the window was never composited
+```
+
+None of the obvious levers help. `resize_window` reports success and `innerWidth` doesn't move.
+Redefining `document.hidden`/`visibilityState` to look visible and dispatching `visibilitychange`,
+`focus` and `resize` changes nothing; the observer never fires because there is no compositing frame.
+Scrolling the container programmatically and dispatching `scroll` doesn't materialise rows either.
+
+This is the case where **"read the DOM instead of screenshotting" stops working** — the DOM is where
+the data isn't. Escalate one layer down instead: the app's *network* layer is unaffected, so its own
+XHR/`fetch` calls still run and still return complete payloads. Hook both, drive the real UI control,
+and read the response.
+
+```js
+window.__rpc = {};
+const ox = XMLHttpRequest.prototype.open, os = XMLHttpRequest.prototype.send;
+XMLHttpRequest.prototype.open = function (m, u) { this.__u = String(u); return ox.apply(this, arguments); };
+XMLHttpRequest.prototype.send = function () {
+  if (this.__u?.includes('batchexecute')) {
+    const id = (this.__u.match(/rpcids=([\w-]+)/) || [])[1];
+    this.addEventListener('load', () => { window.__rpc[id] = this.responseText; });
+  }
+  return os.apply(this, arguments);
+};
+```
+
+Hook `fetch` the same way with `r.clone().text()` — an app may use either, and Google's uses both.
+Then click the control with a plain `.click()` (toolbar buttons and dialog buttons both respond), park
+the response on `window`, and parse in the page. A server-generated file — a CSV export, say — can
+arrive *inside* the RPC response as a JSON-escaped string rather than as a download, so the whole
+"make a download happen and then find the file" problem disappears.
+
+**An intercepted list response is one page, not the whole list.** This is the trap that follows
+naturally from the above and produces a confidently wrong answer: the first response looked complete,
+had no obvious cursor, and reported 29 records — the real total was 807. Before treating an
+intercepted payload as the full set, look for a page token or a total count, or cross-check against a
+count the UI displays. A number that seems suspiciously small usually is one.
+
 ## The result is scanned, and source code trips the filter
 
 Returned values pass a guard that rejects anything resembling cookie or query-string data. Function sources, `outerHTML` and computed `background-image` values are full of `=`, `&`, `?` and URLs, so a probe that returns them comes back as `[BLOCKED: Cookie/query string data]` — the evaluation succeeded, only the payload was withheld.

@@ -103,3 +103,31 @@ done)
 errors, and running the script under each shell catches the splitting differences. Note
 `bash -n` on an *empty* file also passes — if extraction produced nothing, the check is
 vacuous, so assert the file is non-empty first.
+
+## `exit` inside `$( )` ends the subshell, not the script
+
+A validation helper written the obvious way silently does nothing:
+
+```bash
+need() { local v; v="$(getval "$1")"; [ -n "$v" ] || { echo "ERROR: $1 missing"; exit 1; }; printf '%s' "$v"; }
+HOST="$(need SSH_HOST)"     # missing -> HOST holds the ERROR TEXT, script continues
+```
+
+Command substitution runs in a subshell, so `exit` terminates *that*, and the error message becomes the
+variable's value. The script then proceeds with a host of `ERROR: SSH_HOST missing` — worse than crashing,
+because the failure surfaces somewhere unrelated. `set -e` does not help: the substitution's non-zero status is
+consumed by the assignment.
+
+Read first, validate after, in the parent shell — and collect every problem rather than dying on the first:
+
+```bash
+HOST="$(getval SSH_HOST)"; REPO="$(getval REMOTE_REPO)"
+MISSING=""
+for k in HOST REPO; do [ -n "${!k}" ] || MISSING="$MISSING $k"; done
+[ -n "$MISSING" ] && { echo "ERROR: missing:$MISSING"; exit 1; }
+```
+
+`${!k}` is the indirect expansion — bash-only, fine in a `#!/bin/bash` script, not in POSIX `sh`.
+
+The same trap applies to `return` in a function called from a substitution, and to `exit` inside a pipeline
+segment (`cmd | while read …; do exit 1; done` exits the subshell the loop runs in).

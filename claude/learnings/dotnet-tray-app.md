@@ -320,6 +320,20 @@ xUnit with `Microsoft.NET.Test.Sdk`. Test project mirrors main project's `UseWin
 
 **Test helpers**: Builder methods with optional named parameters for readable test config construction.
 
+**A local "0 Warning(s)" proves less than it looks — two independent reasons.** Both bit at once on one release, where a `CS8625` in test code reached CI as a build annotation after the tag was already pushed:
+
+1. `dotnet build src/App.csproj` **never compiles the test project**, so warnings living in tests are invisible to it. Build the *test* project instead — it pulls the app in through its `ProjectReference`, so one invocation covers both. And `dotnet test` filtered to its pass/fail line hides the warnings it did print.
+2. **MSBuild skips analysis for unchanged projects**, so a second build of untouched code reports `0 Warning(s)` even though the warning is still there. Any warning gate needs `--no-incremental` or it goes green on its second run regardless.
+
+A pre-commit gate that actually holds:
+
+```bash
+dotnet build tests/App.Tests.csproj -c Release --no-incremental -warnaserror
+dotnet test  tests/App.Tests.csproj -c Release --no-build
+```
+
+Adopt it only against a measured-clean baseline, and prove it fails by reintroducing a real warning — a gate never seen to fail is a gate not known to work.
+
 ## Deploy
 
 Global deploy script at `~/.claude/skills/deploy/scripts/deploy.sh`. Reads `config/deploy.env` for `INSTALL_DIR`. Script: stop process → clean publish dir → `dotnet publish` → clean install dir → copy → optionally launch → verify running.
@@ -383,6 +397,51 @@ icons[0].save("icon.ico", format="ICO", sizes=sizes, append_images=icons[1:])
 
 Hand-crafted pixel art at small sizes looks better than downscaled from large images. Use `Image.LANCZOS` for quality downscaling.
 
+## A native-looking WPF settings window (.NET 9+)
+
+**`ThemeMode="System"` on the `Window` gives Fluent control styles, OS light/dark and the user's
+accent colour for free.** It compiles clean on .NET 10 with no experimental-API suppression. It is
+the difference between "WPF app" (Aero-era combo boxes) and something that passes for a Windows 11
+dialog, and it is one attribute. Probe it with a throwaway window before designing around it.
+
+It styles the *controls*; it has no opinion about chrome you invent — page background, setting
+"cards", a nav rail. Define those few brushes yourself and pick light/dark from
+`HKCU\Software\Microsoft\Windows\CurrentVersion\Themes\Personalize\AppsUseLightTheme` (`0` = dark).
+
+**WPF has no toggle switch and no number box.** A toggle is ~25 lines: a `ToggleButton` `ControlTemplate`
+of a rounded `Border` + an `Ellipse`, with an `IsChecked` trigger flipping the ellipse's
+`HorizontalAlignment` and the border's `Background`. A number box is a `TextBox` plus two
+`RepeatButton`s. Budget for these rather than assuming parity with WinForms/WinUI.
+
+**Name collisions when the project also enables WinForms.** With WinForms implicit usings on, `Button`,
+`ComboBox`, `ListBox`, `Slider`, `MessageBox`, `OpenFileDialog`, `KeyEventArgs` and `Orientation` are
+all ambiguous. A block of `using Button = System.Windows.Controls.Button;` aliases at the top of the
+WPF file is the tidiest fix.
+
+**Animating a window's position: animate `Window.Top`, and hand the property back afterwards.** A
+`TranslateTransform` (what a slide-in animation usually uses) only moves content *inside* the window —
+it cannot reposition the window on screen. `Window.Top` is a DP, so `BeginAnimation(TopProperty, …)`
+works, but a completed animation **holds** the property and every later `Top = x` silently does
+nothing:
+
+```csharp
+var a = new DoubleAnimation(top, dur) { FillBehavior = FillBehavior.Stop };
+a.Completed += (_, _) => { BeginAnimation(TopProperty, null); Top = top; };  // give it back
+BeginAnimation(TopProperty, a);
+```
+
+Without that, a stack that repositions itself works exactly once and then freezes. Easing maps to
+physics: constant acceleration from rest (a falling object) is `QuadraticEase` + `EasingMode.EaseIn`
+(`s ∝ t²`); `EaseOut` starts fast and glides, which reads as sliding, not falling.
+
+**A WPF `Window.Icon` needs an `ImageSource`**, not the `System.Drawing.Icon` the tray uses — decode
+the embedded `.ico` with `BitmapFrame.Create(stream, …)`.
+
+**Driving one from a headless harness:** top-level statements are not STA, so a `[STAThread] Main` is
+required, and the harness must call `Application.SetHighDpiMode(HighDpiMode.PerMonitorV2)` exactly as
+the real app does — otherwise every geometry reading is DPI-virtualized and invents bugs that aren't
+there. Screenshot with `RenderTargetBitmap.Render(window)` (WPF has no `DrawToBitmap`).
+
 ## WPF Gotchas (from the screen-tools port)
 
 **WPF dialog shown modelessly from WinForms `Application.Run` needs `ElementHost.EnableModelessKeyboardInterop` — or text input silently fails**: This is the single most disorienting bug in the WinForms-tray + WPF-overlay hybrid. Symptoms: a WPF dialog opens fine, textboxes accept focus (`GotKeyboardFocus` fires), `PreviewKeyDown` and `KeyDown` fire on every key, but `PreviewTextInput`/`TextInput` *never* fire, so letters and digits never appear in textboxes. Backspace and Delete still work because TextBox handles them in KeyDown without needing TextInput. Esc, Tab, arrow keys also work. It looks like a keyboard hook — Grammarly, TSF/`ctfmon`, IME, password manager — but it isn't. Killing every suspect process changes nothing. Disabling TSF via `InputMethod.IsInputMethodEnabled="False"` on the textbox style changes nothing.
@@ -441,6 +500,17 @@ This also lets you hide the window (`Opacity = 0`) during drag while `LocationCh
 **`Mouse.OverrideCursor = Cursors.None` lags visible update — use Win32 `ShowCursor(false)` before `SetCursorPos` for instant hide**: `OverrideCursor` internally calls `SetCursor(NULL)`, but Windows only re-evaluates the *displayed* cursor on the next `WM_SETCURSOR` message — which is triggered by `SetCursorPos` itself. So warping the cursor right after setting `OverrideCursor` still flashes the old cursor along the warp path before the override takes effect. Remedy: `ShowCursor(false)` forces the per-process display counter below zero immediately. Balance with `ShowCursor(true)` at the end (the counter is paired, not toggled). Use both together for belt-and-suspenders — `ShowCursor` for instant hide, `OverrideCursor = None` so any cursor-changing hit-tests during the drag stay hidden.
 
 **Bottom-pivot resize for sizing-frame tools**: When the user adjusts frame dimensions and the dialog is anchored to a specific corner, make dimension changes pivot at that corner. E.g., dialog flush below frame → compute `interiorTop = dialog.Top - interiorHeight - borderThickness` on every sync. Width changes pivot at left, height changes pivot at bottom. This keeps the dialog's tether point stable during resize.
+
+**`new FontFamily(@"C:\…\custom.ttf")` compiles, throws nothing, and draws the wrong font**: the `FontFamily(string)` constructor takes a family *name*, never a path — it never touches the disk. Give it a file path and WPF fails to resolve the "family", falls back, and renders whatever the fallback chain yields (measured on a real .ttf: **Arial** — neither the requested font nor the family the app had configured). No exception, no binding error, nothing in the output window. A file has to be addressed as a base URI plus the family name stored *inside* it, which only `Fonts.GetFontFamilies` can supply:
+
+```csharp
+var directory = Path.GetDirectoryName(Path.GetFullPath(fontFilePath))!;
+var baseUri = new Uri(directory + Path.DirectorySeparatorChar);   // trailing separator required
+var family = Fonts.GetFontFamilies(baseUri, Path.GetFileName(fontFilePath)).FirstOrDefault();
+// family.Source is "./custom.ttf#Poppins" — assign it directly, it carries its own base URI
+```
+
+Use the **two-argument** overload. `Fonts.GetFontFamilies(Uri)` pointed at a folder enumerates every font file in it in no useful order, so "take the first" silently picks a neighbour — and a fonts folder holding more than one file is the normal case. Failure is an **empty sequence, not an exception**, for a `.ttc`, a corrupt file, or an unreadable folder, so treat "no families" as an expected result and log it rather than letting it look like success. Cache misses as well as hits (a miss costs a disk read, and this usually runs on the dispatcher just before something is drawn), and refuse UNC paths outright — enumeration blocks for as long as the share takes to answer.
 
 **WPF `KeyEventArgs` / `MouseButtonEventArgs` ambiguity in hybrid apps**: With both `UseWindowsForms` and `UseWPF` enabled, `KeyEventArgs` and `MouseButtonEventArgs` types are ambiguous between the two namespaces. Either fully qualify (`System.Windows.Input.KeyEventArgs`) or add per-file `using` aliases. The `<Using Remove="System.Drawing" />` trick in the csproj only handles System.Drawing; it doesn't fix these.
 

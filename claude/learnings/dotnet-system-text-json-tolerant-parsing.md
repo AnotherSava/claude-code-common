@@ -46,6 +46,39 @@ Keep the property typed `bool`, not `int` — every consumer and existing test s
 
 Decide deliberately what `null` means. Throwing is the strict reading; mapping it to `false` is usually better when the cost of an exception is losing the whole file.
 
+### The exception: a *custom type* wants the converter on the type, not the property
+
+The property-scoped advice above holds for converters that retype a **built-in** (`bool`, `long`) —
+you only want to bend that one property. It is the wrong default for a converter that defines how
+**your own type** is represented, because a property-scoped converter is consulted only when the value
+is serialized *as that property*. Serialize the value on its own and the attribute is skipped
+entirely and the type falls back to default member serialization:
+
+```csharp
+// Custom type with the converter on the PROPERTY of the settings model:
+[JsonConverter(typeof(ScaleConverter))] public Scale Scale { get; set; }   // writes "15%"  ✓
+
+// …but a partial-update helper boxes each changed value and serializes it alone:
+dict[key] = JsonSerializer.SerializeToElement(value, options);  // value is object → Scale
+// → writes {"Unit":0,"Value":15}, and the next read throws
+//   "Cannot convert token StartObject to a scale."
+```
+
+Put it on the type instead — `[JsonConverter(typeof(ScaleConverter))] public readonly record struct Scale` —
+and every path agrees: property, boxed, nested, collection element. This is still not
+options-scoped, so nothing else is affected.
+
+Two things make this bite hard and late:
+
+- **Full-object load and save both look fine**, so tests over `Deserialize<Settings>` / `Serialize`
+  pass. Only the partial-update path is broken, and that is usually the least-tested one.
+- **A read-modify-write helper typically writes the file before re-reading it**, so the unreadable
+  value is already on disk when the exception surfaces — the app then fails to *start*, not just to
+  save. Validate the serialized form before writing if the config is load-bearing.
+
+Regression test that actually catches it: drive the partial-update path (not the model round-trip) and
+assert the file's literal text, e.g. `Assert.Contains("\"420px\"", File.ReadAllText(path))`.
+
 ## Encoding: the readers already handle BOMs — do not "fix" them
 
 `File.ReadAllText` / `ReadAllTextAsync` use a `StreamReader` with `detectEncodingFromByteOrderMarks: true`, so BOMs are stripped before the JSON parser ever sees them. Passing raw bytes does not:
