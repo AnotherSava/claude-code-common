@@ -41,15 +41,26 @@ claude() {
 - Screen clears on success; preserved on error so the message is readable.
 - **macOS:** drop the same function in `~/.zshrc` (zsh) or `~/.bash_profile` (bash). The OSC 0 escape sets the tab title in Terminal.app and iTerm2 too. The `CLAUDE_CODE_DISABLE_TERMINAL_TITLE=1` line is harmless on macOS — the per-tick overwrite that justifies it on Windows Terminal doesn't happen here, but the export is a no-op when the override doesn't trigger.
 
-### `deploy` / `build` — project shortcuts
+### `deploy` / `build` / `publish` / `cb` — project shortcuts
 
 ```bash
 run_repo_script() { local rel="$1"; shift; local d="$PWD"; while [ "$d" != "/" ] && [ ! -f "$d/$rel" ]; do d="$(dirname "$d")"; done; if [ -f "$d/$rel" ]; then ( cd "$d" && bash "$rel" "$@" ); else echo "No $rel in this directory or any parent"; fi; }
 deploy() { run_repo_script scripts/deploy.sh "$@"; }
 build()  { run_repo_script scripts/build.sh "$@"; }
+# Ship a project live — the counterpart to `deploy`, which only runs/installs it here.
+# Kept separate so nothing publishes by accident.
+publish() { run_repo_script scripts/publish.sh "$@"; }
+# Re-copy the value Claude last put on the clipboard, for when something has overwritten it since.
+# The script is regenerated on every copy, so it always holds the most recent one.
+cb() { run_repo_script scripts/cb.sh "$@"; }
 ```
 
-Use `! deploy` or `! build` inside Claude Code, or run directly in any terminal. Both delegate to `run_repo_script`, which walks up from the current directory to the repo's `scripts/<name>.sh` and runs it from the directory that holds it — so they work from any subdirectory (the underlying scripts read `config/deploy.env` and other paths relative to that root). `run_repo_script` is generic: reuse it for any future repo shortcut. Each project has a `scripts/deploy.sh` and/or `scripts/build.sh` (gitignored via the global excludes file — one narrow rule covers every repo, so nothing leaks into a shared project's committed `.gitignore`) that delegates to the global script in the corresponding skill directory.
+Use `! deploy`, `! build`, `! publish` or `! cb` inside Claude Code, or run directly in any terminal. They all delegate to `run_repo_script`, which walks up from the current directory to the repo's `scripts/<name>.sh` and runs it from the directory that holds it — so they work from any subdirectory (the underlying scripts read `config/deploy.env` and other paths relative to that root). `run_repo_script` is generic: reuse it for any future repo shortcut. Each project carries whichever of `scripts/deploy.sh`, `scripts/build.sh`, `scripts/publish.sh` and `scripts/cb.sh` it actually needs, each a thin wrapper delegating to the global script in the corresponding skill directory — and a project that publishes from CI deliberately has no `publish.sh` at all. All of them are gitignored via the global excludes file, where one narrow rule covers every repo, so nothing leaks into a shared project's committed `.gitignore`.
+
+`cb` is the odd one out: its script is not written once at setup but **regenerated every time Claude puts a
+value on the user's clipboard**, so `cb` always hands back the most recent one. It holds the command that
+*retrieves* the value (normally a `doppler secrets get`), never the value itself — so no secret sits in
+plaintext on disk and a rotation can't leave it serving a dead credential. See the doppler skill.
 
 ### `memo` — fast backlog access
 
@@ -106,9 +117,10 @@ When setting up a new shell (e.g. WSL), verify:
 1. **`claude` function exists** — `type claude` should show the function, not the binary path
 2. **`deploy` function exists** — `type deploy`
 3. **`build` function exists** — `type build`
-4. **`memo` function exists** — `type memo`
-5. **`notify` function exists** — `type notify`
-6. **Python + deps available** — `python3 -c "import requests, dotenv"` (needed by `notify` and Claude hooks)
-7. **macOS only:** confirm `python3` resolves at all — Apple removed the bundled `python` in recent macOS releases. Install via `brew install python` (or use the Xcode Command Line Tools shim) before running step 6.
-8. **Symlinks intact** — `ls -la ~/.claude` should point to the claude-code-common repo's `claude/` directory
-9. **Git hooks linked** — `git config --global core.hooksPath` should return `~/.git-hooks`
+4. **`publish` function exists** — `type publish`
+5. **`memo` function exists** — `type memo`
+6. **`notify` function exists** — `type notify`
+7. **Python + deps available** — `python3 -c "import requests, dotenv"` (needed by `notify` and Claude hooks)
+8. **macOS only:** confirm `python3` resolves at all — Apple removed the bundled `python` in recent macOS releases. Install via `brew install python` (or use the Xcode Command Line Tools shim) before running step 7.
+9. **Symlinks intact** — `ls -la ~/.claude` should point to the claude-code-common repo's `claude/` directory
+10. **Git hooks linked** — `git config --global core.hooksPath` should return `~/.git-hooks`

@@ -13,12 +13,18 @@ server. It never ships anywhere public. Shipping outward is a different verb:
 | --- | --- |
 | Run it *here*, on this machine | this skill |
 | Cut a version: tag → CI → GitHub Release | the `release` skill |
-| Ship a site to a public host | the project's own CI (e.g. a GitHub Actions workflow) |
+| Ship it outward, to where its users are | the `publish` skill, or the project's own CI |
 
-Publishing to a host is deliberately **not** a skill. Publishing from a developer's working tree
-lets the wrong environment's credentials, or uncommitted work, reach production silently — CI
-builds a clean checkout with one pinned configuration and removes that whole failure class. A
-project having both a local `deploy` and a publish pipeline is normal and not a conflict.
+A project having both a local `deploy` and a publish path is normal and not a conflict — they are
+separate verbs with separate wrappers, so nothing outward-facing can happen from the command you run
+dozens of times a day.
+
+Which of the two publishes is a real decision, not a preference. CI builds a clean checkout with one
+pinned configuration; publishing from a working tree can let uncommitted work or the wrong
+environment's credentials reach production, and has. Where CI already publishes on push, the push
+*is* the ship and the project should have no local publish script at all. The `publish` skill exists
+for targets CI cannot reach on its own — chiefly a box you hold the SSH key for — and refuses to run
+on anything not committed and pushed.
 
 See `~/.claude/learnings/shell-environment.md` for the expected bash functions and verification checklist.
 

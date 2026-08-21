@@ -142,7 +142,7 @@ Arranges a project's README and GitHub Pages docs into a consistent user-first l
 
 Configures and runs the **local** deploy — it makes the current code runnable on this machine and never ships anywhere public. Either installs the built app locally (Tauri, IntelliJ plugin, .NET) or starts the project's local web server. On first use in a project, sets up the `deploy` bash function, creates a local `scripts/deploy.sh` wrapper, and updates `.gitignore`.
 
-Shipping outward is a different verb: a versioned artifact goes through the `release` skill, and a public site through the project's own CI — deliberately not a skill, since publishing from a working tree can leak uncommitted work or the wrong environment's credentials.
+Shipping outward is a different verb: a versioned artifact goes through the `release` skill, and a running site through the [Publish](#publish) skill or the project's own CI. Where CI already publishes on push, the push *is* the ship and the project gets no local publish script at all.
 
 **Command:** `/deploy`
 
@@ -201,6 +201,23 @@ Tags a new version, pushes to trigger CI, monitors the build, and updates the Gi
 - Compiles platform-appropriate release notes (SmartScreen + Gatekeeper first-launch warnings)
 - Monitors CI (single-platform for dotnet, matrix for Tauri) until completion
 - Replaces draft notes and un-drafts Tauri releases (GitHub auto-renders the assets list)
+
+---
+
+### Publish
+
+Ships a project outward to where its users are — the counterpart to `deploy`, which only makes the code runnable on this machine. Writes `config/publish.env` and a per-machine `scripts/publish.sh` wrapper, then publishes and verifies the live result. Supports Dockerised apps on a box reached over SSH; a Chrome extension goes through `/publish-chrome-extension` and a versioned artifact through `/release`.
+
+**Command:** `/publish`
+
+**Features:**
+- Declines to write a wrapper at all for a project that publishes from CI — there the push *is* the ship, and a local path would upload a working tree stamped with local `HEAD`
+- Ships only committed, pushed code: a dirty tree or a `HEAD` that isn't `origin/<branch>` stops it before the box is touched
+- Reconciles the box's checkout with a hard reset to the remote, cloning it on the first publish so step one behaves like every later one
+- Renders the production env file from Doppler straight onto the box over SSH, so no value reaches this terminal, the transcript, or shell history
+- Detaches the compose build and polls its log, since a build routinely outlives the tool timeout that invoked the script
+- Reinstalls the app's vhost and recreates the proxy only when that file actually changed — a bind-mounted config keeps its old inode, so a reload reports "config is unchanged" and the new vhost never gets a certificate
+- Proves success by observing the target: a real user-facing page must return 200 *and* the container's restart count must not climb, because a health probe passes while every database-backed page 502s and a crash-looping container answers between restarts
 
 ---
 
@@ -285,10 +302,27 @@ Manages env-style secrets — API keys, tokens, passwords, connection strings �
 **Features:**
 - Reads the real project list up front, so `-p`/`-c` are never guessed (the workplace name is not a project, and the config is `dev`)
 - Emits a copy-ready, fenced command for every operation, with `{{placeholder}}` marking only what the user supplies
-- Routes any command carrying a plaintext value to a separate terminal — the `!` prefix records the value in the transcript
+- Offers the clipboard route first for a value only the user holds — it pipes clipboard → Doppler behind a prefix guard, so nothing occupies a command line — and the copy-ready command as the alternative, routed to a separate terminal because the `!` prefix records the value in the transcript
+- Hands a stored value back to the clipboard without printing it, reporting a label, length and digest, and leaves a `cb` script that re-fetches it hours later when the clipboard has moved on
 - Prefers stdin over the command line, which also dodges Git Bash's path mangling on Windows
 - Reads values without materializing them, deriving a boolean via `doppler run` instead of printing the secret
 - Separate references for project wiring (`doppler.yaml`, directory binding, second-machine onboarding) and for failure modes that succeed silently with a wrong value
+
+---
+
+### Hooks
+
+Authoring guidance for Claude Code hooks — picking the event and matcher, keeping the per-invocation cost down, and the never-raise contract a hook script owes the harness. Invoked when writing a hook, editing a `hooks` entry in `settings.json`, or diagnosing one that never fires or fires too often.
+
+**Command:** `/hooks`
+
+**Features:**
+- A narrowing ladder that puts the zero-startup `if` rule first, the matcher second, and an in-script early return last
+- Measured cost tables for every implementation choice, so an interpreter is picked on evidence rather than intuition (`references/performance.md`)
+- Event catalog with cadence, matcher targets, timeouts, exit-code semantics and the stdin payload shape (`references/events-and-payloads.md`)
+- A frequency table pairing each event with the cost budget it can bear, from per-streaming-chunk down to once per session
+- The never-raise contract, plus the rule that hook errors are silent — so anything consequential logs to disk
+- A findings log that accumulates each surprise (a cost, a silent failure, a semantic) instead of leaving it in a session transcript
 
 ---
 
@@ -376,7 +410,7 @@ A `PreToolUse` backstop on `Bash`, `Write`, and `Edit`. Hook matchers scope by t
 When it matches, it does two things:
 
 - **Injects the conventions** — a condensed reminder citing the [Doppler](#doppler) skill, so a wrong project or config gets corrected at the moment of the command even if the skill was never invoked.
-- **Denies a `doppler secrets set`/`delete` that omits `--silent`** — without it Doppler prints the full secrets table, every value included, into the transcript. The deny inspects only the Bash `command`, so prose or docs that merely mention the command still get the reminder rather than a block.
+- **Denies a `doppler secrets set`/`delete` that omits `--silent`** — without it Doppler prints the full secrets table, every value included, into the transcript. The deny inspects only the Bash `command`, so prose or docs that merely mention the command still get the reminder rather than a block, and a bare `-h`/`--help` is exempt since usage output carries no values.
 
 ---
 

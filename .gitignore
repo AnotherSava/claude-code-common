@@ -23,6 +23,7 @@ claude/skills/*
 !claude/skills/github-pages/
 !claude/skills/github-status/
 claude/skills/github-status/config/
+!claude/skills/hooks/
 !claude/skills/memo/
 !claude/skills/move-project/
 !claude/skills/notion/
@@ -31,6 +32,7 @@ claude/skills/github-status/config/
 !claude/skills/pr-create/
 !claude/skills/pr-merge/
 !claude/skills/pr-prepare/
+!claude/skills/publish/
 !claude/skills/publish-chrome-extension/
 claude/skills/publish-chrome-extension/config/
 !claude/skills/reflect/

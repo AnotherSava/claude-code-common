@@ -5,12 +5,14 @@ Thumbs.db
 .ralphex/
 .firecrawl/
 config/deploy.env
+config/publish.env
 
-# per-machine wrappers written by Claude Code deploy/build/cleanup/publish skills — never committed
+# per-machine wrappers written by Claude Code deploy/build/cleanup/publish/doppler skills — never committed
 scripts/deploy.sh
 scripts/build.sh
 scripts/cleanup.sh
 scripts/publish.sh
+scripts/cb.sh
 
 .env
 
