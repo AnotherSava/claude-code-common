@@ -11,7 +11,8 @@ On top of the reminder it DENIES a `doppler secrets set`/`delete` run that lacks
 `--silent`: without it Doppler prints the full secrets table (every value) after
 the operation, which leaks secrets into the transcript. The deny inspects only the
 Bash `command`, so Write/Edit content that merely mentions the command still gets
-the reminder rather than a block.
+the reminder rather than a block. A bare `-h`/`--help` is exempt — it prints usage,
+never the table, and blocking it just costs a round trip.
 
 Registered in settings.json under `"matcher": "^(Bash|Write|Edit)$"` — a hook
 matcher scopes by tool *name* only, so the argument-level filtering happens below:
@@ -31,12 +32,19 @@ REMINDER = (
     "default config is `dev`, not `prd`; set/delete secrets with "
     "`doppler secrets set KEY=\"value\" -p <proj> -c dev --silent` (always quote the value — "
     "unquoted metacharacters silently set nothing; `set` AND `delete` both print the full "
-    "secrets table with values unless `--silent`); commit a `doppler.yaml`."
+    "secrets table with values unless `--silent`); commit a `doppler.yaml`. When only the user "
+    "holds the value, offer to pipe it in from their clipboard (`cat /dev/clipboard | tr -d '\\r'` "
+    "into stdin) as well as handing them a command to run themselves."
 )
 
 # `doppler secrets set`/`delete` print the whole secrets table (every value) after the
 # operation unless silenced — the classic transcript leak. Require --silent on both.
 _SETDEL = re.compile(r"doppler\s+secrets\s+(?:set|delete)\b", re.IGNORECASE)
+
+# `doppler secrets set --help` prints usage, not the secrets table, so --silent is beside the
+# point there. Match the flag only as its own token, so a value that happens to contain
+# `--help` (`doppler secrets set FLAG="--help"`) still gets the block.
+_HELP = re.compile(r"(?:^|\s)-(?:h|-help)(?:\s|$)")
 
 DENY_REASON = (
     "Add --silent to this `doppler secrets set/delete` command. Without it Doppler prints "
@@ -59,8 +67,14 @@ def main() -> int:
     if not re.search(r"doppler", blob, re.IGNORECASE):
         return 0
 
-    # Hard-block a real set/delete run that omits --silent (Bash command only).
-    if isinstance(command, str) and _SETDEL.search(command) and "--silent" not in command:
+    # Hard-block a real set/delete run that omits --silent (Bash command only), except when
+    # it is only asking for usage.
+    if (
+        isinstance(command, str)
+        and _SETDEL.search(command)
+        and "--silent" not in command
+        and not _HELP.search(command)
+    ):
         print(json.dumps({
             "hookSpecificOutput": {
                 "hookEventName": "PreToolUse",

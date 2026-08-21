@@ -5,7 +5,7 @@ description: >-
   copy-ready command templates, and keep plaintext values out of the transcript.
   TRIGGER when: a task touches secrets, API keys, tokens, passwords, or `.env` files; before
   suggesting where a key should live, handing the user a command that carries a secret value, or
-  running any `doppler` command.
+  running any `doppler` command; or the user has a secret on their clipboard.
   DO NOT TRIGGER when: the secret is a whole document to commit encrypted (use `/transcrypt`), or the
   project already uses a different secret manager (Vault, a cloud secret manager) — respect it.
 allowed-tools: Bash(command -v doppler:*), Bash(doppler:*), Bash(test:*), Bash(grep:*), Bash(printf:*), Bash(node:*), Bash(python:*), Read, Write, Edit
@@ -55,7 +55,14 @@ Pick the template by who holds the value.
 
 ### Store a value only the user has
 
-A dashboard-generated API key, a password they chose. Hand them:
+A dashboard-generated API key, a password they chose. There are two routes, and **both get offered,
+every time** — never the template on its own.
+
+**Lead with the clipboard, which Claude runs:** "copy the value and I'll pipe it into Doppler straight
+from your clipboard — it never reaches the transcript." It costs the user a `Ctrl+C` instead of a
+second terminal, and no plaintext ever occupies a command line. The command is in the next section.
+
+**When they would rather do it themselves**, hand them:
 
 ```
 doppler secrets set <KEY>="{{the-value}}" -p <proj> -c dev --silent
@@ -68,6 +75,50 @@ command's *output*, not a `!`-recorded input. Doppler's dashboard is an equally 
 Always quote the value. An unquoted `&`, `$`, `!`, backtick, or space is eaten by the shell and
 silently stores nothing, a truncation, or an empty string. Double quotes cover `& % ( )` and spaces;
 switch to single quotes when the value may contain `$`, a backtick, `!`, or `"`.
+
+### Store a value from the clipboard
+
+Claude runs this. The value travels clipboard → pipe → Doppler, so it appears in no command line, no
+transcript, and no shell history — the file route's guarantee, minus the file. Read the clipboard with
+the platform's native reader:
+
+| OS | Reader |
+|---|---|
+| Windows (Git Bash) | `cat /dev/clipboard` |
+| macOS | `pbpaste` |
+| Linux | `wl-paste -n` (Wayland) or `xclip -selection clipboard -o` (X11) |
+
+Guard the write and pipe it in one command, which prints a length and nothing else:
+
+```bash
+V=$(cat /dev/clipboard | tr -d '\r')
+case "$V" in
+  "") echo "clipboard is empty — nothing stored" ;;
+  {{expected-prefix}}*) printf '%s' "$V" | doppler secrets set <KEY> -p <proj> -c dev --silent && echo "stored <KEY> — ${#V} chars" ;;
+  *) echo "clipboard does not look like <KEY> (${#V} chars) — nothing stored" ;;
+esac
+unset V
+```
+
+**Never look at the clipboard to check it.** A bare `cat /dev/clipboard` puts the secret straight into
+the transcript, which is the whole leak this route exists to avoid. The clipboard may flow only into a
+pipe or into a variable that is never printed; everything you report is derived from it — a length, a
+line count, a prefix match — never the value.
+
+The guard is what stops the wrong clipboard (a password, a URL, yesterday's token) from reaching
+Doppler, where a delete does not erase it from version history. Merge the last two arms when the key
+has no recognizable prefix, but keep the empty check either way: an empty clipboard otherwise stores
+an empty string with no error at all, and the app fails much later with a blank credential.
+
+Two Windows traps that the `tr` and the choice of reader exist to dodge:
+
+- The `$( )` wrapper strips a trailing `\n` but not a trailing `\r`, and anything copied out of a
+  Windows app arrives CRLF-terminated — so without `tr -d '\r'` the stored secret carries an
+  invisible trailing carriage return. Stripping also normalizes inner CRLF to LF, which is what a
+  multi-line value such as a PEM key wants.
+- Never read the clipboard through PowerShell. Piping `Get-Clipboard` appends a CRLF of its own *and*
+  transliterates non-ASCII through the console codepage — `é` arrives as `e`. Git Bash's
+  `/dev/clipboard` is byte-exact UTF-8.
 
 ### Store a value already on disk, or one you generated
 
@@ -96,6 +147,24 @@ Then delete the `.env` and confirm `.gitignore` covers it. Full wiring in
 When the same value belongs in more than one config (or project), store it **once** and point the
 others at it — one source of truth, no drift, editing the origin propagates. One config holds the real
 secret; the others hold a `${...}` reference Doppler resolves on read.
+
+**Which config holds the real value: `prd`.** Production is the source of truth; `dev` (and `ci`) hold
+`${prd.<KEY>}` references. A value that already lives in `dev` and is later needed in production gets
+**moved**, not copied — write it to `prd`, then replace the `dev` value with a reference. Copying leaves two
+originals free to drift, and the one you'd edit by habit is the wrong one. (This is only for values that are
+genuinely the same everywhere — third-party API keys. Anything that must differ per environment, above all
+`SESSION_SECRET` and any admin password, gets its own value in each config and is never referenced across:
+a shared session secret makes a dev-minted cookie valid in production.)
+
+Migrating one key, without the value touching a command line:
+
+```bash
+printf '%s' "$(doppler secrets get <KEY> -p <proj> -c dev --plain)" | doppler secrets set <KEY> -p <proj> -c prd --silent
+doppler secrets set <KEY> '${prd.<KEY>}' -p <proj> -c dev --silent
+```
+
+Verify by digest at each step rather than trusting the round trip — compare a hash prefix and a length before
+and after, so a truncated or empty write can't pass as success.
 
 Syntax, inside the value:
 - Same project, another config: `${<config>.<KEY>}` — e.g. `${prd.GOOGLE_MAPS_EMBED_API_KEY}`.
@@ -155,6 +224,55 @@ still prints the plaintext, and later reads still return it in the clear to an a
 Masked is a dashboard access attribute. Use `--silent` for no echo; combine both for no echo *and* a
 dashboard-masked secret.
 
+### Put a stored value on the clipboard — and leave a `cb` behind
+
+The mirror image of the clipboard write, for when the user has to paste a secret into a web form or a
+vendor dashboard. It reaches their clipboard without passing through the transcript. Use the helper
+rather than redirecting by hand: it picks the right sink per OS and reports a label, a length and a
+digest instead of the value.
+
+```
+V=$(doppler secrets get <KEY> -p <proj> -c dev --plain)
+bash ~/.claude/skills/doppler/scripts/to-clipboard.sh "<what it is, in the user's words>" "$V"
+```
+
+**Then write `scripts/cb.sh`, every single time.** A clipboard does not survive a session: the user
+comes back to paste hours later, having copied three other things since, and the value is gone —
+which has already cost a round trip. `cb` is the fix, the same shape as `deploy` and `publish`:
+
+```bash
+#!/bin/bash
+# Re-copy the value Claude last put on the clipboard. Run it as `cb`, from anywhere in this repo.
+#
+# Regenerated on every copy, so it always carries the most recent one — per-machine, gitignored, never committed.
+# The value is fetched rather than stored here: a secret must not sit in plaintext on disk, and re-reading its
+# source also means this keeps working after the secret is rotated.
+#
+# WHAT: <one line naming the value and where it gets pasted>
+set -euo pipefail
+
+value=$(doppler secrets get <KEY> -p <proj> -c dev --plain)
+bash ~/.claude/skills/doppler/scripts/to-clipboard.sh "<label>" "$value"
+```
+
+Rules for it:
+
+- **Fetch, never embed.** The script holds the command that *retrieves* the value, so no plaintext
+  secret lands on disk and a later rotation doesn't leave `cb` handing over a dead credential. A
+  literal is acceptable only for something that isn't secret and has no source to re-read (a computed
+  URL, an id); never for a token, key or password. If a secret has no reproducible source, put it in
+  Doppler first — then it has one.
+- **Overwrite it.** One value at a time, the most recent. `cb` means "give me back what you just
+  copied", so a script that accumulates a menu of past values defeats the point.
+- **Say it exists.** When handing over a clipboard value, tell the user `cb` will restore it — that is
+  the whole reason the file is there.
+
+`cb() { run_repo_script scripts/cb.sh "$@"; }` lives in the shell rc beside `deploy` and `publish`, and
+`scripts/cb.sh` is covered by the per-machine wrapper block in the global excludes file. Both are
+installed on this machine; on a fresh one, add them the same way the deploy skill adds its own.
+
+To confirm the clipboard still holds what you put there, compare digests — never `cat` it.
+
 ### Delete a key
 
 ```
@@ -169,6 +287,10 @@ leak. The `doppler-guard` PreToolUse hook now blocks a `set`/`delete` that omits
 - **`doppler secrets set`/`delete` print the whole secrets table — every value — unless `--silent`.**
   Omitting it on a one-secret op dumps the entire config into the transcript (a real leak); the
   `doppler-guard` PreToolUse hook now hard-blocks a `set`/`delete` missing `--silent`.
+- **The clipboard is shared, volatile state.** Another Claude session, another app, or the user's own
+  next copy can replace it between two tool calls — observed within a single session while this route
+  was being written. Read it in the same command that writes to Doppler; never capture it in one turn
+  and use it in the next, and never stash it in a file "to restore later".
 - **Windows Git Bash mangles path-like values.** MSYS rewrites any argument that *starts* like a
   POSIX path, so `doppler secrets set UPLOAD_DIR='/data/uploads'` stores
   `C:/Program Files/Git/data/uploads`. Piping via stdin dodges the conversion entirely — one more
