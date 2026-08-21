@@ -15,7 +15,7 @@ Read `~/.claude/skills/shared/bash-rules.md` for bash command constraints.
 - Ignore rules: !`R=$(git rev-parse --show-toplevel 2>/dev/null || pwd) && cat "$R/.gitignore" 2>/dev/null || true`
 - Wire project memory: !`R=$(git rev-parse --show-toplevel 2>/dev/null || pwd) && PID=$(printf '%s' "$R" | sed 's|[^a-zA-Z0-9]|-|g') && MEM="$HOME/.claude/projects/$PID/memory" && if [ -d "$MEM" ] && [ ! -L "$MEM" ] && [ -n "$(ls -A "$MEM"/*.md 2>/dev/null)" ]; then bash ~/.claude/scripts/link-project-memory.sh "$R" 2>&1; else echo "(already version-controlled or no project memory to wire)"; fi || true`
 - Sanitize project memory: !`R=$(git rev-parse --show-toplevel 2>/dev/null || pwd) && bash ~/.claude/scripts/sanitize-project-memory.sh "$R" 2>/dev/null || true`
-- Unstage all: !`git reset HEAD 2>/dev/null || true`
+- Unstage all (keep: diffing a partially-staged tree once produced a commit message describing edits that were never in the repo): !`git reset HEAD 2>/dev/null || true`
 - Remote ahead by: !`git fetch origin --quiet 2>/dev/null || true; git rev-list --count HEAD..@{upstream} 2>/dev/null || echo "n/a"`
 - Uncommitted changes: !`git status --short`
 - Diff summary: !`git diff --stat $(git rev-parse -q --verify HEAD || echo 4b825dc642cb6eb9a060e54bf8d69288fbee4904)`
