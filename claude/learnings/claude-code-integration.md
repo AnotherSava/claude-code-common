@@ -2,6 +2,13 @@
 
 Reference for projects that report Claude Code session state, tail its transcripts, or otherwise observe session lifecycle. Covers the three integration surfaces, hook payload schema, transcript JSONL layout, and common gotchas.
 
+> **Writing a hook rather than consuming one? Use the `hooks` skill** (`~/.claude/skills/hooks/`).
+> It owns the authoring guidance — event and matcher choice, the narrowing ladder, measured
+> per-invocation costs, the never-raise contract — and its `references/` carry the event catalog
+> and payload schema in current form. This file's job is the *consuming* side: classifying session
+> state, reading transcripts, and what hooks cannot observe. Its hook-authoring sections predate
+> the skill and are slated to move there; where the two disagree, the skill is newer.
+
 ## Three integration surfaces
 
 1. **Hooks** (primary) — lifecycle events run in the Claude Code harness. Deterministic, fire-and-forget, no impact on Claude's context window.
