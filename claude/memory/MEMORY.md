@@ -11,6 +11,7 @@
 - [GitHub identity](user_github.md) — login is `AnotherSava`; distinct from git author `Oleg Savelyev`
 - [Prefer loud errors to silent fallback](feedback_loud_errors.md) — surface failures in UI + log; never silently degrade; show status on the active view, prefer truthful "retrying" over a timeout that fakes a terminal result
 - [Eliminate the bug class, don't patch paths](feedback_eliminate_bug_class.md) — a bug recurring after a targeted patch means wrong altitude; remove the structural cause (e.g. push→pull) not the trigger path
+- [Fix the code, don't tell the user to rearrange their files](feedback_fix_the_code_not_the_layout.md) — a real layout that defeats a feature is a defect in it, not a caveat plus a manual workaround
 - [Pre-push hook rejects unsigned + Claude trailers](reference_push_hook.md) — resign ancestors with `git rebase --exec` before first push
 - [Multiline commit messages via -m flags](feedback_commit_message_m_flags.md) — use repeatable `git commit -m … -m …`, not PowerShell here-strings; Git Bash leaks `@'…'@` literally
 - [Can't pipe into heredoc-python](feedback_heredoc_python_stdin.md) — `cmd | python <<'EOF'` loses the pipe (heredoc overrides stdin, becomes the program); write to a temp file + read sys.argv instead
@@ -28,6 +29,7 @@
 - [Run verification commands myself](feedback_user_run_commands_bang_prefix.md) — invoke `deploy`/`build`/`test` via Skill or Bash; never ask the user to run them
 - [Clean up safety backups proactively](feedback_clean_up_backups.md) — delete `*.bak` files/dirs once the new state is verified; don't leave them lingering
 - [Toolbox image-opt reference](reference_toolbox_image_opt.md) — canonical WebP/AVIF settings (method=6, quality=60); check toolbox before deriving fresh params
+- [Notion image format](reference_notion_image_format.md) — Notion-bound images are WebP, never AVIF; AVIF stores fine but shows no card/gallery thumbnail
 - [Recover context from jsonl logs](reference_recover_context_from_jsonl.md) — after forced /clear, parse `~/.claude/projects/<id>/*.jsonl` to reconstruct prior session
 - [Ship the ladder, not the goal](feedback_ship_the_ladder.md) — a spec's stated goal is the last rung; decompose into independently shippable layers and ship those
 - [No premature abstraction](feedback_no_premature_abstraction.md) — don't build interfaces/registries until 2-3 concrete instances reveal the pattern
@@ -75,3 +77,9 @@
 - [Draft external-facing text short](feedback_draft_external_text_short.md) — issue replies/PR bodies lead with the actionable thing; park secondary questions for a follow-up
 - [Overwatch needs a non-ViewSonic display](overwatch_needs_non_viewsonic_display.md) — 0xE0070100 in single-display mode: DXGI reports 0 modes for that panel; read the game log, keep the LG on
 - [Off state recedes, on state is plain](feedback_off_state_recedes.md) — parallel controls are one species; ON copies its always-on sibling, OFF dims the whole group (no colour, no strike-through)
+- [No back-compat for unshipped formats](feedback_no_unshipped_back_compat.md) — a shim for a format that never left this machine is dead code plus a false public promise; verify it shipped first
+- [Timezone is not a location](feedback_timezone_is_not_a_location.md) — an IANA zone spans half a continent; never render it where a place belongs, never infer a city from it
+- [No negative from a partial probe](feedback_no_negative_from_partial_probe.md) — report which endpoints you tested and what they returned, not that the thing is impossible
+- [Check the network exists](feedback_check_the_network_exists.md) — a feature needing other users is worthless at launch; ask what it does with one user
+- [Rename the control, do not invert it](feedback_rename_dont_invert.md) — when a mechanism can only express one direction, name the control for what it does; no inverted wiring behind a label
+- [No manufactured distinctions](feedback_no_manufactured_distinctions.md) — don't invent a state, filter option or button the source doesn't require; fold optional actions into the routine one

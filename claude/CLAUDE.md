@@ -89,6 +89,7 @@ When the offer is accepted:
 A live list of phrases I lean on too heavily. They are banned in all authored text — chat responses, commit messages, PR and issue bodies, docs, comments. Replace each with a plain, specific alternative rather than a synonym of the same reflex. The list grows: when a new tic surfaces, add it here with its replacement. Rationale in `~/.claude/memory/feedback_overused_phrases.md`.
 
 - **"landed"** — banned in every sense, not just the merge/ship one. Also covers a feature being implemented ("the retry logic landed in `client.ts`"), a fix taking effect, or a value settling. Say what actually happened instead: "added", "implemented", "merged", "committed", "is in `main`", "now lives in `client.ts`".
+- **"smoking gun"** — with the rest of the detective register: "the culprit", "case closed", "caught red-handed", "the plot thickens". Name the evidence and what it shows: "the log records the move", "this line is what does it", "that confirms it".
 
 ## Code Style
 
@@ -145,7 +146,7 @@ When the same non-trivial computation or step-sequence is needed in two or more 
 ## Gitignore
 
 When adding entries to `.gitignore`, choose the right scope:
-- **Global excludes** (`git config --global core.excludesfile` — on this machine `~/.gitignore`, not `~/.gitignore_global`): OS- or user-specific files no contributor shares — IDE folders, OS caches, tool outputs (`.idea/`, `Thumbs.db`, `.ralphex/`), and per-machine wrappers written by personal skills (the deploy/build skills' `scripts/deploy.sh`, `scripts/build.sh`, and `config/deploy.env`). Only narrow **root-anchored file** patterns belong here — never a floating whole-dir pattern like `scripts/`, which would hide that dir in *every* repo, including ones that commit a real `scripts/`. (A file pattern with a mid-string slash like `scripts/deploy.sh` is already root-anchored.)
+- **Global excludes** (`git config --global core.excludesfile` — on this machine `~/.gitignore`, not `~/.gitignore_global`): OS- or user-specific files no contributor shares — IDE folders, OS caches, tool outputs (`.idea/`, `Thumbs.db`, `.ralphex/`), and per-machine wrappers written by personal skills (the deploy/build/cleanup/publish/doppler skills' `scripts/*.sh` wrappers and the `config/*.env` files they read — see `git/gitignore` for the current set). Only narrow **root-anchored file** patterns belong here — never a floating whole-dir pattern like `scripts/`, which would hide that dir in *every* repo, including ones that commit a real `scripts/`. (A file pattern with a mid-string slash like `scripts/deploy.sh` is already root-anchored.)
 - **Project gitignore** (`.gitignore`): files everyone who checks out the project should ignore — build outputs, `.env` files, `node_modules/`, `__pycache__/`, and project-structure-specific artifacts (e.g. a dev server's `<DEV_DIR>/dev-server*.log`). Anchor with a leading slash (`/scripts/`) unless matching at any depth is intended.
 
 See `~/.claude/learnings/gitignore-anchoring-and-scope.md` for the anchoring rules and the per-project→global migration checklist.
@@ -190,6 +191,7 @@ Cross-project preferences and feedback. Memory files live in `~/.claude/memory/`
 - [Find the override before stacking a setting](~/.claude/memory/feedback_check_overrides_first.md) — a global setting that looks ignored is usually cancelled by a local rule; remove that rule instead of adding a redundant copy
 - [Private references](~/.claude/memory/refs-private.secret.md) — encrypted (transcrypt); coordinates for ad-hoc third-party credentials Claude uses — read it when a task needs one (decrypted locally; opaque without the key)
 - [No guessed facts](~/.claude/memory/feedback_no_guessed_facts.md) — don't state a guessed URL/path/endpoint as known; verify it or say you're guessing
+- [No invented rationale](~/.claude/memory/feedback_no_invented_rationale.md) — asked to add a rule, record the rule and its replacement; don't supply a "why" you guessed
 - [Live values = read the system](~/.claude/memory/feedback_live_values_source_of_truth.md) — rates/prices/config/deployed-state change without a commit; read the live source (DB/live page/doppler), never cite a doc snapshot as current
 - [Machine coordinates](~/.claude/memory/machines-private.secret.md) — encrypted (transcrypt); Tailscale tailnet names/IPs for the user's machines — use these to make any project reach one machine from another, never `*.local` or LAN IPs
 - [Minimal UI chrome](~/.claude/memory/feedback_minimal_ui_chrome.md) — no duplicate state signals, no field help text, no card blurbs; icon over text button; state in a badge, never a placeholder

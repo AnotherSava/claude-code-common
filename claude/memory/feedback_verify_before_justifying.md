@@ -12,3 +12,10 @@ When tempted to explain why a piece of legacy code, documentation, or workflow s
 - When writing "this exists because some/many/legacy X do Y" or "this is defensive against Z" — either cite the source/spec inline, or rephrase as "I'm not sure why this is here — let me check" before defending.
 - The pattern is most dangerous in two situations: (1) deciding whether to remove a workaround, and (2) explaining historical decisions in code comments or docs.
 - A short factual "I don't know — checking" is always better than a confident speculative justification.
+- **The same applies to something you are PROPOSING, not just something that already exists.** Before listing
+  the benefits of an approach, verify each one against the system as it actually is — a plausible benefit is
+  usually a guess about current state. On 2026-08-19 (what-is-next) I recommended a dedicated stream-only
+  Jellyfin account; asked what it bought, checking the live server killed three of four reasons (the sync account
+  was already non-admin, already had content deletion disabled, and Jellyfin access tokens are already
+  per-device revocable). One real benefit survived, and the honest answer was "narrow but real" rather than the
+  four-point case I would otherwise have made.
