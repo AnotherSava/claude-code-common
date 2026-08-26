@@ -10,6 +10,7 @@
 - [Glob safety for numeric filenames](feedback_glob_safety_windows.md) — `hex_4*.png` matches hex_40, hex_400, AND hex_441; use explicit ranges
 - [GitHub identity](user_github.md) — login is `AnotherSava`; distinct from git author `Oleg Savelyev`
 - [Prefer loud errors to silent fallback](feedback_loud_errors.md) — surface failures in UI + log; never silently degrade; show status on the active view, prefer truthful "retrying" over a timeout that fakes a terminal result
+- [No defensive fallbacks](feedback_no_defensive_fallbacks.md) — never substitute a plausible value for one you don't have; a gap in the logic keeps the wider answer or throws, and an unobservable guess still becomes a lie once something reads it
 - [Eliminate the bug class, don't patch paths](feedback_eliminate_bug_class.md) — a bug recurring after a targeted patch means wrong altitude; remove the structural cause (e.g. push→pull) not the trigger path
 - [Fix the code, don't tell the user to rearrange their files](feedback_fix_the_code_not_the_layout.md) — a real layout that defeats a feature is a defect in it, not a caveat plus a manual workaround
 - [Pre-push hook rejects unsigned + Claude trailers](reference_push_hook.md) — resign ancestors with `git rebase --exec` before first push
@@ -32,6 +33,7 @@
 - [Notion image format](reference_notion_image_format.md) — Notion-bound images are WebP, never AVIF; AVIF stores fine but shows no card/gallery thumbnail
 - [Recover context from jsonl logs](reference_recover_context_from_jsonl.md) — after forced /clear, parse `~/.claude/projects/<id>/*.jsonl` to reconstruct prior session
 - [Ship the ladder, not the goal](feedback_ship_the_ladder.md) — a spec's stated goal is the last rung; decompose into independently shippable layers and ship those
+- [Hold the stated objective](feedback_hold_the_stated_objective.md) — don't restate the goal weaker or call it optional once a fix exists; audit framing inherited from another agent
 - [No premature abstraction](feedback_no_premature_abstraction.md) — don't build interfaces/registries until 2-3 concrete instances reveal the pattern
 - [Ask before keeping for backcompat](feedback_ask_before_backcompat.md) — internal symbols going unused → ask the user before silently preserving "for backwards compatibility"
 - [CSS variant classes, not base-class overrides](feedback_css_variant_classes_not_overrides.md) — base class holds layout-agnostic styles; each view declares its own variant class with grid/flex shape
@@ -86,3 +88,8 @@
 - [Validate edits to self-gating files](feedback_validate_self_gating_edits.md) — blocking hooks/git hooks/rc files: edit a temp copy, run the configured commands, then copy over; valid syntax ≠ working command
 - [spctl --assess blocks on a password dialog](macos_spctl_assess_blocks.md) — macOS 26 prompts via Touch ID and hangs subagents; use codesign/xattr instead, and ban prompt-raising commands by name
 - [Compare downsides to current state](feedback_compare_to_current_state.md) — judge a change against what ships today, not an ideal baseline; separate regressions from unchanged and improved
+- [Guard the input, not the output](feedback_guard_the_input_not_the_output.md) — a check after a transformation can't see what was missing before it; delete a guard to prove it does anything
+- [Re-read the whole procedure](feedback_reread_the_whole_procedure.md) — one moved file falsifies several steps; step-N's output is often step-M's baseline, so patching the flagged line alone breaks the comparison
+- [State an enforcement's reach](feedback_state_the_enforcement_reach.md) — never conclude more broadly than the check you cite delivers; name what it cannot see, since that boundary is permanent
+- [Rehearsals must not mimic the real signal](feedback_rehearsal_must_not_mimic.md) — a test must be unmistakable in the part read first (subject line), and must not consume the real alert's rate limit
+- [Name with a metaphor in a shared namespace](feedback_name_with_metaphor.md) — a vivid name is safer than a category word; nobody accidentally picks a metaphor, and `ingress` is already Docker Swarm's

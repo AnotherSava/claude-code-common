@@ -28,6 +28,28 @@ compact header arrived in the tauri-dashboard session:
 Then name the session it belongs in rather than acting. Offer to do it from the
 current session only once the other one is confirmed parked.
 
+**A sibling's claim about *your* repo is a hypothesis, not a finding.** The case
+above is an instruction that arrived in the wrong session; this is the opposite
+and easier to miss, because the message is correctly routed, well argued, and
+still wrong. On 2026-08-25 and again on 2026-08-26 the printlab session reported
+that scheduler's other workstation still carried a broken `IDENTITY_CHECK` line,
+reasoning correctly from "`config/publish.env` is per-machine and gitignored" —
+but from a false premise: that machine had never been set up to publish
+scheduler at all, so there was no copy to go stale. The first time, this was
+relayed onward to the user as fact and had to be retracted.
+
+**Why:** the sibling is reasoning about a file it cannot see. Gitignored,
+per-machine and untracked files are exactly where cross-session claims go wrong,
+because the only evidence available to the other session is what *ought* to be
+there.
+
+**How to apply:** verify against your own tree before acting on such a claim
+*and* before repeating it — the repeating is what does the damage, since it
+launders a guess into a fact. Then tell the sibling what you actually found. A
+wrong shared premise stays wrong for everyone until someone checks it, and the
+sibling generally wants to know: mine offered to fix anything of theirs that
+broke rather than hand it back.
+
 **Siblings also contend for shared OS state — the clipboard especially.** All
 sessions share one macOS pasteboard (sandboxed and unsandboxed Bash read the
 same one; there is no per-sandbox clipboard). So a `pbcopy` followed by a

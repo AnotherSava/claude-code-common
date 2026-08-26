@@ -1,10 +1,12 @@
 ---
-name: Deploy via the script, not the deploy skill
-description: When a project's deploy is already configured, run the deploy script directly instead of invoking the deploy Skill
+name: Run the script, not the skill (deploy/build/cleanup/publish)
+description: When a project's deploy/build/cleanup/publish is already configured, run its script directly instead of invoking the matching Skill
 type: feedback
 ---
 
 When you need to deploy and the project is already set up for it (a `scripts/deploy.sh` wrapper or the `deploy` shell function exists), run it directly via Bash — do not invoke the deploy Skill. Both `deploy` and `bash scripts/deploy.sh` now work from **any** working directory: the `deploy` shell function walks up to the repo root via `run_repo_script`, and the underlying `deploy-*.sh` target scripts independently resolve the repo root (the nearest ancestor holding `config/deploy.env`, via the shared `_repo-dir.sh` helper). Either is fine; `deploy` is just shorter.
+
+The same holds for **`publish`, `build` and `cleanup`** — all four are `run_repo_script` wrappers over a configured `config/<verb>.env`. Once the config and wrapper exist, run the script; reserve the Skill for first-time setup or reconfiguration (the box moved, a new key is needed). **Caveat observed 2026-08-22:** a newly-added shell function is NOT visible to the session that added it — Claude Code's Bash runs from a snapshot (`~/.claude/shell-snapshots/snapshot-*.sh`) captured at session start, so `type publish` reports "not found" until Claude Code restarts. Use `bash scripts/<verb>.sh` in the meantime.
 
 **History (fixed 2026-07-12):** the underlying scripts used to set `REPO_DIR="$(pwd)"`, so calling `bash scripts/deploy.sh` (or an underlying `deploy-*.sh`) directly from a subdir like `web/` read a nonexistent `web/config/deploy.env` and silently fell back to defaults — wrong port/dir with no error (a dev server meant for port 3939 came up on 3000, and since Next 16 allows only one dev server per project dir, that stray same-project instance blocked the real 3939 server — a different project's server on 3000 would NOT conflict; the lock is per-project, not machine-wide). Hardened by adding `resolve_repo_dir` in `~/.claude/skills/deploy/scripts/_repo-dir.sh`, sourced by all five target scripts.
 
