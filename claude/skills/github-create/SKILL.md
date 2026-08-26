@@ -3,9 +3,10 @@ name: github-create
 description: >-
   Create a GitHub repository for a local project that already has content but no
   remote yet. Picks a name, creates the repo (public by default), seeds a
-  LICENSE-only initial commit, wires origin, rebases local history onto that
-  commit, and enables email notifications for new issues. Never commits or pushes
-  the project's own files.
+  LICENSE-only initial commit — MIT, or all rights reserved for a project whose
+  rights stay closed — wires origin, rebases local history onto that commit, and
+  enables email notifications for new issues. Never commits or pushes the
+  project's own files.
   TRIGGER when: user asks to "create a github repo", "publish this to github",
   "put this project on github", or runs /github-create in a project with no origin.
   DO NOT TRIGGER when: the project already has an origin remote (use /commit to
@@ -39,7 +40,7 @@ Read `~/.claude/skills/shared/bash-rules.md` for bash command constraints.
 
 When this skill finishes:
 
-- A GitHub repo exists whose entire history is one root commit, `Initial commit`, containing only `LICENSE`.
+- A GitHub repo exists whose entire history is one root commit, `Initial commit`, containing only `LICENSE` — MIT or all rights reserved, as chosen in step 3.
 - Local commits (if any) sit on top of that root commit, rebased, **unpushed**.
 - `origin` is wired and the local branch tracks it.
 - The repo is subscribed for email notifications.
@@ -78,14 +79,19 @@ gh repo view <owner>/<name> --json name
 
 Success means the name is taken — go back and pick another. A `Could not resolve to a Repository` error means it's free.
 
-## 3. Confirm visibility and description
+## 3. Confirm visibility, license, and description
 
-Ask once, via `AskUserQuestion`, with **public preselected**:
+Ask once, via `AskUserQuestion` — all three questions in a single call, each with its first option preselected:
 
 - **Visibility** — public (default) or private.
+- **License** — what step 6 seeds into the root commit:
+  - **MIT** (default) — the standing default for a project that needs a license.
+  - **All rights reserved** — grants nothing to anyone who obtains a copy. The usual pick for a private project, and for a public one meant to be read but not reused.
 - **Description** — draft a one-line description from **README opening** and **Top-level entries** and offer it; accept an edit or an empty value.
 
 Never create a public repo without this confirmation, even when the user's request said "public" — a wrong invocation publishes a name and description immediately.
+
+The license is a separate question from visibility, not a consequence of it: private-but-will-be-opened-later and public-but-reserved are both ordinary. Only one pairing is worth a second look before step 5 — **private + MIT**, because MIT grants rights to whoever obtains a copy and so takes effect the moment the repo is shared or opened, from the root commit, which is the hardest commit in the history to change. Say that back in one sentence and get a yes. Public + all rights reserved needs no such check: it grants nothing, and it cannot be chosen by accident because it is not the default.
 
 ## 4. Resolve blockers
 
@@ -93,8 +99,8 @@ Never create a public repo without this confirmation, even when the user's reque
 
 **Existing LICENSE.** If **LICENSE on disk** is `PRESENT`, the seeded commit will collide — an add/add merge conflict if the file is committed, or `untracked working tree files would be overwritten` if it isn't. Read the first 10 lines of the local `LICENSE`, show them, and ask via `AskUserQuestion`:
 
-- **Use GitHub's MIT license** — delete the local file (`git rm LICENSE` if tracked, otherwise `rm LICENSE`), then continue normally. Do not choose this silently; a project may deliberately carry a non-MIT license.
-- **Keep the local license** — skip steps 6 and the rebase half of step 7. The repo is created empty, `origin` is wired, and the existing LICENSE gets pushed later with everything else. Say explicitly that there will be no initial commit to rebase onto.
+- **Replace it with the license chosen in step 3** — delete the local file (`git rm LICENSE` if tracked, otherwise `rm LICENSE`), then continue normally. Compare the two texts before offering this: if the local file already says what step 3 chose, replacing it changes nothing and is the tidy path; if it is a different license, this is a licensing change rather than a cleanup, and it needs to read as one. Never choose it silently — a project may deliberately carry the license it has.
+- **Keep the local license** — skip step 6 and the rebase half of step 7. Say two things explicitly: there will be no initial commit to rebase onto, and **the remote will have zero commits, not one**, so step 7's `git fetch` finds no `origin/<default>` and the upstream cannot be set. Tracking then arrives only with the first push, and until it does, `/commit` cannot tell what is unpushed. Prefer the replace option whenever the two texts agree; this branch is for a license the skill cannot generate.
 
 ## 5. Create the empty repository
 
@@ -111,10 +117,12 @@ Pass **no** `--license`, `--add-readme`, `--gitignore`, or `--source`. `--source
 Skip this step if the user chose "Keep the local license" in step 4.
 
 ```
-bash ~/.claude/skills/github-create/scripts/seed-license.sh <owner>/<name> "<copyright holder>" <current year>
+bash ~/.claude/skills/github-create/scripts/seed-license.sh <owner>/<name> "<copyright holder>" <current year> <kind>
 ```
 
-Use **Copyright holder** from Context and the current year. The script fetches GitHub's MIT template, fills the `[year]` and `[fullname]` placeholders, and commits it as `Initial commit` through the Contents API — the documented way to bootstrap an empty repo, and the only way to get a commit containing *just* the license.
+Use **Copyright holder** from Context, the current year, and `mit` or `all-rights-reserved` per step 3. The kind is optional and defaults to `mit`.
+
+For `mit` the script fetches GitHub's template. For `all-rights-reserved` it uses the reservation text held in the script itself — GitHub's license catalogue carries only open-source licenses, so a reservation has to be supplied as text, and there is nothing to fetch. Either way it fills the `[year]` and `[fullname]` placeholders, refuses to commit if the template is missing either one, and commits the result as `Initial commit` through the Contents API — the documented way to bootstrap an empty repo, and the only way to get a commit containing *just* the license.
 
 It prints a commit SHA on success. If it errors, report the error and stop; do not fall back to pushing a locally-made commit, which would put the project's files on the remote.
 
@@ -178,7 +186,8 @@ Delivery also depends on one **account-level** setting with no API: Settings →
 State plainly:
 
 - Repo URL and visibility.
-- That the remote holds exactly one commit (LICENSE) and the project's files are still local and unpushed.
+- Which license was seeded, named plainly ("MIT" / "all rights reserved") rather than left implied.
+- That the remote holds exactly one commit (LICENSE) and the project's files are still local and unpushed. If step 4's keep-local branch was taken, say instead that the remote holds **zero** commits and the branch has no upstream yet.
 - The local branch name and what it tracks.
 - Notification subscription confirmed.
 - That `/commit` is the next step when they want to push — as a fact, not an offer.

@@ -108,6 +108,10 @@ gh api -X PUT repos/OWNER/NAME/contents/LICENSE -f message="Initial commit" -f c
 
 `PUT /contents/{path}` is GitHub's documented way to bootstrap an empty repo. The Git Database endpoints (blob → tree → commit → ref) can't do it — they return 409 with no parent commit to build on. Cost: Contents-API commits aren't signed, so that root commit shows unverified.
 
+`--license` also cannot express **all rights reserved**, and no flag can. `gh api licenses` returns 13 keys — `agpl-3.0 apache-2.0 bsd-2-clause bsd-3-clause bsl-1.0 cc0-1.0 epl-2.0 gpl-2.0 gpl-3.0 lgpl-2.1 mit mpl-2.0 unlicense` (checked 2026-08-26) — every one of them open-source or a public-domain dedication. A reservation notice is not a template you can name; it has to be supplied as content through the same Contents API call. `github-create`'s `scripts/seed-license.sh` therefore carries that text itself and takes the license kind as a fourth argument.
+
+One more trap in that skill's flow: if the local project already has a LICENSE and you choose to keep it, the seeding step is skipped and the remote stays at **zero** commits, not one. `git fetch` then creates no `origin/<default>` ref, `git branch --set-upstream-to` fails, and the branch has no upstream until the first push — at which point `/commit` cannot tell what is unpushed. Nothing to repair, but it has to be said, or the run reports the normal one-commit end state.
+
 The `github-create` skill implements this; its `references/repo-init-flags.md` carries the full failure matrix for rebasing an existing local project onto such a commit.
 
 ## Forks and stars say nothing about who copied a repo — `traffic/clones` does, for 14 days

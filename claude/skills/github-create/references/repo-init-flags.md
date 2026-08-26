@@ -16,6 +16,10 @@ trades a rare collision for a near-certain one.
 `--source` is not an option either: `gh` rejects it outright with *"the `--source` option is not
 supported with `--clone`, `--template`, `--license`, or `--gitignore`"*.
 
+For the all-rights-reserved kind the flag is not merely unreliable but inapplicable: GitHub's
+license catalogue (`gh api licenses`) lists open-source licenses only, so there is no template
+to name. `seed-license.sh` therefore carries that text itself.
+
 Hence: create the repo with no init flags at all, then commit `LICENSE` through
 `PUT /repos/{owner}/{repo}/contents/LICENSE`. That endpoint is GitHub's documented way to
 bootstrap an empty repository, and it commits exactly the one path given. The low-level Git
@@ -45,6 +49,21 @@ Two rules fall out, both enforced in the skill:
   Staged-only changes block it just as modified tracked files do.
 - **Rename the local branch to the remote default *before* pulling.** Renaming afterwards leaves the
   rebase already applied to the wrong branch name.
+
+## The keep-local-license branch leaves the remote at zero commits
+
+Step 4's "keep the local license" option skips the seeding step, so the repo stays exactly as
+`gh repo create` left it: **no commits at all**, not one. Two consequences follow, and both are
+easy to misreport as success:
+
+- `git fetch origin` succeeds and creates no `origin/<default>` ref, because there is none. The
+  API answers a read of the default branch's tree with HTTP 409 `Git Repository is empty`.
+- `git branch --set-upstream-to=origin/<default>` therefore fails, so step 7.6 cannot run and the
+  branch has no upstream. `/commit` reads unpushed work by comparing against the upstream, so
+  until the first push it cannot tell what is unpushed.
+
+Neither is a fault to repair — the first push creates the branch, the ref and the tracking
+together. It just has to be *said*, or the report reads as the normal one-commit end state.
 
 ## Recovering a halted rebase
 
