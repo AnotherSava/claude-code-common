@@ -58,9 +58,23 @@ Ask for anything **Publish env** does not already contain — never re-ask for a
 | `APP_CONTAINER` | container name, for the restart-count check |
 | `VERIFY_URL` | a real user-facing page — **not** a health endpoint |
 
-Optional: `BUILD_SERVICES` (default `app`), `VERIFY_URL_EXTRA`, `DOPPLER_PROJECT` + `DOPPLER_CONFIG` + `ENV_FILE`,
-`VHOST_SRC` + `VHOST_DIR` + `PROXY_STACK` + `PROXY_SERVICE`, `SETTLE_SECONDS` (default 25), `BRANCH` (default
-`main`).
+Optional: `BUILD_SERVICES` (default `app`), `VERIFY_URL_EXTRA`, `IDENTITY_CHECK`, `DOPPLER_PROJECT` +
+`DOPPLER_CONFIG` + `ENV_FILE`, `VHOST_SRC` + `VHOST_DIR` + `PROXY_STACK` + `PROXY_SERVICE`, `SETTLE_SECONDS`
+(default 25), `BRANCH` (default `main`).
+
+Two of those decide whether the publish can see the failures a 200 hides:
+
+- **`IDENTITY_CHECK`** — a command run locally after the URL checks; a non-zero exit fails the publish. Set it on
+  any box that hosts more than one project behind one proxy. `VERIFY_URL` proves *something* answers; only this
+  proves the answer is **yours**. A name collision between two projects can point a hostname at a neighbour's app,
+  which returns 200 just as healthily — one storefront served the wrong application for 41 hours with every other
+  check green. A reusable stdlib-only implementation ships beside this skill at
+  `${CLAUDE_CONFIG_DIR:-$HOME/.claude}/scripts/identity-check.py`; it takes a per-host manifest as its argument,
+  and that manifest is machine-local (it inventories a box's hostnames, so it is not committed to this repo).
+- **`VHOST_DIR`** — set it only in *co-tenant* shape, where this repo owns one vhost inside somebody else's proxy
+  and the file has to be installed on the box. Leave it unset when this repo **owns the proxy**: the config is
+  already in the checkout the reconcile reset, so `VHOST_SRC` alone decides whether to force-recreate. Setting it
+  in that case makes the publish copy a file onto itself.
 
 Read values from the project rather than asking, where they are discoverable: the compose file gives the service
 and container names, the vhost file gives the ingress path, `doppler projects` gives the project name. Ask only

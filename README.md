@@ -216,8 +216,9 @@ Ships a project outward to where its users are — the counterpart to `deploy`, 
 - Reconciles the box's checkout with a hard reset to the remote, cloning it on the first publish so step one behaves like every later one
 - Renders the production env file from Doppler straight onto the box over SSH, so no value reaches this terminal, the transcript, or shell history
 - Detaches the compose build and polls its log, since a build routinely outlives the tool timeout that invoked the script
-- Reinstalls the app's vhost and recreates the proxy only when that file actually changed — a bind-mounted config keeps its old inode, so a reload reports "config is unchanged" and the new vhost never gets a certificate
+- Recreates the proxy only when its config actually changed — a bind-mounted config keeps its old inode, so a reload reports "config is unchanged" and the new vhost never gets a certificate. Handles both shapes: a co-tenant vhost gets installed into somebody else's proxy (validated before it goes live, restored on failure), while a repo that owns its proxy already has the file in the checkout and only needs the "did it change" answer
 - Proves success by observing the target: a real user-facing page must return 200 *and* the container's restart count must not climb, because a health probe passes while every database-backed page 502s and a crash-looping container answers between restarts
+- Asserts *identity*, not just liveness, where a box hosts several projects — a 200 proves something answered, never that it was yours, and a name collision routes a hostname at a neighbour's app just as healthily. The optional `IDENTITY_CHECK` runs twice: once before anything is built, to prove the check itself can run, and once after the deploy to assert the answer. "Serving the wrong app" and "the check could not run" are reported as different things, because only one of them justifies a rollback
 
 ---
 
@@ -429,6 +430,19 @@ A flagged skill is cleared one of two ways, both durable: add `!claude/skills/<n
 
 ---
 
+### Ingress Lint
+
+**Files:** `claude/hooks/ingress-lint.py` and `claude/scripts/ingress-lint.py`
+
+Where several projects share one box behind one reverse proxy, a generic name is a claim on a namespace someone else uses. Docker Compose publishes a *service's* name as a DNS alias on every network it joins, so two projects that both call a service `app` both answer to `app` on the shared bridge and the proxy resolves whichever the daemon hands back; a vhost dropped into a common `conf.d` is separated from its neighbours only by its basename. The failure is silent and stays green — HTTP 200, healthy containers, `caddy validate` clean — which is why it is caught at the moment the name is written rather than afterwards.
+
+- **The rules** live in `claude/scripts/ingress-lint.py`, a stdlib-only checker (Claude Code hooks run `python -S`, so PyYAML is not importable and the small YAML subset is read by hand). Run it over files or repo roots: `python ~/.claude/scripts/ingress-lint.py [path ...]` — exit 0 clean, 1 violations, 2 nothing to check. This is also what a repo's `.claude/commit-checks.sh` should call.
+- **The hook** is a `PostToolUse` adapter that feeds the checker one just-written path. It loads the rules by path instead of copying them, so there is exactly one copy. It is **not registered in `settings.json` by default** — its docstring carries the entry to add, along with the three things that fail silently if you get them wrong (the mandatory `//` root anchor, `if` belonging *inside* the hook object, and `"async": false` being set explicitly because a backgrounded hook cannot deliver `additionalContext` at all).
+
+**Related:** `claude/scripts/identity-check.py` is the other half — the same problem checked from outside instead of prevented at the source. Given a per-host manifest it asserts, for every hostname on a box, that the host's own marker is present *and* that every other tenant's marker is absent; the second half is what turns "up" into "up and correct". The `/publish` skill wires it in via `IDENTITY_CHECK`. The manifest is per-host data and is passed in rather than kept here — see the note in [Global Installation](#global-installation).
+
+---
+
 ## Git Hooks
 
 ### Pre-Push Validation
@@ -470,6 +484,14 @@ Read `~/.claude/learnings/chrome-extension.md` for domain-specific patterns.
 Global files live in `claude/` (symlinked to `~/.claude/`) and `git/` (hooks, gitignore, gitattributes — each symlinked to `~/`). Project-local config stays in `.claude/`.
 
 > If any of these already exist in `~/.claude/` or `~/.git-hooks/`, move them into the repo first (or remove them) before creating the symlink.
+
+> **There is deliberately no `claude/hosts/` here, and `.gitignore` still blocks the path.** A per-host identity
+> manifest inventories a box's hostnames and the exact string each site emits to prove the right application is
+> answering — none of it a credential, which is precisely why it is easy to publish by accident, and **this repo
+> is public**. One briefly lived here and drifted from its original within hours. Per-host data now lives in the
+> private repo that owns the host, and each project's `IDENTITY_CHECK` fetches it at publish time rather than
+> keeping a copy. The ignore rule outlives the directory on purpose: it is what stops the path being recreated by
+> someone repeating the reasoning that put it here, which looked entirely sound at the time.
 
 macOS / Linux users skip this section — see [Linux / macOS](#linux--macos) below.
 

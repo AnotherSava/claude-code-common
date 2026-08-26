@@ -4,6 +4,14 @@ __pycache__/
 # Machine-local project config (keep .claude/memory/ tracked)
 .claude/settings.local.json
 
+# Per-host infrastructure inventories. THIS REPO IS PUBLIC. A manifest names every hostname on a box, the
+# exact string each site emits to prove the right app is answering, and which routes are deliberately hidden
+# and why — no credentials, which is what makes it easy to publish by accident. Nothing is meant to live here:
+# per-host data belongs to the private repo that owns the host, and IDENTITY_CHECK fetches it at publish time
+# rather than keeping a copy. This rule is a tombstone — it stops the path being recreated by someone repeating
+# the reasoning that put a manifest here once before. Full note in README.md § Global Installation.
+/claude/hosts/
+
 # Machine-local: which skills are deliberately not committed. Per-machine because
 # the set of locally-installed skills differs between them.
 claude/untracked-skills.local.txt

@@ -37,6 +37,8 @@ Do not add logic, data structures, classes, or exports to production code that e
 
 ## Research Before Trial-and-Error
 
+**Check `~/.claude/learnings/` before diagnosing, not after.** It is indexed by filename, so a service or tool almost always has a file named after it. Read it *before* concluding that a credential is dead, an API is broken, or a thing cannot be done — those files exist precisely because each of those conclusions was once wrong. Real case: a Cloudflare token was reported to the user as invalid on the strength of `/user/tokens/verify` returning `Invalid API Token`, while `cloudflare-pages-deploy.md` already recorded that account-scoped tokens return exactly that *while being valid*. The token worked; the retraction was avoidable by reading one file. A negative result from a single probe is a reason to check what is written down, not a finding to report.
+
 When a problem resists the first attempt or two — especially browser/CSS quirks, framework behavior, tool errors, or library/API limitations — search the web for the root cause and known fixes instead of iterating blindly or concluding it can't be done. A targeted search often surfaces a proven solution, and explains *why* the naive attempts failed, faster than guess-and-check. Lean toward researching early when the territory is unfamiliar or a fix isn't converging; reserve trial-and-error for cases where simply trying it is genuinely cheaper than a search. The repeated-experiment smell (three tweaks, three failures) is the signal to stop and look it up.
 
 ## Git Workflow
@@ -73,16 +75,26 @@ When I launch a process that outlives the command and that I'll kill later mysel
 
 - **Node.js**: default to the current active LTS (Node **24** as of May 2026) for new projects, CI workflows, and `.nvmrc` files — unless the project already pins an older version, a dependency demands otherwise, or there's a specific reason to use something else. Always prefer an existing `.nvmrc` / `engines.node` over this default.
 - **Package-manager pin**: any project with a `package.json` should pin its toolchain via the `packageManager` field (e.g. `"npm@11.17.0"`) with Corepack enabled, so every machine and CI run uses an identical manager version — an unpinned npm drifts the lockfile across machines (`peer: true` markers, `devOptional`→`dev` churn). Offer to add it when missing rather than pinning silently; bump it deliberately like a dependency (typically alongside a Node upgrade), not on every release. Resolve the current stable with `npm view npm version` and avoid prerelease majors. See `~/.claude/learnings/corepack-packagemanager-pin.md`.
-- **License**: default to **MIT** when a project needs one — a `LICENSE` file at the repo root with the current year and the user's name (from git config). It's a default recommendation, not an imposition: since the choice is legally the user's, confirm before adding, and defer to copyleft/GPL, a company/CLA policy, or an existing license when the project calls for it. The trigger is a repo about to be published or shared without a license, not every scaffold.
+- **Engine enforcement**: a project that declares an `engines.node` range should also set `engine-strict=true` in its `.npmrc`. npm treats `engines` as *advisory* by default — it prints a warning and installs anyway — so a declared pin, an `.nvmrc` and a README can all agree while someone silently builds on the wrong runtime. The failure then surfaces far from its cause: a Node-24 install of a Node-22 project presented as 245 unrelated-looking TypeScript errors, not a version complaint. Offer it when adding or noticing an `engines` field; it is one line, and it turns a silent mis-build into `EBADENGINE`.
+- **License**: default to **MIT** when a project needs one — a `LICENSE` file at the repo root with the current year and the user's name (from git config). It's a default recommendation, not an imposition: since the choice is legally the user's, confirm before adding, and defer to copyleft/GPL, a company/CLA policy, or an existing license when the project calls for it. The trigger is a repo about to be published or shared without a license, not every scaffold. **For a repo that is private, default to all rights reserved instead** — with no copies out, copyright's default already governs and granting nothing preserves every path, whereas MIT sitting in a root commit is a real grant that takes effect the moment the repo is shared or opened. `/github-create` offers both as a first-class choice and seeds whichever is picked; the relicensing rules and the source-available options are in `learnings/software-licensing-choices.md`.
 
 ## Best-Practice Adoption
 
-When a project lacks a practice that is standard for its type — a linter for a Python project, ESLint/strict tsconfig for TypeScript, CI for a released library, a lockfile, a test runner — point out the gap and offer to adopt it. Offer, don't adopt silently; and don't nag: one offer per project, and if declined, record the decision in project memory so it isn't re-raised.
+When a project lacks a practice that is standard for its type — a linter for a Python project, ESLint/strict tsconfig for TypeScript, CI for a released library, a lockfile, a test runner, or a `.claude/commit-checks.sh` running whatever actually gates the deploy in a repo that commits straight to `main` — point out the gap and offer to adopt it. Offer, don't adopt silently; and don't nag: one offer per project, and if declined, record the decision in project memory so it isn't re-raised.
 
 When the offer is accepted:
 - **Measure before proposing rules**: run the candidate tool against the codebase and triage the real baseline per rule; adopt with a clean baseline (fix or explicitly scope every existing violation).
 - **Fit the tool to the project's documented style**, never the reverse — skip or configure rules that fight an established preference, and document every deliberately disabled rule and its reason inside the tool's config file.
 - **Prefer enforcement at generation time** (e.g. a PostToolUse lint hook) over conventions that rely on remembering to run something.
+
+## Sharing a Host With Another Project
+
+Several of these projects run as co-tenants on one box behind one reverse proxy. That arrangement has one failure mode, it is silent, and it has already cost 41 hours of a commercial site serving a neighbour's application — with HTTP 200, healthy containers and a valid config throughout. Two rules prevent it; `~/.claude/learnings/docker-compose-shared-host-co-tenancy.md` has the mechanics and the ready-made checkers.
+
+- **Never take a generic name in a namespace someone else shares.** Compose publishes a *service's* name as a DNS alias on every network it joins, so `app`, `web`, `db`, `caddy` and friends are claims staked on a shared bridge, not local labels. The same applies to any flat shared namespace: a vhost dropped into a common `conf.d` is separated from its neighbours only by its basename, so `site.caddy` overwrites theirs. Name the thing after its project (`scheduler-app`, `scheduler.caddy`), make the service name equal the container name, and dial upstreams by container name, never by service name.
+- **Verify identity, not liveness.** On a shared proxy a 200 proves *something* answered, never that it was yours — which is exactly why every conventional check stayed green. Assert a marker the origin app emits (a `<title>`, a dedicated identity route), and assert every *other* tenant's marker is absent; the second half is what turns "up" into "up and correct". Anything the proxy adds — status code, `Server` header, the certificate — stays correct while it routes to the wrong app.
+
+The same shape recurs beyond compose: any time a name is resolved from a namespace shared with things you do not control, ask which one wins, and make the answer not matter.
 
 ## Overused Phrases
 
@@ -90,6 +102,7 @@ A live list of phrases I lean on too heavily. They are banned in all authored te
 
 - **"landed"** — banned in every sense, not just the merge/ship one. Also covers a feature being implemented ("the retry logic landed in `client.ts`"), a fix taking effect, or a value settling. Say what actually happened instead: "added", "implemented", "merged", "committed", "is in `main`", "now lives in `client.ts`".
 - **"smoking gun"** — with the rest of the detective register: "the culprit", "case closed", "caught red-handed", "the plot thickens". Name the evidence and what it shows: "the log records the move", "this line is what does it", "that confirms it".
+- **"earn its keep" / "earned its keep"** — and the same reflex in "paid for itself", "worth its weight". State the result instead: "the review found four defects", "that check caught the truncated file", "worth running".
 
 ## Code Style
 
@@ -136,6 +149,13 @@ When adding or removing a third-party import, update `requirements.txt` in the s
 ### Refactoring Safety
 
 When changing field/function names, search all usages (including tests) and update accordingly before making breaking changes. Run all tests after refactoring.
+
+**Know which command is the real gate, and re-run *that* one — tests and lint usually are not it.** Before calling a change done, ask what the deploy actually runs, and run the same thing. A test suite proves behaviour and a linter proves style; neither type-checks, so a refactor can pass both and still fail the build. Two traps make this worse than it sounds:
+
+- **A checker invoked outside the build can be structurally blind.** Frameworks that generate types *during* the build (Next's `PageProps`/`LayoutProps`, and anything else emitted into a build directory) leave a bare `tsc --noEmit` unable to resolve them on a clean tree — so the values they type degrade to `any`, and real errors disappear with them. The build is then the only honest check, and a separate `typecheck` script is worse than useless because it looks like one.
+- **Filtering a checker's "known noise" filters the signal.** Grepping those unresolved-type errors out of the output also hides the genuine error sitting beside them, and piping a command through `grep` discards its exit code, so a failure reads as success. Assert on the exit status, not on the text you chose to keep.
+
+The failure mode is quiet: verify, refactor, re-run only the cheap checks, ship. Real case — a `/clean-code` pass extracted a helper whose parameter type was narrower than the value passed to it. Lint and 333 tests passed; only the production build, which type-checks against generated route types, caught it.
 
 ### Single Source of Logic
 
@@ -184,17 +204,23 @@ Cross-project preferences and feedback. Memory files live in `~/.claude/memory/`
 - [Check for a live sibling session](~/.claude/memory/feedback_check_live_sibling_session.md) — an instruction that doesn't fit this repo likely belongs to another live session; grep widget.jsonl + git status there before editing its files; siblings also overwrite the shared clipboard
 - [Native dialogs render plain text — no clickable links](~/.claude/memory/feedback_native_dialogs_no_links.md) — `tauri-plugin-dialog`/MessageBox/NSAlert can't embed `<a>`; build a custom Tauri webview window for About-style content with links
 - [About dialogs describe WHAT, not HOW](~/.claude/memory/feedback_about_what_not_how.md) — About copy stays declarative ("Each session keeps a history"), not action-prescriptive ("Double-click to open")
-- [Deploy via the script, not the deploy skill](~/.claude/memory/feedback_deploy_script_not_skill.md) — once a project is configured, run `bash scripts/deploy.sh` directly; reserve the deploy Skill for first-time setup
+- [Run the script, not the skill](~/.claude/memory/feedback_deploy_script_not_skill.md) — once configured, run `bash scripts/<verb>.sh` directly for deploy/build/cleanup/publish; Skill is for first-time setup; a new shell fn needs a restart
 - [Overused phrases](~/.claude/memory/feedback_overused_phrases.md) — live blocklist of verbal tics; the list itself is the **Overused Phrases** section above
 - [Use Doppler for secrets](~/.claude/memory/feedback_doppler_secrets.md) — **when a task touches secrets/keys/tokens/`.env`/encryption/Doppler, invoke the `/doppler` skill before planning secret storage or writing any project/config/command; this line is a pointer, not the answer.** Landmines it prevents: workplace `sava` ≠ a project (create/verify a per-app project via `doppler projects`); default config is **`dev`** (not `prd`); set with `doppler secrets set KEY="value" -p <proj> -c dev --silent` (quote the value); commit a `doppler.yaml`; offer don't impose
 - [Text-control affordances](~/.claude/memory/feedback_no_underline_links.md) — strip resting underlines; shape carries meaning (link=hover-underline for WCAG 1.4.1, toggle=chevron, action=`+`, all icon/soft-fill-pill not underline)
 - [Find the override before stacking a setting](~/.claude/memory/feedback_check_overrides_first.md) — a global setting that looks ignored is usually cancelled by a local rule; remove that rule instead of adding a redundant copy
 - [Private references](~/.claude/memory/refs-private.secret.md) — encrypted (transcrypt); coordinates for ad-hoc third-party credentials Claude uses — read it when a task needs one (decrypted locally; opaque without the key)
+- [Grep must survive markdown emphasis](~/.claude/memory/feedback_grep_markdown_emphasis.md) — `grep "Node 22"` misses `Node **22 LTS**`; sweep with a separator-tolerant pattern and search concepts, not just the phrase
+- [Check a destination is not published](~/.claude/memory/feedback_check_destination_visibility.md) — before moving anything into a shared/dotfiles repo, check `gh repo view --json isPrivate` AND `git check-ignore`; untracked is not ignored
+- ["Not run" must not look like "passed"](~/.claude/memory/feedback_not_run_is_not_pass.md) — a check that can't tell success from never-ran turns an open problem into a closed-looking one; probe the precondition, assert the artifact, print NOT COVERED
+- [Write the procedure to find the missing artifact](~/.claude/memory/feedback_write_the_procedure.md) — review asks "is this right", a runbook asks "does this exist"; run the commands a doc quotes rather than predicting their output
 - [No guessed facts](~/.claude/memory/feedback_no_guessed_facts.md) — don't state a guessed URL/path/endpoint as known; verify it or say you're guessing
 - [No invented rationale](~/.claude/memory/feedback_no_invented_rationale.md) — asked to add a rule, record the rule and its replacement; don't supply a "why" you guessed
 - [Live values = read the system](~/.claude/memory/feedback_live_values_source_of_truth.md) — rates/prices/config/deployed-state change without a commit; read the live source (DB/live page/doppler), never cite a doc snapshot as current
-- [Machine coordinates](~/.claude/memory/machines-private.secret.md) — encrypted (transcrypt); Tailscale tailnet names/IPs for the user's machines — use these to make any project reach one machine from another, never `*.local` or LAN IPs
+- [Machine coordinates](~/.claude/memory/machines-private.secret.md) — encrypted (transcrypt); Tailscale tailnet names/IPs for the user's machines, plus the SSH login for the Windows desktop — use these to make any project reach one machine from another, never `*.local` or LAN IPs; platform mechanics in `learnings/windows-openssh-over-tailscale.md`
 - [Minimal UI chrome](~/.claude/memory/feedback_minimal_ui_chrome.md) — no duplicate state signals, no field help text, no card blurbs; icon over text button; state in a badge, never a placeholder
+- [Empty state names the filter](~/.claude/memory/feedback_empty_state_names_the_filter.md) — say what the filter hid, never that nothing happened; "show everything" is one click away and disproves it
+- [Desktop first, phone later](~/.claude/memory/feedback_desktop_first_then_phone.md) — no breakpoint tuning while the look is still moving; phone gets its own pass
 - [Deploy and publish are separate verbs](~/.claude/memory/feedback_deploy_publish_separate_verbs.md) — `deploy` runs it here, `publish` ships it out; own script each, never `deploy publish`
 - [No per-prompt hooks](~/.claude/memory/feedback_no_per_prompt_hooks.md) — never a hook on every prompt (worse if blocking); use an observable guideline or an on-demand check
 - [Extend the schema, don't free-text it](~/.claude/memory/feedback_extend_schema_not_freetext.md) — data that doesn't fit gets a new field, offered and priced honestly, not stuffed into a comment
