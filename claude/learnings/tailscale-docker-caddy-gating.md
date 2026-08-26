@@ -121,6 +121,16 @@ So diagnose in that order — resolver first, then the OS. `ipconfig /flushdns` 
 matched. Tailscale's docs offer per-device hosts entries as the supported fallback, and that is the quickest way
 to unblock one machine:
 
+**The inverse trap, once split-DNS *is* working: your own workstation cannot tell you what the public record
+says.** On a tailnet-connected machine a plain `dig name` returns the split answer — the `100.x` address — so
+it is easy to conclude that the public A record points at a tailnet IP (and to start "explaining" how the
+public cert was ever issued for it). Always check a public record against a resolver outside the tailnet:
+
+```
+dig +short name.example.com               # split-DNS answer: 100.x.y.z
+dig +short @1.1.1.1 name.example.com      # what the world actually sees
+```
+
 ```powershell
 Add-Content -Path "$env:SystemRoot\System32\drivers\etc\hosts" -Value "100.x.y.z name.example.com"
 ```

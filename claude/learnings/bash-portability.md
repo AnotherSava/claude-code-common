@@ -83,6 +83,28 @@ error from the tool being called, and the loop case silently "finds" everything 
 Write `${=P}` in zsh, or better, don't rely on splitting at all — quote properly and
 iterate with `while IFS= read -r`.
 
+**Unquoted `[...]` in a path is a glob, and in zsh it is fatal or silent depending on
+where it lands.** This bites hardest on Next.js dynamic routes, whose directory names
+are literally bracketed:
+
+```sh
+git diff --stat -- web/src/app/events/[slug]/page.tsx   # matches NOTHING
+npx vitest run src/app/events/[id]/page.test.ts         # "no matches found"
+```
+
+`[slug]` is a character class matching one of `s`, `l`, `u`, `g` — so the path is not the
+path you typed. Two different failures follow, and neither says "your glob was wrong":
+
+- Passed to a tool that takes a **pathspec** (`git diff`, `git add`, `git log`), the
+  non-matching pattern reaches git, matches no tracked file, and the command **succeeds
+  with empty output**. A `--shortstat` reports nothing changed and a plan built on it
+  silently omits the file.
+- Used where zsh must expand it first, zsh's `nomatch` aborts the whole command with
+  `no matches found:` — where bash would have passed the pattern through untouched.
+
+Quote the path (`'…/[slug]/page.tsx'`) or escape the brackets. Worth a habit: any path
+with `[`, `?` or `*` in it gets single-quoted, even when it looks literal.
+
 **`case … ) ;;` inside `$( … )` is a parse error in bash** (not in zsh):
 
 ```sh

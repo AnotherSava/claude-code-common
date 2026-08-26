@@ -183,6 +183,36 @@ ProgramArguments path to the binary, and `RunAtLoad: true`. Caveats:
 - The auto-launch crate (which the plugin wraps) takes a `set_app_path`,
   not a bundle path — for a `.app` bundle, point it at
   `Contents/MacOS/<binary>`.
+- **`is_enabled()` is `self.get_file().exists()`** in LaunchAgent mode
+  (`auto-launch/src/macos.rs`) — pure plist-file existence, nothing else.
+
+### The OS entry is a bad single source of truth
+
+Because `is_enabled()` only asks whether the plist exists, the plist can be
+deleted by something that is not the user — a Homebrew cask's
+`uninstall launchctl:` stanza does exactly that, on every uninstall *and*
+every upgrade. An app that enables autostart only on first run then has no
+way to tell "the user opted out" from "a packager removed it", and autostart
+silently stays off forever.
+
+The fix is to split intent from mechanism: persist a `wanted` flag in your own
+config, keep the OS entry as the mechanism, and reconcile at startup.
+
+```rust
+match config.autostart {          // Option<bool>; None = not yet recorded
+    None => { /* seed from is_enabled() so existing opt-outs survive */ }
+    Some(true) if !enabled_now => { let _ = app.autolaunch().enable(); }
+    _ => {}
+}
+```
+
+Make the repair **one-directional** — re-create a missing entry, never remove
+a present one. Turning a login item off in System Settings → Login Items marks
+it disabled in Background Task Management but leaves the plist on disk, so
+`is_enabled()` still reports true; a symmetric "config says false, so disable"
+branch would be unable to distinguish that from an opt-out and would fight the
+OS-level choice. Whatever writes the setting in your UI must write both halves,
+or the next launch will undo an "off" chosen there.
 
 ## Control+click on a tray icon must open the menu (secondary-click convention)
 
@@ -282,11 +312,30 @@ Without it, Tauri emits a *linker-signed* bundle (the executable is signed by `l
 The familiar right-click → Open trick **does not bypass it** for ad-hoc apps anymore (it still works for some unsigned cases, but not the ad-hoc + quarantine combination Gatekeeper labels as "damaged"). The two workarounds that do work for end users:
 
 - **System Settings → Privacy & Security**, scroll to the blocked-app notice, click **Open Anyway**. No terminal needed.
-- `xattr -cr "/Applications/<App Name>.app"` to strip all extended attributes (including `com.apple.quarantine`).
+- `xattr -dr com.apple.quarantine "/Applications/<App Name>.app"` to strip the quarantine flag. Prefer this over `xattr -cr`, which clears *every* extended attribute — including `com.apple.provenance`, which macOS sets on first launch and which is not yours to discard. The strip must recurse (`-r`): the attribute is written onto files inside the bundle, not just the top level.
 
 `spctl -a -vv` will always say `rejected` for ad-hoc apps — that's expected, it only means "not Apple-notarized", and is not what triggers the "damaged" error. The "damaged" error is specifically a quarantine + non-Developer-ID combination.
 
+**Do not run `spctl --assess` from a subagent, script, or any unattended context on macOS 26.** It raises a LocalAuthentication Touch ID / password dialog and *blocks* until a human answers — the unified log shows `coreautha … LADFRController _iconFromPath: /usr/sbin/spctl`, and because the dialog is named after the requesting binary it reads to the user as an offer to install something called "spctl". For unattended signature inspection use `codesign -dvvv`, `codesign -d --entitlements -`, and `xattr -l` / `xattr -r -l`, none of which prompt.
+
+For shipping one of these bundles through Homebrew, see `homebrew-cask-unsigned-macos-app.md`.
+
 Locally-built bundles (e.g. via a `deploy` script copying the .app to `/Applications/`) don't get the quarantine flag — it's only applied by browsers/email clients/downloaders when files cross the network. So your own dev workflow stays clean; only end-user downloads hit this.
+
+## `minimumSystemVersion` defaults to 10.13 and will under-declare your app
+
+`bundle.macOS.minimumSystemVersion` defaults to `"10.13"` (High Sierra), so an app that never sets it ships an `Info.plist` claiming support for macOS versions it cannot possibly run on — Tauri v2 itself needs 10.15+, and an arm64-only build needs Big Sur at minimum since no earlier macOS runs on Apple Silicon. Nothing breaks loudly; the bundle just lies, and the lie surfaces when a packaging system (a Homebrew cask's `depends_on macos:`, an installer's requirement check) is derived from it or has to contradict it.
+
+Set it explicitly to whatever the docs actually promise:
+
+```json
+"macOS": {
+  "signingIdentity": "-",
+  "minimumSystemVersion": "11.0"
+}
+```
+
+`MacConfig` is declared `#[serde(rename_all = "camelCase", deny_unknown_fields)]`, which is a useful property: a misspelled key under `bundle.macOS` is a hard build failure rather than a silently ignored setting. So `npx tauri info` parsing cleanly is real evidence the key name is right, not just that the JSON is well-formed.
 
 ## Reading the Keychain from an unsigned Tauri app
 

@@ -50,7 +50,41 @@ An ad-hoc bundle's designated requirement is `cdhash H"..."`, which changes ever
 
 Homebrew runs zap keys in a fixed order: `launchctl` → `script` → `delete` → `trash`. So a cleanup that must happen before deletions goes in `script:`, regardless of where you write it. This matters when the app installs privileged artifacts whose *recovery paths* are the files being deleted.
 
+## Post-install UX: one channel, and it is labelled for you
+
+`cask/installer.rb` hardcodes `ohai_title "Caveats"`, so **anything** a cask says after installing appears under a heading calling it a caveat. There is no second channel and no way to rename it. Keep that block to what the user must act on, and close gaps rather than documenting them.
+
+A postflight step **can** launch the app, which is the better fix when the alternative is explaining how to open it — verified working inside Homebrew's cask sandbox:
+
+```ruby
+postflight_steps do
+  run "/usr/bin/xattr", args: ["-dr", "com.apple.quarantine", "{{appdir}}/Some App.app"]
+  run "/usr/bin/open",  args: ["{{appdir}}/Some App.app"], must_succeed: false
+end
+```
+
+Order matters — launching before the strip gets refused by Gatekeeper.
+
+**Do not use `must_succeed: false` to tolerate a failed launch.** The keyword exists only on Homebrew git checkouts newer than the 6.0.18 release, and an unknown keyword makes the entire cask *unreadable* — `brew install` dies with `Cask '<token>' is unreadable: unknown keyword: :must_succeed` rather than degrading. Shell out instead, which works on every version:
+
+```ruby
+run "/bin/sh", args: ["-c", "/usr/bin/open '{{appdir}}/Some App.app' || true"]
+```
+
+**This is the trap that makes a tap CI worth having.** A local `brew` installed from git can sit a hundred-plus commits ahead of the release, so `brew style`, `brew audit` and even `brew info` (which fully evaluates the cask) all pass locally while the cask is broken for every user on stable. Local validation proves nothing about released Homebrew; the macos-latest runner is the real gate. This is non-standard for Homebrew (casks normally leave launching to the user) but it matters for a menu-bar/agent app, where an install that ends without starting anything leaves nothing on screen to click.
+
+## Uninstall does more than delete the app
+
+- `uninstall launchctl: "<Label>"` **deletes** the LaunchAgent plist, it does not merely unload it. If the app only registers autostart on first run, a test install followed by an uninstall leaves autostart silently off — the app won't re-register because it isn't a first run any more, and the plist is gone.
+- Homebrew moves the app back to the Caskroom before removing it (`Backing up App … to /opt/homebrew/Caskroom/<token>/<version>/`), so an uninstall is recoverable until the version is purged.
+- `moved.rb` raises `CaskError` ("It seems there is already an App at …") when the target path is occupied and neither `--force` nor `--adopt` is given. So a clean `Moving App` line means the destination really was empty — useful for telling "brew overwrote my build" apart from "the path was already clear".
+- **Reinstall and upgrade run the uninstall phase first**, so every `brew upgrade --cask` re-fires `quit:`, `signal:` and `launchctl:` — the LaunchAgent deletion is not a once-per-uninstall event.
+- **Deleting the app by hand does not tell brew.** The install record lives in the Caskroom, so `rm -rf /Applications/Foo.app` followed by `brew install` prints `Warning: Not upgrading <token>, the latest version is already installed` and does nothing at all. `brew reinstall --cask <token>` is the way out; `brew uninstall --cask` then install also works. Worth knowing before concluding the cask is broken.
+
 ## Automation
+
+**`brew audit --online` needs a token in CI.** It calls the GitHub API to validate the homepage and release URL; unauthenticated that is 60 requests/hour shared across every job on the runner's IP, so the step fails at random with `API rate limit exceeded for <ip>` and nothing wrong with the cask. Set `HOMEBREW_GITHUB_API_TOKEN: ${{ secrets.GITHUB_TOKEN }}` on the job for 5000/hour. A red tap CI is worth reading before assuming the cask regressed — `--online` is the only network-dependent step.
+
 
 - `livecheck` with `url :url` + `strategy :github_latest` reads `tag_name` from the API, so odd asset filenames don't matter. It **cannot see draft releases** — key bump automation on `release: published`, never on build completion.
 - Fetch the checksum without downloading: `gh api repos/OWNER/REPO/releases/tags/vX.Y.Z --jq '.assets[]|select(.name|endswith(".dmg")).digest'`. The published digest matches the real file.

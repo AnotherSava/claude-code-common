@@ -60,35 +60,60 @@ glibc is newer than the runtime's, the binary fails at runtime (`GLIBC_2.xx not 
 for builder and runtime (e.g. both `ubuntu:24.04` + Node via NodeSource). This also matters when the runtime
 must be a specific distro for another baked-in binary (here: a GUI-linked CLI tool needing that distro's GTK libs).
 
-### Pin Node 22, not 24, with Prisma's SQLite adapter
+### Never source-build better-sqlite3 12.x — that is what causes the Node 24 abort
 
-`better-sqlite3` 12.x hits a fatal `node::RemoveEnvironmentCleanupHook` assertion under Node 24's stricter V8
-environment teardown: the process aborts on GC and the container crash-loops. The failure is deceptive —
-`ExitCode 0`, `OOMKilled=false`, and a **health probe that stays green while every DB-backed page 502s**. Two
-projects hit this on the same host; one logged 17 restarts in 47 minutes before it was spotted.
+**This section previously said "pin Node 22, not 24" and prescribed a forced source build. Both were wrong, and
+the source build was the actual cause of the outage. Corrected 2026-08-24 after re-deriving it from Node's own
+source.** If you followed the old advice, delete the `--build-from-source` line.
 
-The upstream fix is better-sqlite3 13's N-API rewrite, and it is **unreachable**: `@prisma/adapter-better-sqlite3`
-declares `better-sqlite3: ^12.6.0` as a hard **dependency** (not a peer), so the app gets 12.x whatever it asks
-for. Verified across every adapter release through 7.9.1 (2026-08-19). Node 22 is the only exit until Prisma
-widens that range — re-check with `npm view @prisma/adapter-better-sqlite3 dependencies` before bumping.
+The symptom: `better-sqlite3` 12.x aborts on GC with a fatal `node::RemoveEnvironmentCleanupHook` in
+`Statement::~Statement()`, and the container crash-loops. Deceptive as ever — `ExitCode 0`, `OOMKilled=false`,
+and a **health probe that stays green while every DB-backed page 502s**. One project logged 17 restarts in 47
+minutes before it was spotted.
 
-Also force a source build of the native module, in the builder stage only:
+The mechanism is **not** a tightened assertion. `src/api/hooks.cc` is byte-identical across 22.x and 24.x. What
+changed is **`src/node_object_wrap.h` in v24.19.0** (2026-08-03): `node::ObjectWrap`'s constructor gained an
+`AddCleanupHook()` call and its destructor a `RemoveCleanupHook()`. So the abort is inherited **from a header at
+compile time** by any legacy non-N-API addon deriving from `node::ObjectWrap` — which 12.x's `Statement` does.
+Measure it rather than trusting this: `nm -u <addon>.node | grep -c RemoveEnvironmentCleanupHook` is 0 on the
+upstream prebuild and 2 on a build against ≥24.19 headers. Open Node regression nodejs/node#65446; fix #65042 is
+blocked and in no released 24.x. Versions ≤24.18.1 and 22.x are header-clean, as is 25.9.0 (it predates the change).
+
+**So the fix is to stop compiling it.** The upstream ABI-137 prebuild is built against pre-24.19 headers and is
+immune on any Node 24 — verified by executing it: 120,000 churned statements with forced GC on real v24.19.0, no
+abort. Delete the rebuild line, keep the base floating, and assert the property on the artifact:
 
 ```dockerfile
-RUN apt-get update && apt-get install -y --no-install-recommends build-essential python3
-RUN npm ci && npm rebuild better-sqlite3 --build-from-source
+RUN npm ci \
+ && BS3=node_modules/better-sqlite3/build/Release/better_sqlite3.node \
+ && if [ ! -f "$BS3" ]; then echo "FATAL: $BS3 not installed" >&2; exit 1; fi \
+ && if grep -qa RemoveEnvironmentCleanupHook "$BS3"; then \
+      echo "FATAL: built against >=24.19 headers; aborts on GC (nodejs/node#65446)" >&2; exit 1; fi
 ```
 
-`prebuild-install` fetches from GitHub's release-asset CDN, which is not reachable from every datacentre — that
-cost two failed image builds before it was pinned. Compiling against the image's own Node also makes the build
-deterministic rather than dependent on a download succeeding.
+Assert the **property, not the provenance**: `npm ci` runs `prebuild-install || node-gyp rebuild`, so a failed
+CDN fetch silently falls back to compiling and the build stays green. Checking the artifact catches that however
+it arose. Re-assert on the traced standalone copy in the runtime stage too — that is the binary that ships, and
+Next reaches it by a computed `require` path a tracer could drop. (The old CDN-reachability worry that motivated
+the source build is real but is now a *loud* build failure, which is the right trade.)
+
+**better-sqlite3 13.x is the N-API rewrite and is immune on any Node — and was still rejected.** It is
+behaviourally equivalent (differential-tested through the real adapter: 27/27 adapter and 59/59 driver assertions
+byte-identical). It loses on: a **~2.3×–10× resident-memory regression** under the per-query `prepare()` churn a
+Prisma driver adapter inherently produces (raw path 47 MB → 607 MB, *rising* to 680 MB after `close()`+`gc()`,
+monotonic and invisible to V8 because it is native — reproduced independently, unreported upstream); **npm/cli#9837**,
+where npm ships `binding.gyp` and ignores `gypfile:false`, so `npm ci` synthesises `node-gyp rebuild`, making
+`python3`+`build-essential` load-bearing and breaking clean installs on Windows (upstream #1516); and the fact
+that reaching it needs an `overrides` block that is **silently deletable** — remove it and npm resolves 12.11.x
+*nested* under the adapter with exit 0, restoring `ObjectWrap` and the abort with nothing to catch it. Prisma's
+adapter still declares `better-sqlite3: ^12.6.0` in every release and dev build through 7.10.0-dev.58.
 
 - `npm ci` installs deterministically from the lockfile regardless of npm minor, so a Corepack round-trip in the
   image is unnecessary (and adds a build-time network failure mode) — the distro's bundled npm is fine for `ci`.
 
 ## Naming the runtime env file `<app>.env` defeats both ignore files at once
 
-Giving the rendered production env file a per-app name — `whats-next.env`, `printlab.env` — reads well beside a
+Giving the rendered production env file a per-app name — `tracker.env`, `storefront.env` — reads well beside a
 co-tenant's file, and matches **neither** `.env` nor `.env.*`. Scaffolds ship exactly those two patterns in
 `.gitignore` and `.dockerignore`, so a per-app name is silently covered by neither. Two consequences, both severe
 and both invisible in review:
@@ -119,7 +144,7 @@ Two things that only bite on a box hosting more than one app.
 the file, not with `COMPOSE_PROJECT_NAME` in a shell that only you export:
 
 ```yaml
-name: whats-next
+name: tracker
 ```
 
 Do it before the first real data exists. The project name is *part of the volume name*, so renaming later orphans

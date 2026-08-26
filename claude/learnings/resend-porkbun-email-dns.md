@@ -32,6 +32,8 @@ curl -s -X POST https://api.resend.com/domains/$ID/verify -H "Authorization: Bea
 - Domain `status` lifecycle: `not_started` → `pending` (right after POST `/verify`) → `verified` (or `failure`). Verification is **asynchronous** — poll `GET /domains/:id` every ~15s; it typically flips within a minute once records resolve.
 - `GET /domains/:id` returns the exact `records` Resend expects (DKIM/SPF values) — diff these against live DNS to spot a mismatch before triggering verify.
 - Keep the full-access management key **separate** from the app's send-only key (different blast radius); store it outside the app, alongside other registrar/infra creds.
+- **Mint a per-app send-only key from the management key** rather than reusing a neighbouring app's: `POST /api-keys` with `{"name":"<app>-prd-send","permission":"sending_access"}` returns `{"id","token"}`. Pipe the token straight into the secret store — it is shown once. Sharing one app's send key with another couples them: rotating it breaks something that never asked for the change.
+- **`api.resend.com` sits behind Cloudflare, which blocks some default user agents.** Python's `urllib` gets `HTTP 403` with a body of `error code: 1010` and no JSON at all — that is Cloudflare's client-signature block, not Resend's error shape, and nothing to do with the credential. The identical request via `curl` returns 200. Read the body before concluding a key is dead: a genuine restricted-key rejection is a `401` with JSON `{"name":"restricted_api_key"}`, per the bullet above.
 
 ### Resend domain DNS records (Amazon SES under the hood)
 
