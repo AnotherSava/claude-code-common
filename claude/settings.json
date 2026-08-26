@@ -8,6 +8,12 @@
   "permissions": {
     "defaultMode": "auto"
   },
+  "autoMode": {
+    "soft_deny": [
+      "$defaults",
+      "Push to GitHub [named+specifics — **must name:** the missing authorization — that the user has not asked for this push, in their own words or by affirming a proposal to push; when the destination is a remote other than the session repo's origin, also name that remote]: Any push of commits, branches, or tags to a GitHub remote — `git push` in every form (`-u`/`--set-upstream`, `--tags`, `--follow-tags`, and pushes run indirectly from a script, alias, git hook, Makefile target, or skill; a script the agent wrote or edited this session is judged both when written and when run), `gh pr create`, `gh release create`, and REST/GraphQL writes that create refs, commits, or file contents (`gh api` on `/git/refs`, `/git/commits`, `/contents/`). This rule overrides the Git Push Destination allow exception: that exception blesses the destination only and never establishes that the user asked for a push. When the remote host is not visible in the command or a meta line, treat the push as covered by this rule. Having commits ready, finishing a task, or writing a commit message is not authorization. Clears when the user asked for this push in the current session — \"push\", \"commit and push\", \"open a PR\", \"cut a release\", or a user turn invoking `/commit`, `/pr-create`, or `/release` (each of which pushes). That request covers pushes of the work it referred to; new work the user did not ask to push needs a new request, and \"push whenever you commit\" is a standing grant for the session. `git push --dry-run` is not this rule."
+    ]
+  },
   "hooks": {
     "PreToolUse": [
       {
@@ -56,15 +62,6 @@
           {
             "type": "command",
             "command": "[ -n \"$AGWINTERM_SESSION_ID\" ] && \"$CLAUDE_AGWINTERM/agwintermctl.exe\" session status active >/dev/null 2>&1 || true",
-            "async": true
-          }
-        ]
-      },
-      {
-        "hooks": [
-          {
-            "type": "command",
-            "command": "[ -n \"$AGTERM_SESSION_ID\" ] && \"$HOME/.config/agterm/agent-status/agterm-agent-status.sh\" active --blink >/dev/null 2>&1 || true",
             "async": true
           }
         ]
@@ -134,15 +131,6 @@
           {
             "type": "command",
             "command": "[ -n \"$AGWINTERM_SESSION_ID\" ] && \"$CLAUDE_AGWINTERM/agwintermctl.exe\" session status active >/dev/null 2>&1 || true",
-            "async": true
-          }
-        ]
-      },
-      {
-        "hooks": [
-          {
-            "type": "command",
-            "command": "[ -n \"$AGTERM_SESSION_ID\" ] && \"$HOME/.config/agterm/agent-status/agterm-agent-status.sh\" active --blink >/dev/null 2>&1 || true",
             "async": true
           }
         ]
