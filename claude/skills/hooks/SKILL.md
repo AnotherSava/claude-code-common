@@ -51,8 +51,14 @@ expensive mistake available here.
 
 ## 3. Choose `async` deliberately
 
-Default `async: true`. A synchronous hook is on the user's critical path, so reserve it for the
-cases that must return a decision or context to the model:
+**The default is `async: false`, i.e. blocking**, as `references/events-and-payloads.md` states. This line
+claimed the opposite until 2026-08-24; the worked example in this very tree disproves it, since
+`skill-tracked.py` sets no `async` key and does deliver `additionalContext`, which a backgrounded hook cannot.
+Set the value explicitly in any hook whose usefulness depends on it, rather than trusting either sentence — the
+failure is silent, and a hook that runs and delivers nothing looks exactly like one with nothing to say.
+
+A blocking hook sits on the user's critical path, so mark everything `async: true` except the cases that must
+return a decision or context to the model:
 
 - a permission decision (`hookSpecificOutput.permissionDecision`)
 - `additionalContext` the model needs this turn

@@ -43,11 +43,19 @@ means the human has not typed, not that the model finished.
 Gates on tool *arguments* and is evaluated before any process spawns:
 
 ```json
-{ "matcher": "^Write$", "if": "Write(//**/SKILL.md)", "hooks": [ ... ] }
+{ "matcher": "^Write$", "hooks": [ { "type": "command", "if": "Write(//**/SKILL.md)", "command": "…" } ] }
 ```
+
+**Put `if` inside the hook object**, as above. This example previously showed it as a sibling of `matcher`;
+whether that form also works is untested, and the live `settings.json` — the only instance known to fire — uses
+the placement shown here. Prefer the proven one.
 
 The `//` root anchor is mandatory. Without it the rule matches nothing and the hook silently never
 runs — it fails closed and quietly, so verify it fires before assuming it works.
+
+Neither this file nor the SKILL.md documents an `Edit(…)` form, or several patterns in one condition. Only
+`Write(//**/SKILL.md)` appears anywhere, so a hook needing to cover both tools or several paths wants one entry
+per pattern until someone establishes otherwise by testing.
 
 ## Async and timeouts
 

@@ -46,7 +46,9 @@ Audit modified files for dead code, duplication, naming conventions, and import 
 
 5. **Optimize imports in modified source code files** — if the project has a linter/formatter that organizes imports (ruff, isort, …), run its autofix (e.g. `ruff check --fix`) rather than hand-editing; only hand-optimize when none exists. Some projects deliberately exclude import cleanup from their edit-time lint hook and defer it to commit time, so this step is where it actually gets applied.
 
-6. **Report** what was cleaned up. If nothing was found, say so.
+6. **Re-run the project's real gate if you changed anything** — the command the deploy runs, not the cheap one. Everything this skill does is a refactor, and a refactor is precisely what slips past tests and lint: extracting a helper gives a value an explicit type it never had inline, so a parameter narrower than what callers pass becomes a type error neither a test suite nor a linter can see. Prefer the build (`npm run build`, `cargo build`, `go build`) over a standalone type-check script — on a clean tree the latter may fail to resolve framework-generated types and will then pass while the build fails. Judge it by exit status, not by grepping the output for error text, since a pipe through `grep` throws the status away. If the gate fails, fix it here rather than handing back a change set that does not build.
+
+7. **Report** what was cleaned up, and name the gate you re-ran. If nothing was found, say so.
 
 ## Out of scope
 

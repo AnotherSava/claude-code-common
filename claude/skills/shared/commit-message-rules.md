@@ -22,7 +22,7 @@ Summarize the "why" not just the "what".
 - Type prefix not repeated in description (e.g. not "refactor: refactor...")
 - No capitalized first word after type prefix
 - Do not list files or file-level descriptions in the body
-- Focus on why the changes were made, not just what
+- Explain *why* only where the reason is yours to explain (see below)
 
 ## Match the body to the change's reach
 
@@ -36,6 +36,16 @@ Summarize the "why" not just the "what".
   read it, not in a message nobody consults while adding the next entry.
 - Save the "why" body for code, schema, and workflow changes, where a later reader has to
   reconstruct intent from the diff.
+- **Explain the reason only when the reason is yours.** A change the user asked for needs no
+  justification: they know why they wanted it, and anything written there is a guess at their
+  motive dressed up as a record. State what the change does and stop. A change that came from
+  your own initiative — a bug fix, a refactor, a defensive guard, a rename nobody requested —
+  is the opposite: nothing in the diff says why you thought it was worth doing, so that belongs
+  in the body. The test is who would be surprised to find the change in the log.
+- **Don't restate the code's own comments.** Reasoning already written beside the code is read
+  by everyone who reads the diff, and repeating it in the message only gives the two copies room
+  to drift. Put in the body what the diff cannot carry — a measurement, a rejected alternative,
+  an external constraint.
 
 ## Attribution
 
