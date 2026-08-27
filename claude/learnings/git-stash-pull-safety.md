@@ -27,6 +27,25 @@ Two things that are less fragile than they look:
   untouched. The one hazard is an incoming commit that *adds* a path matching an existing
   untracked file; check the incoming file list for collisions first.
 
+## Clearing the merge state after a conflicted pop
+
+A `git stash pop` that conflicts **keeps the stash entry** ("The stash entry is kept in case
+you need it again"), so dropping it is a separate, deliberate step once the resolution is
+verified. Until then the conflicted paths sit in the index as `UU` while everything else in
+the tree is unstaged. Marking them resolved means `git add`, which also stages them — leaving
+a tree split between staged and unstaged work that nobody asked for. A bare `git reset`
+(mixed, no paths) afterwards clears the unmerged entries *and* the staging without touching
+the resolved content in the working tree:
+
+```bash
+git add path/one.md path/two.md   # marks resolved
+git reset -q                      # back to an all-unstaged tree
+git stash drop
+```
+
+Worth doing wherever the repo's convention is that nothing is staged until a commit flow
+runs — a half-staged tree reads as deliberate intent to the next thing that looks at it.
+
 ## Is an old stash still worth keeping?
 
 `git apply --check` (and `--check -R`) is a poor staleness test. Once surrounding lines

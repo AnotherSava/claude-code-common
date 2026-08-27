@@ -326,3 +326,159 @@ account your app reports progress for.
 - `GET /Users/{userId}/Items/{itemId}` is gone — returns an empty body. Use `GET /Items?userId=…&ids=…`.
 - `GET /Users/Me` answers 400 even with valid auth; `/System/Info` is a better auth smoke test (401 unauthenticated).
 - `POST /Auth/Keys?App=<name>` returns 204 with no body — list `GET /Auth/Keys` afterwards to find what was made.
+
+## Without an H.264 CodecProfile the server advertises a codec string it then contradicts
+
+**The highest-value gotcha here.** Told nothing about H.264 limits, Jellyfin defaults to advertising **Baseline level
+4.1** in the manifest while encoding at whatever size the bitrate ceiling allows. Level 4.1 permits 8192 macroblocks;
+a 2560×1384 stream is 13920. Chrome accepts the codec string (`MediaSource.isTypeSupported` returns **true**), builds
+a decoder for the promised level, is fed frames that exceed it, and **renders a handful of frames then stops dead** —
+no error event, no stall event. It reads as a broken player, not a refused stream.
+
+```
+no CodecProfile            → CODECS="avc1.424029"  (Baseline, level 0x29 = 4.1)
++ VideoLevel <= 52         → CODECS="avc1.424033"  (Baseline, level 0x33 = 5.1)
++ VideoProfile high|main|… → CODECS="avc1.640033"  (High 0x64, level 5.1)
+```
+
+Always send:
+
+```jsonc
+{ "Type": "Video", "Codec": "h264", "Conditions": [
+  { "Condition": "EqualsAny",     "Property": "VideoProfile", "Value": "high|main|baseline|constrained baseline", "IsRequired": false },
+  { "Condition": "LessThanEqual", "Property": "VideoLevel",   "Value": "52", "IsRequired": false }
+]}
+```
+
+Level is in tenths (52 = 5.2) and is a **ceiling** — asked for 5.2 the server worked out that 5.1 covered the file and
+said so. Verified across 14 titles that adding this changes no title's direct-play/transcode decision; only the
+advertised string moves.
+
+### `ProfileCondition` wire format has two surprising defaults
+
+- **`Value` is a C# `string`.** Emitting `"Value": 1280` as a JSON number fails model binding and 400s the *whole*
+  PlaybackInfo request, not just the condition.
+- **`IsRequired` defaults to `true`** (the parameterless constructor sets it). A required condition the server cannot
+  evaluate — a source whose Width the probe never filled in — counts as **failed**, so an omitted `IsRequired` makes a
+  resolution cap refuse to play exactly the files with the thinnest metadata. State `false` explicitly.
+
+## `MaxStreamingBitrate` caps bitrate only — it never scales the picture
+
+Verified live: a 3 Mbps cap on a 4K source came back as `VideoBitrate=2616000` with **no `MaxWidth`/`MaxHeight` on the
+TranscodingUrl at all** — a 1080p-sized stream squeezed into 3 Mbps, which looks worse than the 720p you wanted.
+`PlaybackInfoDto` has no width/height field. Resolution has to come from `CodecProfiles` conditions
+(`Width`/`Height` `LessThanEqual`), which the server then resolves into `&MaxWidth=&MaxHeight=` on the URL it hands
+back — so the use-the-URL-verbatim rule still holds. Pin both dimensions: a lone `MaxHeight` is discarded.
+
+## Adaptive bitrate streaming is a dead end — build your own ladder
+
+`enableAdaptiveBitrateStreaming` on `master.m3u8` **defaults to false**, the `TranscodingUrl` the server builds never
+sets it, and jellyfin-web never sets it either (code search: 0 hits in both `MediaBrowser.Model` and jellyfin-web).
+Even switched on, `DynamicHlsHelper` adds only two rungs at `total − variation` and `total − 2×variation`, where
+`GetBitrateVariation` gives 2 Mbps for anything ≥10 Mbps — a 20/18/16 Mbps "ladder". And `EnableAdaptiveBitrateStreaming`
+returns false when the client is **on the local network** ("this will likely do more harm than good"), when the output
+video codec is a **copy** (the common case), when the audio codec is a copy, or on a live stream.
+
+So a quality change is a **re-negotiation**: new `PlaybackInfo` → new `TranscodingUrl` → re-attach at the current
+position. That is what jellyfin-web's own quality menu does (`changeStream(player, getCurrentTicks(player), {...})`),
+plus a one-shot pre-flight `/Playback/BitrateTest`. It never auto-downshifts mid-play.
+
+**Re-negotiate rather than rewriting the URL in place**: a fresh `PlaybackInfo` mints a new `PlaySessionId`, and
+`KillTranscodingJobs` matches on session id — rewriting in place makes your teardown kill the *new* job.
+
+## Segment requests BLOCK until the file exists — which is what makes faults separable
+
+Jellyfin serves an HLS segment by holding the HTTP request open in a ~100 ms poll loop until the segment file is on
+disk (no timeout; only the client's cancellation token). So:
+
+- **ffmpeg below realtime** → the wait lands entirely in **time-to-first-byte**; bytes then flow at full speed.
+- **A slow link** → TTFB is short and the wait lands entirely in **transfer time**.
+
+Over a segment of length `D`, with `rate` the stream's bitrate and `X` measured throughput:
+
+```
+1/R = TTFB/D + rate/X          (R = multiples of realtime achieved)
+```
+
+Two additive terms, and each *is* one of the two causes. This is the whole basis for telling "your connection can't
+keep up" from "the server can't transcode this fast" client-side, with no server cooperation.
+
+Corollary: a healthy segment already on disk is a plain file read, so TTFB is far below any network round trip. A
+useful server-side threshold is `TTFB > max(0.5·D, 4 × baseline_round_trip)`.
+
+## `TranscodingInfo` only populates when a client reports playback
+
+`GET /Sessions` shows no `TranscodingInfo` if you fetch segments with raw HTTP — the session is only filled in once a
+client posts to `/Sessions/Playing`. To confirm what ffmpeg actually did, read the **server log** instead; it records
+the full command line:
+
+```
+MediaBrowser.MediaEncoding.Transcoding.TranscodeManager: "ffmpeg" "-analyzeduration 200M -probesize 1G
+  -init_hw_device cuda=cu:0 -filter_hw_device cu -hwaccel cuda -hwaccel_output_format cuda … scale_cuda=w=2560:h=1384
+  … tonemap_cuda … -preset p1 -b:v 19616000 … h264_nvenc"
+```
+
+Software output has no `-hwaccel` at all. `-preset p1` is NVENC-only (libx264 uses named presets), so the preset alone
+tells you which encoder ran.
+
+## The probe hands the CONTAINER bitrate to the video stream
+
+`ProbeResultNormalizer`: when ffprobe reports no per-stream `bit_rate` — the ordinary case for mkv — it assigns the
+**format's** total bitrate to the video stream, and this runs *before* the BPS/NUMBER_OF_BYTES tag fallbacks, so it
+wins even on mkvmerge files carrying real per-stream tags. Any logic comparing a rung or ceiling against
+`MediaStreams[video].BitRate` is comparing against a figure inflated by roughly the audio tracks. Require a margin
+(e.g. only offer a cap ≤ 0.75 × reported) rather than treating it as exact.
+
+## Dolby Vision profile 8 is cross-compatible — the base layer is plain HEVC
+
+A DoVi file does **not** mean the browser is locked out. For a cross-compatible profile the manifest advertises the
+HEVC Main 10 base layer as the primary codec and offers DoVi only as an optional upgrade:
+
+```
+CODECS="hvc1.2.4.L150.B0,mp4a.40.2"
+SUPPLEMENTAL-CODECS="dvh1.08.06/db1p"
+VIDEO-RANGE=PQ
+```
+
+Chrome 151 on a machine with HEVC hardware: `hvc1.2.4.L150.B0` → `isTypeSupported` **true**; `dvh1.08.06` → **false**.
+So a stream copy plays, as HDR10 rather than Dolby Vision. Judge decodability from the **primary** `CODECS` string,
+never from `VideoRangeType: "DOVIWithHDR10Plus"` on the stream metadata.
+
+Caveat: a copy cannot be tone-mapped, so on an SDR display HDR content may look washed out. Whether to raise the
+bitrate ceiling past the source (→ remux, HDR on the wire) or keep it below (→ tone-mapped SDR transcode) is a real
+trade-off, not a clear win either way.
+
+## Two server-side bitrate caps can silently clamp you
+
+Both default to `0` (unlimited), and either will quietly override whatever your profile asks for:
+
+- `GET /System/Configuration` → `RemoteClientBitrateLimit`
+- Per user: `GET /Users` → `Policy.RemoteClientBitrateLimit`
+
+Check these before concluding your own ceiling is the constraint.
+
+## Enabling NVENC is pure config — and three fields, not one
+
+On a host with the GPU present and jellyfin-ffmpeg already carrying `h264_nvenc`/`hevc_nvenc` and a `cuda` hwaccel
+(check with `ffmpeg -encoders | grep nvenc` and `ffmpeg -hwaccels`), `POST /System/Configuration/encoding`:
+
+```jsonc
+{ "HardwareAccelerationType": "nvenc",                                  // nothing else takes effect without this
+  "HardwareDecodingCodecs": ["h264","hevc","vp9","av1","vc1"],          // defaults are ["h264","vc1"] — hevc matters
+  "EnableTonemapping": true }                                           // HDR→SDR; without it output is grey/washed
+```
+
+POST the **full** object back (it replaces, not merges). `EnableHardwareEncoding` and `EnableEnhancedNvdecDecoder`
+default true already and are inert while the type is `none` — a stock server looks equipped but does everything in
+software. No restart needed.
+
+Watch the byproduct: with tone mapping previously off, HDR transcodes come out flat and therefore compress to
+implausibly low bitrates. A *rise* in output bitrate after enabling it is the expected sign, not a regression.
+
+### Transcodes write the whole film to disk by default
+
+`EnableThrottling` and `EnableSegmentDeletion` both default **false**, so ffmpeg races to the end of the film whether
+or not anyone is watching, and keeps every segment. Turn both on (`ThrottleDelaySeconds` 180, `SegmentKeepSeconds` 720
+are sane defaults). Note that throttling deliberately pauses ffmpeg, which in principle can look like a slow transcode
+to a TTFB-based diagnostic — it engages only once the client is far ahead, so the segments being asked for are already
+written.

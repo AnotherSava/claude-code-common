@@ -148,7 +148,13 @@ If each "row" in your list is its own `display: grid` container, each row comput
 
 Now all rows participate in the parent's column track sizing — `auto` columns size to the widest content across all rows, and right-aligned cells stack vertically.
 
-Requires Chrome 117+ / Firefox 125+ / Safari 16+. Note `gap` is inherited from the parent in a subgrid; setting `gap` on a subgrid row has no effect.
+Requires Chrome 117+ / Firefox 125+ / Safari 16+.
+
+**Keep the row as a spanning item, not `display: contents`.** Dissolving each row into bare cells also aligns the columns, but the row then generates no box — so per-row background, hover shading and borders have nothing to attach to (see the `display: contents` section below). `grid-column: 1 / -1` + `grid-template-columns: subgrid` gets the alignment *and* keeps one box per row.
+
+**Gaps: inherited by default, but overridable** — corrected August 2026; an earlier version of this note claimed a subgrid's own `gap` had no effect, which is wrong. Per MDN and Grid Level 2, "any `gap`, `column-gap`, or `row-gap` values specified on the parent are passed into the subgrid," and "this default behavior can be overridden by applying `gap-*` properties on the subgrid container." The spec's own example sets `row-gap: 0` on a subgrid inside a `gap: 20px` parent. So a row can space its own columns even when the parent declares no gutters at all — which is the normal case when the parent grid exists purely to own the track template.
+
+**To widen ONE inter-column gap**, padding on a cell is the lever — `column-gap` can only move all of them at once. With an `auto` track the cell's padding grows the track, so `padding-right` on a right-aligned cell reads as extra space before the next column. Uniform padding across rows is safe: a subgrid item's padding insets its first and last tracks relative to the parent's lines, so rows with *differing* padding would misalign, but identical padding shifts every row the same way.
 
 ## Confine scroll to a child region — flex column + `min-height: 0`
 
