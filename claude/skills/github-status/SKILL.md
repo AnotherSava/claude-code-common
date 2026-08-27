@@ -66,6 +66,8 @@ Read the "Uncommitted changes" and "Unpushed commits" sections from the script o
 - If a repo has only one kind, describe just that.
 - Repos with `—` in the DESCRIPTION cell stay as `—`.
 
+**The table is a snapshot taken before this analysis.** If a repo's state moves while you are reading its diffs — a sibling Claude session committing mid-run is the usual cause, and the giveaway is a `git diff` that comes back empty for a row the table listed as dirty — re-run the script and render from the fresh output. Do not render a row you already know is stale, and say in the report that you re-ran and why.
+
 Then **render the final table with the script's own renderer** — do NOT hand-draw the box table. The DESCRIPTION column stretches to fill the `--width` you pass (the same width detected in step 2), padding short text to the right edge and wrapping long text across lines — fiddly to reproduce by hand. Build a JSON spec with the descriptions filled in and pipe it to `--render`, passing the same `--width <N>`:
 
 ```
