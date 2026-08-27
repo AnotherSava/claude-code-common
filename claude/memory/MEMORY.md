@@ -93,3 +93,4 @@
 - [State an enforcement's reach](feedback_state_the_enforcement_reach.md) — never conclude more broadly than the check you cite delivers; name what it cannot see, since that boundary is permanent
 - [Rehearsals must not mimic the real signal](feedback_rehearsal_must_not_mimic.md) — a test must be unmistakable in the part read first (subject line), and must not consume the real alert's rate limit
 - [Name with a metaphor in a shared namespace](feedback_name_with_metaphor.md) — a vivid name is safer than a category word; nobody accidentally picks a metaphor, and `ingress` is already Docker Swarm's
+- [Local deploys come with a URL](feedback_local_deploy_give_url.md) — reporting a site runs locally without its address isn't a report; give scheme+host+port+path, link the page that matters, and say whether it's still up

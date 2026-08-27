@@ -13,4 +13,6 @@ Getting the user's real terminal width from inside a skill or tool is not straig
 
 Because the detection must happen outside the piped process, width-dependent rendering also can't live in a skill's `!` context line — that always renders at the fallback width. Detect the width in a process step, then pass it down.
 
+**The PowerShell tool is not present in every session.** Observed 2026-08-26: a session had no PowerShell tool at all — absent from the tool list, and a `ToolSearch` for it returned no deferred match — which leaves *no* source of the real width, since every Bash route above is already ruled out. Don't burn turns hunting for a substitute; there isn't one. Pin the width in the consuming skill's own config instead: `github-status` reads a `GHS_WIDTH` line from `~/.claude/skills/github-status/config/config.env`, which sits ahead of detection in its fallback chain (`--width` → `GHS_WIDTH` env → config.env → detected width → 120).
+
 Applied in the `github-status` skill: it detects the width (PowerShell tool), subtracts 2, and passes `--width N` to `repos-status.py`, whose DESCRIPTION column is elastic (fills the remaining width, wraps long text). See `claude/skills/github-status/SKILL.md` in the Claude dotfiles repo.

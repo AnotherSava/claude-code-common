@@ -103,6 +103,7 @@ A live list of phrases I lean on too heavily. They are banned in all authored te
 - **"landed"** — banned in every sense, not just the merge/ship one. Also covers a feature being implemented ("the retry logic landed in `client.ts`"), a fix taking effect, or a value settling. Say what actually happened instead: "added", "implemented", "merged", "committed", "is in `main`", "now lives in `client.ts`".
 - **"smoking gun"** — with the rest of the detective register: "the culprit", "case closed", "caught red-handed", "the plot thickens". Name the evidence and what it shows: "the log records the move", "this line is what does it", "that confirms it".
 - **"earn its keep" / "earned its keep"** — and the same reflex in "paid for itself", "worth its weight". State the result instead: "the review found four defects", "that check caught the truncated file", "worth running".
+- **"load-bearing"** — banned in every sense, not just the it-looks-cosmetic-but-isn't one: a line, a flag, a comment, a whitespace character, an assumption. Say what actually depends on it: "required", "the parser reads this", "removing it breaks the retry path", "three call sites rely on it".
 
 ## Code Style
 
@@ -214,7 +215,7 @@ Cross-project preferences and feedback. Memory files live in `~/.claude/memory/`
 - [Check a destination is not published](~/.claude/memory/feedback_check_destination_visibility.md) — before moving anything into a shared/dotfiles repo, check `gh repo view --json isPrivate` AND `git check-ignore`; untracked is not ignored
 - ["Not run" must not look like "passed"](~/.claude/memory/feedback_not_run_is_not_pass.md) — a check that can't tell success from never-ran turns an open problem into a closed-looking one; probe the precondition, assert the artifact, print NOT COVERED
 - [Write the procedure to find the missing artifact](~/.claude/memory/feedback_write_the_procedure.md) — review asks "is this right", a runbook asks "does this exist"; run the commands a doc quotes rather than predicting their output
-- [No guessed facts](~/.claude/memory/feedback_no_guessed_facts.md) — don't state a guessed URL/path/endpoint as known; verify it or say you're guessing
+- [No guessed facts](~/.claude/memory/feedback_no_guessed_facts.md) — don't state a guessed URL/path/endpoint or capability claim as known; verify it or say you're guessing
 - [No invented rationale](~/.claude/memory/feedback_no_invented_rationale.md) — asked to add a rule, record the rule and its replacement; don't supply a "why" you guessed
 - [Live values = read the system](~/.claude/memory/feedback_live_values_source_of_truth.md) — rates/prices/config/deployed-state change without a commit; read the live source (DB/live page/doppler), never cite a doc snapshot as current
 - [Machine coordinates](~/.claude/memory/machines-private.secret.md) — encrypted (transcrypt); Tailscale tailnet names/IPs for the user's machines, plus the SSH login for the Windows desktop — use these to make any project reach one machine from another, never `*.local` or LAN IPs; platform mechanics in `learnings/windows-openssh-over-tailscale.md`
@@ -225,6 +226,7 @@ Cross-project preferences and feedback. Memory files live in `~/.claude/memory/`
 - [No per-prompt hooks](~/.claude/memory/feedback_no_per_prompt_hooks.md) — never a hook on every prompt (worse if blocking); use an observable guideline or an on-demand check
 - [Extend the schema, don't free-text it](~/.claude/memory/feedback_extend_schema_not_freetext.md) — data that doesn't fit gets a new field, offered and priced honestly, not stuffed into a comment
 - [Compound label hierarchy](~/.claude/memory/feedback_compound_label_hierarchy.md) — a label made of several kinds of information gets a colour+weight per part, never one uniform run; a separator inside a part sits tighter than the gaps between parts
+- [Relative timestamps](~/.claude/memory/feedback_relative_timestamps.md) — "3h ago" visible, exact stamp on hover; port `formatInterval` from the What's Next repo, don't reinvent it
 
 ## Memos
 
