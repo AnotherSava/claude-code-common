@@ -371,6 +371,7 @@ When a hook command needs a path outside `~/.claude/` or this repo, reference it
 
 - **`CLAUDE_AI_AGENT_DASHBOARD`** — points to a local clone of the `tauri-dashboard` repo. Used by the `Notification`, `UserPromptSubmit`, `Stop`, `SessionEnd`, and `SessionStart` hooks for live session-status updates.
 - **`CLAUDE_AGWINTERM`** — points to the directory holding `agwintermctl.exe`. Used by the `PostToolUse`, `Notification`, `UserPromptSubmit`, and `Stop` hooks to report session status (active / blocked / completed) to the terminal. Each of those commands is additionally guarded on `$AGWINTERM_SESSION_ID`, so it stays inert outside an agwinterm session — leaving this unset costs nothing on a machine that doesn't run one.
+- **`CLAUDE_LANDLORD`** — points to a local clone of the `landlord` repo, which owns the shared-host tenancy rules [Ingress Lint](#ingress-lint) delegates to. Optional, and only consulted for a repo that publishes a vhost: the lookup falls back to a `landlord` sibling of the repo being linted, which is the layout both machines already have. Unlike the two above, leaving it unset is not free — the tenancy half then reports **NOT CHECKED** rather than passing quietly.
 
 The macOS counterpart needs no env var. The same four events also report status to **agterm** via `$HOME/.config/agterm/agent-status/agterm-agent-status.sh` — the app installs that script at a fixed `$HOME`-relative path, so there is nothing to configure. Those commands are guarded on `$AGTERM_SESSION_ID` and stay inert outside an agterm session, which is what lets one committed `settings.json` carry both machines' status hooks.
 
@@ -438,6 +439,9 @@ Where several projects share one box behind one reverse proxy, a generic name is
 
 - **The rules** live in `claude/scripts/ingress-lint.py`, a stdlib-only checker (Claude Code hooks run `python -S`, so PyYAML is not importable and the small YAML subset is read by hand). Run it over files or repo roots: `python ~/.claude/scripts/ingress-lint.py [path ...]` — exit 0 clean, 1 violations, 2 nothing to check. This is also what a repo's `.claude/commit-checks.sh` should call.
 - **The hook** is a `PostToolUse` adapter that feeds the checker one just-written path. It loads the rules by path instead of copying them, so there is exactly one copy. It is **not registered in `settings.json` by default** — its docstring carries the entry to add, along with the three things that fail silently if you get them wrong (the mandatory `//` root anchor, `if` belonging *inside* the hook object, and `"async": false` being set explicitly because a backgrounded hook cannot deliver `additionalContext` at all).
+- **The tenancy rules are not implemented here.** What a vhost may claim inside a shared `conf.d` belongs to the `landlord` repo, whose on-box gate enforces it; this checker loads `landlord/bin/vhost-lint.py` by path and applies it to the single file `VHOST_SRC` names, so the two cannot disagree. Any other Caddy file is skipped in silence — a keyless global-options block, a snippet definition and a port-only address are all legitimate when you own the proxy. When no checkout is found the result is **NOT CHECKED**, never a bare "clean", so a fresh machine reports what it could not run instead of implying it passed. See [`CLAUDE_LANDLORD`](#external-hook-paths).
+
+**Tests:** `python3 claude/tests/ingress-lint.py` — exit 0 all cases behave, 1 otherwise. It pins the compose rules, the delegation, and both skip paths, and it stubs landlord so it runs on a machine with no checkout.
 
 **Related:** `claude/scripts/identity-check.py` is the other half — the same problem checked from outside instead of prevented at the source. Given a per-host manifest it asserts, for every hostname on a box, that the host's own marker is present *and* that every other tenant's marker is absent; the second half is what turns "up" into "up and correct". The `/publish` skill wires it in via `IDENTITY_CHECK`. The manifest is per-host data and is passed in rather than kept here — see the note in [Global Installation](#global-installation).
 
@@ -459,11 +463,14 @@ Prevents pushing commits that are Claude-attributed or not GPG-signed. Every new
 
 ---
 
-### Encryption guard (pre-commit)
+### Pre-commit guard
 
 **File:** `git/hooks/pre-commit`
 
-Installed by transcrypt and made portable: in a repo configured for [encrypted memory](#encrypted-memory-secretmd) it blocks a commit if a `*.secret.md` file is staged unencrypted (the last guard against a plaintext leak). Because `core.hooksPath` is global, it guards on the per-repo transcrypt copy and is a **no-op** in any repo that doesn't use transcrypt.
+Two independent checks, ordered by cost. Because `core.hooksPath` is global this hook runs for every repo on the machine, so each check has to be inert where it doesn't apply — one that fires wrongly is one that gets disabled, and disabling it removes the case where it did apply.
+
+- **`config/publish.env` must be marked for encryption before it can be committed.** That file names the box, its paths, the container to watch and the vhost to install. No credential — which is exactly what made it easy to commit by accident. It is versioned rather than ignored, because per-machine copies drifted: one tenant was left pointing at a path another had deleted. The check is *structural* — does the path resolve to `filter=crypt` — so it can't be fooled by a file that merely looks encrypted, and it refuses with instructions rather than leaking. This half is **not** a no-op in a repo without transcrypt: staging that path anywhere tells you to set it up. Only that one path is enforced; `.env` as a class is the wrong unit, since a plaintext `host.env` and a secret-carrying rendered `.env` share a suffix and need opposite handling.
+- **A file marked `filter=crypt` must actually be ciphertext.** Transcrypt's own check, made portable: in a repo configured for [encrypted memory](#encrypted-memory-secretmd) it blocks a commit if a `*.secret.md` is staged without the encrypted "Salted" magic — the last guard against a plaintext leak. This half guards on the per-repo transcrypt copy and **is** a no-op where transcrypt isn't configured.
 
 ---
 
@@ -481,7 +488,7 @@ Read `~/.claude/learnings/chrome-extension.md` for domain-specific patterns.
 
 ## Global Installation
 
-Global files live in `claude/` (symlinked to `~/.claude/`) and `git/` (hooks, gitignore, gitattributes — each symlinked to `~/`). Project-local config stays in `.claude/`.
+Global files live in `claude/` (symlinked to `~/.claude/`) and `git/` (hooks, gitignore, gitattributes — each symlinked to `~/`). Project-local config stays in `.claude/`. The one directory under `claude/` that is deliberately not symlinked is `claude/tests/`: those run from a checkout of this repo, not from `~/.claude/`.
 
 > If any of these already exist in `~/.claude/` or `~/.git-hooks/`, move them into the repo first (or remove them) before creating the symlink.
 

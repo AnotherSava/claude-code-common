@@ -79,22 +79,34 @@ def main() -> int:
         module = load_lint()
         if module is None:
             return 0
-        problems, _ = module.lint([path])
+        problems, _, notices = module.lint([path])
     except Exception:
         return 0  # the lint failing is not a reason to disrupt the session
 
-    if not problems:
+    if not problems and not notices:
         return 0
 
-    listed = "\n".join(f"- {p}" for p in problems)
+    context = ""
+    if problems:
+        listed = "\n".join(f"- {p}" for p in problems)
+        context += (
+            f"`ingress-lint` flagged {os.path.basename(path)}. On a host shared with other projects these "
+            f"are name collisions waiting to happen, and they fail silently — the wrong app answers with a "
+            f"healthy 200. Fix them now:\n{listed}"
+        )
+    # Carried even when there are no violations. A rule set that could not run is the one thing a silent hook
+    # would turn into "clean", and the tenancy rules are exactly the ones that go unrun on a fresh machine.
+    if notices:
+        listed = "\n".join(f"- {n}" for n in notices)
+        context += (
+            f"{chr(10) if context else ''}`ingress-lint` could NOT run every check on "
+            f"{os.path.basename(path)}. This is not a clean result — say so rather than reporting the file as "
+            f"checked:\n{listed}"
+        )
     print(json.dumps({
         "hookSpecificOutput": {
             "hookEventName": "PostToolUse",
-            "additionalContext": (
-                f"`ingress-lint` flagged {os.path.basename(path)}. On a host shared with other projects these "
-                f"are name collisions waiting to happen, and they fail silently — the wrong app answers with a "
-                f"healthy 200. Fix them now:\n{listed}"
-            ),
+            "additionalContext": context,
         },
         "suppressOutput": True,
     }))

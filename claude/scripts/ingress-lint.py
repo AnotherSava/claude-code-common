@@ -7,6 +7,12 @@ Two rules, both hard failures:
            service key, and that name must not be generic.
   CADDY    a reverse_proxy upstream must never be a bare compose service name, and must never be generic.
 
+Those two are this file's own and apply anywhere. A third set — landlord's tenancy rules R1-R7, about what a
+vhost may claim inside a shared conf.d — is NOT implemented here: this file delegates to landlord's
+`bin/vhost-lint.py`, the copy its on-box gate enforces, and only for the one file `VHOST_SRC` names. When that
+checkout is absent the tenancy rules are reported as NOT CHECKED rather than skipped quietly. Set
+`$CLAUDE_LANDLORD` if the checkout is not a sibling of the repo being linted.
+
 Why: docker compose publishes a service's NAME as a DNS alias on EVERY network the service joins, shared
 external ones included. Two projects each with a service called "app" therefore both answer to "app" on the
 shared bridge, and a proxy attached to it resolves whichever the daemon hands back. In August 2026 that put a
@@ -17,10 +23,15 @@ instead, at the moment the name is written.
 Deliberately stdlib-only, with a hand-rolled reader for the small YAML subset it needs: Claude Code hooks run
 `python -S`, which drops site-packages, so PyYAML is not importable there.
 
+Tests: claude/tests/ingress-lint.py
+
 Usage:  ingress-lint.py [path ...]      # files or repo roots; defaults to the current directory
 Exit:   0 clean, 1 violations found, 2 nothing to check
+        A rule set that could not RUN is not a violation and does not change the exit status — it is printed
+        as NOT CHECKED, and exit 0 then reads "no violations in what ran", never "clean".
 """
 
+import importlib.util
 import os
 import re
 import sys
@@ -149,95 +160,112 @@ def lint_compose(path: str) -> tuple[list[str], dict]:
     return problems, services
 
 
-def _site_addresses(line: str) -> list[str]:
-    """The address list of a site-block opener, or [] if this line does not open one.
+def _publish_env_value(repo_root: str, key: str) -> str | None:
+    """One `KEY=value` from the repo's `config/publish.env`, or None.
 
-    A site block is `<addr>[, <addr>...] {` at column 0. Directives inside a block are indented in every
-    convention we ship, and a keyless `{` is handled by its own rule, so requiring a non-empty prefix is enough.
+    Deliberately not a shell source: that file's `IDENTITY_CHECK` is a semicolon-separated PROGRAM, not a
+    value, so sourcing it would execute ssh. A line-wise read of one key cannot.
     """
-    m = re.match(r"^([^\s{][^{]*?)\s*\{\s*$", line)
-    if not m:
-        return []
-    return [a.strip() for a in m.group(1).split(",") if a.strip()]
+    try:
+        with open(os.path.join(repo_root, "config", "publish.env"), encoding="utf-8") as fh:
+            for line in fh:
+                line = line.strip()
+                if line.startswith(f"{key}="):
+                    return line.split("=", 1)[1].strip().strip("\"'")
+    except OSError:
+        return None
+    return None
 
 
-def lint_caddy_tenant(path: str) -> list[str]:
-    """Refuse the constructs that let one tenant reach beyond its own hostnames.
+def _find_landlord(repo_root: str) -> str | None:
+    """The landlord checkout holding the authoritative tenancy rules, or None.
 
-    These are the site-address and snippet namespaces — shared, flat, and resolved from files this repo does not
-    control, exactly like the DNS-alias namespace that caused the outage. A repo-local check cannot see that two
-    repos claim the SAME hostname (that needs the on-box verifier), but it can refuse every construct whose only
-    use is reaching past your own names. Verified against Caddy 2.11.4; each of these ADAPTS CLEANLY, which is
-    why nothing downstream catches them.
+    `$CLAUDE_LANDLORD` first, then a sibling of this repo — the layout every machine here already has. A
+    directory only counts once `bin/vhost-lint.py` is actually in it, so a stale variable pointing at a moved
+    or half-deleted checkout reads as absent rather than as a broken import.
     """
-    problems, depth = [], 0
-    with open(path, encoding="utf-8") as fh:
-        text = fh.read()
+    candidates = [os.environ.get("CLAUDE_LANDLORD"), os.path.join(os.path.dirname(repo_root), "landlord")]
+    for candidate in candidates:
+        if candidate and os.path.isfile(os.path.join(candidate, "bin", "vhost-lint.py")):
+            return candidate
+    return None
 
+
+def lint_caddy_tenant(path: str) -> tuple[list[str], list[str]]:
+    """Refuse the constructs that let one tenant reach beyond its own hostnames: -> (problems, notices).
+
+    The rules are landlord's R1-R7 and live in its `bin/vhost-lint.py`, which is the authoritative copy and the
+    one its gate enforces on the box. This function only decides whether they apply and then calls them. It used
+    to reimplement four of them against a reader too weak to feed them — line-continued address lists, heredoc
+    bodies carrying an unmatched brace, and one-line snippet definitions all reached no rule at all and reported
+    clean. A second copy of a rule is a copy that drifts, and this one drifted silently.
+
+    Two conditions, and failing either is not a violation:
+
+      not our vhost   the tenancy rules describe a file installed into somebody else's conf.d. Applied to an
+                      ordinary standalone Caddyfile they are simply wrong — a keyless global-options block, a
+                      snippet definition and a port-only address are all legitimate when you own the proxy, and
+                      measured as three false positives on one such file. `VHOST_SRC` in `config/publish.env` is
+                      what names the file this repo installs; anything else is skipped in silence.
+      no landlord     without the checkout there are no rules to run. That returns a NOTICE, never silence and
+                      never a bare "clean" — a check that cannot tell "passed" from "never ran" is the exact
+                      failure this file exists to prevent.
+
+    `owns` and `capabilities` are passed as None, which skips R6/R7 — the two rules needing host data this repo
+    does not have. None is not an empty set: an empty `capabilities` means "this host contracts nothing", so R6
+    would fire on every legitimate `import`.
+    """
     # These are TENANT rules. The proxy owner's own layer is where global options and snippet definitions are
     # supposed to live, so applying them there would flag the very constructs that close the tenant hole.
     # Two ways a file belongs to the host layer:
     #   - it imports the shared conf.d directory, which only a base config does;
     #   - it sits in a host-owned fragment dir (snippets.d/, global.d/), which is where a multi-host proxy repo
     #     keeps the capability definitions tenants merely `import` by name.
+    # landlord's lint has no equivalent classifier and would flag both, so this stays here.
     parts = os.path.normpath(os.path.abspath(path)).split(os.sep)
     if "snippets.d" in parts or "global.d" in parts:
-        return []
+        return [], []
+    try:
+        with open(path, encoding="utf-8") as fh:
+            text = fh.read()
+    except OSError:
+        return [], []
     if re.search(r"^[ \t]*import[ \t]+[^\s]*conf\.d", text, re.MULTILINE):
-        return []
+        return [], []
 
-    with open(path, encoding="utf-8") as fh:
-        for n, raw in enumerate(fh, 1):
-            line = raw.split("#", 1)[0].rstrip()
-            stripped = line.strip()
-            if not stripped:
-                continue
+    repo_root = repo_root_of(path)
+    if repo_root is None:
+        return [], []
+    vhost_src = _publish_env_value(repo_root, "VHOST_SRC")
+    if not vhost_src:
+        return [], []
+    if os.path.realpath(os.path.join(repo_root, vhost_src)) != os.path.realpath(path):
+        return [], []
 
-            if depth == 0:
-                # R4 — a snippet DEFINITION. Redeclaring one another file already defines is a hard error that
-                # refuses the whole config for every tenant on the box.
-                if re.match(r"^\(([^)]+)\)\s*\{\s*$", stripped):
-                    name = re.match(r"^\(([^)]+)\)", stripped).group(1)
-                    problems.append(
-                        f"{path}:{n}: defines snippet '({name})'. Snippet names are shared across every file the "
-                        f"proxy imports; redeclaring one refuses the WHOLE config, for every tenant. Only the "
-                        f"host's base config should define snippets — import them, do not declare them."
-                    )
-                # R1 — a keyless block is Caddy's GLOBAL options block. Where the base config has none, a
-                # tenant's is accepted and applies box-wide, with validate green and nothing in any log.
-                elif stripped == "{":
-                    problems.append(
-                        f"{path}:{n}: opens a keyless block, which Caddy reads as GLOBAL options. From a file in "
-                        f"a shared conf.d that sets options for every project on the host. Global options belong "
-                        f"to the host's base config only."
-                    )
-                else:
-                    for addr in _site_addresses(stripped):
-                        bare = re.sub(r"^https?://", "", addr)
-                        # R3 — a port-only address becomes the catch-all for every unnamed hostname.
-                        if re.match(r"^:\d+$", bare):
-                            problems.append(
-                                f"{path}:{n}: site address '{addr}' is port-only, so it catches EVERY hostname "
-                                f"the proxy has no named block for — including other tenants'. Name your hosts."
-                            )
-                        # R2 — a path in a site address silently outranks a neighbour's bare hostname for that
-                        # path, so two individually valid files hijack one hostname.
-                        # NB: do not strip the trailing slash first — `h.example/` IS the path form, and it is
-                        # the exact construct that shadows a neighbour's plain `h.example` block.
-                        elif "/" in bare:
-                            problems.append(
-                                f"{path}:{n}: site address '{addr}' carries a path. A path-carrying address wins "
-                                f"over a plain hostname block for that path, so this can shadow a neighbour's "
-                                f"hostname from a file that adapts cleanly. Match paths inside the block instead."
-                            )
+    landlord = _find_landlord(repo_root)
+    if landlord is None:
+        return [], [
+            f"{path}: tenancy rules (landlord R1-R7) NOT CHECKED — no landlord checkout found. Looked at "
+            f"$CLAUDE_LANDLORD and a 'landlord' sibling of {repo_root}. This file IS this repo's VHOST_SRC, so "
+            f"the rules do apply to it; nothing here says whether it satisfies them. The compose rules above "
+            f"ran normally."
+        ]
 
-            depth += stripped.count("{") - stripped.count("}")
-            depth = max(depth, 0)
-    return problems
+    vhost_lint = os.path.join(landlord, "bin", "vhost-lint.py")
+    try:
+        spec = importlib.util.spec_from_file_location("vhost_lint", vhost_lint)
+        module = importlib.util.module_from_spec(spec)
+        spec.loader.exec_module(module)
+        return module.lint(path, None, None), []
+    except Exception as exc:
+        return [], [
+            f"{path}: tenancy rules (landlord R1-R7) NOT CHECKED — {vhost_lint} would not load or run "
+            f"({type(exc).__name__}: {exc}). This file IS this repo's VHOST_SRC, so the rules do apply to it."
+        ]
 
 
-def lint_caddy(path: str, services: dict) -> list[str]:
-    problems = lint_caddy_tenant(path)
+def lint_caddy(path: str, services: dict) -> tuple[list[str], list[str]]:
+    problems, notices = lint_caddy_tenant(path)
     with open(path, encoding="utf-8") as fh:
         for n, raw in enumerate(fh, 1):
             line = raw.split("#", 1)[0].strip()
@@ -263,7 +291,7 @@ def lint_caddy(path: str, services: dict) -> list[str]:
                         f"container name. Service names are unique only within their project; dial "
                         f"'{svc['container_name'] or 'the container name'}' instead."
                     )
-    return problems
+    return problems, notices
 
 
 # ----------------------------------------------------------------------------- driver
@@ -317,39 +345,55 @@ def context_services(report_paths: list[str]) -> dict:
     return services
 
 
-def lint(paths: list[str]) -> tuple[list[str], int]:
-    """The whole check, as a function: -> (problems, files scanned).
+def lint(paths: list[str]) -> tuple[list[str], int, list[str]]:
+    """The whole check, as a function: -> (problems, files scanned, notices).
 
     Separate from `main` so callers that are not a terminal can have the findings without the printing —
     specifically the PostToolUse hook, which has to put them in a JSON field on stdout and would otherwise
     reimplement this orchestration and drift from it.
+
+    Notices are the third outcome, and they are not violations: they say a rule set could not be run at all.
+    They ride alongside `problems` rather than inside it because they must not set the exit status — but a
+    caller that drops them turns "not checked" back into something that reads like "passed".
     """
     composes, caddys = collect(paths)
 
     # Findings are reported only for the files named, but judged with the whole repo's services in view.
     problems: list[str] = []
+    notices: list[str] = []
     services: dict = context_services(composes + caddys)
     for path in composes:
         found, svc = lint_compose(path)
         problems += found
         services.update(svc)
     for path in caddys:
-        problems += lint_caddy(path, services)
+        found, said = lint_caddy(path, services)
+        problems += found
+        notices += said
 
-    return problems, len(composes) + len(caddys)
+    return problems, len(composes) + len(caddys), notices
 
 
 def main(argv: list[str]) -> int:
-    problems, scanned = lint(argv or ["."])
+    problems, scanned, notices = lint(argv or ["."])
     if scanned == 0:
         print("nothing to check (no compose or Caddy files found)", file=sys.stderr)
         return 2
+
+    for notice in notices:
+        print(f"  NOT CHECKED: {notice}\n")
 
     if problems:
         print(f"ingress-lint: {len(problems)} violation(s) across {scanned} file(s)\n")
         for p in problems:
             print(f"  {p}\n")
         return 1
+
+    # Never a bare "clean" while something went unchecked — that is the sentence an operator reads as "fine".
+    if notices:
+        print(f"ingress-lint: no violations in what ran, but {len(notices)} check(s) above did NOT run "
+              f"({scanned} file(s) seen)")
+        return 0
 
     print(f"ingress-lint: clean ({scanned} file(s) checked)")
     return 0
