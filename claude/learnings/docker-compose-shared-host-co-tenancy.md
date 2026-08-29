@@ -285,3 +285,52 @@ Two related traps while cleaning up after such a build:
   neighbour's production base too. Benign when the digest matches; a tag that has moved upstream silently
   re-points what the next publish builds on. Check `docker image inspect <base> --format '{{.Metadata.LastTagTime}}'`
   — and read it in the *box's* timezone, not yours, before concluding a pull did or didn't happen.
+
+## Landmine 7: `down -v` deletes the certificate volume, and one flag is the whole distance
+
+A shared proxy's data volume holds every provisioned certificate on the box — on a three-tenant host that is
+eight names across two registrable domains. Let's Encrypt caps *duplicate* certificates at five per week, so
+losing them is not a re-run; it is an outage with a waiting period, on the one machine every tenant watches.
+
+`docker compose down -v` removes every volume declared in the top-level `volumes:` section. `down` is an
+ordinary maintenance command and `-v` is one character.
+
+Three routes, and only the last is bad luck:
+
+- **`down -v`** — deletes named project volumes, by design and without a prompt.
+- **`docker volume prune -a`**, or `docker system prune -a --volumes`. A *bare* `prune` spares named volumes
+  (Docker 29 takes only anonymous ones without `-a`), but `-a` removes any volume with no container attached
+  — which is precisely the state during a maintenance window.
+- **Changing the project name.** Volumes are `<project>_<key>`, so editing `name:` at the top of the file
+  points the stack at a fresh, empty volume and the proxy re-issues everything. Nothing is deleted and
+  nothing warns. This qualifies the "renaming a service is safe" note above: renaming a *service* is,
+  renaming the **project** is not.
+
+The fix is the one already applied to the shared network — declare it external, create it out of band, so no
+stack's `down` can reach it:
+
+```yaml
+volumes:
+  caddy_data:
+    external: true
+    name: storefront_caddy_data     # WITHOUT this, compose looks for a volume literally called
+  caddy_config:                     # `caddy_data`; the existing data is `<project>_caddy_data`
+    external: true
+    name: storefront_caddy_config
+```
+
+```bash
+docker volume create storefront_caddy_data     # once per host, before the first `up`
+```
+
+Two things to do rather than assume:
+
+- **Check it does not recreate.** `docker compose up -d --dry-run` should report the containers as merely
+  `Running`. Converting an in-place volume to external under the same underlying name is inert for a running
+  stack — but confirm it, because a recreate here interrupts every tenant at once.
+- **Prove the protection in a scratch project**, never in production: declare one external and one managed
+  volume, `up --no-start`, `down -v`, and see which survives. Ten seconds, and it turns "should" into "does".
+
+Then **pin it with a test**, because the hardening is invisible: deleting `external: true` changes nothing
+observable, `up` keeps working against the same data, and the loss only appears the day someone runs
+`down -v`. An assertion that every declared volume is external is what stops it being tidied away.

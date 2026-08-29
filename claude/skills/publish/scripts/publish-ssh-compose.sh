@@ -19,12 +19,19 @@
 #   IDENTITY_CHECK=<command>                optional — run LOCALLY after the URL checks; must exit 0
 #   DOPPLER_PROJECT / DOPPLER_CONFIG        optional — render the env file before building
 #   ENV_FILE=<name inside COMPOSE_DIR>      required when DOPPLER_PROJECT is set
-#   VHOST_SRC=<repo-relative proxy config>  optional — the proxy config whose change forces a recreate
-#   VHOST_DIR=<dir on the box>              optional — co-tenant mode: where to install VHOST_SRC.
+#   VHOST_SRC=<repo-relative proxy config>  optional — this repo's vhost / proxy config
+#   VHOST_GATE=<gate path on the box>       default: /opt/landlord/bin/vhost-install
+#
+#   When the box has an executable at VHOST_GATE, that gate installs the vhost and the next three keys are
+#   NOT read at all — the host knows its own compose dir, its own proxy, and where vhosts live, so a tenant
+#   holding that knowledge is three chances to hold a stale copy of it. Delete them from a gated host's
+#   config. They remain required on an ungated box, where this script is still the only writer:
+#
+#   VHOST_DIR=<dir on the box>              ungated co-tenant mode: where to install VHOST_SRC.
 #                                           Omit when this repo OWNS the proxy and the file is already
 #                                           in the checkout — then VHOST_SRC only decides "did it change".
-#   PROXY_STACK=<compose dir of the proxy>  optional — whose proxy to recreate when the config changed
-#   PROXY_SERVICE=<service name>            default: caddy
+#   PROXY_STACK=<compose dir of the proxy>  ungated — whose proxy to recreate when the config changed
+#   PROXY_SERVICE=<service name>            ungated — default: caddy
 #   SETTLE_SECONDS=<seconds>                default: 25
 #   BRANCH=<branch>                         default: main
 #
@@ -70,6 +77,10 @@ VHOST_SRC="$(getval VHOST_SRC)"
 VHOST_DIR="$(getval VHOST_DIR)"
 PROXY_STACK="$(getval PROXY_STACK)"
 PROXY_SERVICE="$(getval PROXY_SERVICE)"; PROXY_SERVICE="${PROXY_SERVICE:-caddy}"
+# The host's vhost gate, if the box has one. Defaulted rather than required, so a landlord-managed box needs NO
+# new key in any tenant's config — which matters because these configs are per-machine and gitignored, so every
+# added key is an edit on several machines that git cannot show you is half done.
+VHOST_GATE="$(getval VHOST_GATE)"; VHOST_GATE="${VHOST_GATE:-/opt/landlord/bin/vhost-install}"
 SETTLE_SECONDS="$(getval SETTLE_SECONDS)"; SETTLE_SECONDS="${SETTLE_SECONDS:-25}"
 BRANCH="$(getval BRANCH)"; BRANCH="${BRANCH:-main}"
 
@@ -135,6 +146,134 @@ else
     echo "=== Step 3: no Doppler project configured — skipping env render ==="
 fi
 
+# ── Where the identity check comes from ──────────────────────────────────────
+# IDENTITY_CHECK used to be ~700 characters of shell copied BYTE-IDENTICALLY into every tenant's per-machine,
+# gitignored config. Nothing in it was ever about the tenant — it resolves the checker, obtains the host's
+# manifest, and classifies could-not-check. It changed four times in one week, and each change meant hand-editing
+# every tenant on every machine. The one time that was done unevenly, a tenant was left pointing at a path that
+# no longer existed; nothing in the system would have reported it. Host machinery does not belong in per-tenant
+# config, so the host supplies it — the same argument as VHOST_GATE, and the same shape.
+HOST_MANIFEST="$(getval HOST_MANIFEST)"; HOST_MANIFEST="${HOST_MANIFEST:-/opt/landlord/bin/host-manifest}"
+# Where the host records which hostnames each tenant may serve. The glob is expanded by the REMOTE shell.
+HOST_GRANTS="$(getval HOST_GRANTS)"; HOST_GRANTS="${HOST_GRANTS:-/opt/landlord/hosts/*/tenants}"
+
+# ONE round trip, both host facilities. The gate probe is HOISTED here from step 6 — not for tidiness, but
+# because the shared-box test below needs it and step 6 runs after the build. Asking the BOX what it is beats
+# asking a key the tenant may never set.
+HOST_PROBE="$($SSH "test -x $HOST_MANIFEST && echo hm=yes || echo hm=no; test -x $VHOST_GATE && echo gate=yes || echo gate=no" 2>/dev/null)"
+[ -n "$HOST_PROBE" ] || { echo "ERROR: could not reach $SSH_HOST to probe for the host's publish facilities."; exit 1; }
+HM_PRESENT="$(printf '%s\n' "$HOST_PROBE" | sed -n 's/^hm=//p')"
+GATE_PRESENT="$(printf '%s\n' "$HOST_PROBE" | sed -n 's/^gate=//p')"
+
+IDENTITY_SOURCE=none
+if [ -n "$IDENTITY_CHECK" ]; then
+    IDENTITY_SOURCE="configured IDENTITY_CHECK"
+    # A local value SHADOWING a host default is the drift this change exists to end, and it is invisible by
+    # construction: the override works, so nothing fails and nobody looks. That is exactly how one tenant was
+    # left pointing at a deleted path while its neighbour had been updated. An override is legitimate — say so
+    # rather than fail — but say it every publish, so "still overriding" is a decision and not an oversight.
+    [ "$HM_PRESENT" = yes ] && {
+        echo "NOTE: this box supplies an identity check at $HOST_MANIFEST, and config/publish.env overrides it."
+        echo "      Host machinery in per-tenant config drifts: it is unversioned, per-machine, and has to be"
+        echo "      re-edited by hand for every tenant on every machine each time the host form changes."
+        echo "      Unless this project genuinely needs its own, remove IDENTITY_CHECK and inherit the default."
+    }
+elif [ "$HM_PRESENT" = yes ]; then
+    IDENTITY_SOURCE="host ($HOST_MANIFEST)"
+fi
+
+# THE FALLBACK IS NOT SYMMETRIC WITH VHOST_GATE'S, and must not be written as if it were. VHOST_GATE may degrade
+# to the old copy-and-reload path because that path still works. Degrading to "no identity check" is the exact
+# thing this system exists to forbid: could-not-check, reported as fine, in the one check that exists because a
+# storefront served a neighbour's application for 41 hours. So on a box that is demonstrably SHARED and offers no
+# host default, refuse rather than skip — "no identity check" has to be something a person typed.
+#
+# The predicate is "is this box shared", NOT "is the host default missing". Those differ, and the difference
+# matters: most projects using this script are alone on their box and have no identity question to answer.
+# Failing them would make the rule unkeepable, and an unkeepable rule gets deleted rather than obeyed.
+#
+# THE GATE IS THE LOAD-BEARING SIGNAL, and the first version of this guard was wrong without it. It tested only
+# VHOST_DIR and PROXY_STACK — and the gated tenants set NEITHER, because the absence of VHOST_DIR is exactly what
+# routes them through the gate. So on the one box this whole system exists for, the shared-box test evaluated
+# false for every tenant on it. It was moot only while the host default resolved; the hole opened precisely when
+# the guard was needed — host-manifest renamed, moved, or the landlord checkout behind — and would then have
+# built, deployed and recreated the SHARED proxy with no identity assertion at all, silently. A box carrying an
+# executable gate IS a shared box, and that fact is read from the box rather than from config a tenant may never
+# write. Solo boxes have no gate, so they still continue untouched.
+# Name the disjunct that ACTUALLY fired. One sentence covering three causes sends the operator to whichever the
+# author happened to write down: on a gated box no tenant sets VHOST_DIR or PROXY_STACK, so a message naming
+# those two would point at keys that are unset and always were, while the real reason went unmentioned.
+SHARED_WHY=""
+[ "$GATE_PRESENT" = yes ] && SHARED_WHY="a vhost gate exists at $VHOST_GATE"
+[ -n "$VHOST_DIR" ]       && SHARED_WHY="${SHARED_WHY:+$SHARED_WHY; }VHOST_DIR is set ($VHOST_DIR)"
+[ -n "$PROXY_STACK" ]     && SHARED_WHY="${SHARED_WHY:+$SHARED_WHY; }PROXY_STACK is set ($PROXY_STACK)"
+
+if [ "$IDENTITY_SOURCE" = none ] && [ -n "$SHARED_WHY" ]; then
+    echo "ERROR: this box is shared — $SHARED_WHY — but nothing can assert what it serves."
+    echo "       No IDENTITY_CHECK is configured and no host default exists at $HOST_MANIFEST."
+    echo "       A 200 from a shared proxy does not prove the response is yours. Either restore the host"
+    echo "       default, or set IDENTITY_CHECK in config/publish.env — the publish skill carries the"
+    echo "       portable form. NOTHING has been built or deployed."
+    exit 1
+fi
+
+# ── VERIFY_URL must name something this tenant was GRANTED ───────────────────
+# Step 7 proves VERIFY_URL serves. It cannot notice that VERIFY_URL was never this tenant's hostname to verify —
+# a publish would then assert a neighbour's site is healthy and call that its own success. The way that happens
+# is not exotic: these configs are per-machine, gitignored and routinely hand-copied between tenants, which is
+# the same mechanism that produced everything else in this file. The host already knows who owns what.
+#
+# Fail only when the grants ARE readable and the host is absent from them. Unreadable grants are could-not-check
+# and must not fail the publish, or a host-side layout change starts blocking every tenant's deploy.
+if [ "$GATE_PRESENT" = yes ] && [ -n "$VHOST_SRC" ]; then
+    GRANT_PROJECT="$(basename "$VHOST_SRC")"; GRANT_PROJECT="${GRANT_PROJECT%.*}"
+    GRANTS="$($SSH "cat $HOST_GRANTS/$GRANT_PROJECT.owns 2>/dev/null" 2>/dev/null | grep -v '^[[:space:]]*#' | grep -v '^[[:space:]]*$')"
+    if [ -n "$GRANTS" ]; then
+        for _u in "$VERIFY_URL" $VERIFY_URL_EXTRA; do
+            [ -n "$_u" ] || continue
+            _host="$(printf '%s' "$_u" | sed -e 's#^[a-zA-Z]*://##' -e 's#[/:?].*##')"
+            printf '%s\n' "$GRANTS" | grep -qx "$_host" || {
+                echo "ERROR: '$_host' is not a hostname this host grants to '$GRANT_PROJECT'."
+                echo "       Verifying it would assert somebody else's site is healthy and report that as this"
+                echo "       publish succeeding. Either VERIFY_URL is wrong, or the grant is missing."
+                echo "       Granted: $(printf '%s' "$GRANTS" | tr '\n' ' ')"
+                echo "       NOTHING has been built or deployed."
+                exit 1
+            }
+        done
+        echo "  grants: VERIFY_URL host(s) are granted to $GRANT_PROJECT"
+    else
+        echo "  grants: could not read $HOST_GRANTS/$GRANT_PROJECT.owns — VERIFY_URL was NOT checked against"
+        echo "          the host's grants. Not a verdict; nothing here says the hostname is wrong."
+    fi
+fi
+
+# One implementation, used by BOTH the preflight and the post-deploy check. Two call sites that classify or
+# obtain differently is how a preflight comes to wave through what the final check condemns.
+identity_run() {
+    if [ -n "$IDENTITY_CHECK" ]; then
+        ( cd "$REPO_DIR" && eval "$IDENTITY_CHECK" ); return $?
+    fi
+    _ck="${CLAUDE_CONFIG_DIR:-$HOME/.claude}/scripts/identity-check.py"
+    # ~/.claude/scripts is a Git-Bash symlink on Windows and native programs cannot traverse it (Errno 22).
+    _ck="$(readlink -f "$_ck" 2>/dev/null || echo "$_ck")"
+    [ -f "$_ck" ] || { echo "  IDENTITY CHECKER NOT FOUND at $_ck — the check NEVER RAN; this is NOT an impersonation."; return 2; }
+    # A real relative file, not process substitution: <(...) is /proc/PID/fd/N, which native Windows python
+    # cannot open. The HTTP probes still run from HERE — only the manifest comes from the box, because a
+    # checker that runs on the box shares fate with the thing it is checking.
+    _mf="$REPO_DIR/.identity-manifest.$$.json"
+    if ! $SSH "$HOST_MANIFEST" > "$_mf" 2>"$_mf.err" || [ ! -s "$_mf" ]; then
+        echo "  COULD NOT OBTAIN THE MANIFEST from $HOST_MANIFEST — the check NEVER RAN; NOT an impersonation."
+        tr -s '[:space:]' ' ' < "$_mf.err" 2>/dev/null | cut -c1-120 | sed 's/^/    /'
+        rm -f "$_mf" "$_mf.err"; return 2
+    fi
+    python3 "$_ck" "$_mf"; _rc=$?
+    # Capture BEFORE the cleanup and return it explicitly: without this the status is `rm -f`'s, always 0, so a
+    # failed identity check would report success.
+    rm -f "$_mf" "$_mf.err"
+    return $_rc
+}
+
 # ── Step 3.5: identity preflight — RUNNABILITY only, never identity ──────────
 # The identity check is the only thing here that can catch a host serving a neighbour's application, and it runs
 # dead last: after the build, after `up -d`, and after the step-6 recreate that briefly interrupts every site the
@@ -145,9 +284,9 @@ fi
 # fatal here. Exit 1 means the host is serving the wrong app RIGHT NOW, which is frequently the very thing this
 # publish exists to fix, so it must not block — identity is asserted for real after the deploy. Runnable first,
 # correct last. The cost is running the check twice, a handful of GETs against pages that are already public.
-if [ -n "$IDENTITY_CHECK" ]; then
-    echo "=== Step 3.5: identity preflight (can the check run at all?) ==="
-    PREFLIGHT_OUT="$( ( cd "$REPO_DIR" && eval "$IDENTITY_CHECK" ) 2>&1 )"; PREFLIGHT_RC=$?
+if [ "$IDENTITY_SOURCE" != none ]; then
+    echo "=== Step 3.5: identity preflight (can the check run at all?) — source: $IDENTITY_SOURCE ==="
+    PREFLIGHT_OUT="$(identity_run 2>&1)"; PREFLIGHT_RC=$?
     # 0 and 1 are the two verdicts a check that RAN can return; anything else — 2, or a 127 from a missing
     # interpreter or CLI — means it did not run, and is classified exactly as the post-deploy block does.
     if [ "$PREFLIGHT_RC" != 0 ] && [ "$PREFLIGHT_RC" != 1 ]; then
@@ -192,7 +331,68 @@ $SSH "cd $COMPOSE_DIR && docker compose up -d" || { echo "ERROR: compose up fail
 #   co-tenant  (VHOST_DIR set)   — this repo owns one vhost inside somebody else's proxy; install it, then recreate.
 #   proxy owner (VHOST_DIR unset) — this repo owns the proxy itself, so its config is already in the checkout that
 #                                   step 3 reset. Nothing to install; VHOST_SRC only answers "did it change".
-if [ -n "$VHOST_SRC" ]; then
+#
+# WHERE THE BOX HAS A GATE, THE GATE DOES ALL OF IT. Everything below this branch — deciding "did it change",
+# backing up, writing, validating, rolling back, recreating — is this script doing a shared directory's job from
+# the outside, which is only correct while it is the ONLY writer. On a host that governs its own conf.d it is
+# not, and validating from out here means every rule the host publishes is advisory on the exact path every
+# tenant actually uses. So: ask the host, and let it refuse. It validates in a container of the running image
+# BEFORE the write and rolls back a failed reload, neither of which a caller can do for it.
+# GATE_PRESENT was probed before the build, alongside HOST_MANIFEST, in one round trip. It is deliberately not
+# re-probed here: the same fact answered twice can answer differently, and the earlier probe already refuses to
+# read an unreachable box as "no gate" — that guess would write into a directory the host believes it governs.
+if [ -n "$VHOST_SRC" ] && [ "$GATE_PRESENT" = yes ]; then
+    VHOST_BASE="$(basename "$VHOST_SRC")"
+    echo "=== Step 6: handing $VHOST_BASE to the host's gate ($VHOST_GATE) ==="
+
+    # A private scratch DIRECTORY, because the basename must survive: the gate derives the project from it, and
+    # that derivation is an assertion (it must match a tenants/<project>.owns the host wrote), not a convenience.
+    # Renaming the candidate to something unique would quietly defeat the check it exists to make.
+    GATE_TMP="/tmp/vhost-publish-$$"
+    $SSH "mkdir -p $GATE_TMP" || { echo "ERROR: could not create $GATE_TMP on the box"; exit 1; }
+    if ! $SSH "cat > $GATE_TMP/$VHOST_BASE" < "$REPO_DIR/$VHOST_SRC"; then
+        $SSH "rm -rf $GATE_TMP"
+        echo "ERROR: could not copy $VHOST_BASE to the box — nothing was offered to the gate."
+        exit 1
+    fi
+
+    GATE_ERR="$(mktemp)"
+    GATE_TOKEN="$($SSH "$VHOST_GATE $GATE_TMP/$VHOST_BASE" 2>"$GATE_ERR")"; GATE_RC=$?
+    $SSH "rm -rf $GATE_TMP" || true
+    [ -s "$GATE_ERR" ] && sed 's/^/       /' "$GATE_ERR"
+    rm -f "$GATE_ERR"
+
+    # `rollback-incomplete` is checked FIRST and independently of the status, because it is the one token that
+    # says the box was left in a state nobody asked for — the file is back but the running config is not. It
+    # must not be filed under whichever exit code happens to carry it.
+    if [ "$GATE_TOKEN" = rollback-incomplete ]; then
+        echo "  VHOST ROLLBACK INCOMPLETE — the box is NOT in a known state."
+        echo "  The candidate was withdrawn but the running proxy config was not reconciled, so what is"
+        echo "  serving now may match neither the old vhost nor the new one. Read the gate's output above"
+        echo "  and reconcile by hand; do not re-run this publish until it is resolved."
+        exit 1
+    fi
+
+    case "$GATE_RC" in
+        0) case "$GATE_TOKEN" in
+               unchanged) echo "  gate: unchanged — the installed vhost already matches; proxy untouched" ;;
+               installed) echo "  gate: installed — validated against the running image, and reloaded" ;;
+               *)         echo "  gate: reported '$GATE_TOKEN'" ;;
+           esac ;;
+        1) echo "  VHOST REFUSED — the gate rejected $VHOST_BASE (token: ${GATE_TOKEN:-none})."
+           echo "  This IS a verdict on this repo's vhost: it is invalid, or it was applied and rolled back."
+           echo "  Nothing on the box was left changed. Fix the vhost in this repo and publish again."
+           exit 1 ;;
+        2) echo "  VHOST GATE COULD NOT CHECK (token: ${GATE_TOKEN:-none}) — lock held, proxy down, or a layer"
+           echo "  missing. This is NOT a rejection of $VHOST_BASE and says nothing about whether it is valid."
+           echo "  Whether anything was attempted is in the gate's output above. Fix the host-side condition"
+           echo "  and re-run; do not start editing the vhost on the strength of this."
+           exit 1 ;;
+        *) echo "  VHOST GATE FAILED TO RUN (exit $GATE_RC, token: ${GATE_TOKEN:-none}) — treat as could-not-check,"
+           echo "  not as a rejection. The gate did not reach a verdict on $VHOST_BASE."
+           exit 1 ;;
+    esac
+elif [ -n "$VHOST_SRC" ]; then
     VHOST_BASE="$(basename "$VHOST_SRC")"
 
     # Decide "did it change" from the BOX, not from a commit delta. Step 3 already hard-reset the box's HEAD to
@@ -369,17 +569,30 @@ check_url "$VERIFY_URL" || OK=1
 # recreated the proxy and briefly interrupted every site it fronts. Beginning an emergency rollback over a file
 # that failed to download is a rational response to that sentence. It is the same distinction step 6 already
 # draws between "config invalid" and "proxy is down", and it is drawn here for the same reason.
-if [ -n "$IDENTITY_CHECK" ]; then
-    echo "  identity: $IDENTITY_CHECK"
-    ( cd "$REPO_DIR" && eval "$IDENTITY_CHECK" ); IDENTITY_RC=$?
+IDENTITY_ASSERTED=no
+if [ "$IDENTITY_SOURCE" != none ]; then
+    echo "  identity: $IDENTITY_SOURCE"
+    identity_run; IDENTITY_RC=$?
     case "$IDENTITY_RC" in
-        0) ;;
+        0) IDENTITY_ASSERTED=yes ;;
         1) echo "  IDENTITY CHECK FAILED — this host may be serving another app"
            OK=1 ;;
         *) echo "  IDENTITY CHECK COULD NOT RUN (exit $IDENTITY_RC) — nothing was asserted about what this host serves"
            echo "  This is a tooling failure, NOT evidence of a misroute. Do not roll back on this alone."
            OK=1 ;;
     esac
+# An ABSENT check used to be skipped in total silence, which is the same defect as a check that cannot tell
+# "passed" from "never ran" — one layer up. A project published for weeks with no assertion at all that its
+# hostname served its own application, and nothing ever said so. Say it, and say it where the result would
+# have been, so the gap appears exactly where the evidence should.
+elif [ "$GATE_PRESENT" = yes ] || [ -n "$VHOST_DIR" ] || [ -n "$PROXY_STACK" ]; then
+    echo "  IDENTITY NOT CHECKED — no IDENTITY_CHECK is configured, and this box is SHARED."
+    echo "  A shared proxy is exactly the condition where a 200 stops proving the response is yours: a name"
+    echo "  collision can route this hostname at a neighbour's app, which answers 200 just as healthily. One"
+    echo "  storefront served the wrong application for 41 hours with every other check green."
+    echo "  Set IDENTITY_CHECK in config/publish.env — see the publish skill for the portable form."
+else
+    echo "  identity: not configured (no shared-proxy signals on this box)"
 fi
 
 # Re-read the counter: a container that crash-looped during verification climbs here even if a request slipped
@@ -389,7 +602,14 @@ RESTARTS_AFTER="$($SSH "docker inspect $APP_CONTAINER --format '{{.RestartCount}
 [ "$STATUS" = "running" ] || OK=1
 
 if [ "$OK" = 0 ]; then
-    echo "PUBLISH OK  ($SSH_HOST, ${LOCAL:0:8})"
+    # Qualify the headline rather than printing a bare OK. "PUBLISH OK" is read as "everything above was
+    # checked", so on a shared box it would quietly certify the one property nobody verified.
+    if [ "$IDENTITY_ASSERTED" = yes ]; then
+        echo "PUBLISH OK  ($SSH_HOST, ${LOCAL:0:8})"
+    else
+        echo "PUBLISH OK — NOT IDENTITY-VERIFIED  ($SSH_HOST, ${LOCAL:0:8})"
+        echo "  The pages answered 200, which proves something is serving them, not that it is yours."
+    fi
 else
     echo "PUBLISH FAILED — the stack is up but is not serving correctly."
     echo "  logs: ssh $SSH_HOST 'cd $COMPOSE_DIR && docker compose logs --tail 80 $APP_CONTAINER'"

@@ -58,6 +58,33 @@ block, or someone will remove it as redundant.
   adapts to a route with `match: null`, so it contributes **no hostname**: any check that compares "hostnames
   served" against "hostnames allowed" cannot see it, and needs a separate catch-all clause.
 
+## `path /x/*` does not match `/x`
+
+Caddy's `path` matcher is exact per pattern. `/api/inbox/*` matches `/api/inbox/anything`; it does **not**
+match `/api/inbox` itself. So a gate written as
+
+```caddyfile
+@writeOffnet {
+	path /admin/* /api/inbox/*
+	not remote_ip 100.64.0.0/10
+}
+respond @writeOffnet 404
+```
+
+protects every decorative sub-path and leaves the bare endpoint — usually the one that actually accepts a
+POST — reachable by anyone. Nothing warns about it: the config validates, the sub-paths behave, and the hole
+is one path segment wide.
+
+List both forms, every time:
+
+```caddyfile
+	path /admin /admin/* /api/inbox /api/inbox/*
+```
+
+The same asymmetry bites a checker written to verify this. A helper that treats `/x/*` as covering its own
+bare prefix will pass the broken config it was written to catch — so test the checker against the *failure*,
+not only against the fixed file.
+
 ## Snippets are a second flat namespace
 
 - A snippet must be imported **before** the file that calls it, or you get
