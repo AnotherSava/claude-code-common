@@ -23,6 +23,7 @@ in `.gitattributes` (e.g. `notes.secret.md`, `config.secret.json`).
 - this repo's transcrypt config: !`git config --get-regexp '^transcrypt\.' 2>/dev/null || echo NOT-CONFIGURED`
 - encrypt attribute in .gitattributes: !`test -f .gitattributes && grep -i crypt .gitattributes || echo NONE`
 - working tree: !`git status --short 2>/dev/null || echo "(not a git repo)"`
+- openssl shim wired: !`git config --get transcrypt.openssl-path 2>/dev/null || echo "none — expect the 'deprecated key derivation' warning on git commands; see that section"`
 
 ## The shared key — never generate a new one
 
@@ -42,6 +43,24 @@ empty password — capture the key into a variable before changing directories i
 
 Init also refuses on a **dirty tree** — if a tracked file is modified, stash just it first
 (`git stash push <file>`), init, then `git stash pop`. Untracked files don't block it.
+
+**Init in a repo that ALREADY has encrypted files decrypts them, and may leave them permanently modified.**
+That is mode B happening as a side effect, and it is expected. What is not obvious: transcrypt may then
+re-encrypt to *different ciphertext than what is committed*, so the files show as ` M` forever until
+somebody commits the re-encryption. Transcrypt's salt is derived from the content, so this is not random —
+it is stable across runs and reflects a different transcrypt or openssl version having written the original.
+Init also prints `Unexpected new dirty files in the repository … please check your password`, which reads
+like a wrong key and usually is not.
+
+Diagnose before believing either reading, and diagnose by **content, not by ciphertext**:
+
+```
+git show ":$F" | "$(git rev-parse --git-common-dir)/crypt/transcrypt" smudge context=default "$F" | diff - "$F"
+```
+
+Identical output means the key is right and only the representation differs. Do **not** commit that churn
+as part of an unrelated change — it is a content-free diff, and if another machine re-churns it back the two
+will ping-pong. Raise it as its own decision.
 
 **Why the `core.hooksPath` bracket.** Transcrypt writes its `pre-commit-crypt` helper into whatever
 `core.hooksPath` resolves to, then copies it to `pre-commit` when that name is free — hardcoded in
@@ -65,11 +84,13 @@ themselves.)
 
 If **transcrypt installed** (Context) is `MISSING`, install it:
 
-```
-curl -fsSL https://raw.githubusercontent.com/elasticdog/transcrypt/main/transcrypt -o ~/bin/transcrypt && chmod +x ~/bin/transcrypt && hash -r
-```
+Install it into a directory that is **already on PATH** — check first rather than assuming `~/bin`, which
+exists on some machines without being on PATH, leaving a downloaded file nothing can run:
 
-If `~/bin` isn't on PATH, pick another PATH directory. **Classifier caveat:** the auto-mode classifier may
+```
+D=$(for d in ~/.local/bin ~/bin /usr/local/bin; do case ":$PATH:" in *":$d:"*) echo "$d"; break;; esac; done)
+curl -fsSL https://raw.githubusercontent.com/elasticdog/transcrypt/main/transcrypt -o "$D/transcrypt" && chmod +x "$D/transcrypt" && hash -r
+``` **Classifier caveat:** the auto-mode classifier may
 block *executing* transcrypt the first time (it's a fetched script). If blocked, ask the user to approve the
 permission prompt or add a `Bash(transcrypt:*)` rule to their settings — do **not** work around the denial.
 
@@ -97,12 +118,27 @@ From Context and the user's request:
 3. Ensure the target matches the pattern. If it isn't already `*.secret.*`, rename it —
    `mv <dir>/<name>.<ext> <dir>/<name>.secret.<ext>` — and update any references to the old name (grep the
    repo).
-4. Stage so the clean filter encrypts it: `git add .gitattributes <the .secret file>`.
-5. **Verify** — the index blob must be ciphertext while the working tree stays plaintext:
-   - `git show :<the .secret file> | head -3` → openssl/transcrypt ciphertext, **not** the plaintext.
-   - `head -1 <the .secret file>` → still the readable first line.
-   If the index shows plaintext, **STOP** — the filter didn't run (transcrypt not initialized, or the
-   `.gitattributes` pattern doesn't match). Fix before anything is committed.
+
+   **Do NOT rename when something outside the repo reads the file by name.** The filename is then part of
+   an interface, and renaming breaks the thing the file configures — grepping the repo will not save you,
+   because the reference lives in the caller. Mark the path explicitly instead, and record in a comment
+   why it departs from the convention:
+   ```
+   config/publish.env filter=crypt diff=crypt merge=crypt
+   ```
+   The real case: the shared publish script reads `config/publish.env` at that exact path, so
+   `publish.secret.env` would break every publish on every machine and there is nothing in the repo to
+   update. Encrypt-by-path is correct there. The naming convention is the default, not the requirement.
+4. Stage so the clean filter encrypts it: `git add .gitattributes <the target>`.
+5. **Verify** — the index blob must be ciphertext while the working tree stays plaintext. Follow
+   `~/.claude/learnings/transcrypt-verify-before-commit.md` and run the assertions it gives; do not
+   retype them from memory or paraphrase them into a message. That learning exists because the obvious
+   check is wrong in a specific way: the ciphertext's base64 begins `U2FsdGVkX1` and the **eleventh**
+   character encodes salt bits, so an assertion pinning it (`U2FsdGVkX1+`) passes about a quarter of the
+   time and cries "plaintext!" over a perfectly good blob. Decode instead of prefix-matching, and prefer
+   a smudge round-trip, which also catches a wrong key. If the index really does show plaintext, **STOP**
+   — the filter didn't run (transcrypt not initialized, or the `.gitattributes` pattern doesn't match).
+   Fix before anything is committed.
 6. Do **not** commit. Report that the file is staged, encrypted, and ready; the commit happens via `/commit`
    with the rest of the change set.
 
@@ -118,6 +154,13 @@ sequence above; transcrypt decrypts every `*.secret.*` file in place. Confirm wi
 - Do **not** generate a new passphrase — always the Doppler `TRANSCRYPT_KEY`.
 - Do **not** put env-style secrets (keys, tokens, passwords) in committed files — those belong in Doppler.
 - Do **not** work around a classifier denial on executing transcrypt — ask the user to approve or allowlist.
+- Do **not** run `transcrypt init` in a DEPLOY CHECKOUT — a server's clone of the repo, a CI workspace, or
+  anything reconciled by `git reset --hard`. Init sets `filter.crypt.required=true`, which turns every future
+  checkout there into a **hard failure** without the key; and the key must never be on such a box, because it
+  decrypts every transcrypted file in every repo, not just the one in front of you. Left un-initialized, an
+  encrypted file simply checks out as inert ciphertext that nothing on the box reads — clone succeeds,
+  content passes through untouched. That state looks accidental and is correct: do not "fix" it. If a server
+  genuinely needs a decrypted value, render it there from Doppler instead.
 
 ## Pre-commit safety net (already global)
 
@@ -127,6 +170,62 @@ encrypted "Salted" magic, and no-ops in non-transcrypt repos. So **ignore transc
 the pre-commit script" message** if you ever see it — the global hook already covers every repo; no
 per-repo hook install is needed. The `core.hooksPath` bracket in the shared-key section keeps transcrypt's
 own copy inside `.git/hooks/`, so that message should not appear at all.
+
+## The `deprecated key derivation` warning — silence it, do not "fix" it
+
+Once a repo has a crypt filter, git prints this on `git status`, `git add`, `git diff` — anything that has to
+hash a filtered file:
+
+```
+*** WARNING : deprecated key derivation used.
+Using -iter or -pbkdf2 would be better.
+```
+
+**It is not a sign of misconfiguration.** Transcrypt invokes `openssl enc … -md MD5`, and OpenSSL ≥ 1.1.1
+warns whenever `enc` runs without `-pbkdf2`/`-iter`. Git passes filter stderr straight through, so the notice
+surfaces on ordinary commands. Nothing is wrong.
+
+**Do not try to switch the KDF.** Verified against upstream `main` (transcrypt 2.3.3-pre): `-md MD5` is
+hardcoded in all four `openssl enc` call sites, the only git-config knobs are `cipher`, `crypt-dir`,
+`openssl-path`, `password` and `version`, and `pbkdf2` appears nowhere in the script. Upstream has tracked
+this since 2019 without merging a fix — [#55](https://github.com/elasticdog/transcrypt/issues/55) (the
+warning), [#59](https://github.com/elasticdog/transcrypt/issues/59) (asking for `-pbkdf2 -iter 1024`), and
+[#203](https://github.com/elasticdog/transcrypt/issues/203) (a patch using runtime feature detection, since
+older OpenSSL rejects the flag). Patching it locally means every machine needs the patched build forever, and
+a machine that reinstalls stock transcrypt then **cannot decrypt** what the patched one wrote — presenting as
+a wrong-key error rather than a wrong-tool error.
+
+**And the benefit would be nil here.** A slow KDF protects a *guessable* passphrase. `TRANSCRYPT_KEY` is a
+64-character random value, so guessing is infeasible regardless of derivation cost. This changes only if the
+passphrase is ever replaced with something memorable — that is the condition to watch, not the warning.
+
+**To silence it, redirect openssl, not the crypto.** Transcrypt supports `transcrypt.openssl-path`
+([#108](https://github.com/elasticdog/transcrypt/issues/108)) precisely for this. Point it at a shim that
+filters the two lines from stderr and changes nothing else:
+
+```sh
+#!/bin/sh
+REAL=/path/to/real/openssl
+exec 3>&1
+err="$("$REAL" "$@" 2>&1 1>&3)"   # stdout on fd 3 — binary ciphertext passes through unaltered
+rc=$?                              # openssl's status, not the filter's
+exec 3>&-
+[ -n "$err" ] && printf '%s\n' "$err" \
+    | grep -vE '^\*\*\* WARNING : deprecated key derivation used\.$|^Using -iter or -pbkdf2 would be better\.$' >&2
+exit $rc
+```
+
+```
+git config --local transcrypt.openssl-path <path-to-shim>
+```
+
+Per repo and per machine, nothing committed, ciphering untouched — blobs stay byte-compatible with a machine
+running stock transcrypt. Re-running `transcrypt init` rewrites that setting, so re-apply it afterwards.
+Route stdout through fd 3 rather than a shell variable, or binary output gets mangled.
+
+**The warning is worth silencing for a reason beyond tidiness:** it pollutes stderr, and it has already
+crowded out the result of a real check, making a test that asserted nothing look like it had passed. Anything
+scripted around these files should assert on **exit status**, never on output text.
 
 ## Fresh-machine note
 

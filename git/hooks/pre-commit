@@ -1,10 +1,47 @@
 #!/usr/bin/env bash
-# Transcrypt pre-commit safety hook (global via core.hooksPath).
+# Global pre-commit guard (via core.hooksPath). Two independent checks, in order of cost.
 #
-# In a transcrypt-configured repo, it fails the commit if a secret file is staged
-# WITHOUT the encrypted "Salted" magic — the last line of defense against leaking a
-# plaintext *.secret.md. In any repo that doesn't use transcrypt it must be a no-op,
-# since this hook runs for every repo, so it guards on the per-repo transcrypt copy.
+# Both must be a NO-OP in repos they do not concern, because this hook runs for EVERY repo on the
+# machine — a guard that fires where it does not apply is one that gets disabled, and disabling it
+# removes the case where it did apply.
+
+# ── 1. config/publish.env must be encrypted before it can be committed ───────────────────────────
+#
+# `publish.env` names the box, its paths, the container to watch and the vhost to install. No
+# credential — which is exactly what makes it easy to commit by accident, and why it was gitignored
+# for so long. But ignoring it meant every machine kept its own unversioned copy, hand-edited, and
+# those copies drifted: one tenant was left pointing at a path another had deleted, and its next
+# publish would have rebuilt, redeployed and recreated a SHARED proxy before discovering it.
+#
+# The fix is to version it encrypted. This guard is the half that cannot be forgotten: the skill can
+# only protect files it writes, so a config copied from a sibling repo or edited by hand needs
+# something mechanical. The check is STRUCTURAL — is the path marked `filter=crypt` — not a content
+# sniff, so it cannot be fooled by a file that merely looks encrypted. transcrypt's own pre_commit
+# below then enforces that a marked file is actually ciphertext.
+#
+# Deliberately ONLY publish.env. `.env` as a class is the wrong unit: `host.env` in the landlord repo
+# is committed plaintext on purpose (non-secret facts, one source for two consumers), while its
+# sibling rendered `.env` carries secret values and must never be committed. Same suffix, opposite
+# handling — the filename cannot carry that decision, so judgement stays in /commit's confidentiality
+# step and only the one decided path is enforced here.
+STAGED=$(git diff --cached --name-only --diff-filter=AM 2>/dev/null | grep -E '(^|/)config/publish\.env$' || true)
+for path in $STAGED; do
+    if ! git check-attr filter -- "$path" 2>/dev/null | grep -q 'filter: crypt'; then
+        echo "pre-commit: refusing to commit $path in plaintext." >&2
+        echo "  It is versioned so every machine gets the same copy, and encrypted so the box name," >&2
+        echo "  paths and container names do not enter a repo that may one day be public." >&2
+        echo "  This repo has no crypt filter for that path. Set it up with /transcrypt, or add:" >&2
+        echo "      echo 'config/publish.env filter=crypt diff=crypt merge=crypt' >> .gitattributes" >&2
+        echo "  and run transcrypt init. To commit anyway: git commit --no-verify (say why in the message)." >&2
+        exit 1
+    fi
+done
+
+# ── 2. a file marked filter=crypt must actually be ciphertext ────────────────────────────────────
+#
+# transcrypt's own check: fails the commit if a secret file is staged WITHOUT the encrypted "Salted"
+# magic — the last line of defense against leaking a plaintext *.secret.md. Guarded on the per-repo
+# transcrypt copy so it stays a no-op where transcrypt is not configured.
 RELATIVE_GIT_DIR=$(git rev-parse --git-common-dir 2>/dev/null || printf '')
 CRYPT_DIR=$(git config transcrypt.crypt-dir 2>/dev/null || printf '%s/crypt' "${RELATIVE_GIT_DIR}")
 [ -x "${CRYPT_DIR}/transcrypt" ] || exit 0

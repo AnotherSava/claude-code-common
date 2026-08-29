@@ -39,3 +39,42 @@ When moving a wrapper ignore from per-project entries to one global rule:
 1. Add the narrow file pattern(s) to the global excludes (`scripts/deploy.sh`, `scripts/build.sh`).
 2. Before deleting a project's whole-dir `scripts/` entry, confirm `scripts/` holds **only** the wrapper — a whole-dir ignore can be silently hiding real sibling scripts. Check with `git status --ignored --porcelain -- scripts/` and `git ls-files -- scripts/`. If a real script is hidden (e.g. a `save-icons.py` next to a tracked `package.ts`), removing the entry would expose it — that is a per-file decision to surface, not a blind removal.
 3. After removing, verify the wrapper is still ignored (now via global): `git check-ignore -v scripts/deploy.sh` should point at the global file, and `git status` should show nothing newly exposed.
+
+## `git check-ignore` exit 0 means "a pattern matched", NOT "the file is ignored"
+
+The exit status answers *did any pattern apply*, and a **negation** applies just as much as an exclusion.
+So a re-included file — one covered by a `!` rule — also exits 0, and a script that reads the status as
+"ignored" gets the answer backwards on exactly the files a negation exists to protect.
+
+Measured with a throwaway repo, a global `core.excludesFile` containing `config/publish.env`, and a
+repo-level `.gitignore` containing `!config/publish.env`:
+
+```
+$ git check-ignore -v config/publish.env
+.gitignore:1:!config/publish.env	config/publish.env      # note the leading !
+$ echo $?
+0                                                        # matched — and NOT ignored
+$ git add config/publish.env                             # succeeds without -f
+$ git status --short --untracked-files=all
+?? config/publish.env                                    # visible
+```
+
+**Read the `-v` output, not the exit code.** A leading `!` on the reported pattern means the file is
+*not* ignored. Without `-v` there is nothing in the result that distinguishes the two outcomes.
+
+The behavioural checks are unambiguous where the exit code is not:
+
+```
+git check-ignore -v <path>                     # inspect the pattern; ! prefix = not ignored
+git add --dry-run <path>                       # errors on a genuinely ignored path
+git status --short --untracked-files=all       # an ignored path never appears
+```
+
+This bit twice in one session. First a test concluded "the negation does not work" from exit 0, while
+`git add` in the same script was succeeding — two contradictory signals, and the exit code was the wrong
+one to trust. Second, a repo-level negation of a global rule is a supported and useful arrangement (it is
+how one repo opts a path back in without weakening the default for every other repo), so getting this
+backwards means rejecting the right design for a measurement error.
+
+Also worth auditing: any instruction of the form "`git check-ignore` must exit 0" written near a `!`
+pattern is probably asserting the opposite of what it intends.

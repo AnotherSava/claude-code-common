@@ -5,7 +5,20 @@ Thumbs.db
 .ralphex/
 .firecrawl/
 config/deploy.env
-config/publish.env
+
+# config/publish.env is NOT ignored any more — it is versioned, encrypted with transcrypt.
+#
+# Ignoring it meant every machine kept its own unversioned copy, hand-edited, and those copies drifted:
+# a ~700-character identity check duplicated byte-identically across tenants, one tenant left pointing at
+# a path another had deleted, and a key naming a compose service that had not existed for days. An ignore
+# rule cannot fix that, because the drift IS the absence of version control.
+#
+# It carries no credential — box name, paths, container names, the vhost to install — which is exactly
+# what made it easy to commit by accident, and why encryption rather than plaintext: repo visibility
+# stops being a question anyone has to reason about. The global pre-commit hook refuses a staged
+# config/publish.env whose path is not marked `filter=crypt`, so an unprepared repo is told, not leaked.
+#
+# config/deploy.env above stays ignored: it was not part of that decision.
 
 # per-machine wrappers written by Claude Code deploy/build/cleanup/publish/doppler skills — never committed
 scripts/deploy.sh
@@ -13,6 +26,13 @@ scripts/build.sh
 scripts/cleanup.sh
 scripts/publish.sh
 scripts/cb.sh
+
+# The publish script's IDENTITY_CHECK writes the host manifest to a relative path and evals inside the repo
+# root, so this transient lands in whichever tenant is publishing. Its `rm -f` covers the success and failure
+# paths; a publish KILLED between the fetch and the cleanup leaves one behind, and step 1 then refuses the next
+# publish over an untracked file whose cause looks nothing like its origin. Here rather than in each tenant
+# because it is the shared script's artifact, belonging to none of the three repos it appears in.
+/.identity-manifest.*
 
 .env
 
