@@ -78,6 +78,10 @@ for _ in $(seq 1 40); do
     if [ -n "$(listening_pids)" ]; then
         printf " ready\n"
         echo "  logs: $DEV_DIR/dev-server.log (errors: $DEV_DIR/dev-server.err.log)"
+        # Last line, and only on success: the address is the point of the whole command, and a port number
+        # alone is not it — someone still has to assemble the URL before they can look at the thing. Printed
+        # by the script rather than left to whoever reports the run, so it cannot be omitted.
+        echo "  open: http://localhost:$DEV_PORT"
         exit 0
     fi
     printf "."; sleep 1
