@@ -22,9 +22,24 @@ Summarize the "why" not just the "what".
 - Type prefix not repeated in description (e.g. not "refactor: refactor...")
 - No capitalized first word after type prefix
 - Do not list files or file-level descriptions in the body
+- **Body is at most one short paragraph, and usually absent** (see below)
 - Explain *why* only where the reason is yours to explain (see below)
 
 ## Match the body to the change's reach
+
+**Be concise. Most commits need no body at all, and one that has a body needs at most a short
+paragraph.** The default is a subject line. Add a body only when the diff cannot answer a
+question a later reader will actually have — then answer that question and stop.
+
+A body running past a few lines is almost always a session recap or a rediscovered argument,
+and neither belongs in the log: an investigation goes in a learning, a preference goes in a
+memory, and a decision goes in the document it governs. `git log` is read to find *which*
+commit changed something, rarely to relive why.
+
+Symptoms that the body has outgrown the change: more than one paragraph; narrating what was
+considered and rejected; restating a comment the diff already carries; explaining the mechanism
+instead of the intent; recounting how the problem was found. If the reasoning is genuinely worth
+keeping, it is worth keeping somewhere it will be re-read — which a commit message never is.
 
 - **A data-only change gets a subject and almost nothing else.** Adding, removing, or
   correcting entries in a data file (a place, a record, a list value) has the least effect on a
