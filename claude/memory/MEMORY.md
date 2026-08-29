@@ -103,3 +103,7 @@
 - [Don't screenshot an openable page](feedback_dont_screenshot_openable_pages.md) — hand over the URL instead; screenshot only when they can't look (server down, not a page, asked for one)
 - [Cite the source, not the count](feedback_cite_the_source_not_the_count.md) — a document quoting a number that tracks a changing set is wrong on a schedule; cite how to read it
 - [Ask where the key must travel](feedback_encryption_key_travel.md) — encryption that sends a broad decryption key somewhere worse than the data is a net loss; trace every reader first
+- [Uncommitted is not delivered](feedback_uncommitted_is_not_delivered.md) — check `HEAD` and the upstream ref, not the file; a symlinked tool reaches other machines only when pushed
+- [A sanitised value is not evidence](feedback_sanitised_value_is_not_evidence.md) — clamping for one consumer blinds the guard reading the same variable; give the detector its own
+- [Surface the gap, don't fill it](feedback_surface_the_gap_dont_fill_it.md) — never auto-fill a field a human must vouch for; leave it null, mark it, fill by hand
+- [A glyph, not capitals](feedback_glyph_not_caps.md) — caps inside grey text still read grey; use an icon that carries its own colour, and only on the line worth acting on

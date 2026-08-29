@@ -126,6 +126,8 @@ Parallel enumerations should share grammatical form — list-item blurbs are all
 
 Use a dedicated field or variable for object state rather than overloading another field's values (e.g., using `internalDate === 0` as a "deleted" sentinel). A simple null/non-null check is fine, but anything beyond that should be an explicit status field.
 
+**But a status field whose only job is to say *which meaning* another field currently holds is the wrong fix — split the field instead.** Overloading is two facts sharing one column; a discriminator makes that legible without making it go away, and every reader still has to consult two fields to know what one means. Real case: `trips.title` held either a name imported from the source ("GenCon") or a guess derived from the bookings ("Indianapolis"), with `titleSource: 'derived' | 'imported'` to tell them apart — plus a guard stopping the re-derivation from clobbering an imported title. Replacing both with a nullable `name` alongside `primaryLocation` removed the flag **and** the guard: the two facts no longer share a field, so they cannot overwrite each other and there is nothing to keep in sync. The test: if a flag exists only to disambiguate one field, that field is doing two jobs.
+
 ### Early Returns
 
 Avoid adding early return guards like `if not items: return` when the function would behave identically without them (e.g., a `for` loop over an empty collection naturally does nothing). Only add early returns when they actually change behavior or prevent errors.
@@ -216,6 +218,7 @@ Cross-project preferences and feedback. Memory files live in `~/.claude/memory/`
 - ["Not run" must not look like "passed"](~/.claude/memory/feedback_not_run_is_not_pass.md) — a check that can't tell success from never-ran turns an open problem into a closed-looking one; probe the precondition, assert the artifact, print NOT COVERED
 - [Write the procedure to find the missing artifact](~/.claude/memory/feedback_write_the_procedure.md) — review asks "is this right", a runbook asks "does this exist"; run the commands a doc quotes rather than predicting their output
 - [No guessed facts](~/.claude/memory/feedback_no_guessed_facts.md) — don't state a guessed URL/path/endpoint or capability claim as known; verify it or say you're guessing
+- [Surface the gap, don't fill it](~/.claude/memory/feedback_surface_the_gap_dont_fill_it.md) — never auto-fill a field a human must vouch for; leave it null, mark it, fill by hand
 - [No invented rationale](~/.claude/memory/feedback_no_invented_rationale.md) — asked to add a rule, record the rule and its replacement; don't supply a "why" you guessed
 - [Live values = read the system](~/.claude/memory/feedback_live_values_source_of_truth.md) — rates/prices/config/deployed-state change without a commit; read the live source (DB/live page/doppler), never cite a doc snapshot as current
 - [Machine coordinates](~/.claude/memory/machines-private.secret.md) — encrypted (transcrypt); Tailscale tailnet names/IPs for the user's machines, plus the SSH login for the Windows desktop — use these to make any project reach one machine from another, never `*.local` or LAN IPs; platform mechanics in `learnings/windows-openssh-over-tailscale.md`
