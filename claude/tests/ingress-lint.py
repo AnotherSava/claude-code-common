@@ -10,10 +10,12 @@ Two halves, tested differently:
   COMPOSE / upstream rules   this file's own, and asserted directly. They encode a Docker Compose fact and
                              hold on any host.
   TENANCY rules (R1-R7)      landlord's, and NOT reimplemented here. What is asserted is the delegation: that
-                             the rules are called for the file `VHOST_SRC` names, skipped in silence for
-                             anything else, and reported as NOT CHECKED — never as clean — when the landlord
-                             checkout is missing. A stub stands in for landlord so these cases run on a
-                             machine that has no checkout at all.
+                             the rules are called for the file `VHOST_SRC` names, skipped in silence only when
+                             the repo has answered the question — a different file, or an empty declaration —
+                             and reported as NOT CHECKED, never as clean, in all three ways they can fail to
+                             run: no landlord checkout, no declaration at all, and a declaration naming a file
+                             that is not there. A stub stands in for landlord so these cases run on a machine
+                             that has no checkout at all.
 
 Pure Python, no network, no Docker, no Caddy.
 
@@ -54,7 +56,7 @@ class Tenant:
     """A throwaway repo laid out like a real tenant: a .git, a config/publish.env, and a vhost."""
 
     def __init__(self, stack, vhost_body: str, vhost_rel: str = "deploy/app.caddy", declare: bool = True,
-                 parent: str | None = None):
+                 parent: str | None = None, vhost_src: str | None = None):
         # `parent` matters only for the sibling-lookup case, which needs a controlled directory next to the
         # repo. Defaulting to the system temp root there would put a `landlord/` in a shared location.
         self.root = (os.path.join(parent, "repo") if parent
@@ -68,8 +70,10 @@ class Tenant:
         os.makedirs(os.path.join(self.root, "config"), exist_ok=True)
         with open(os.path.join(self.root, "config", "publish.env"), "w", encoding="utf-8") as fh:
             fh.write("SSH_HOST=box\n")
+            # `vhost_src` overrides what gets declared, so a case can point the declaration at a file that is
+            # not there, or write it empty — the two answers that are not "this file".
             if declare:
-                fh.write(f"VHOST_SRC={vhost_rel}\n")
+                fh.write(f"VHOST_SRC={vhost_rel if vhost_src is None else vhost_src}\n")
             # A value that must never be executed by the reader: sourcing this file would run ssh.
             fh.write('IDENTITY_CHECK=echo "must not run"; exit 9\n')
 
@@ -107,13 +111,14 @@ def main() -> int:
             check(f"{label}: reaches landlord's rules", problems, [f"{tenant.vhost}:1: STUB VERDICT"])
             check(f"{label}: no spurious notice", notices, [])
 
-        # --- skip path 1: the file is not this repo's VHOST_SRC --------------------------------------------
-        # A standalone Caddyfile drew three false positives from the old local rules. It must now be silent —
-        # not "clean with notices", silent, since the tenancy rules simply do not describe it.
-        tenant = Tenant(stack, ONE_LINE_SNIPPET, vhost_rel="deploy/app.caddy", declare=False)
+        # --- the only silence: the repo has answered, and this file is not the answer ----------------------
+        # A standalone Caddyfile drew three false positives from the old local rules, so a repo that names a
+        # DIFFERENT file must be silent — not "clean with notices", silent, since the tenancy rules do not
+        # describe this one. Both cases below turn on the repo having said something.
+        tenant = Tenant(stack, ONE_LINE_SNIPPET, vhost_src="")
         os.environ["CLAUDE_LANDLORD"] = tenant.landlord(stack)
-        check("undeclared vhost: no problems", ingress_lint.lint_caddy_tenant(tenant.vhost)[0], [])
-        check("undeclared vhost: no notices", ingress_lint.lint_caddy_tenant(tenant.vhost)[1], [])
+        check("an empty VHOST_SRC is an explicit 'this repo installs no vhost'",
+              ingress_lint.lint_caddy_tenant(tenant.vhost), ([], []))
 
         tenant = Tenant(stack, ONE_LINE_SNIPPET, vhost_rel="deploy/app.caddy")
         other = os.path.join(tenant.root, "deploy", "unrelated.caddy")
@@ -122,7 +127,40 @@ def main() -> int:
         os.environ["CLAUDE_LANDLORD"] = tenant.landlord(stack)
         check("a different .caddy in the same repo: silent", ingress_lint.lint_caddy_tenant(other), ([], []))
 
-        # --- skip path 2: no landlord checkout -------------------------------------------------------------
+        # --- not-checked path 1: the repo has answered nothing ---------------------------------------------
+        # This shape was silent until 2026-08-29, which is how a checkout of a live tenant whose
+        # config/publish.env had not arrived printed the same "clean" line a real pass prints, over a vhost no
+        # tenancy rule had touched. Not declaring is not the same as declaring exemption.
+        tenant = Tenant(stack, ONE_LINE_SNIPPET, declare=False)
+        os.environ["CLAUDE_LANDLORD"] = tenant.landlord(stack)
+        problems, notices = ingress_lint.lint_caddy_tenant(tenant.vhost)
+        check("no VHOST_SRC line: no problems invented", problems, [])
+        check("no VHOST_SRC line: exactly one notice", len(notices), 1)
+        check("no VHOST_SRC line: the notice says NOT CHECKED",
+              "NOT CHECKED" in (notices[0] if notices else ""), True)
+
+        # The same verdict when the file is missing entirely, and the notice must say which of the two it was —
+        # the fix differs, and "declares no vhost" is a different repo from "has no publish.env yet".
+        os.remove(os.path.join(tenant.root, "config", "publish.env"))
+        notices = ingress_lint.lint_caddy_tenant(tenant.vhost)[1]
+        check("no publish.env at all: still exactly one notice", len(notices), 1)
+        check("no publish.env at all: the notice names which is missing",
+              "there is no config/publish.env" in (notices[0] if notices else ""), True)
+
+        # --- not-checked path 2: the declaration points at nothing -----------------------------------------
+        # Every Caddy file is then skipped for not being the declared one, so the rules run against nothing at
+        # all. The notice is per repo, since the fault is the declaration rather than any of the files.
+        tenant = Tenant(stack, ONE_LINE_SNIPPET, vhost_src="deploy/moved-away.caddy")
+        os.environ["CLAUDE_LANDLORD"] = tenant.landlord(stack)
+        check("a stale VHOST_SRC still skips this file in silence",
+              ingress_lint.lint_caddy_tenant(tenant.vhost), ([], []))
+        problems, _, notices = ingress_lint.lint([tenant.vhost])
+        check("a stale VHOST_SRC: no problems invented", problems, [])
+        check("a stale VHOST_SRC: exactly one notice", len(notices), 1)
+        check("a stale VHOST_SRC: the notice names the file that is not there",
+              "deploy/moved-away.caddy" in (notices[0] if notices else ""), True)
+
+        # --- not-checked path 3: no landlord checkout ------------------------------------------------------
         tenant = Tenant(stack, ONE_LINE_SNIPPET)
         os.environ["CLAUDE_LANDLORD"] = os.path.join(tenant.root, "nowhere")
         problems, notices = ingress_lint.lint_caddy_tenant(tenant.vhost)

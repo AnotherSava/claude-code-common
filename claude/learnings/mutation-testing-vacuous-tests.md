@@ -93,6 +93,14 @@ CONTROL: port-only, no heredoc      landlord: FLAGS   other: FLAGS   <- fixture 
 port-only AFTER a heredoc brace     landlord: FLAGS   other: FLAGS   <- and the construct is handled
 ```
 
+**This confusion is not test-only, and the production version costs more.** The same linter's own applicability
+gate later turned out to make it: it folded "this repo declares a different file" together with "this repo
+declares nothing" into one silent skip, so a live tenant vhost on a checkout missing its config printed
+`clean (2 file(s) checked)` — character-for-character what a real pass prints. A fixture that cannot separate
+"correctly out of scope" from "failed to detect" wastes a test; a *gate* that cannot separate them ships the
+verdict. Whenever this section's distinction shows up in a test, check whether the code under test draws it
+either. `cross-repo-rule-delegation.md` has the fix.
+
 Without the control the first line is unverified, and a fixture that flags for an unrelated reason looks
 identical to one that works.
 

@@ -40,8 +40,35 @@ the file being imported means a stale variable falls through to the convention p
 that context only. These described a vhost installed into a shared `conf.d`; applied to an ordinary standalone
 Caddyfile they flagged three constructs — a keyless global-options block, a snippet definition, a port-only
 address — that are all legitimate when you own the proxy. The gate has to be a fact already recorded somewhere,
-not a guess: here, whether the file is the one `VHOST_SRC` in `config/publish.env` names. Anything else is
-skipped in silence, because "these rules do not describe this file" is not a finding.
+not a guess: here, whether the file is the one `VHOST_SRC` in `config/publish.env` names.
+
+**But that gate has three answers, not two.** Its first coding was `if not vhost_src: return [], []`, which
+folded "this repo names a different file" together with "this repo names nothing" and skipped both in silence.
+Only the first is a decision. The second is the absent-dependency case below wearing different clothes, and it
+arrived at the same place: a checkout of a live tenant whose `config/publish.env` had not yet reached it printed
+`clean (2 file(s) checked)` over the vhost that repo's own commit gate calls this script to check, having
+applied no tenancy rule to it — the same sentence, to the character, that a real pass prints. Making the
+*dependency*'s absence loud while leaving the *declaration*'s absence silent closes one door and leaves the
+other one open.
+
+Split them, and give the repo a way to say the quiet thing on purpose:
+
+| `VHOST_SRC` | what the repo has said | outcome |
+| --- | --- | --- |
+| names this file | the rules describe it | run them |
+| names another file | answered, and not this one | silence |
+| present but empty | "this repo installs no vhost" | silence |
+| absent | nothing | **NOT CHECKED** |
+| names a file that is not there | answered with a path that is gone | **NOT CHECKED**, once per repo |
+
+That last row is the easiest one to leave out and it is the same bug a third time: every file is skipped for not
+being the declared one, so a declaration left pointing at a moved path makes the whole rule set apply to nothing
+while each individual skip still looks correct. Report it per *repo*, not per file — the fault is in the
+declaration, and the skipped files are only its symptom.
+
+The general shape: an applicability gate that reads a config value must distinguish *configured otherwise* from
+*not configured*, and only the first may be quiet. For any silent skip, ask what the operator would have had to
+do for that silence to be their decision. If the answer is "nothing", it is not one.
 
 **Read that config line-wise; do not source it.** `config/publish.env` looks like shell and mostly is, but one
 value was a semicolon-separated *program* — sourcing it to read one key would have run `ssh`.
@@ -73,7 +100,10 @@ how "could not check" becomes "checked, fine".
 
 The other repo tests its own rules; duplicating those cases here would recreate the drift in the test suite.
 What is worth pinning locally is everything this side owns: that the rules get called for the right file, that
-they are skipped for the wrong one, and that an absent checkout produces a notice rather than silence.
+they are skipped for the wrong one, and that each of the three ways they can fail to run — absent checkout,
+absent declaration, declaration pointing at nothing — produces a notice rather than silence. Write the
+silent cases and the notice cases next to each other in the test file; a row of the table above missing from it
+is exactly how one of them goes back to being quiet.
 
 Stub the dependency so the tests run on a machine that lacks it — and have the stub assert the arguments it
 received, which is the part a real dependency would accept without comment:

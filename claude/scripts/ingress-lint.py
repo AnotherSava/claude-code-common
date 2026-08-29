@@ -9,8 +9,10 @@ Two rules, both hard failures:
 
 Those two are this file's own and apply anywhere. A third set — landlord's tenancy rules R1-R7, about what a
 vhost may claim inside a shared conf.d — is NOT implemented here: this file delegates to landlord's
-`bin/vhost-lint.py`, the copy its on-box gate enforces, and only for the one file `VHOST_SRC` names. When that
-checkout is absent the tenancy rules are reported as NOT CHECKED rather than skipped quietly. Set
+`bin/vhost-lint.py`, the copy its on-box gate enforces, and only for the one file `VHOST_SRC` in
+`config/publish.env` names. Three situations then report NOT CHECKED rather than skipping quietly: an absent
+landlord checkout, a repo that declares no `VHOST_SRC` at all — where nothing knows whether the rules even
+apply — and a `VHOST_SRC` naming a file that does not exist, where they ran against nothing. Set
 `$CLAUDE_LANDLORD` if the checkout is not a sibling of the repo being linted.
 
 Why: docker compose publishes a service's NAME as a DNS alias on EVERY network the service joins, shared
@@ -200,16 +202,26 @@ def lint_caddy_tenant(path: str) -> tuple[list[str], list[str]]:
     bodies carrying an unmatched brace, and one-line snippet definitions all reached no rule at all and reported
     clean. A second copy of a rule is a copy that drifts, and this one drifted silently.
 
-    Two conditions, and failing either is not a violation:
+    Three conditions, and failing any of them is not a violation. One is silence and two are notices, and which
+    is which is the entire point. A fourth way the rules end up running against nothing — a `VHOST_SRC` naming a
+    file that is not there — is not visible from one file and lives in `declared_vhost_notices`:
 
       not our vhost   the tenancy rules describe a file installed into somebody else's conf.d. Applied to an
                       ordinary standalone Caddyfile they are simply wrong — a keyless global-options block, a
                       snippet definition and a port-only address are all legitimate when you own the proxy, and
                       measured as three false positives on one such file. `VHOST_SRC` in `config/publish.env` is
-                      what names the file this repo installs; anything else is skipped in silence.
-      no landlord     without the checkout there are no rules to run. That returns a NOTICE, never silence and
-                      never a bare "clean" — a check that cannot tell "passed" from "never ran" is the exact
-                      failure this file exists to prevent.
+                      what names the file this repo installs; another file it names is skipped in silence, and
+                      so is every file in a repo whose `VHOST_SRC=` is empty — that is a repo saying out loud
+                      that it installs no vhost.
+      undeclared      a repo with no `VHOST_SRC` line at all has said nothing, and "unknown" is not "not
+                      applicable". Silence here is how a live tenant reads as clean: a checkout of tripit
+                      without `config/publish.env` printed `clean (2 file(s) checked)` over the `trips.caddy`
+                      that landlord grants it and that its own commit gate calls this script to check, having
+                      applied no tenancy rule to it — the same sentence, to the character, that a real pass
+                      prints. So this returns a NOTICE.
+      no landlord     without the checkout there are no rules to run. A NOTICE too, never silence and never a
+                      bare "clean" — a check that cannot tell "passed" from "never ran" is the exact failure
+                      this file exists to prevent.
 
     `owns` and `capabilities` are passed as None, which skips R6/R7 — the two rules needing host data this repo
     does not have. None is not an empty set: an empty `capabilities` means "this host contracts nothing", so R6
@@ -237,6 +249,19 @@ def lint_caddy_tenant(path: str) -> tuple[list[str], list[str]]:
     if repo_root is None:
         return [], []
     vhost_src = _publish_env_value(repo_root, "VHOST_SRC")
+    if vhost_src is None:
+        # Not "has no VHOST_SRC line": a transcrypt-locked checkout reads as ciphertext, so the line can be
+        # there and unreadable, and a message asserting its absence would send someone to add a second one.
+        has_env = os.path.isfile(os.path.join(repo_root, "config", "publish.env"))
+        missing = ("no VHOST_SRC is readable in config/publish.env — a transcrypt-locked checkout reads as "
+                   "ciphertext, so unlock it first" if has_env else "there is no config/publish.env")
+        return [], [
+            f"{path}: tenancy rules (landlord R1-R7) NOT CHECKED — {missing}, so nothing here knows whether "
+            f"this file is a vhost installed into somebody else's conf.d, where the rules apply, or the "
+            f"Caddyfile of a proxy this project owns, where they would be false positives. Add a VHOST_SRC "
+            f"line naming this file, relative to {repo_root}, to have them run against it — or an empty "
+            f"VHOST_SRC= to record that this repo installs no vhost. The compose rules above ran normally."
+        ]
     if not vhost_src:
         return [], []
     if os.path.realpath(os.path.join(repo_root, vhost_src)) != os.path.realpath(path):
@@ -324,7 +349,33 @@ def repo_root_of(path: str) -> str | None:
         current = parent
 
 
-def context_services(report_paths: list[str]) -> dict:
+def repo_roots_of(paths: list[str]) -> set[str]:
+    """The distinct repos the given files sit in, dropping any that sit outside one."""
+    return {root for p in paths if (root := repo_root_of(p))}
+
+
+def declared_vhost_notices(repo_roots: set[str]) -> list[str]:
+    """One notice per repo whose declared `VHOST_SRC` names a file that is not there.
+
+    The per-file check skips every Caddy file that is not the declared one, so a declaration left pointing at a
+    moved or not-yet-created path makes it skip all of them and say nothing — the third route to a pass that
+    covers nothing. Reported per repo rather than per file because the fault is in the declaration, and the
+    files it caused to be skipped are only its symptom.
+    """
+    notices = []
+    for root in sorted(repo_roots):
+        vhost_src = _publish_env_value(root, "VHOST_SRC")
+        if vhost_src and not os.path.exists(os.path.join(root, vhost_src)):
+            notices.append(
+                f"{os.path.join(root, vhost_src)}: tenancy rules (landlord R1-R7) NOT CHECKED — "
+                f"config/publish.env declares VHOST_SRC={vhost_src} and no such file exists, so they had "
+                f"nothing to run against. Every other Caddy file here was skipped for not being that one, "
+                f"which leaves the pass below covering no vhost at all."
+            )
+    return notices
+
+
+def context_services(repo_roots: set[str]) -> dict:
     """Every compose service declared in the repos containing the files being reported on.
 
     Checked separately from what gets reported because the Caddy rule is cross-file: deciding whether an
@@ -334,7 +385,7 @@ def context_services(report_paths: list[str]) -> dict:
     "clean".
     """
     services: dict = {}
-    for root in {r for p in report_paths if (r := repo_root_of(p))}:
+    for root in sorted(repo_roots):
         for compose in collect([root])[0]:
             try:
                 with open(compose, encoding="utf-8") as fh:
@@ -352,16 +403,18 @@ def lint(paths: list[str]) -> tuple[list[str], int, list[str]]:
     specifically the PostToolUse hook, which has to put them in a JSON field on stdout and would otherwise
     reimplement this orchestration and drift from it.
 
-    Notices are the third outcome, and they are not violations: they say a rule set could not be run at all.
-    They ride alongside `problems` rather than inside it because they must not set the exit status — but a
-    caller that drops them turns "not checked" back into something that reads like "passed".
+    Notices are the third outcome, and they are not violations: they say a rule set did not run — because its
+    dependency is absent, because nothing declared whether it applies, or because what it was pointed at is not
+    there. They ride alongside `problems` rather than inside it because they must not set the exit status — but
+    a caller that drops them turns "not checked" back into something that reads like "passed".
     """
     composes, caddys = collect(paths)
 
     # Findings are reported only for the files named, but judged with the whole repo's services in view.
+    roots = repo_roots_of(composes + caddys)
     problems: list[str] = []
-    notices: list[str] = []
-    services: dict = context_services(composes + caddys)
+    notices: list[str] = declared_vhost_notices(roots)
+    services: dict = context_services(roots)
     for path in composes:
         found, svc = lint_compose(path)
         problems += found

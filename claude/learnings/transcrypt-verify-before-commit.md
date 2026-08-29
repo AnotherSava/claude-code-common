@@ -112,6 +112,26 @@ two together look like defence in depth and have a shared blind spot. Make the c
 if a staged path resolves to `filter=crypt`, assert the staged blob starts with `U2FsdGVkX1`, whether or not
 transcrypt is installed in that clone.
 
+## A reader of an encrypted config must not report a key as absent
+
+The same locked-clone state has a mirror-image consequence for whatever *consumes* the file. On a clone nobody
+has unlocked, a versioned-encrypted config is ciphertext in the working tree, so a tool that parses it — a
+line-wise `KEY=value` read, a `grep`, a `source` — finds no keys at all. The failure is total and looks
+ordinary: not a parse error, just a config with nothing in it.
+
+So a message must never assert the key is *missing*. "config/publish.env has no VHOST_SRC line" sends someone
+to add a second one, on top of the encrypted line already there. Say what is true — no value was readable —
+and name the locked-clone case as a cause:
+
+```python
+missing = ("no VHOST_SRC is readable in config/publish.env — a transcrypt-locked checkout reads as "
+           "ciphertext, so unlock it first" if has_env else "there is no config/publish.env")
+```
+
+The distinction is worth the extra clause anywhere a config moved from gitignored-per-machine to
+versioned-encrypted: the file's *absence* stops being the normal failure and its *unreadability* takes over,
+while every message written for the old world still says "missing".
+
 ## Never initialise transcrypt on a deploy checkout
 
 A server's checkout of a repo containing encrypted files is fine untouched: with no crypt filter the file lands
