@@ -67,3 +67,43 @@ Verified both directions: the working form renders the project list normally, an
 - `git log @{upstream}..HEAD` — curly braces may cause issues
 - Commands with `--format="%h %ai %s"` — nested quotes parsed incorrectly
 - Any command that can legitimately return non-zero
+
+
+## `$1`, `$2`, … are eaten before the shell sees them — and the corruption is silent
+
+A context probe using awk positional fields does not reach awk intact. Observed 2026-08-29 in the `publish`
+skill, whose file on disk reads:
+
+```
+!`grep -c "publish()" ~/.bashrc ~/.zshrc 2>/dev/null | awk -F: '{s+=$2} END {print s+0}'`
+```
+
+and whose evaluator handed awk this:
+
+```
+awk: syntax error at source line 1
+ context is
+	 >>> {s+=for <<< } END {print s+0}
+```
+
+`$2` was replaced by the string `for`. Not blanked, not escaped — substituted with something that happens to
+be an awk reserved word, so the failure surfaces as a syntax error rather than as a wrong number. Deterministic
+across repeated invocations, and fatal: a non-zero exit kills skill loading before the body is read (see the
+first section), so **the whole skill becomes unusable** and no amount of re-invoking helps.
+
+Diagnose it by reading the file rather than trusting the error. The message quotes the *mangled* command, so it
+looks like a defect in the skill; `grep -n` on the source shows the original is correct and the loader is at
+fault. Do not "fix" the skill — the edit would be wrong, and in a vendored skill it would be reverted anyway.
+
+**Avoid positional fields in context probes entirely.** Equivalents that survive:
+
+```
+# instead of: ... | awk -F: '{s+=$2} END {print s+0}'
+... | cut -d: -f2 | paste -sd+ - | bc
+... | grep -c .                      # when a count of matching LINES is enough
+```
+
+The general rule for these probes: anything the evaluator might read as a variable — `$1`, `$2`, `$@`, and by
+extension `$(...)` — is a hazard, and the safest probes are plain pipelines of `grep`, `cut`, `test`, `ls` and
+`wc`.
+

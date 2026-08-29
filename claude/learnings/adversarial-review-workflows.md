@@ -63,3 +63,25 @@ mostly reproduces the first five.
 
 Three lenses independently reporting one line is not three defects; it is one defect and a strong signal. Dedupe
 by file and line before the verify stage, or pay for the same judgement three times.
+
+## In a triage workflow, refute the dismissals, not the findings
+
+Everything above assumes a review, where the expensive error is a false positive and the refuter defends against
+a finding that is not real. **Triage inverts it.** When the question is "is this backlog item still a problem?",
+the expensive error is the false *negative* — closing something that silently reopens whatever it guarded — so
+the refuter must be pointed at the `already-done` and `obsolete` verdicts and told the burden of proof sits on
+the claim that the problem is gone. Default to `refuted=true` when it cannot be independently confirmed.
+
+Measured on a 7-item triage: 5 first-pass verdicts came back as handled or partly handled, and **all 5 were
+overturned.** A single-pass triage would have closed five live items.
+
+Two failure modes drove nearly all of it, and both are worth naming in the refuter's prompt:
+
+- **A working-tree edit read as a delivered fix.** Three verdicts rested on changes that existed only as
+  unstaged bytes on the machine the agent was running on. Tell refuters to check the committed side
+  (`git show HEAD:<path>`, `git log @{upstream}..HEAD`), not just the file.
+- **"The reason is stale" read as "the problem is gone".** An item's rationale can be entirely obsolete while
+  its ask is untouched. Make the refuter separate premise from conclusion explicitly.
+
+Give the investigator a verdict vocabulary that has somewhere to put this — `still-open` / `partly-overtaken` /
+`obsolete` / `already-done` — or a half-stale item gets rounded to whichever end is closer.

@@ -312,3 +312,52 @@ dialog.player video:focus { outline: none; }
 ```
 
 Plain `:focus` rather than `:focus-visible`, since the latter is a subset — one selector covers both. Real controls keep their rings: other buttons in the dialog, and the video's native controls, which live in its shadow tree and are untouched by a rule on the host element. The cost to weigh is that a keyboard user tabbing onto the `<video>` loses the cue that arrows and space will act on it; scoping the rule to `:fullscreen` keeps that cue in the windowed case.
+
+
+## A grid child is blockified — `inline-flex` becomes `flex` and fills its whole column
+
+A direct child of a grid (or flex) container has its `display` **blockified**: `inline-flex` computes to
+`flex`, `inline-block` to `block`. Combined with `justify-self` defaulting to `stretch`, an element you wrote
+as inline spans its entire track.
+
+For a link, that is not cosmetic — the whole cell becomes the click target, including the empty space after the
+text:
+
+```jsx
+// The anchor is a direct grid child, so `inline-flex` is a lie: it fills the 1.15fr column.
+<li className="grid grid-cols-[14rem_10.5rem_0.85fr_1.15fr]">
+  <a className="inline-flex items-baseline gap-1.5">Pacific Central Station</a>
+</li>
+```
+
+**Fix — `justify-self: start`** (Tailwind `justify-self-start`), which sizes the item to its content instead of
+stretching. Do NOT reach for a wrapper element; the wrapper just becomes the stretched grid child instead.
+
+Two things make this hard to spot. The element still *looks* right — text on one line, correct spacing — because
+a stretched flex container with `justify-content: start` renders its content identically; only the hit area
+differs. And a `<span>` in the same position has the identical bug with no visible symptom at all, so the
+pattern gets copied around until something clickable lands in it.
+
+Worth auditing every interactive direct child of a grid at once: the same layout usually has several.
+
+
+## Tabular numerals align digits, not letters — a date column needs the mono face
+
+`font-variant-numeric: tabular-nums` (Tailwind's `tnum`) equalises the advance width of **digits only**. A
+formatted date is mostly letters, and in a proportional face `Fri` and `Wed` are different widths, as are `Jul`
+and `Aug`. So a column of `Fri 21 Aug 05:30` / `Wed 29 Jul 00:16` still starts its clock time at a different x
+on every row, and `tnum` looks like it did nothing.
+
+Two fixes, and both are needed:
+
+- **Set the whole value in the mono face**, not just the digits. Pairing a mono with its sans sibling (Geist
+  Mono under Geist Sans, IBM Plex Mono under IBM Plex Sans) reads as alignment rather than as code.
+- **Pad a single-digit day to two columns** with **U+2007 FIGURE SPACE**, not an ordinary space. U+2007 is
+  defined to be exactly one digit wide, and — unlike a leading ordinary space — HTML will not collapse it.
+  Without the pad, `Mon 3 Aug 12:12` sits one character left of `Tue 28 Jul 14:45` no matter which face is used.
+
+Assert on the codepoint in tests (`'Mon \u20073 Aug'`); U+2007 and U+0020 are indistinguishable in a diff.
+
+Mono advances wider than sans at the same size, so a fixed-width column sized for the sans version will overflow
+— widen it, and note that `white-space: nowrap` makes that overflow silently overlap the next column rather
+than wrap.

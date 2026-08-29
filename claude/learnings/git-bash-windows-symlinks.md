@@ -77,3 +77,21 @@ if [ -L "$cache" ] && [ "$(cygpath -w "$(readlink "$cache")")" = "$target_win" ]
   echo "already linked"; exit 0
 fi
 ```
+
+## Checking one over SSH, where the shell is cmd.exe
+
+Windows OpenSSH hands you **cmd.exe**, not Git Bash, so `[ -L ]`, `readlink` and
+`cygpath` are all unavailable. Use `dir /al`, which lists only reparse points and
+prints the target in brackets:
+
+```
+> dir /al %USERPROFILE%\.gitignore
+03/29/2026  12:39 AM    <SYMLINK>      .gitignore [D:\projects\claude\git\gitignore]
+```
+
+A plain file produces `File Not Found` from `/al` while `dir` without the flag
+still lists it — that pair is the test, and it distinguishes a real link from one
+of the silent copies above. This is the check worth running after any "pull the
+dotfiles repo on the other machine" step: the pull updates the repo file, and a
+copy masquerading as a link never moves, so the repo reads current while the
+thing that is actually consulted is stale.
