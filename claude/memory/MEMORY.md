@@ -81,6 +81,7 @@
 - [Off state recedes, on state is plain](feedback_off_state_recedes.md) — parallel controls are one species; ON copies its always-on sibling, OFF dims the whole group (no colour, no strike-through)
 - [No back-compat for unshipped formats](feedback_no_unshipped_back_compat.md) — a shim for a format that never left this machine is dead code plus a false public promise; verify it shipped first
 - [Timezone is not a location](feedback_timezone_is_not_a_location.md) — an IANA zone spans half a continent; never render it where a place belongs, never infer a city from it
+- [Report time in the user's zone](feedback_time_in_user_timezone.md) — America/Los_Angeles (PDT/PST); convert server/UTC timestamps before quoting, and give `17:26 PDT` rather than "tonight"
 - [No negative from a partial probe](feedback_no_negative_from_partial_probe.md) — report which endpoints you tested and what they returned, not that the thing is impossible
 - [Check the network exists](feedback_check_the_network_exists.md) — a feature needing other users is worthless at launch; ask what it does with one user
 - [Rename the control, do not invert it](feedback_rename_dont_invert.md) — when a mechanism can only express one direction, name the control for what it does; no inverted wiring behind a label
@@ -94,3 +95,11 @@
 - [Rehearsals must not mimic the real signal](feedback_rehearsal_must_not_mimic.md) — a test must be unmistakable in the part read first (subject line), and must not consume the real alert's rate limit
 - [Name with a metaphor in a shared namespace](feedback_name_with_metaphor.md) — a vivid name is safer than a category word; nobody accidentally picks a metaphor, and `ingress` is already Docker Swarm's
 - [Local deploys come with a URL](feedback_local_deploy_give_url.md) — reporting a site runs locally without its address isn't a report; give scheme+host+port+path, link the page that matters, and say whether it's still up
+- [Contribution ≠ mitigation](feedback_contribution_vs_mitigation.md) — label an upstream bug report/PR comment as helping the project; never list it under "what to do" about the user's own problem
+- [Guard input must survive the event](guard_input_must_survive_the_event.md) — a teardown guard can't key on a live-process signal; test an `unknown → permit` fallback against a *known* owner
+- [Sync watermark matches append order](sync_watermark_matches_append_order.md) — gate replication on an append `seq`, not event time, unless one sequential writer guarantees monotonic timestamps
+- [Model for the reader](feedback_model_for_the_reader.md) — enumerate a field only if the app computes on it; normalise an entity only if a screen reads it that way
+- [Track the plan in the repo](feedback_track_the_plan_in_repo.md) — multi-session work gets a living `docs/plan.md`, with `[x]` verified distinguished from `[~]` unverified
+- [Don't screenshot an openable page](feedback_dont_screenshot_openable_pages.md) — hand over the URL instead; screenshot only when they can't look (server down, not a page, asked for one)
+- [Cite the source, not the count](feedback_cite_the_source_not_the_count.md) — a document quoting a number that tracks a changing set is wrong on a schedule; cite how to read it
+- [Ask where the key must travel](feedback_encryption_key_travel.md) — encryption that sends a broad decryption key somewhere worse than the data is a net loss; trace every reader first
