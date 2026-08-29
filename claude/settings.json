@@ -96,16 +96,6 @@
           }
         ],
         "matcher": "permission_prompt"
-      },
-      {
-        "hooks": [
-          {
-            "type": "command",
-            "command": "[ -n \"$AGTERM_SESSION_ID\" ] && \"$HOME/.config/agterm/agent-status/agterm-agent-status.sh\" blocked >/dev/null 2>&1 || true",
-            "async": true
-          }
-        ],
-        "matcher": "permission_prompt"
       }
     ],
     "UserPromptSubmit": [
@@ -206,15 +196,6 @@
           {
             "type": "command",
             "command": "[ -n \"$AGWINTERM_SESSION_ID\" ] && \"$CLAUDE_AGWINTERM/agwintermctl.exe\" session status completed >/dev/null 2>&1 || true",
-            "async": true
-          }
-        ]
-      },
-      {
-        "hooks": [
-          {
-            "type": "command",
-            "command": "[ -n \"$AGTERM_SESSION_ID\" ] && \"$HOME/.config/agterm/agent-status/agterm-agent-status.sh\" completed --auto-reset >/dev/null 2>&1 || true",
             "async": true
           }
         ]
