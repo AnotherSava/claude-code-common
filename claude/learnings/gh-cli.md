@@ -47,6 +47,35 @@ nothing valid to accept; don't go hunting for an authenticator app.
 useful when the interactive refresh isn't practical, though granting the scope is the durable
 fix since it recurs the first time any project gains a workflow.
 
+## Test `gh` auth in the session type that will actually run it, not over SSH
+
+Observed on 2026-08-26/27, driving a Windows machine over SSH from a Mac: `gh` reported the session as
+completely unauthenticated — `gh api user` returned `401`, `gh auth status` said not logged in — while
+the *same machine, same user* was perfectly authenticated in its own interactive shell. Nothing was
+broken; the token simply was not reachable from that session.
+
+`gh` stores its token in the OS credential store when one is available (Windows Credential Manager,
+macOS Keychain, libsecret), falling back to `hosts.yml` only when it is not. A non-interactive SSH login
+does not carry the interactive session's unlocked vault, so the lookup finds nothing and gh reports the
+honest-but-misleading "not logged in".
+
+**The trap is the conclusion, not the error.** The natural reading is "this machine's `gh` is broken /
+its token has lapsed", which is a claim about the machine, and it propagates: it was stated to the user,
+relayed onward, and had to be retracted after checking interactively. A negative result from a session
+that cannot see the credential store is not evidence about the credential.
+
+So when the question is *"can this machine run `gh` when it publishes?"*, the check has to run the way
+the publish runs — an interactive shell on that machine, or the exact non-interactive context the real
+job uses. Verifying from a convenient SSH session answers a different question. Related: the same
+one-machine-away reflex produced a claim that a file on the Windows box could not be reached at all,
+when it could.
+
+If a non-interactive context genuinely must authenticate, give it its own credential rather than
+borrowing the interactive one — `GH_TOKEN` in the environment, or a deploy key for git operations, which
+sidesteps `gh` entirely. Note a deploy key is scoped to exactly **one** repository, and a private repo
+answers an unauthorised caller with **404, not 401** — so "not found" there is as likely to mean "not
+permitted" as "does not exist".
+
 ## `gh api` endpoints must not start with a slash on Git Bash
 
 MSYS path translation rewrites a leading-slash argument into a filesystem path before gh ever sees it:

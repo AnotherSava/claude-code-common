@@ -419,6 +419,53 @@ Readable names beat session UUIDs for UI. Common scheme:
 
 Note that rule 1 changes `-` → space but rule 2 does not. A folder literally named `watcher-error` under `projects_root` becomes chat_id `watcher error`; outside `projects_root` it stays `watcher-error`.
 
+**cwd is not unique per session.** Two Claude Code instances can run in the same directory — most easily a terminal session plus a desktop-app session started from it — and a cwd-derived id merges them into one row, where whichever instance fired the last hook owns any per-session registration (terminal pid list, transcript path). The id has to stay cwd-derived to survive a mid-session `cd` into a subdirectory, so a tiebreaker on top (the owning agent pid) beats switching to session UUIDs.
+
+Before treating the merge as corruption, check *how* the second instance started. Claude Code's own migration path is `--session-id <new> --fork-session --resume <the first session's transcript>`, so the forked instance inherits the original transcript wholesale — a shared row is then showing **one continuous thread, correctly**, and splitting it per instance would tear in half a conversation the user deliberately migrated. Read the argv (`ps -o command=`) and compare message ids across the two transcripts before designing anything: the real hazard in the merged case is not display but destruction, since a `SessionEnd` from the abandoned instance names the same row the live one is writing. Gate removal on ownership; leave identity alone.
+
+## Measuring real work from transcripts (token accounting)
+
+The usage-limits API returns only *percentages of the current plan's quota*, so any series built from it becomes incomparable the moment the plan changes and cannot be repaired afterwards. Transcripts carry absolute token counts and are the only plan-independent measure available locally. Four things to know before counting them — all measured across a real 660-file tree (47,696 usage-bearing lines, 21,421 distinct responses):
+
+**One response is written as many lines.** Claude Code emits a transcript line per *content block*, each repeating the whole `usage` object, so `message.id` recurs — a **54.98%** duplicate rate. Summing lines inflates totals **2.03x**. Reduce by `message.id` taking the **max of each field**: `output_tokens` grows across a response's blocks and the last line carries the final value (`last == max` in all 21,382 fan-out groups checked). Max-per-field is idempotent, commutative and associative, which is what makes re-scans, late-arriving blocks, out-of-order sync and overlapping range pulls harmless *by construction* rather than by discipline.
+
+**Subagent transcripts live in a nested directory and dominate.** `<session>/subagents/**.jsonl` held **616 of 660** files and **55.5%** of all output tokens. Anything that tails only the hook-supplied `transcript_path` misses them entirely — walk the tree instead.
+
+**`cache_read` is not work.** It was **97.1%** of the raw token sum and tracks how long a conversation has grown, not how much was done. Against the account's own 5h counter over 621 shared 10-minute buckets:
+
+| numerator | Spearman ρ |
+|---|---|
+| input + cache_creation + output | **0.799** |
+| output alone | 0.668 |
+| cost-weighted (in×1, cc×1.25, cr×0.1, out×5) | 0.660 |
+| all four summed | 0.473 |
+| cache_read alone | 0.444 |
+
+So `input + cache_creation + output` is the numerator to chart. Store the components separately regardless — which ones count is a display decision that changes, and the source self-deletes in ~30 days.
+
+**Transcripts are pruned (~30 days) and are per-machine.** Treat any store built from them as the durable record, never recompute from the tree on demand, and expect the series to start where retention starts rather than where the account did.
+
+## Reaching the terminal a session runs in
+
+An external process that wants to write to the terminal a Claude Code session occupies — to set the tab title, say — cannot ask the hook where it is:
+
+**Claude Code detaches every child it spawns from the controlling terminal.** On macOS a hook process (and a Bash-tool shell) reads `ps -o tty= -p $$` as `??` even when Claude Code itself is sitting in a real terminal tab. So `$$`'s own tty is useless, and so is any rule of the form "stop at the first ancestor without a tty" — the hook's *immediate* parent is already tty-less:
+
+```
+hook(??) → /bin/zsh(??) → claude 56202(ttys007) → zsh(ttys007) → login(ttys007) → terminal app(??)
+```
+
+The tty must therefore come from the **ancestor chain**, and the walk must be **bounded at the session's own Claude Code process** — the nearest ancestor whose image basename (sans `.exe`) is `claude`. Unbounded, a session whose whole subtree is tty-less climbs *out* of itself and finds a tty belonging to somebody else:
+
+```
+hook(??) → 72349(??) → ClaudeCode.app/…/claude(??) → ~/.local/bin/claude(??) → claude 93331(ttys005)
+                                                                               └── a DIFFERENT session's tab
+```
+
+That is the desktop app launched from a terminal session: its ancestors are the launching session, so an unbounded walk writes this agent's status onto that agent's tab, every reassert cycle, while the tab that should show it goes stale. Bounded, the chain is all-`??` and the correct action is to write **nothing** — a session with no terminal has no tab to title. Treat "no reachable candidate" as a legitimate outcome, not a failure to retry around.
+
+Caveats: the versioned binary (`~/.local/share/claude/versions/<ver>`) does **not** match the `claude` image test, but its parent — the app or launcher — does, so the bound still lands inside the session. A node-based install matches nothing and stays unbounded. Both this bound and an `agent_pid` resolve assume the launcher `exec`s rather than forks.
+
 ## MCP server conventions
 
 For projects that also register an MCP server:
@@ -551,7 +598,9 @@ Two facts that block any "discover which sessions are currently alive by reading
 - **No session-end marker.** A cleanly-closed session's `*.jsonl` ends with the same ordinary records as a live one (`system/turn_duration`, `mode`, `file-history-snapshot`, …). Nothing in the file content distinguishes "closed" from "still open". Verified across transcripts closed 20h+ ago vs. two currently-running sessions.
 - **Claude doesn't hold the transcript open between writes.** It opens-appends-closes per write. Checked the two live sessions with the Win32 RestartManager API ("who has this file open") — **neither** transcript had a holding process, despite both being active minutes earlier. So "is a process holding the file open" can't be used as a liveness probe: when a session is idle (exactly when you'd need to detect it), there's no open handle.
 
-Net: file mtime gives only "recently active" (includes just-closed, misses idle-open), and there is no cheap cross-platform way to tell a running session from a closed one from disk. Process→cwd mapping works on macOS (`lsof`) but is unreliable on Windows. Treat "session is alive" as knowable only from live signals (hooks firing, or a peer still pushing in a sync setup), not from the transcript files.
+- **mtime moves without new records.** A transcript abandoned at `2026-08-26T21:27Z` showed an mtime of the *following* afternoon with zero entries added in between — Claude rewrites or touches the file for reasons unrelated to conversation content. So mtime overstates activity in a way that misleads a human reading a directory listing, not just a program: it read as "this session was active an hour ago" when it had been idle 19 hours. Parse the last record's `timestamp` instead, and count user turns after the point you care about; an `ls -l` is not evidence about a session.
+
+Net: file mtime gives only "recently touched" (includes just-closed and content-free rewrites, misses idle-open), and there is no cheap cross-platform way to tell a running session from a closed one from disk. Process→cwd mapping works on macOS (`lsof`) but is unreliable on Windows. Treat "session is alive" as knowable only from live signals (hooks firing, or a peer still pushing in a sync setup), not from the transcript files.
 
 ## Reference implementations
 

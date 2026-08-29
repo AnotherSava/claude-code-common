@@ -39,6 +39,59 @@ Undocumented beta endpoint that returns rolling 5-hour and 7-day rate-limit util
 
 `expiresAt` is ms-epoch. When expired, running any `claude` CLI command (e.g. `claude -p .`) triggers an OAuth refresh and rewrites the file.
 
+### macOS keeps this in the Keychain, not in a file
+
+`~/.claude/.credentials.json` is the Linux location. On macOS there is no such file — the same JSON lives in
+the login Keychain under service **`Claude Code-credentials`**:
+
+```sh
+security find-generic-password -s "Claude Code-credentials" -w
+```
+
+Verified against CLI 2.1.238, August 2026. Anything that reads the file path directly silently finds nothing
+on a Mac.
+
+### Two different credentials wear the same prefix
+
+Both are `sk-ant-oat01-…`, and telling them apart matters:
+
+| | Interactive login | `claude setup-token` |
+|---|---|---|
+| Scopes | `user:inference`, `user:profile`, `user:sessions:claude_code`, `user:mcp_servers`, `user:file_upload` | inference only |
+| Expiry | hours | long-lived |
+
+So **the scope list is how you identify which one you are holding**, not the prefix. The CLI states the
+narrowing itself: *"Long-lived tokens (from `claude setup-token` or CLAUDE_CODE_OAUTH_TOKEN) are limited to
+inference-only for security reasons."*
+
+`claude setup-token` on macOS completes the browser flow and **writes to the Keychain without printing
+anything** — so there may be no token to copy anywhere, and the credential sitting in the Keychain afterwards
+can still be the short-lived interactive one. Check before assuming you have a long-lived token:
+`claude auth status` prints JSON (`loggedIn`, `authMethod`, `email`, `subscriptionType`), and the scope list
+above settles it.
+
+Do not lift the interactive credential onto a server. Its access token expires the same day, and copying its
+*refresh* token puts a full-scope credential on a shared machine — refresh tokens typically rotate on use, so
+the server refreshing can invalidate the copy the laptop is using.
+
+### Running `claude -p` headless, in a container
+
+Authenticate **in place** rather than transporting a token:
+
+- `ENV CLAUDE_CONFIG_DIR=/home/<user>/.claude` in the image, mounted as a named volume, so the credential
+  survives a rebuild. If the mount path and the env var ever disagree the container starts happily and has
+  simply forgotten it was signed in.
+- Sign in once: `docker exec -it <container> claude setup-token`.
+- `CLAUDE_CODE_OAUTH_TOKEN` is honoured when set, so a long-lived token or an API key can be dropped in later
+  without changing anything else. Clear `ANTHROPIC_API_KEY` explicitly if an ambient one might bill the wrong
+  account.
+- For pure inference, pass `--disallowed-tools Bash Read Write Edit Glob Grep WebFetch WebSearch Task` so a
+  document containing instruction-shaped text cannot reach a filesystem.
+- Treat a rate limit as its own outcome, not a failure: the token shares the subscription's limit with every
+  other session on the account, so a 429 means "retry this unchanged later", and an unauthenticated CLI means
+  "nobody has run setup-token yet". Collapsing either into a generic error hides a one-off setup step behind a
+  per-item failure.
+
 ## Credentials on macOS (Keychain, not a file)
 
 On macOS Claude Code stores OAuth credentials in the **system Keychain** — no `~/.claude/.credentials.json` is created. The Keychain entry holds the same `{"claudeAiOauth": {...}}` JSON blob as the file would on other OSes.
