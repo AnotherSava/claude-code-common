@@ -44,6 +44,33 @@ after the ` -> ` separator:
     if " -> " in path:
         path = path.split(" -> ", 1)[1]
 
+## `core.quotepath` mangles non-ASCII paths in every listing command
+
+`git ls-files`, `git status` and friends escape non-ASCII bytes by default and wrap the
+path in quotes, so a Cyrillic, accented or CJK filename comes back as octal escapes:
+
+    "content/druzya/\320\232\320\270\321\200\320\260.jpg"
+
+Compare that output against a filesystem listing and the files silently look **missing**.
+Real case: a repo of 2454 files reported 1390 tracked, and the 1064 "absent" ones were
+just the photographs whose captions were Cyrillic. `git check-ignore` reporting nothing
+for them was the tell — no rule was excluding them, the two lists simply disagreed about
+their names.
+
+Pass `-z` for NUL-separated, unescaped output:
+
+    raw = subprocess.run(["git", "ls-files", "--others", "--cached",
+                          "--exclude-standard", "-z"],
+                         capture_output=True).stdout   # no text=True — decode yourself
+    listed = {p.decode("utf-8") for p in raw.split(b"\0") if p}
+
+`-z` also removes the "what if a filename contains a newline" question. The same flag
+works for `git status -z`, `git diff --name-only -z`, `git ls-tree -z`.
+
+`git -c core.quotepath=false …` stops the escaping but still quotes paths containing
+spaces, so it is not enough on its own. Prefer `-z` whenever the output is parsed rather
+than shown to a human.
+
 ## Display tip
 
 When echoing porcelain back to a human, replace the X/Y spaces with a

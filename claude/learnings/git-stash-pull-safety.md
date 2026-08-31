@@ -27,6 +27,14 @@ Two things that are less fragile than they look:
   untouched. The one hazard is an incoming commit that *adds* a path matching an existing
   untracked file; check the incoming file list for collisions first.
 
+The conflict you *will* get, over and over, is the mirror image of the first bullet: **both
+sides appending to the end of the same list.** An index file, a changelog, a bullet list that
+every session grows from the bottom — two appends at the same anchor always collide, however
+unrelated their content. Nothing about the resolution is ambiguous, so treat it as mechanical
+rather than as a fresh judgement call each time: keep both blocks, upstream first, and delete
+the three marker lines. Then confirm both sides survived, since "kept both" is exactly the
+claim a careless edit silently breaks.
+
 ## Clearing the merge state after a conflicted pop
 
 A `git stash pop` that conflicts **keeps the stash entry** ("The stash entry is kept in case
@@ -89,3 +97,15 @@ should list exactly the incoming commits' files and nothing else. Any local edit
 mangled shows up here. This checks the whole tree in one command, which hand-reconstructed
 before/after patches do not — and it sidesteps the easy mistake of diffing two slices that
 don't actually correspond.
+
+**Untracked files are the exception to "nothing else".** A plain `git stash push` never
+captured them, so they are absent from the stash tree and every one of them appears in that
+diff as an addition. Union them into the expected set before asserting the diff is clean, or
+the check cries wolf on files it was never watching:
+
+```bash
+git diff --name-only "$SHA" -- . | sort -u > /tmp/actual
+{ git diff --name-only "$SHA^" @{upstream} -- .; git ls-files --others --exclude-standard; } |
+  sort -u > /tmp/expected
+comm -23 /tmp/actual /tmp/expected     # anything printed here is genuinely unexplained
+```

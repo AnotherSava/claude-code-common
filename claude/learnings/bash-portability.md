@@ -180,3 +180,36 @@ make any worked example in its header print a key that actually exists; an examp
 removed demonstrates nothing and hides the contradiction.
 
 Measured 2026-08-30, bash 3.2 (macOS).
+
+## Two Git-Bash-on-Windows traps when embedding another language
+
+**A quoted heredoc still loses backslashes on the way into Python.** Writing a script inline with
+`python <<'PYEOF' … PYEOF` looks like it should pass the body through verbatim, but doubled backslashes
+arrive collapsed. A regex character class is where this bites, because the damage is syntactically
+valid right up until it isn't:
+
+```python
+re.compile(r'[^:@/\s"\]+')   # authored
+re.compile(r'[^:@/\s"\]+')    # received -> the \] escapes the bracket
+# re.PatternError: unterminated character set at position 55
+```
+
+The position in the error points into the mangled class, not at anything you wrote, so it reads as a
+typo you cannot find. Same failure invoking PowerShell: `"$env:USERDOMAIN\$env:USERNAME"` arrives
+without its separator and account lookups fail with `No mapping between account names and security IDs
+was done`.
+
+Fix: write the script to a real file and run it (`python script.py`, `powershell -File script.ps1`).
+Reserve heredocs for bodies with no backslashes.
+
+**`/tmp` is not the same directory for bash and for a Windows-native interpreter.** MSYS maps `/tmp`
+into the user's temp dir; Python on Windows resolves `/tmp` against the *current drive*, so a file bash
+wrote to `/tmp/x` is looked for at `D:\tmp\x` and reported missing:
+
+```
+FileNotFoundError: [Errno 2] No such file or directory: '/tmp/captest/vault/index.json'
+```
+
+Both halves succeed individually, which makes it read as the writer having failed rather than the
+reader looking elsewhere. Translate with `pwd -W` (or `cygpath -w`) before handing a path across, or
+keep scratch files inside the project on an explicit path.

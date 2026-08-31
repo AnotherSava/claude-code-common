@@ -32,6 +32,30 @@ legacy console shows mojibake, which is still better than a crash.
 `PYTHONIOENCODING=utf-8` fixes it too, but only for whoever remembers to set it — it doesn't travel
 with the tool.
 
+## Redirecting to a file does not make it safe
+
+The trap is that the crash is usually *seen* on a console, so redirecting output to a log looks like
+it sidesteps the problem. It doesn't: with a non-tty stdout Python falls back to
+`locale.getpreferredencoding()`, which is the same cp1251 on the same machine. A background service
+whose output goes to a log file is exposed exactly as much as an interactive run — and fails where
+nobody is watching.
+
+## `-X utf8` when you cannot edit the entry point
+
+For launching *someone else's* script, or your own through a process manager, the UTF-8 mode flag is
+the portable lever:
+
+```
+python -X utf8 serve.py
+```
+
+It is a plain argument, so it survives every launcher. An env-var prefix does not: a supervisor that
+runs the command through `cmd.exe /c` on Windows has no shell that understands
+`PYTHONIOENCODING=utf-8 python serve.py`, while the same string word-splits correctly under `nohup`
+on Unix. One config value has to work on both — `-X utf8` does, the prefix does not.
+
+`PYTHONUTF8=1` is the environment equivalent, with the same portability caveat.
+
 ## Worth catching before shipping
 
 Non-ASCII output is easy to miss in testing when the fixtures are ASCII. Unit tests over canned
