@@ -28,6 +28,10 @@ menu item never contradicts a visible string, it just fails to show the new one.
 both directions — every literal in the shot still exists in source, and every set the source
 enumerates appears in the shot in full.
 
+Both cases are cited here as proof the method works, not as open work: agterm belongs to
+`umputun`, not to this account, and the jsonl-logs repo is archived. Neither screenshot is
+going to be re-shot — do not raise them again.
+
 Two traps in the grep itself:
 
 - **Scope it to source.** An unscoped `git grep` for a removed literal hits `CHANGELOG.md`
