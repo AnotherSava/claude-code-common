@@ -166,6 +166,8 @@ When the same non-trivial computation or step-sequence is needed in two or more 
 
 **Confirm the path you're fixing is the one that runs.** Before shipping a behavioral fix, check that the function you changed is actually reached by the user action it's meant to affect — grep for callers. A duplicate whose twin is dead is the worst case of the above: the fix compiles, reads correctly, and changes nothing, because the live path is the other copy. (Real case: a tray Show/Hide had two implementations; the one wired to the frontend command had zero callers, so hardening it left every real click on the unfixed copy.)
 
+**When another site already made the decision, record its outcome rather than recomputing it.** A predicate re-evaluated elsewhere is not a second copy of the same answer — it is a *different* answer, because the first evaluation's result depends on runtime facts the inputs don't carry. Real case: a status route reported `sync_listening` as `config.listen && token.is_some()`, the same shape as the startup gate that launches the listener. It disagreed three ways — an empty-string token passes `is_some()` while startup refuses to launch on it, the config field hot-reloads while the listener is start-only, and the bind can simply fail on a taken port — so the field claimed a listener that was not running. Extracting a shared predicate would not have fixed it: no predicate over config can observe a failed bind. The fix is a flag set at the point that knows.
+
 ## Gitignore
 
 When adding entries to `.gitignore`, choose the right scope:
@@ -230,6 +232,8 @@ Cross-project preferences and feedback. Memory files live in `~/.claude/memory/`
 - [Extend the schema, don't free-text it](~/.claude/memory/feedback_extend_schema_not_freetext.md) — data that doesn't fit gets a new field, offered and priced honestly, not stuffed into a comment
 - [Compound label hierarchy](~/.claude/memory/feedback_compound_label_hierarchy.md) — a label made of several kinds of information gets a colour+weight per part, never one uniform run; a separator inside a part sits tighter than the gaps between parts
 - [Relative timestamps](~/.claude/memory/feedback_relative_timestamps.md) — "3h ago" visible, exact stamp on hover; port `formatInterval` from the What's Next repo, don't reinvent it
+- [Report timestamps in local time](~/.claude/memory/feedback_local_time_timestamps.md) — logs store UTC and these machines run hours behind it; convert before showing, or the quoted moment can't be matched to what the user saw
+- [Message a sibling agent](~/.claude/memory/peer_messaging.md) — `ListAgents` lists the other projects' live sessions, `SendMessage` (deferred — ToolSearch it first) delivers plain text into one; send when a change here breaks what another project's agent builds on, or it holds a fact you'd otherwise guess at — a message starts a real turn there, so never to chat, confirm or thank. **An empty `ListAgents` does NOT mean the other machine is unreachable** — it is local-only by design; the memory has the cross-machine route (dashboard roster to find the session, then SSH + its local pipe) and the dead ends not to re-walk
 
 ## Memos
 

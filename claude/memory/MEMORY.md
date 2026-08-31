@@ -106,4 +106,8 @@
 - [Uncommitted is not delivered](feedback_uncommitted_is_not_delivered.md) — check `HEAD` and the upstream ref, not the file; a symlinked tool reaches other machines only when pushed
 - [A sanitised value is not evidence](feedback_sanitised_value_is_not_evidence.md) — clamping for one consumer blinds the guard reading the same variable; give the detector its own
 - [Surface the gap, don't fill it](feedback_surface_the_gap_dont_fill_it.md) — never auto-fill a field a human must vouch for; leave it null, mark it, fill by hand
-- [A glyph, not capitals](feedback_glyph_not_caps.md) — caps inside grey text still read grey; use an icon that carries its own colour, and only on the line worth acting on
+- [A glyph, not capitals](feedback_glyph_not_caps.md) — caps inside grey text still read grey; use an icon carrying its own colour — but recolour an element already there before adding one
+- [Status colour vs the page](feedback_status_colour_vs_page.md) — a tinted badge passes ink contrast and is still invisible; measure the fill against the page too (1.09:1), fill it solid with inverting ink
+- [Re-read the lead after appending](feedback_reread_the_lead_after_appending.md) — an appended correction is true while the opening sentence it sits under has silently gone false
+- [Verify at the layer the user sees](feedback_verify_at_the_user_visible_layer.md) — your write succeeding at every layer you own is not the outcome; read the value at the last consumer before saying it works
+- [Assert the syntax, not the spelling](feedback_assert_the_syntax_not_the_spelling.md) — an absence check must match a directive; the file's own warning against the thing contains the word
