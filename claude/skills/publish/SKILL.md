@@ -102,10 +102,15 @@ before writing anything:
   ```
   config/publish.env filter=crypt diff=crypt merge=crypt
   ```
-  Mark it by **path**, not by renaming to `*.secret.*`: the name is load-bearing, since `config/publish.env`
-  is the literal path the publish script reads. And scope it to this one path rather than `*.env` — a host's
-  deliberately-committed plaintext `host.env` and a rendered file full of secret values share that suffix and
-  need opposite handling, so the suffix cannot carry the decision.
+  Mark it by **path**, not by renaming to `*.secret.*`: the name is part of an interface here, not a label —
+  `config/publish.env` is the literal path the publish script reads, nothing in the repo references the name,
+  so a rename breaks every publish on every machine and grepping would not catch it. Scope it to this one path
+  rather than `*.env`, too: a host's deliberately-committed plaintext `host.env` and a rendered file full of
+  secret values share that suffix and need opposite handling, so the suffix cannot carry the decision.
+
+  **Do not add `-text`** — transcrypt stores base64, which is text, and marking it binary churns the blob on
+  every Windows↔macOS round trip. The `/transcrypt` skill carries the full reasoning; it applies to a
+  path-marked entry exactly as it does to the `*.secret.*` pattern it is written against.
 - `initialised=0` — run `/transcrypt`, which uses the shared Doppler key. Never generate a new passphrase.
 
 Then verify what git would actually store, using the procedure in
@@ -192,8 +197,11 @@ skipping this section's precondition is a blocked commit rather than a plaintext
 file and is not one: the script reads it with `grep`+`cut`, so values are deliberately unquoted *commands*.
 Sourcing runs them.
 
-The case that is always present: `BUILD_SERVICES=app migrate` executes `migrate` as a command and leaves
-`BUILD_SERVICES` unset, so the damage is silent in both directions. Any value carrying an unquoted `$(…)` is
+The case that is always present: a multi-word value like `BUILD_SERVICES=app migrate` is a shell **prefix
+assignment**, so sourcing executes `migrate` as a command and scopes the assignment to that command alone.
+The variable keeps whatever it held before — unset stays unset, a stale value stays stale — so the value you
+believe you just loaded is not loaded, and the only hint is a `command not found` for a binary that is on no
+PATH. Any value carrying an unquoted `$(…)` is
 worse — sourcing fires it at assignment time and stores the output, so the variable holds a *result* where a
 command belongs, and the eventual failure looks nothing like its cause. That is not hypothetical: it cost one
 wrong diagnosis, an operator chasing a credential that was fine. Values ending in `exit` will also close an
