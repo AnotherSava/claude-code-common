@@ -274,6 +274,7 @@
     }
   },
   "effortLevel": "xhigh",
+  "ultracode": true,
   "awaySummaryEnabled": false,
   "tui": "fullscreen",
   "skipWorkflowUsageWarning": true,
