@@ -1,7 +1,7 @@
 # Keeping a unit alive, and being told when it isn't
 
 Hardening a systemd service so a transient fault doesn't become a permanent one — and wiring an alert that
-actually fires. Four traps here, and **every one of them fails silently**: the unit loads, `daemon-reload`
+actually fires. Six traps here, and **every one of them fails silently**: the unit loads, `daemon-reload`
 succeeds, and the file reads as though it took effect.
 
 ## StartLimit* are `[Unit]` options, not `[Service]`
@@ -53,6 +53,53 @@ the fast failure strands you, and that's the one a bad binary or a corrupt state
 This matters most when the unit is what gives you access. Check `ExecStopPost=` too — a cleanup that tears
 down a network interface turns "the daemon is down" into "the daemon is down and the route to the box is
 gone."
+
+## `Type=oneshot` disables the start timeout, so a hung job hangs forever
+
+The default that reverses itself for the one type where it matters most. `systemd.service(5)` on
+`TimeoutStartSec=`:
+
+> Defaults to `DefaultTimeoutStartSec` set in the manager, except when `Type=oneshot` is used, in which case
+> the timeout is disabled by default.
+
+A timer-driven `oneshot` — a backup, a sync, a report — is exactly the shape that talks to a third party over
+the network, and a half-open socket is exactly what produces an indefinite hang. Without an explicit
+`TimeoutStartSec=` the unit sits in `activating` until someone notices, holds whatever exclusive lock the job
+took, and never fires `OnFailure=` because it never converges to a final state. The next two nights then fail
+on the *lock* rather than on the cause, so the failure has erased its own origin.
+
+```ini
+[Service]
+Type=oneshot
+TimeoutStartSec=3600      # generous, and finite; the point is that it terminates
+```
+
+Bound the individual calls inside the job as well. The unit timeout turns a hang into a killed unit with
+nothing recorded; a per-call timeout turns it into a named failure of the step that hung.
+
+## A templated `OnFailure=` handler must not speak for units it knows nothing about
+
+`OnFailure=alert@%n.service` is a good pattern precisely because any unit can adopt it — which is also how it
+goes wrong. Two traps, both from the handler having been written when only one unit used it:
+
+- **Its wording ossifies around the first caller.** A handler whose message says "the self-check did not run,
+  so nothing was asserted about this box" is simply false once a backup unit routes through it: that check
+  ran fine and something else died. Derive the subject from `%i`, and keep any caller-specific claim behind
+  an explicit test for that caller's unit name.
+- **Shared alerting state is the sharper one.** If the handler touches a rate-limiting clock belonging to
+  some *other* message — the box's health verdict, say — then a unit that fails nightly re-stamps that clock
+  nightly, and the reminder it belongs to never comes due again. A backup job can silence every alert about
+  everything else, permanently, with nothing anywhere reporting a fault. Give a unit-failure notification its
+  own per-unit clock, keyed by unit name, and never let it write a clock it does not own.
+
+A local workaround exists and is worth recognising as one: `SuccessExitStatus=` on the *first* unit stops its
+ordinary non-zero exit reaching the handler at all, which protects that unit and leaves every later adopter
+walking straight back into the defect. Fix the handler.
+
+Note the exit-code contract differs per unit and the two are easy to copy wrongly between them. A command
+whose exit 1 means "I ran and the answer is bad" needs `SuccessExitStatus=1`, or systemd calls a successful
+run a failure. A command whose exit 1 means "I did not do my job" must **not** have it, or systemd calls a
+failure a success. Same directive, opposite correct answers, and no test catches the wrong one.
 
 ## `WatchdogSec=` requires the daemon to implement it
 

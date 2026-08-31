@@ -103,6 +103,8 @@ Scans project documentation for stale references and fixes them.
 - Checks README, `docs/pages/`, CLAUDE.md, and source comments against current code
 - Fixes stale paths, API references, and behavior descriptions
 - Keeps curated feature listings (features page, docs index, README) in sync with the diff
+- Reconciles documentation screenshots against the docs that cite them, and proves a shot stale by grepping the text visible in it against source
+- Places a replacement screenshot you shot yourself, then sweeps its caption, alt text and surrounding prose — it never captures one itself
 - Regenerates dimensioned-draft drawings when the model they document changed
 - Suggests new documentation files or reorganization when beneficial
 
@@ -219,6 +221,24 @@ Ships a project outward to where its users are — the counterpart to `deploy`, 
 - Recreates the proxy only when its config actually changed — a bind-mounted config keeps its old inode, so a reload reports "config is unchanged" and the new vhost never gets a certificate. Handles both shapes: a co-tenant vhost gets installed into somebody else's proxy (validated before it goes live, restored on failure), while a repo that owns its proxy already has the file in the checkout and only needs the "did it change" answer
 - Proves success by observing the target: a real user-facing page must return 200 *and* the container's restart count must not climb, because a health probe passes while every database-backed page 502s and a crash-looping container answers between restarts
 - Asserts *identity*, not just liveness, where a box hosts several projects — a 200 proves something answered, never that it was yours, and a name collision routes a hostname at a neighbour's app just as healthily. The optional `IDENTITY_CHECK` runs twice: once before anything is built, to prove the check itself can run, and once after the deploy to assert the answer. "Serving the wrong app" and "the check could not run" are reported as different things, because only one of them justifies a rollback
+
+---
+
+### Backup
+
+Gives a project on the shared VPS a nightly off-box backup, or works on one it already has: provisions its Backblaze bucket and bucket-scoped key, writes the job and its systemd units, renders the credentials, and proves the restore by running it. Encodes one shape across every co-tenant — restic to B2, one bucket per project, credentials in `/etc/<tenant>/backup.env`, a staggered timer, a drill.
+
+**Command:** `/backup`
+
+**Features:**
+- Provisions Backblaze end to end over the native API — bucket, lifecycle rule and a key scoped to that bucket alone — with an explicit boundary between what it may create unasked and what needs the user (deleting anything, or touching another project's)
+- Sets the bucket lifecycle rule **at creation**, because the S3-compatible backend only *hides* what it deletes: without it `forget --prune` reclaims nothing while every nightly run exits 0 and the bill grows with no signal anywhere
+- Insists on a fixed staging path — `restic forget` groups snapshots by host *and* paths, so a per-run tmpdir silently turns the whole retention policy into a no-op
+- Renders credentials from a workstation over an ssh pipe with `umask 077`, since the box deliberately has no Doppler and `>` then `chmod` leaves the passphrase world-readable for a window
+- Keeps backup credentials out of the publish-time required-secrets list, so a durability credential can never refuse a change to what the box is serving
+- Catches the failures that report success: restic's exit 3 writes a *partial* snapshot, `Type=oneshot` disables systemd's start timeout by default, and an `ExecStart` under the repo directory name rather than the deploy path dies 203/EXEC on every fire
+- Proves the restore by counting what came back — and, where the box still serves, by matching a restored artefact's digest against the live one
+- A per-engine table for taking a consistent copy (SQLite online backup, `pg_dump` with credentials read inside the container, `mongodump` from the image that matches the server), plus `references/tenants.md` recording what each neighbour already does and which nightly slots are free
 
 ---
 

@@ -111,3 +111,78 @@ Keep the threat honest: over a LAN or tailnet the timing noise floor is high, so
 of bug rather than a likely attack. It does **not** bound the guessing budget — a constant-time compare
 still lets an attacker try tokens as fast as the socket accepts them, so token length and a failed-auth
 delay are separate questions.
+
+## Knowing *which* peer called: `tailscale whois`, not the token
+
+The source check above answers "is this caller on the tailnet". It does not answer "which machine is
+this", and a shared bearer token cannot either: one secret across a fleet proves *a token-holder*, not a
+machine. So any field the sender uses to name itself — a `device_name` in the request body, an
+`origin_device` — is a **claim**, and if that field decides whose data the request becomes, any
+token-holder can attribute their push to your laptop.
+
+The authentication you need already happened. The listener is tailnet-scoped, so a packet only arrives
+because WireGuard authenticated the node behind it — the mistake is discarding that result and reading a
+self-declared string instead. `tailscale whois` hands it back, from the local daemon:
+
+```
+$ tailscale whois --json 100.86.97.31:9078
+Node.ComputedName : chrome            # short node name
+Node.Name         : chrome.tail3e8704.ts.net.
+UserProfile       : someone@example.com   # the tailnet user owning the node
+```
+
+It fails closed on everything that is not a tailnet peer, which is what makes it usable as a gate:
+
+```
+$ tailscale whois 8.8.8.8:443     -> peer not found (exit 1)
+$ tailscale whois 127.0.0.1:9078  -> peer not found (exit 1)
+```
+
+Note the loopback result: a localhost test harness is **not** a tailnet peer, so it degrades to
+"unattested" rather than being refused. Design for that, or your own tests fail closed.
+
+### The binding must be receiver-local, or the check is circular
+
+whois gives you a *tailnet node name*. What you are checking is a name in *your* namespace. Those are
+usually not equal — one real pair was `device_name = "CHROME"` against node `chrome`, and
+`device_name = "Olegs-MacBook-Air.local"` against node `air`. So you need a map, and **it cannot ride the
+wire**: a sender controls every field of its own request, so a hostile node would simply send its own
+truthful node name beside the claimed device name and attest itself. An out-of-band binding in the
+receiver's config is what makes the check non-circular.
+
+Three outcomes, and only one refuses:
+
+| outcome | when | action |
+|---|---|---|
+| attested | a binding exists and the source is that node | accept |
+| claimed | no binding configured, or no answer from whois | accept, and *say* it was unchecked |
+| mismatch | a binding exists and the source is a different node | refuse |
+
+Defaulting the unbound case to `claimed` rather than `mismatch` is what lets this ship into a running
+fleet without breaking every deployment that has not written a map yet.
+
+### Practical notes
+
+- **Locate the binary explicitly.** A GUI app inherits no shell PATH; on macOS the CLI lives inside the
+  app bundle at `/Applications/Tailscale.app/Contents/MacOS/Tailscale`, on Windows at
+  `C:\Program Files\Tailscale\tailscale.exe`.
+- **Give the subprocess a timeout.** Rust's `Command` has none; poll `try_wait` to a deadline and `kill`,
+  or a wedged daemon holds a blocking thread forever.
+- **Cache per source address** (~60 s). The address→node binding is stable for a node's lifetime; the
+  cache is about bounding subprocess spawns.
+- **Store the verdict at ingest, do not recompute it on read.** It is a fact about *a connection that
+  happened* — the address it arrived from — and the read path does not have that address.
+- **Report it.** An attestation that silently succeeds is indistinguishable from one that silently
+  no-ops. Surface `attested`/`claimed` per peer so the check's absence is visible.
+
+### Why not per-device tokens
+
+The obvious alternative — a token per peer instead of one fleet-wide — does work and is better than a
+shared secret. It is still the weaker option: it is a bearer secret, so reading one machine's config
+impersonates it completely; rotation touches every machine; and it reimplements, with new failure modes,
+an identity Tailscale is already asserting underneath you. Reach for it only if the fleet might leave the
+tailnet.
+
+**Do not call the result "verified".** It is as good as the tailnet's ACLs and the fleet token not having
+leaked. And identity is not intent: it says the request really came from that node, never that whatever
+is running there is behaving.

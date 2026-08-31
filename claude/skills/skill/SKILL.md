@@ -183,6 +183,20 @@ When a skill renders output meant to fill the terminal — a table, an aligned/w
 
 Add `PowerShell` and `Bash(tput cols:*)` to `allowed-tools` for the detection step. Working examples: `~/.claude/skills/github-status` (a bordered table) and `~/.claude/skills/memo` (a wrapped, aligned listing).
 
+## Is the destination published?
+
+Ask this **before writing the skill's content**, not before committing it. The Gitignore section below answers "will this be tracked?"; it does not answer "will this be *public*?", and a skill can be correctly tracked straight into a public repo.
+
+```bash
+gh repo view --json isPrivate,nameWithOwner,visibility
+```
+
+Most skills are pure method and publish fine. What does not: per-host inventories, which systems are unprotected, where sensitive or personal data sits, account identifiers, internal hostnames and schedules. None of it looks like a credential, which is exactly why it reads as safe to write.
+
+When a skill needs both, **split by sensitivity rather than trimming**: the procedure stays in the public skill, the inventory moves to the private repo that owns the thing it describes, and the skill points at it via a sibling checkout — refusing to proceed when that checkout is absent rather than guessing. See `~/.claude/learnings/cross-repo-rule-delegation.md` for the delegation mechanics and `~/.claude/memory/feedback_check_destination_visibility.md` for why storing it once where it belongs beats keeping a redacted copy.
+
+Doing this first matters because it is cheap first and expensive later: by the time the content exists it has been *shaped* around the wrong assumption, so the fix is a restructure rather than a decision.
+
 ## Gitignore
 
 A skills directory is usually covered by an ignore-everything-then-allowlist rule, so a new skill can end up untracked with no signal at all: it never appears in `git status`, and the only copy lives on the machine that created it. Add the un-ignore line **when you create the directory** — don't defer it to a final check, and don't skip it because the skill obviously sits inside a tracked repo.
