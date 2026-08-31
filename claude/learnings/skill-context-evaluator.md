@@ -48,6 +48,26 @@ A fallback appended to a pipeline binds to the pipeline's status, which is the *
 
 Verified both directions: the working form renders the project list normally, and forcing the failure (`--token bogus`) renders `UNAVAILABLE`. The cost is losing `head`'s output cap, so only drop it where the result set is inherently small. Always test the failure path — the success path looks identical either way, and a silently-empty context label is far harder to diagnose later than a loud one.
 
+## A new or edited Context line cannot be tested in the session that wrote it
+
+Skills are discovered at session start. A skill directory created mid-session is not
+invocable — `Skill` answers `Unknown skill: <name>`, so the throwaway-probe trick (a minimal
+skill holding just the candidate `!` lines, invoked once and deleted) does not work in the
+session that needs the answer. An edited line in an *existing* skill has the same problem
+from the other side: invoking that skill to see whether the line renders also runs the whole
+skill body, which is rarely acceptable just to test a Context line.
+
+This matters because the failure is not local: a non-zero exit kills skill loading before
+the body is read, so one bad Context line makes the whole skill unusable until someone
+edits the file. Combined with the quoting hazards above, that argues for keeping Context
+lines to shapes already proven in the file, and **moving anything novel into a process
+step**, where the Bash tool runs it in an environment you can exercise immediately.
+
+The convention that data a step needs on *every* invocation belongs in Context still holds —
+but a command that only runs when an earlier check is non-empty is conditional by
+definition, so the body is its correct home anyway. Gate on a simple Context line, put the
+complex command behind the gate.
+
 ## Commands that work reliably in context
 
 - `git status --short`
