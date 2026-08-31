@@ -53,6 +53,13 @@ other agent never receives while you believe it did.
 Related: newlines in the payload each submit separately, so a multi-line brief becomes N premature
 Enters — strip them (`tr -d '\n'`) and send one long line. The bundled skill covers that part.
 
+**None of this applies to messaging another Claude Code session any more.** Claude Code ships a native
+cross-session channel — `ListAgents` / `SendMessage`, delivered over a per-session socket — so a
+Claude → Claude message needs no typing, no `\r`, and no pane read-back, and it reports
+delivered / held / refused back to the sender. Verified 2026-08-30; see
+`claude-code-cross-session-messaging.md`. The typing route above remains the answer only for driving a
+program that is *not* a Claude Code session.
+
 ## The OSC title *is* the session name, and agterm never writes one itself
 
 `displayName = customName ?? oscTitle ?? cwd basename`. So whatever a program writes as the terminal
@@ -68,6 +75,33 @@ Two consequences worth planning around:
   every agterm session it touches. That is usable as a feature, not just a hazard. To keep a stable
   label anyway, double-click-rename the session: a `customName` outranks the OSC title. The OSC string
   then still shows as the row's *subtitle* wherever `oscTitle != displayName`.
+
+  The flip side is silent, and it cost hours on 2026-08-29: a row renamed once is **permanently dark**
+  for status, because `Session.displayName` returns `customName` before it ever consults the title
+  (`agtermCore/Sources/agtermCore/Session.swift:389`). The writer keeps succeeding the whole time — the
+  OSC reaches the pty, agterm stores it, `agtermctl tree --json` reports it under `.title` — and the row
+  just never shows it. So diagnose from agterm, not from the writer: run `agtermctl tree --json` and
+  compare `.name` against `.title` across every row. Equal everywhere means the writer is healthy; the
+  one row where `.name` differs and reads like a bare cwd basename is the renamed one. The published
+  node carries no `customName` key at all, so its absence proves nothing — confirm against the persisted
+  snapshot at `~/Library/Application Support/agterm/windows/<window-id>.json`.
+
+  **The `.name` vs `.title` comparison gives a false negative when the pin was captured from the status
+  writer's own output**, which is the likely case if the rename happened by accident rather than on
+  purpose. Seen 2026-08-30: `customName` was the literal `🔵 tauri-dashboard`, emoji included, so every
+  time the row sat in the writer's blue/Working state `.name == .title` and every row looked healthy —
+  the row read as a full status title, not the "bare cwd basename" the paragraph above suggests looking
+  for. The discriminator that always works is a **unique** marker: write
+  `printf '\033]0;UNIQUE-XYZ\007' > /dev/ttysNNN` and re-read the tree **within about a second**, before
+  the status writer's next pass overwrites it (a 3s wait already lost it, twice). Pinned shows
+  `.title` moving to `UNIQUE-XYZ` while `.name` stays put; healthy shows both. Do not conclude anything
+  from a sample taken while the writer may have just refreshed — that misreading produced two wrong
+  diagnoses in a row (a "wedged escape parser", then a retraction of the correct answer).
+
+  Clear it with
+  `agtermctl session rename "" --target <id>`: `AppStore.renameSession` runs
+  `TerminalText.sanitized(name).trimmedOrNil`, so an empty string sets `customName` to nil and the row
+  returns to title-driven naming.
 - Clearing is clean: an empty title (`printf '\033]0;\007' > /dev/ttysNNN`) trims to nil and the name
   falls back to the cwd basename. Useful for undoing a title written to the wrong tab.
 

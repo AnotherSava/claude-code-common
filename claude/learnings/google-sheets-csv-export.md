@@ -67,3 +67,25 @@ sees in the browser.
 Related: repeated header names are normal in such sheets (helper columns named `Start`/`End` once per day). Parse
 to `string[][]` and resolve headers to **indexes**, taking the leftmost match — a CSV parser's "key rows by
 header name" mode keeps only the last of each duplicate and quietly loses columns.
+
+## Linking a reader back to one row
+
+The counterpart to reading it: sending someone to the line a row came from. The fragment Sheets' own "get link to
+this cell" produces works for anyone with view access, and scrolls the target to the top of the window.
+
+```
+https://docs.google.com/spreadsheets/d/<spreadsheetId>/edit?gid=<gid>#gid=<gid>&range=12:12
+```
+
+- The `gid` genuinely goes **twice** — the query selects the tab on load, the fragment selects within it.
+- `range=12:12` selects the **whole row**; `range=A12` selects one cell. Prefer the row when the point is "here is
+  this thing's line", since what a reader wants is usually spread across its columns.
+- Row numbers are 1-based as the browser numbers them, so keep the header-row offset from the parse: with
+  `skip_empty_lines: false` and `rows = parsed.slice(headerRow + 1)`, item `i` is sheet row `headerRow + 2 + i`.
+  Turning that off, or letting a parser drop blank lines, silently shifts every link below the first gap.
+
+**Resolve the row on click, don't store it.** A row number is only true until someone inserts a line above it, so
+a stored one goes wrong silently, between syncs, with nothing to notice it. Re-find the row by the source's own
+id at click time — one `/export` fetch (~100KB, ~0.4s for a few hundred rows) behind a redirect route. The second
+reason is worse than the staleness: if your change feed diffs stored fields, a shifted row number *is* an edit, so
+reshaping the document would report every row below the insert as changed.

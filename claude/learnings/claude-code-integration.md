@@ -458,13 +458,34 @@ hook(??) → /bin/zsh(??) → claude 56202(ttys007) → zsh(ttys007) → login(t
 The tty must therefore come from the **ancestor chain**, and the walk must be **bounded at the session's own Claude Code process** — the nearest ancestor whose image basename (sans `.exe`) is `claude`. Unbounded, a session whose whole subtree is tty-less climbs *out* of itself and finds a tty belonging to somebody else:
 
 ```
-hook(??) → 72349(??) → ClaudeCode.app/…/claude(??) → ~/.local/bin/claude(??) → claude 93331(ttys005)
-                                                                               └── a DIFFERENT session's tab
+hook(??) → 72349(??) → 72194 claude(??) → daemon claude(??) → claude 93331(ttys005)
+                                                              └── a DIFFERENT session's tab
 ```
 
-That is the desktop app launched from a terminal session: its ancestors are the launching session, so an unbounded walk writes this agent's status onto that agent's tab, every reassert cycle, while the tab that should show it goes stale. Bounded, the chain is all-`??` and the correct action is to write **nothing** — a session with no terminal has no tab to title. Treat "no reachable candidate" as a legitimate outcome, not a failure to retry around.
+Bounded, the chain is all-`??` and the correct action is to write **nothing** — a session with no terminal has no tab to title. Treat "no reachable candidate" as a legitimate outcome, not a failure to retry around.
 
 Caveats: the versioned binary (`~/.local/share/claude/versions/<ver>`) does **not** match the `claude` image test, but its parent — the app or launcher — does, so the bound still lands inside the session. A node-based install matches nothing and stays unbounded. Both this bound and an `agent_pid` resolve assume the launcher `exec`s rather than forks.
+
+### The bound is not enough, because a background agent has no tab of its own
+
+Bounding stops the walk writing to a stranger's tab; it does not let you *find* the right tab, and for one whole class of session nothing can. **A conversation moved into the background** — `claude --bg`, or parking a live session from its window — stops executing in its terminal and starts executing inside a detached daemon: `claude daemon run --origin transient --spawned-by {…}`, with `claude bg-pty-host` / `claude bg-spare` children, every one of them `??`. Hooks fire from *there*, so the whole bounded chain is tty-less even though the user is looking at a real, live tab.
+
+The trap is that this daemon is **shared**. One daemon hosted three sessions at once in the observed case, so the chain of *every* one of them exits through whichever client happened to spawn it. Measured result before this was understood: 558 title writes putting one agent's status on another agent's tab over 21h, while that agent's own tab stayed blank. So this is not "widen the walk by one hop" — no walk of any shape recovers the tab, and `--spawned-by` is one answer shared by every job in the daemon, not per-session.
+
+**What works: match the row's cwd against `~/.claude/sessions/<pid>.json`.** Claude Code keeps one file per live session:
+
+```json
+{"pid":93331,"sessionId":"…","cwd":"…/printlab","kind":"interactive","name":"printlab-ab","parkedJobId":"e80ec97f"}
+```
+
+`kind` is `"interactive"` (owns a terminal) or `"bg"` (does not). Take the interactive record whose cwd matches, and `ps -o tty=` its pid — no ancestor walk, and it is immune to the daemon because it never looks at parents. Two guards: resolve only when exactly **one** interactive session claims that cwd (a `--fork-session --resume` migration leaves two, with two tabs and no way to choose), and confirm the pid is still a live `claude` image, which defeats pid reuse off one process-table snapshot. Same data, documented and read-only but ~20s per call because it spawns a process: `claude agents --json`.
+
+**What does not exist anywhere — stop looking for it.** Nothing records which tab is *viewing* a background job. Verified against the binary's own registry writer (the record has no tty/tab/pane field), `claude agents --json` (key union `cwd,id,kind,name,pid,sessionId,startedAt,state,status`), the daemon control socket's `leases` op (`{label, cwd, pid}`, daemon-wide not per-job), and `~/.claude/daemon/attach-journal/*.json` (an attaching client pid, but no job or session id to join it to). `parkedJobId` links a job back to the session that parked it, which is right until someone re-attaches from a different tab.
+
+Two traps worth naming:
+
+- **Do not resolve the tty with `lsof` when `ps -o tty=` says `??`.** A `bg-pty-host` holds a real private pty (`/dev/ttysNNN`, under `/tmp/cc-daemon-<uid>/`) that no login process owns. Writing an OSC escape to it succeeds and is never visible — a silent failure where `??` was the honest answer.
+- **`sessionKind:"bg"` in the transcript and `CLAUDE_JOB_DIR` in the child environment both identify a bg session**, and neither tells you a terminal. `CLAUDE_JOB_DIR` is the cheap in-hook test (set only by the daemon's bg env builder and exempt from the hook env strip list); `CLAUDE_CODE_SESSION_KIND` is *not* — it is stripped from children. `CLAUDE_AGENTS_SELECT` is inherited once at daemon spawn and is identical across unrelated jobs, so testing on it misfires.
 
 ## MCP server conventions
 
@@ -601,6 +622,10 @@ Two facts that block any "discover which sessions are currently alive by reading
 - **mtime moves without new records.** A transcript abandoned at `2026-08-26T21:27Z` showed an mtime of the *following* afternoon with zero entries added in between — Claude rewrites or touches the file for reasons unrelated to conversation content. So mtime overstates activity in a way that misleads a human reading a directory listing, not just a program: it read as "this session was active an hour ago" when it had been idle 19 hours. Parse the last record's `timestamp` instead, and count user turns after the point you care about; an `ls -l` is not evidence about a session.
 
 Net: file mtime gives only "recently touched" (includes just-closed and content-free rewrites, misses idle-open), and there is no cheap cross-platform way to tell a running session from a closed one from disk. Process→cwd mapping works on macOS (`lsof`) but is unreliable on Windows. Treat "session is alive" as knowable only from live signals (hooks firing, or a peer still pushing in a sync setup), not from the transcript files.
+
+## Cross-session messaging
+
+Sessions can message each other natively (`ListAgents` / `SendMessage`, delivered over a per-session socket). The part that matters to anything consuming hooks: **`UserPromptSubmit` fires for a peer-delivered message with no origin marker at all**, and its `prompt` carries the peer's raw text without Claude Code's framing — so a hook-only consumer attributes a peer's message to the user, mislabelling the session's task rather than merely missing an annotation. The transcript entry carries `isMeta:true` + `origin:{kind:"peer",…}` and a `promptId` equal to the hook's `prompt_id`, so hook and transcript correlate deterministically. Full protocol, version gates and dead ends: `claude-code-cross-session-messaging.md`.
 
 ## Reference implementations
 

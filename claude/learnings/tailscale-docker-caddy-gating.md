@@ -6,6 +6,8 @@ How to make an admin panel / internal dashboard reachable **only over Tailscale*
 
 Tailscale's whole address space is `100.64.0.0/10` (plus IPv6 `fd7a:115c:a1e0::/48`). Because Caddy is the internet edge (nothing proxies in front of it), `remote_ip` is the true TCP peer and **cannot be spoofed** — do NOT use `client_ip` (that reads the attacker-controlled `X-Forwarded-For`).
 
+That reasoning holds *here* because traffic in this range can only have arrived over the tunnel. Do not carry it to a service binding its own socket on a laptop: `100.64.0.0/10` is the real carrier CGNAT block, handed out directly by Starlink, T-Mobile Home Internet and most mobile hotspots, so on such a network an unrelated neighbour is genuinely in-range on the *local* link. The range is proof of tailnet membership only when the tunnel is the sole path into it. See `tailnet-scoped-service-binding.md`.
+
 ```caddyfile
 admin.example.com {
 	@offnet not remote_ip 100.64.0.0/10 fd7a:115c:a1e0::/48

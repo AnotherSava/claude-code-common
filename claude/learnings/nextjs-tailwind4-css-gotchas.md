@@ -54,6 +54,8 @@ Distinct from the stale-cache case above: a small set of arbitrary utilities ref
 
 **Confirm it's really missing** (not just stale) before clearing `.next` yet again: iterate `document.styleSheets` for a rule whose `selectorText` matches the element (or contains the escaped class) — an empty result after a clean rebuild means the utility genuinely wasn't emitted, so switch approaches instead.
 
+**Corollary — never size-probe by swapping arbitrary classes at runtime.** Assigning `el.className = 'text-[13px]'` from the console to find the right value looks like a clean experiment and quietly lies: the scanner only ever saw the values written in your source, so any *other* arbitrary value has no rule behind it and the element does not move. Real case: probing `text-[11px] → text-[12px] → text-[13px] → text-[14px]` measured heights `11, 12, 12, 12`, because only the first two exist in the codebase — the last two "results" were the 12px class still in effect, and read as "the glyph stops growing past 12px", which is not something fonts do. Probe with **inline style** (`el.style.fontSize = px + 'px'`), which bypasses the stylesheet entirely, then ship a value from the standard scale (`text-xs`) so the committed class is guaranteed to exist.
+
 ## Preflight resets `button, input, select, optgroup, textarea` — but NOT `fieldset`
 
 Tailwind v4's preflight does not touch `fieldset`, so a `<fieldset>` used purely as a grouping wrapper arrives with the browser's UA defaults intact: a `2px groove` border, `~0.35em 0.75em 0.625em` padding, `2px` inline margin, and `min-inline-size: min-content`. The last one is the nastiest — it can stop the element shrinking inside a flex/grid parent.
@@ -87,3 +89,10 @@ curl -s "http://localhost:PORT$css" | grep -o 'button, input[^{]*{'   # what it 
 ```
 
 Generated as `.@container { container-type: inline-size }` and `@container (min-width: 42rem) { .\@2xl\:grid-cols-2 { … } }`. Both are subject to the stale-bundle problem at the top of this file — a first check showed `container-type` present while the `@2xl:` rule was missing entirely, and `rm -rf .next` + restart emitted it.
+
+`@max-[…]:` is the other half and is what you want for *dropping* content that no longer fits — `@max-[5.5rem]:hidden` on a secondary label, so a component squeezed into a narrow slot sheds the least useful thing instead of clipping it mid-word. Reach for it whenever the available width is decided by something the server cannot see: a calendar block's width depends on the viewport **and** on how many events collided in that slot, so no server-side branch can pick the breakpoint.
+
+**Two measurement traps when choosing the threshold:**
+
+- **`container-type: inline-size` measures the element's own content box.** Put `@container` on a padded element and its queried width is `clientWidth − padding`, not the box you see. A `px-1.5` container that looks 85px wide queries at 73px, so a threshold picked off the visible width fires one step early.
+- **Measure the real values before picking a number, then re-measure after.** Lane widths are not the round numbers you'd guess: one-per-column came out at 236px content, two at 109, three at 67, four at 46 — so `7rem` (112px) looked safely between "two" and "three" and actually cut just above the two-lane case. Read them out of the live page (`el.clientWidth − padding` per instance), put the threshold in the *gap*, and confirm which side each instance landed on afterwards.

@@ -153,3 +153,30 @@ for k in HOST REPO; do [ -n "${!k}" ] || MISSING="$MISSING $k"; done
 
 The same trap applies to `return` in a function called from a substitution, and to `exit` inside a pipeline
 segment (`cmd | while read …; do exit 1; done` exits the subshell the loop runs in).
+
+## A prefix assignment is not an assignment — `source`ing a "config" of commands silently loads nothing
+
+`VAR=value command` is a **prefix assignment**: it runs `command` with `VAR` in *that command's* environment
+only. The calling shell's `VAR` is untouched — not set to `value`, not cleared. So a config file whose lines
+look like assignments but carry unquoted multi-word values does nothing useful when sourced:
+
+```bash
+$ printf 'BUILD_SERVICES=app migrate\n' > probe.env
+$ bash -c 'BUILD_SERVICES=PRESET; source probe.env; echo "[$BUILD_SERVICES]"'
+probe.env: line 1: migrate: command not found
+[PRESET]
+```
+
+Two things make this nastier than a plain error. The variable keeps a *stale* value, so downstream code runs on
+whatever was there before rather than failing; and the only hint is a `command not found` for a word that was
+never meant to be a command, which reads like a missing dependency rather than a parse problem. `set -e` does
+not fire — the prefix assignment's exit status is the failed command's, but it is the last statement of that
+line and the shell carries on to the next.
+
+The same line is *fine* when read rather than executed. If a file is a data table for a program that parses it
+(`grep '^KEY=' file | cut -d= -f2-`), its values can legitimately be unquoted commands, spaces and all — the
+mistake is assuming that anything shaped like `KEY=value` is safe to `source`. Say so in the file itself, and
+make any worked example in its header print a key that actually exists; an example quoting a key that was later
+removed demonstrates nothing and hides the contradiction.
+
+Measured 2026-08-30, bash 3.2 (macOS).

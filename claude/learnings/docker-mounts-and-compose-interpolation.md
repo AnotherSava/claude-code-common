@@ -63,7 +63,30 @@ That gives a clear ranking, which is the useful part:
 | `${VAR}` | **fails open** — renders empty, warns, exits 0, and the protection disappears |
 | `${VAR:?message}` | **fails loud** — exit 1, `required variable VAR is missing a value: message` |
 
-So a bare `${VAR}` is the only unsafe form. Use it for nothing that is load-bearing.
+`${VAR:-}` is worse than the bare form, and it looks like the careful one. The `:-` supplies an explicit
+default of empty, so compose does not even emit the "not set, defaulting to a blank string" warning — the one
+signal the bare form still gives you. Observed 2026-08-29: a sidecar's `CLAUDE_CODE_OAUTH_TOKEN:
+${CLAUDE_CODE_OAUTH_TOKEN:-}` rendered empty against a per-tenant env file, the container started healthy, and
+the feature it gated was simply unauthenticated with nothing anywhere saying so.
+
+| Form | Behaviour when the value is missing |
+|---|---|
+| `${VAR:-}` | fails open **and silent** — no warning at all |
+
+So a bare `${VAR}` is the only unsafe form *that warns*; `${VAR:-}` is unsafe and mute. Use neither for
+anything that matters.
+
+**Auditing this with `grep '\${'` overcounts, in two ways.** A repo that looks like it has interpolations may
+have none. Both of these match and neither is an interpolation:
+
+- a **comment** describing the trap (they cluster in exactly the files that hit it once already);
+- `$${VAR}`, compose's **escape** for a literal `$`, which is passed through for the container's own shell to
+  expand — common in a `healthcheck` running `pg_isready -U $${POSTGRES_USER}`, where the value comes from
+  `env_file` at runtime and compose must not touch it.
+
+Strip comments and `$$` before counting, or the assessment of "would this change break a sibling project"
+comes out wrong — which it did, and the wrong count nearly steered a fix into the shared script instead of the
+one repo that needed it.
 
 `${VAR:?}` treats empty as missing, which is right for a credential. `${VAR?}` only requires the key to be
 *present*, which is right for something a host may legitimately leave blank (an optional build-arg list) —
