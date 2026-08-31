@@ -334,3 +334,40 @@ Two things to do rather than assume:
 Then **pin it with a test**, because the hardening is invisible: deleting `external: true` changes nothing
 observable, `up` keeps working against the same data, and the loss only appears the day someone runs
 `down -v`. An assertion that every declared volume is external is what stops it being tidied away.
+
+## Landmine 8: the repo directory name is not the deploy path, and a systemd unit will not tell you
+
+Every tenant on this shape deploys to `/opt/<tenant>`, while its git repo is a directory named whatever the
+repo is called. Those differ more often than you would expect — a project renamed after its first commit, or
+a repo named for the product and a tenant named for the hostname. Inside the repo the difference is invisible,
+because everything there is relative. It becomes real the moment a file has to name an **absolute path on the
+box**, and a systemd unit is the worst place for that to go wrong:
+
+```ini
+ExecStart=/opt/<repo-directory>/deploy/backup.sh     # WRONG, and silent
+```
+
+`systemctl enable --now` succeeds. `systemctl list-timers` shows the timer scheduled. `systemctl status`
+reports it loaded and waiting. Nothing is wrong until it *fires*, and then it dies instantly as `203/EXEC`
+at whatever hour you chose — which for a nightly backup means the failure is discovered by needing a restore.
+
+A real instance shipped this way for two days and was caught only because the install was done by hand. Had
+it been installed as written, the observable state would have been a healthy-looking timer and no backups.
+
+Assert it in whatever gate the repo already has, in two halves — either alone leaves the hole open:
+
+```python
+# 1. no file may name /opt/<repo-directory> in a directive
+#    (build the needle from os.path.basename(root) so the checker does not flag its own source)
+# 2. a unit's ExecStart must live under /opt/<tenant> AND resolve to a file that exists in the repo,
+#    so renaming the script fails the commit rather than the timer
+```
+
+The second half is the one that keeps paying: it catches a *correct* prefix pointing at a script that has
+since been renamed or moved, which no amount of string-matching on the wrong name would find.
+
+Two notes from implementing it. Exempt `#`-comment lines in non-markdown files, or a unit's own "NOT
+/opt/<repo>" warning comment fails the check it documents — but do **not** exempt markdown, or prose quietly
+reintroduces the wrong path into the runbook someone will copy from. And verify the rule can *fail*: break
+the path deliberately, break the filename deliberately, and confirm each shape is reported. A path check that
+silently matches nothing passes forever.

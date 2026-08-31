@@ -294,6 +294,31 @@ The lone child auto-places into ONE column instead of spanning. With `auto 1fr` 
 
 The latent version can sit unnoticed for a long time — it only misbehaves once *two or more* single-child items are adjacent (one grabs `auto`, the next gets the squeezed `1fr`); a lone one just looks slightly narrow. Same trap for `<details>`: `grid-column`/`margin` on a `display: contents` wrapper is ignored, and (separately) placement set on a `<details>`/`<summary>` is fine because those DO generate boxes — the rule is specifically about `display: contents`.
 
+**Inheritance passes straight through, though — which is what makes it the right wrapper for a custom property.** "No box" only disables the properties that need one. Inherited properties still flow to the children, custom properties included, so `<div class="contents" style="--x: 0.33px">` publishes `--x` to a whole subtree while changing nothing about the layout: the children stay direct grid/flex items of the real parent. That is the clean way for a client provider to hand a runtime value down to server-rendered children — no wrapper box to break the grid they sit in, and no prop threaded through every component in between. Don't read the rule above as "a `style` on a `display: contents` element does nothing"; it is specifically the element's *own box* properties that are ignored.
+
+
+## An undefined custom property inside `calc()` voids the whole declaration
+
+`var(--x)` with `--x` unset makes the *entire* property invalid at computed-value time. It does not degrade to zero or to some neutral number — the rest of the expression is discarded with it, and the property falls back to its inherited or initial value. So `height: calc(840 * var(--ppm))` with no `--ppm` in scope computes to `height: auto`.
+
+Quiet in isolation, loud in effect when the element's children are all absolutely positioned: nothing contributes intrinsic height, so a grid that should stand 900px tall collapses to a couple of pixels and every block inside it lands on one line. The tell is actively misleading — the `style` attribute is present in the DOM and reads exactly as intended, so the markup looks correct while the layout is gone.
+
+**Fix: give `var()` the fallback you would have used anyway.**
+
+```js
+`calc(${minutes} * var(--calendar-ppm, 1.1px))`
+```
+
+A subtree rendered outside whatever sets the property is then merely un-scalable rather than destroyed. This matters most when a *provider* component owns the property: any consumer rendered outside it — a new page, a stray preview, a test harness — hits the unset case, and without the fallback the failure mode is "the component vanished" instead of "one feature is inert". It is the layout equivalent of defaulting a React context to something inert rather than to `null`.
+
+**Verify by deleting the property at runtime**, which is the only way to see the un-provided case without building one:
+
+```js
+const w = document.querySelector('[style*="--calendar-ppm"]');
+const saved = w.getAttribute('style'); w.removeAttribute('style');
+grid.getBoundingClientRect().height;      // want the un-scaled height, not ~0
+w.setAttribute('style', saved);
+```
 
 ## A keypress makes an already-focused element show its ring — it reads as "focus moved"
 

@@ -179,6 +179,25 @@ mistake is assuming that anything shaped like `KEY=value` is safe to `source`. S
 make any worked example in its header print a key that actually exists; an example quoting a key that was later
 removed demonstrates nothing and hides the contradiction.
 
+**Where the value's tail is a real executable, sourcing does not fail — it RUNS it.** The case above is benign
+only because `migrate` is on nobody's PATH. `DEV_CMD=bash ../scripts/dev.sh` parses the same way, so sourcing
+assigns `bash` to `DEV_CMD` for the duration of `../scripts/dev.sh` and then executes that script — starting a
+dev server as a side effect of a file you meant only to read, while `DEV_CMD` still ends up unchanged. Measured
+with a stand-in that only echoes:
+
+```bash
+$ printf 'DEV_CMD=bash ../fake.sh\n' > sub/probe.env      # fake.sh echoes a marker
+$ bash -c 'cd sub; DEV_CMD=PRESET; source probe.env; echo "[$DEV_CMD]"'
+EXECUTED-BY-SOURCE
+[PRESET]
+```
+
+So the hazard is not uniform across a family of look-alike config files: whether sourcing one is a confusing
+no-op or an accidental launch depends on which values happen to name binaries. Audit the whole set, not just the
+file that raised the question. Note too that the path is resolved against the *caller's* cwd, so the same file is
+inert from one directory and live from another — which is exactly the kind of difference that makes it
+reproduce for one person and not the next.
+
 Measured 2026-08-30, bash 3.2 (macOS).
 
 ## Two Git-Bash-on-Windows traps when embedding another language
@@ -213,3 +232,46 @@ FileNotFoundError: [Errno 2] No such file or directory: '/tmp/captest/vault/inde
 Both halves succeed individually, which makes it read as the writer having failed rather than the
 reader looking elsewhere. Translate with `pwd -W` (or `cygpath -w`) before handing a path across, or
 keep scratch files inside the project on an explicit path.
+
+## A heredoc and a pipe both claim stdin — and the loser gets echoed in the error
+
+Feeding a value to an interpreter on stdin while the *script* also arrives on stdin. Measured 2026-08-31,
+and it leaked a live credential into a session transcript:
+
+```bash
+printf '%s' "$SECRET" | python3 <<'EOF'
+import sys
+value = sys.stdin.read()      # never sees $SECRET
+...
+EOF
+```
+
+Both redirections target file descriptor 0. What python actually received began with the piped value and
+continued into the heredoc's text, so the first line it parsed was the secret with `import` welded onto the
+end — and the `SyntaxError` printed that line verbatim. The value went to the terminal, the log and the
+transcript, in a command written specifically to keep it out of all three.
+
+**Pass the value in the environment and keep stdin for the script.** The command line stays clean (only the
+`$( )` that produced it is recorded), and there is nothing for a parse error to echo:
+
+```bash
+SECRET=$(pbpaste) python3 <<'EOF'
+import os
+value = os.environ['SECRET']
+EOF
+```
+
+The same collision applies to `ruby`/`node`/`sh` with a heredoc, and to `ssh host <<'EOF'` when you also
+wanted to pipe data to the remote command. Three rules that generalise:
+
+- **One consumer per stdin.** If the script is on stdin, data is not; if data is on stdin, put the script in
+  a file or `-c`.
+- **Never let a secret reach a place a parser can quote.** A syntax error prints the offending line, so any
+  value that can end up *inside* the program text can end up in the error text.
+- **`--silent` flags hide command OUTPUT, not command INPUT.** A tool's quiet mode does nothing about a
+  value the shell already echoed while failing to run it.
+
+The safe route when the value must be validated before use is to prove it works rather than to pattern-match
+it — a guessed prefix check rejected a perfectly good key here, and the fix was to attempt the API call and
+store only on success. That keeps the value in a variable and a pipe, never in a command line or a script
+body.

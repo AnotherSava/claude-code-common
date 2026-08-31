@@ -109,6 +109,51 @@ Otherwise the comparison measures the scope difference you already knew about. G
 any test asserting parity between a full and a reduced configuration — a feature-flagged path, a free
 versus paid tier, an offline versus online client — needs its assertion aimed at behaviour both share.
 
+## 3b. The test never reaches the thing it names
+
+Sections 1–3 are about a fixture that cannot show a difference. This one is about an assertion that never
+runs the code it claims to cover — so no mutation of that code can ever be killed, and the gap is invisible
+because the test's *name* describes the thing it skips. Three specimens, all measured 2026-08-31 in one
+change set, all found by adversarial code review rather than by any suite.
+
+**A double that replaces the function whose ARGUMENT is the defect.** A check counted certificates on a live
+volume and compared the number against what a backup had copied. The test stubbed the counting helper —
+`gate.certificate_directories = lambda _root: 9` — and passed. The production call was passing that helper
+the *volume mountpoint* where the data lived one directory below it, so the real count was 0 forever, both
+comparisons were structurally unreachable, and the check printed green while asserting nothing. The stub
+discarded the very argument that was wrong.
+
+Stub the *boundary* (the container runtime lookup), never the logic under test. Build the real directory
+layout in a `tmpdir` and let the real function walk it:
+
+```python
+os.makedirs(f"{tmp}/caddy/certificates/{ca}/{name}")   # the layout the box actually has
+gate.volume_mountpoint = lambda _v: tmp                 # stub ONLY the boundary
+# certificate_directories stays real, so its argument is exercised
+```
+
+The tell: if a test never touches the filesystem, the network or a subprocess, ask which real call it has
+replaced and whether the defect could live in *how that call is made* rather than in what it returns.
+
+**Both sides of an equality derived from the same source.** A rule asserted "every `*.timer` in `systemd/`
+is one the installer enables" by feeding the test's own re-implementation of the directory walk into the
+production function. Both sides then reduce to `os.listdir(systemd/)`, so it proves that a listing equals
+itself and passes on a repo where the enable loop has been deleted. Drive the pure function with a
+**synthetic** input naming things that do not exist in the repo, and separately assert the shipped tree
+produces the expected command — and call the production walk rather than restating it, or a mutation of the
+walk is invisible too.
+
+**A pattern that captures less than the assertion claims.** `re.search(r"^OnCalendar=(\S+)", text)` against
+`OnCalendar=*-*-* 04:50:00` captures `*-*-*` — `\S+` stops at the space — so a guard written to require an
+explicit time of day never saw the time, and operator precedence made the whole condition pass vacuously. It
+would have accepted `OnCalendar=daily`, the exact edit it existed to refuse. Whenever a pattern feeds an
+assertion, print what it captured once, and mutate the file to the thing the rule forbids to prove the rule
+fires.
+
+The common fix is the same in all three: **mutate the production code the test names and confirm the test
+goes red.** Each of these passed its own suite; only deliberately breaking the named behaviour exposed that
+the assertion had never been connected to it.
+
 ## 4. Filtering the run's output so that "survived" looks like "killed"
 
 A mutation run prints one line per case. Filtering it to keep the run readable:

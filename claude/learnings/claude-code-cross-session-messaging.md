@@ -100,6 +100,41 @@ Hooks and Bash commands get `CLAUDE_CODE_MESSAGING_SOCKET` and `CLAUDE_CODE_MESS
 before any hook runs including `SessionStart` — the clean way for a hook to post back into its own
 session.
 
+## A raw writer learns almost nothing — so it cannot claim delivery
+
+If you write to the socket yourself (rather than calling `SendMessage`), you can distinguish exactly two
+states. Probed on 2.1.251, macOS:
+
+| probe | result |
+|---|---|
+| connect to a **dead** session's socket | `ECONNREFUSED` |
+| connect to a **live** session's socket | succeeds |
+| write a well-formed frame, then read | nothing, no EOF, until you time out |
+| write unparseable bytes, then read for 12 s | nothing, no EOF |
+
+*Nothing is listening* and *a listener accepted the bytes*. Parse success, auth, the receiver's admission
+control (token bucket, identical-repeat window, queue cap) and the delivered / held / refused verdict are
+**all invisible** — because drop receipts are sent as a **separate outbound connection back to the frame's
+`from` address**, which a writer that binds no inbox of its own never receives.
+
+So an integrator relaying messages must not report "delivered". The honest vocabulary is *written*, with
+the caveat stated: the bytes were accepted, and the receiving agent's acceptance is not observable. A
+receipt that says "delivered" for something only written is the classic can't-tell-success-from-never-ran
+defect, and here it is guaranteed rather than occasional.
+
+Two consequences worth planning around:
+
+- **Windows is weaker still.** The auth line is required there and a connection whose first line is not
+  valid auth is closed *silently*, so on Windows even "written" means only that bytes left you. If you
+  cannot produce the key, refuse before connecting rather than write and report success.
+- **`from` is the rate-limit key.** The receiver keys admission on `from:${from}` and falls back to
+  `pid:${verifiedPeerPid}` only when `from` is `unknown`. A relay that omits `from` therefore collapses
+  every message it ever forwards into **one** bucket and one dedupe slot, so one chatty sender starves
+  the rest and unrelated senders trip each other's repeat-drop. Setting a distinct synthetic `from` per
+  originating agent restores per-sender accounting — but `from` is also the reply address and is
+  validated (`^(?:uds|bridge|did):…`), so confirm your scheme is accepted against a live session before
+  relying on it.
+
 ## The gap that bites integrators: hooks cannot see peer origin
 
 The `UserPromptSubmit` hook fires for a peer message **identically to a typed prompt**. Full payload:

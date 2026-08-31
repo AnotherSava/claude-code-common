@@ -52,6 +52,12 @@ The denial text says it: stop and explain, and let the user decide. Concretely:
 - **Do not reshape the command to slip past.** Splitting a compound command to find *which half* is refused is
   legitimate diagnosis; rewording it to look benign is not, and the difference is whether you would describe
   what you did in the same words to the user.
+- **Do ask whether the *goal* has a read-only form.** Reaching the same answer with strictly less privilege is
+  not evasion — it is a smaller action that is often also the better test. A denied plan to render a secrets
+  file to a scratch path on a production box (to diff against the live one) was replaced by hashing the render
+  locally and asking the host for `sha256sum` of the file it already had: no secret transmitted, no write to
+  production, nothing to clean up, and a byte-identical verdict rather than an eyeballed diff. The line is
+  intent — narrowing what you *do* is fine, disguising it is not. See `secrets-render-to-remote-host.md`.
 - **Hand over the exact command.** Safe to run via the `!` prefix as long as no plaintext secret is in the
   text — `"$(doppler secrets get KEY -p proj -c cfg --plain)"` *fetches* the value rather than embedding it,
   so the transcript records the fetch, not the secret. A literal token in the command text is not safe there;

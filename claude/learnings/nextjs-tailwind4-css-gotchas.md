@@ -96,3 +96,44 @@ Generated as `.@container { container-type: inline-size }` and `@container (min-
 
 - **`container-type: inline-size` measures the element's own content box.** Put `@container` on a padded element and its queried width is `clientWidth − padding`, not the box you see. A `px-1.5` container that looks 85px wide queries at 73px, so a threshold picked off the visible width fires one step early.
 - **Measure the real values before picking a number, then re-measure after.** Lane widths are not the round numbers you'd guess: one-per-column came out at 236px content, two at 109, three at 67, four at 46 — so `7rem` (112px) looked safely between "two" and "three" and actually cut just above the two-lane case. Read them out of the live page (`el.clientWidth − padding` per instance), put the threshold in the *gap*, and confirm which side each instance landed on afterwards.
+
+## Height queries need `container-type: size` — and both halves have arbitrary syntax
+
+`@container` is inline-size only, so it cannot answer a `min-height` query at all. Tailwind v4 has an arbitrary form for the container *and* accepts a plain arbitrary variant for the query itself (verified emitting on 4.3.3):
+
+| Written | Emitted |
+| --- | --- |
+| `@container-[size]` | `container-type: size` |
+| `[@container(min-height:38px)]:flex` | `@container (min-height:38px) { … }` |
+| `@max-[5.5rem]:hidden` | `@container (width < 5.5rem) { … }` |
+
+Reach for it when *how tall a box turned out* decides what goes inside it and the server cannot know the height — e.g. a calendar block placed in minutes and multiplied into pixels by a user-set scale. The block then reveals a line at a time as it grows, entirely in CSS, and the query sees the height the element **actually got**, clamping and min-height floors included. That is strictly better than re-deriving it in JS, which can only compute the height it *asked* for.
+
+**`hidden` plus a container variant works, because variants sort last.** Both set `display` and both are a single class, so specificity ties and source order decides. Tailwind emits every container-query variant after the plain utilities, so `class="hidden [@container(min-height:38px)]:flex"` is hidden by default and flex once it fits. The order you write them in the `class` string is irrelevant, as always — check the emitted order instead (see the probe below).
+
+**Size queries measure the content box in BOTH axes.** The inline-axis trap above applies to height too, and it compounds down the tree: the queried box is the element's height less *its own* padding and border, after its ancestors have taken theirs. A block styled `height: H` whose text div sits inside a 1px border and `py-1`, under a wrapper contributing `pb-0.5`, queries at `H − 12`. Translate existing pixel thresholds by that constant rather than re-guessing them, then confirm by sweeping the height and reading off the flip point:
+
+```js
+const el = block.querySelector('[title]').children[1];
+for (let h = 20; h <= 110; h++) { block.style.height = h + 'px'; if (getComputedStyle(el).display !== 'none') { console.log('flips at', h); break; } }
+```
+
+**It does not clip.** `container-type: size` applies layout, style and size containment — **not paint** — so a child that deliberately overflows (a hover tray wider than its own block, reaching over the neighbour) still escapes the box. Worth confirming rather than assuming, since `contain: size` sounds like it ought to crop.
+
+## Ask the compiler whether a class exists — offline, in about a second
+
+Before building around an unfamiliar utility or variant, compile a throwaway stylesheet containing only the candidates. `@source inline(...)` feeds the scanner directly, so nothing has to exist in real source first:
+
+```js
+// probe.cjs — run from a dir where postcss + @tailwindcss/postcss resolve (the app's own), then delete it
+const postcss = require('postcss');
+const tw = require('@tailwindcss/postcss');
+const input = `@import "tailwindcss" source(none);
+@source inline("{hidden,@container-[size],[@container(min-height:38px)]:flex}");
+`;
+postcss([tw()]).process(input, { from: __dirname + '/probe.css' })
+  .then((r) => console.log(r.css.slice(r.css.indexOf('@layer utilities'))))
+  .catch((e) => console.error('ERR', e.message));
+```
+
+`source(none)` stops it scanning the project, so the output is only what you asked about. It answers three questions in one run: whether the candidate compiles at all, what it emits, and **in what order relative to other utilities** — the last being what settles `display` conflicts. Cheaper than a dev-server round trip, and unlike swapping classes at runtime it cannot lie to you: you are reading the compiler's output rather than inferring it from a rendered box. Write it as a file in the app directory rather than piping to `node` — a bare `require` from a heredoc resolves against cwd and fails.
