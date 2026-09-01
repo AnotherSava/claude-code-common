@@ -20,24 +20,42 @@ macOS machines, with nothing secret committed. The account's workplace is `sava`
 ## Context
 - Doppler CLI: !`command -v doppler >/dev/null 2>&1 && echo INSTALLED || echo MISSING`
 - Existing projects: !`doppler projects --json 2>&1 | tr ',' '\n' | grep -o '"name":"[^"]*"' || echo UNAVAILABLE`
+- Configs in this repo's project: !`doppler configs --json 2>&1 | tr ',' '\n' | grep -o '"name":"[^"]*"' || echo "UNBOUND — list with doppler configs -p <shard>"`
 - This repo's doppler.yaml: !`test -f doppler.yaml && cat doppler.yaml || echo NONE`
 - This directory's binding: !`doppler configure get project --plain 2>/dev/null | grep . || echo UNBOUND`
 
 ## 1. Resolve project and config — never guess them
 
-Read the coordinates off **Existing projects** (Context), which is the authoritative list:
+Read the coordinates off **Existing projects** and **Configs in this repo's project** (Context) — a
+coordinate is a project *and* a config, and under the shard rule the config carries the app's identity:
 
 - The workplace name `sava` is **not** a project. Never `-p sava`.
 - Doppler's sample project `example-project` is not one of the user's. Never write to it.
-- The config is **`dev`**. New projects get `dev`/`stg`/`prd`, but secrets, `doppler run`, and
-  `doppler setup` all live in `dev`. Reach for `prd` only when the task is genuinely
+- **A new app gets a config, not a project.** The workplace is capped at **10 projects**, all ten are
+  in use, and `doppler projects create` now fails with `Your workplace has reached its limit of 10
+  projects`. Apps share a project — a *shard*, chosen by trust boundary — and take one config each:
+  `dev_<app>` and `prd_<app>`. Reach for `prd_<app>` only when the task is genuinely
   production-facing, and say out loud that you did.
+- **`dev`, `stg` and `prd` are root configs, and they stay permanently empty.** A branch config
+  inherits its root's secrets *including values*, so anything left in `local/prd` is readable by every
+  app sharing that environment, and a `-c prd` typed where `-c prd_<app>` was meant writes into the
+  root and silently propagates that value to every co-resident app. Always name the full config.
+- The nine projects that predate the shard rule — `claude-code-dashboard`, `greenmur`, `landlord`,
+  `printlab`, `scheduler`, `tools`, `travel-map`, `trips`, `whats-next` — keep their existing
+  `dev`/`prd` layout; live systems read those values and migrating them would be risk for no benefit.
+  The shard rule governs new apps, and apps that move for some other reason.
 - Two stores, and they don't mix:
-  - **A per-app project**, kebab-case, named after the repo — secrets the app consumes at runtime.
+  - **The app's own config inside a shard project** — `dev_<app>` / `prd_<app>`, the app name
+    kebab-case after the env-slug prefix — secrets the app consumes at runtime. Shards are divided by
+    trust boundary, by where the secret is materialized. `local` (workstation-only apps) is the only
+    shard so far, because every app on the shared box predates the shard rule and keeps its own
+    project — so **a new box-hosted app has no shard to join yet**. Creating one spends a project slot;
+    raise it with the user rather than picking a home for it.
   - **`tools` / `prd`** — credentials *Claude* uses ad hoc across projects (Porkbun, Resend,
-    Tailscale, `TRANSCRYPT_KEY`). The inventory lives in the `refs-private` memory. Read from it when
-    a task needs a third-party credential; never copy one into a per-app project.
-- If the repo needs a project that doesn't exist yet, see `references/project-setup.md`.
+    Tailscale, Backblaze, `TRANSCRYPT_KEY`). The inventory lives in the `refs-private` memory. Read
+    from it when a task needs a third-party credential; never copy one into an app's own config.
+- If the repo has no config yet, see `references/project-setup.md` — it covers picking the shard and
+  creating the branch config. Do not run `doppler projects create`; the cap is reached.
 
 When **Existing projects** reads `UNAVAILABLE`, run `doppler projects` directly. An auth error there
 means the user must run `doppler login` themselves in a real terminal — it is interactive, needs a
@@ -50,6 +68,11 @@ Whenever you ask for, suggest, or explain storing a key, output the exact comman
 block — never prose alone, and never a blockquote (the terminal renders its `|` gutter into the paste
 and corrupts it). Fill in every part you already know (the key name, `-p`, `-c`); mark only what the
 user must supply with a `{{kebab-case-hint}}` placeholder, never a plausible-looking fake value.
+
+The templates below write `-c <cfg>`. Substitute the app's own config — `dev_<app>` / `prd_<app>` in a
+shard, or the legacy `dev` / `prd` in one of the nine pre-shard projects. Never leave a bare `dev`,
+`stg` or `prd` in a shard command: those are root configs, every branch config inherits their values,
+and the write is visible to every co-resident app.
 
 Pick the template by who holds the value.
 
@@ -65,7 +88,7 @@ second terminal, and no plaintext ever occupies a command line. The command is i
 **When they would rather do it themselves**, hand them:
 
 ```
-doppler secrets set <KEY>="{{the-value}}" -p <proj> -c dev --silent
+doppler secrets set <KEY>="{{the-value}}" -p <proj> -c <cfg> --silent
 ```
 
 Tell them to run it **in a terminal outside Claude Code** — not via the `!` prefix, which records the
@@ -94,7 +117,7 @@ Guard the write and pipe it in one command, which prints a length and nothing el
 V=$(cat /dev/clipboard | tr -d '\r')
 case "$V" in
   "") echo "clipboard is empty — nothing stored" ;;
-  {{expected-prefix}}*) printf '%s' "$V" | doppler secrets set <KEY> -p <proj> -c dev --silent && echo "stored <KEY> — ${#V} chars" ;;
+  {{expected-prefix}}*) printf '%s' "$V" | doppler secrets set <KEY> -p <proj> -c <cfg> --silent && echo "stored <KEY> — ${#V} chars" ;;
   *) echo "clipboard does not look like <KEY> (${#V} chars) — nothing stored" ;;
 esac
 unset V
@@ -126,7 +149,7 @@ Claude runs this. Pipe it, so the plaintext never reaches the command line, the 
 history — Doppler documents stdin as its own recommended method:
 
 ```
-printf '%s' "$(cat <path-to-the-file>)" | doppler secrets set <KEY> -p <proj> -c dev --silent
+printf '%s' "$(cat <path-to-the-file>)" | doppler secrets set <KEY> -p <proj> -c <cfg> --silent
 ```
 
 The `$( )` wrapper strips the trailing newline a file almost always carries; a bare `< file` redirect
@@ -136,7 +159,7 @@ use the digest check in `references/project-setup.md`.
 ### Import an existing `.env`
 
 ```
-doppler secrets upload .env -p <proj> -c dev
+doppler secrets upload .env -p <proj> -c <cfg>
 ```
 
 Then delete the `.env` and confirm `.gitignore` covers it. Full wiring in
@@ -148,10 +171,11 @@ When the same value belongs in more than one config (or project), store it **onc
 others at it — one source of truth, no drift, editing the origin propagates. One config holds the real
 secret; the others hold a `${...}` reference Doppler resolves on read.
 
-**Which config holds the real value: `prd`.** Production is the source of truth; `dev` (and `ci`) hold
-`${prd.<KEY>}` references. A value that already lives in `dev` and is later needed in production gets
-**moved**, not copied — write it to `prd`, then replace the `dev` value with a reference. Copying leaves two
-originals free to drift, and the one you'd edit by habit is the wrong one. (This is only for values that are
+**Which config holds the real value: the production one** — `prd_<app>` in a shard, `prd` in one of the
+nine pre-shard projects. Production is the source of truth; the dev config holds a `${prd_<app>.<KEY>}`
+reference. A value that already lives in the dev config and is later needed in production gets **moved**,
+not copied — write it to the production config, then replace the dev value with a reference. Copying
+leaves two originals free to drift, and the one you'd edit by habit is the wrong one. (This is only for values that are
 genuinely the same everywhere — third-party API keys. Anything that must differ per environment, above all
 `SESSION_SECRET` and any admin password, gets its own value in each config and is never referenced across:
 a shared session secret makes a dev-minted cookie valid in production.)
@@ -159,21 +183,22 @@ a shared session secret makes a dev-minted cookie valid in production.)
 Migrating one key, without the value touching a command line:
 
 ```bash
-printf '%s' "$(doppler secrets get <KEY> -p <proj> -c dev --plain)" | doppler secrets set <KEY> -p <proj> -c prd --silent
-doppler secrets set <KEY> '${prd.<KEY>}' -p <proj> -c dev --silent
+printf '%s' "$(doppler secrets get <KEY> -p <proj> -c <dev-cfg> --plain)" | doppler secrets set <KEY> -p <proj> -c <prd-cfg> --silent
+doppler secrets set <KEY> '${<prd-cfg>.<KEY>}' -p <proj> -c <dev-cfg> --silent
 ```
 
 Verify by digest at each step rather than trusting the round trip — compare a hash prefix and a length before
 and after, so a truncated or empty write can't pass as success.
 
 Syntax, inside the value:
-- Same project, another config: `${<config>.<KEY>}` — e.g. `${prd.GOOGLE_MAPS_EMBED_API_KEY}`.
+- Same project, another config: `${<config>.<KEY>}` — e.g. `${prd_<app>.GOOGLE_MAPS_EMBED_API_KEY}` in
+  a shard, `${prd.GOOGLE_MAPS_EMBED_API_KEY}` in a pre-shard project.
 - Another project: `${<project>.<config>.<KEY>}`.
 
 **Single-quote** the value so the shell doesn't expand `${...}` to empty:
 
 ```
-doppler secrets set <KEY>='${prd.<KEY>}' -p <proj> -c dev --silent
+doppler secrets set <KEY>='${<prd-cfg>.<KEY>}' -p <proj> -c <dev-cfg> --silent
 ```
 
 `doppler secrets get` / `doppler run` return the **resolved** value, so the consuming app is unchanged
@@ -181,16 +206,18 @@ doppler secrets set <KEY>='${prd.<KEY>}' -p <proj> -c dev --silent
 resolved without printing it — a literal `${...}` back means it did not:
 
 ```
-V="$(doppler secrets get <KEY> -p <proj> -c dev --plain)"; case "$V" in '${'*) echo UNRESOLVED;; *) echo "resolved (len ${#V})";; esac; unset V
+V="$(doppler secrets get <KEY> -p <proj> -c <cfg> --plain)"; case "$V" in '${'*) echo UNRESOLVED;; *) echo "resolved (len ${#V})";; esac; unset V
 ```
 
-To share a *whole* config rather than one value, Doppler's **Config Inheritance** does it in one step,
-but it's Team/Enterprise-only — a per-value reference works without it.
+To share a *whole* config rather than one value, Doppler's named **Config Inheritance** does it in one
+step, but it's Team/Enterprise-only — a per-value reference works without it. Root-to-branch
+inheritance is *not* that feature and is always on: every branch config already inherits its root's
+secrets **and their values** on every plan, which is why roots are kept empty rather than used to share.
 
 ### Run something with the secrets injected
 
 ```
-doppler run -p <proj> -c dev -- <command>
+doppler run -p <proj> -c <cfg> -- <command>
 ```
 
 This is the normal consumption path — the app reads `process.env` / `os.environ` and never sees a
@@ -205,10 +232,10 @@ Auto-mode's safety classifier blocks echoing a secret to stdout ("Credential Mat
 it is right to. Derive a non-secret answer instead — the command prints only a boolean:
 
 ```
-doppler run -p <proj> -c dev -- node -e 'console.log((process.env.<KEY>||"").startsWith("{{expected-prefix}}"))'
+doppler run -p <proj> -c <cfg> -- node -e 'console.log((process.env.<KEY>||"").startsWith("{{expected-prefix}}"))'
 ```
 
-To see which keys exist, with no values at all: `doppler secrets --only-names -p <proj> -c dev`.
+To see which keys exist, with no values at all: `doppler secrets --only-names -p <proj> -c <cfg>`.
 
 ### Materialize a raw value
 
@@ -216,7 +243,7 @@ Only when a command genuinely needs the value as an argument — and then pipe i
 consumer rather than echoing it:
 
 ```
-doppler secrets get <KEY> -p <proj> -c dev --plain
+doppler secrets get <KEY> -p <proj> -c <cfg> --plain
 ```
 
 The `--visibility masked` flag does **not** redact CLI output: at set time the confirmation table
@@ -232,7 +259,7 @@ rather than redirecting by hand: it picks the right sink per OS and reports a la
 digest instead of the value.
 
 ```
-V=$(doppler secrets get <KEY> -p <proj> -c dev --plain)
+V=$(doppler secrets get <KEY> -p <proj> -c <cfg> --plain)
 bash ~/.claude/skills/doppler/scripts/to-clipboard.sh "<what it is, in the user's words>" "$V"
 ```
 
@@ -251,7 +278,7 @@ which has already cost a round trip. `cb` is the fix, the same shape as `deploy`
 # WHAT: <one line naming the value and where it gets pasted>
 set -euo pipefail
 
-value=$(doppler secrets get <KEY> -p <proj> -c dev --plain)
+value=$(doppler secrets get <KEY> -p <proj> -c <cfg> --plain)
 bash ~/.claude/skills/doppler/scripts/to-clipboard.sh "<label>" "$value"
 ```
 
@@ -276,7 +303,7 @@ To confirm the clipboard still holds what you put there, compare digests — nev
 ### Delete a key
 
 ```
-doppler secrets delete <KEY> -p <proj> -c dev -y --silent
+doppler secrets delete <KEY> -p <proj> -c <cfg> -y --silent
 ```
 
 Without `--silent`, `delete` prints the whole *remaining* secrets table — every value — a transcript
@@ -284,6 +311,19 @@ leak. The `doppler-guard` PreToolUse hook now blocks a `set`/`delete` that omits
 
 ## 3. Landmines
 
+- **A branch config inherits its root's secrets, values included.** Verified with a marker secret: set
+  something in `local/prd` and every `prd_*` config in that project returns it. So a `-c prd` typed
+  where `-c prd_<app>` was meant does not fail — it writes into the root and hands that value to every
+  co-resident app, silently. Roots (`dev`, `stg`, `prd`) stay permanently empty, and every command
+  names the full branch config.
+- **A branch config's name must start with its environment slug and an underscore.**
+  `doppler configs create transcripts -p local` is rejected; `doppler configs create prd_transcripts
+  -p local` succeeds. The prefix is Doppler's rule, not a house style.
+- **The project cap is 10 and it is reached.** `doppler projects create` fails with `Your workplace has
+  reached its limit of 10 projects`; the cheapest plan that raises it is Team, $21/user/month. The free
+  plan's other limits are not binding — 4 environments per project, 10 configs per environment
+  *including* the root (so 9 branch configs), 1,200 secrets per config. Doppler also auto-creates a
+  `dev_personal` branch config in every project, which eats one dev slot.
 - **`doppler secrets set`/`delete` print the whole secrets table — every value — unless `--silent`.**
   Omitting it on a one-secret op dumps the entire config into the transcript (a real leak); the
   `doppler-guard` PreToolUse hook now hard-blocks a `set`/`delete` missing `--silent`.

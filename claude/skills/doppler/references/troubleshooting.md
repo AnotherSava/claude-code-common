@@ -35,6 +35,9 @@ These are the expensive ones — nothing errors, so the damage surfaces much lat
 
 | Symptom | Cause | Fix |
 |---|---|---|
-| `-p sava` is rejected or behaves oddly | `sava` is the workplace, not a project | Use the per-app project from `doppler projects` |
-| A secret is set but the app can't see it | It went into `prd` (or `stg`) while the app runs on `dev` | Default to `dev` everywhere except a genuine production task |
+| `-p sava` is rejected or behaves oddly | `sava` is the workplace, not a project | Use the project from `doppler projects` — the repo's own if it predates the shard rule, otherwise the shard holding its config |
+| A secret is set but the app can't see it | It went into the wrong config — a root (`dev`/`stg`/`prd`), or the other environment's branch | Name the app's full config: `dev_<app>` / `prd_<app>` in a shard, `dev` / `prd` in a pre-shard project. A *shard's* roots are empty by rule; a pre-shard project's root is where its values live, so read `doppler configs -p <proj>` rather than assuming either |
 | A production credential turns up in a local build | One command reached both a local and an outward-facing config | Keep `deploy` and `publish` as separate verbs with separate configs — see the `feedback_deploy_publish_separate_verbs` memory |
+| `Your workplace has reached its limit of 10 projects` on `doppler projects create` | The free plan caps projects at 10 and all ten hold live secrets | Don't create a project — add `dev_<app>` / `prd_<app>` to a shard. See `project-setup.md` |
+| `doppler configs create <name>` is rejected | A branch config name must begin with its environment slug and an underscore | Prefix it: `prd_<name>`, `dev_<name>` |
+| A secret the app never set turns up in its config | It was written to the environment's root config, and every branch config inherits the root's values | Delete it from the root, re-set it on the branch config, and treat the value as having been readable by every app in the shard |

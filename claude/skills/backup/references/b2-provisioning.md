@@ -23,7 +23,7 @@ the per-project scoped key needs the master key or a console trip per project.
 - create a bucket for a project that has none
 - set that bucket's lifecycle rule
 - mint an application key scoped to that bucket
-- store the resulting id/secret in **that project's** Doppler config
+- store the resulting id/secret in **that app's own** config — `<shard>` / `prd_<app>` — never in a shard's root, whose values every co-resident app inherits, and never in `tools`
 - `restic init` into the new, empty repository
 
 **Ask first** — irreversible, or someone else's:
@@ -42,7 +42,10 @@ bucket, and only that.
 One script, run from a workstation. It is idempotent on the bucket (it refuses to recreate one that
 exists) and it stores the key's secret directly into Doppler, because B2 returns it exactly once.
 
-Substitute `<project>` (the Doppler project) and `<bucket>` (conventionally `<project>-backups`).
+Substitute `<app>` (the project being backed up), `<bucket>` (conventionally `<app>-backups`), `<shard>`
+(the Doppler project its credentials go in, now shared with other apps) and the app's own branch config
+`prd_<app>` — never a bare `prd`, which is the shard's root and is inherited, values included, by every
+app beside it.
 
 ```bash
 B2MK=$(doppler secrets get B2_MASTER_KEY -p tools -c prd --plain) \
@@ -50,8 +53,10 @@ B2ID=$(doppler secrets get B2_MASTER_KEY_ID -p tools -c prd --plain) python3 <<'
 import base64, json, os, subprocess, urllib.request, urllib.error
 
 ACCOUNT_ID = os.environ['B2ID']      # the master key's keyID IS the account id
-PROJECT    = '<project>'
+APP        = '<app>'                 # names the bucket, the B2 key and the units
 BUCKET     = '<bucket>'
+DP_PROJECT = '<shard>'               # the Doppler project, now shared with other apps
+DP_CONFIG  = 'prd_<app>'             # this app's own branch config — never the bare 'prd' root
 
 # "Keep only the last version of the file". MANDATORY for the S3-compatible endpoint: that backend only
 # HIDES what it deletes, so without this `forget --prune` reclaims nothing while every run exits 0.
@@ -91,14 +96,14 @@ else:
     print(f'created {BUCKET} ({bucket["bucketId"]}, {bucket["bucketType"]})')
 print('  lifecycleRules:', json.dumps(bucket.get('lifecycleRules')))
 
-key, err = call('b2_create_key', {'accountId': ACCOUNT_ID, 'keyName': f'{PROJECT}-vps-backup',
+key, err = call('b2_create_key', {'accountId': ACCOUNT_ID, 'keyName': f'{APP}-vps-backup',
                                   'capabilities': CAPS, 'bucketId': bucket['bucketId']})
 if err:
     raise SystemExit(f'CREATE KEY FAILED: {err}')
-print(f'created key {PROJECT}-vps-backup, scoped to {bucket["bucketId"]}')
+print(f'created key {APP}-vps-backup, scoped to {bucket["bucketId"]}')
 
 def put(name, value):
-    p = subprocess.run(['doppler', 'secrets', 'set', name, '-p', PROJECT, '-c', 'prd', '--silent'],
+    p = subprocess.run(['doppler', 'secrets', 'set', name, '-p', DP_PROJECT, '-c', DP_CONFIG, '--silent'],
                        input=value, text=True, capture_output=True)
     print(f'  {name}: {"stored" if p.returncode == 0 else "FAILED " + p.stderr[:120]}')
 
@@ -118,7 +123,7 @@ Never trust the creation output alone; read the credential back from where the b
 ```bash
 python3 <<'EOF'
 import base64, json, subprocess, urllib.request
-g = lambda k: subprocess.run(['doppler','secrets','get',k,'-p','<project>','-c','prd','--plain'],
+g = lambda k: subprocess.run(['doppler','secrets','get',k,'-p','<shard>','-c','prd_<app>','--plain'],
                              capture_output=True, text=True).stdout.strip()
 a = base64.b64encode(f"{g('AWS_ACCESS_KEY_ID')}:{g('AWS_SECRET_ACCESS_KEY')}".encode()).decode()
 r = urllib.request.Request('https://api.backblazeb2.com/b2api/v3/b2_authorize_account',

@@ -216,9 +216,17 @@ and let the values cross the ssh pipe, where they also stay out of both shells' 
 
 ```
 for k in RESTIC_REPOSITORY RESTIC_PASSWORD AWS_ACCESS_KEY_ID AWS_SECRET_ACCESS_KEY MONGODB_URI; do
-  printf '%s=%s\n' "$k" "$(doppler secrets get "$k" -p <project> -c prd --plain)"
+  printf '%s=%s\n' "$k" "$(doppler secrets get "$k" -p <project> -c <config> --plain)"
 done | ssh root@<host> 'umask 077; mkdir -p /etc/app && cat > /etc/app/backup.env'
 ```
+
+**Read the config off the project; do not derive it from the naming rule.** Which config holds an app's
+values depends on the project's vintage, and the two cases fail in opposite directions. Where apps share a
+project and take a config each (`prd_<app>`), the root `prd` is kept permanently empty, so `-c prd` renders
+a file of *blank* values — the unit loads it without complaint and the failure surfaces only as a backup
+that dies unauthenticated. Where an app still has a project to itself, that same root `prd` is exactly where
+its values live and `-c prd` is correct. `doppler configs -p <project>` settles it in one command, and it is
+worth the command: a root full of live values and an empty one are indistinguishable from the rule alone.
 
 **`chmod 600` after the redirect is a repair, not a guard.** Root's umask is 022, so the shell creates the
 file 0644 and the passphrase sits world-readable until the chmod runs — a window rather than a state, which

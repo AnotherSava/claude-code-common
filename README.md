@@ -238,7 +238,7 @@ Gives a project on the shared VPS a nightly off-box backup, or works on one it a
 - Keeps backup credentials out of the publish-time required-secrets list, so a durability credential can never refuse a change to what the box is serving
 - Catches the failures that report success: restic's exit 3 writes a *partial* snapshot, `Type=oneshot` disables systemd's start timeout by default, and an `ExecStart` under the repo directory name rather than the deploy path dies 203/EXEC on every fire
 - Proves the restore by counting what came back — and, where the box still serves, by matching a restored artefact's digest against the live one
-- A per-engine table for taking a consistent copy (SQLite online backup, `pg_dump` with credentials read inside the container, `mongodump` from the image that matches the server), plus `references/tenants.md` recording what each neighbour already does and which nightly slots are free
+- A per-engine table for taking a consistent copy (SQLite online backup, `pg_dump` with credentials read inside the container, `mongodump` from the image that matches the server), and the authorization boundary in `references/b2-provisioning.md` for what may be created without asking
 
 ---
 
@@ -321,7 +321,7 @@ Manages env-style secrets — API keys, tokens, passwords, connection strings �
 **Command:** `/doppler`
 
 **Features:**
-- Reads the real project list up front, so `-p`/`-c` are never guessed (the workplace name is not a project, and the config is `dev`)
+- Reads the real project and config list up front, so `-p`/`-c` are never guessed (the workplace name is not a project, and a new app is a *config* inside a shared project rather than a project of its own)
 - Emits a copy-ready, fenced command for every operation, with `{{placeholder}}` marking only what the user supplies
 - Offers the clipboard route first for a value only the user holds — it pipes clipboard → Doppler behind a prefix guard, so nothing occupies a command line — and the copy-ready command as the alternative, routed to a separate terminal because the `!` prefix records the value in the transcript
 - Hands a stored value back to the clipboard without printing it, reporting a label, length and digest, and leaves a `cb` script that re-fetches it hours later when the clipboard has moved on

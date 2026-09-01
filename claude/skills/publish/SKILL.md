@@ -180,7 +180,9 @@ Two of those decide whether the publish can see the failures a 200 hides:
   not read a green hook on a half-configured repo as evidence of anything.
 
 Read values from the project rather than asking, where they are discoverable: the compose file gives the service
-and container names, the vhost file gives the ingress path, `doppler projects` gives the project name. Ask only
+and container names, the vhost file gives the ingress path, `doppler configs -p <project>` gives the config name.
+A new app is a `prd_<app>` config inside a project shared with other apps, not a project of its own, so
+`doppler projects` will not name it — `/doppler` has the current layout. Ask only
 for what genuinely cannot be inferred — above all `SSH_HOST`, which is never in the repo.
 
 `config/publish.env` is **committed, encrypted**, and is not per-machine — unlike `config/deploy.env`, which

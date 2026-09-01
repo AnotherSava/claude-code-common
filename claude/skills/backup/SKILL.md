@@ -34,8 +34,8 @@ steps that catch them have to be executed, not remembered.
 | the units | `<repo>/…/<tenant>-backup.{service,timer}`, installed to `/etc/systemd/system/` |
 | the template | `<repo>/…/backup.env.example` — names and shapes, never values |
 | credentials | `/etc/<tenant>/backup.env` on the box, mode 0600, the unit's `EnvironmentFile` |
-| the passphrase | that project's Doppler `prd` config, **off** the box it protects |
-| the repository | `s3:<endpoint>/<project>-backups/<host>` — endpoint and region from `b2_authorize_account` |
+| the passphrase | the app's own Doppler config — `<shard>` / `prd_<app>`, or that project's `prd` for a tenant older than the shards — **off** the box it protects |
+| the repository | `s3:<endpoint>/<app>-backups/<host>` — endpoint and region from `b2_authorize_account` |
 | staging | `/var/lib/<tenant>/backup-stage`, a **fixed** path |
 
 **The per-box inventory is not in this repository, which is public.** Which tenants are backed up, which
@@ -43,6 +43,11 @@ are not, the free timer slots and each neighbour's conventions live in the priva
 shared edge, at `docs/backup-tenants.md` in a sibling `landlord` checkout. Read it before choosing a time
 or a convention — the arrangement is deliberate. If no such checkout is present, say so rather than
 guessing a slot: colliding with a neighbour's run is the one mistake this arrangement exists to prevent.
+
+Two names below are no longer the same thing. `<app>` is the project being backed up — it names the repo,
+the bucket, the B2 key and the units. `<shard>` is the Doppler project its credentials live in, now shared
+with other apps, each holding its own config `prd_<app>`. A bucket or a key named after the shard would be
+shared too.
 
 `~/.claude/learnings/restic-backblaze-b2-backups.md` has the *why* behind the non-negotiables below. This
 file tells you what to do; that one explains what it costs when you don't.
@@ -64,13 +69,13 @@ Identify every store holding real data, and never snapshot a live database file:
 | Engine | Consistent copy |
 |---|---|
 | SQLite | `sqlite3 "$DB" ".backup '$STAGE/x.db'"` — the online backup API |
-| Postgres | `docker exec -i <project>-db sh -c 'pg_dump -U "$POSTGRES_USER" …'` — credentials from the container's own environment, never a command line. Restore-grade: schema **and** any migration journal |
-| Mongo | `docker exec -i <project>-db mongodump --uri "$URI" --archive --gzip` — the tool ships with the image, so its version matches the server |
+| Postgres | `docker exec -i <app>-db sh -c 'pg_dump -U "$POSTGRES_USER" …'` — credentials from the container's own environment, never a command line. Restore-grade: schema **and** any migration journal |
+| Mongo | `docker exec -i <app>-db mongodump --uri "$URI" --archive --gzip` — the tool ships with the image, so its version matches the server |
 | files | copy if immutable/content-addressed; otherwise stage them |
 
 Write the dump to a `.partial` path and `mv` it into place only on success — a dump that dies halfway must
 not leave a truncated archive for restic to snapshot as though it were good. Address containers by their
-project-specific name (`<project>-db`, never `db` or `postgres`): on this box a generic name is a claim on a
+project-specific name (`<app>-db`, never `db` or `postgres`): on this box a generic name is a claim on a
 shared namespace, which is how a hostname once served a neighbour's app for 41 hours with every check green.
 
 State what you found and what you propose to capture. **Wait for the user** before provisioning anything.
@@ -84,7 +89,7 @@ project that has none) and what is not (deleting anything, or touching another p
 ### 3. Generate the passphrase, and store it where the box is not
 
 ```bash
-python3 -c "import secrets; print(secrets.token_hex(32))" | doppler secrets set RESTIC_PASSWORD -p <project> -c prd --silent
+python3 -c "import secrets; print(secrets.token_hex(32))" | doppler secrets set RESTIC_PASSWORD -p <shard> -c prd_<app> --silent
 ```
 
 Constrain it to hex deliberately. The value round-trips through bash, systemd's `EnvironmentFile` parser
@@ -93,10 +98,13 @@ and sometimes compose's dotenv reader, which agree on a simple value and not muc
 Store `RESTIC_REPOSITORY` in the same config. **Without the passphrase the snapshots are unopenable
 ciphertext**, so it must not live only on the machine being backed up.
 
-`-c prd`, not the `dev` that `/doppler` defaults to — deliberately, and every tenant here already does it.
-These credentials are read by a unit running on the production box; there is no development backup. If a
-value must also exist in `dev`, put the real one in `prd` and a `${prd.NAME}` reference in `dev`, so there
-is one origin rather than two copies free to drift.
+The `prd` environment, not `dev`: these credentials are read by a unit on the production box, and there is
+no development backup.
+
+**`/doppler` owns which shard the app joins, and the branch-config rules — invoke it rather than guessing
+coordinates.** One consequence is worth repeating here rather than deferring, because this step writes a
+*passphrase* and the failure is silent: name the app's own config in full, `-c prd_<app>`, never the bare
+`-c prd`. A passphrase written to a root is handed to every co-resident app, and the write reports success.
 
 ### 4. Write the job, the units and the template
 
@@ -136,7 +144,7 @@ file 0600 at creation rather than after a window where it was not.
 
 ```bash
 for k in RESTIC_REPOSITORY RESTIC_PASSWORD AWS_ACCESS_KEY_ID AWS_SECRET_ACCESS_KEY; do
-  printf '%s=%s\n' "$k" "$(doppler secrets get "$k" -p <project> -c prd --plain)"
+  printf '%s=%s\n' "$k" "$(doppler secrets get "$k" -p <shard> -c prd_<app> --plain)"
 done | ssh root@<host> 'umask 077; mkdir -p /etc/<tenant> && cat > /etc/<tenant>/backup.env'
 ```
 

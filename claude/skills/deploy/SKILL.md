@@ -120,7 +120,7 @@ For a local web server, `deploy` stops whatever holds the port and relaunches th
 
      **Secrets via Doppler (optional).** If `config/local.json` carries secrets (API tokens, bot credentials, sync tokens), don't keep a plaintext copy on disk — render it from a Doppler-managed template at deploy time. The signal that this is wanted: **Secret config template present** is yes, or the user says the runtime config holds secrets. When so:
      - The committed source is `config/local.template.json` with `{{tojson .SECRET_NAME}}` placeholders for each secret (and literal values for the secret-free settings); the real values live in a Doppler project/config.
-     - Ask for the Doppler project and config names (skip if **Deploy env has DOPPLER_PROJECT** ≥ 1 — already set) and append `DOPPLER_PROJECT=<name>` and `DOPPLER_CONFIG=<name>` to `config/deploy.env` (these are not secrets).
+     - Ask for the Doppler project and config names (skip if **Deploy env has DOPPLER_PROJECT** ≥ 1 — already set) and append `DOPPLER_PROJECT=<name>` and `DOPPLER_CONFIG=<name>` to `config/deploy.env` (these are not secrets). An app with no Doppler home yet gets a **config** inside an existing project — `dev_<app>` in the `local` project for a workstation-only app — never a project of its own; invoke `/doppler` rather than inventing names here.
      - Ensure the rendered output `config/local.json` is gitignored (it's the transient secret-bearing file). The step-3 wrapper renders the template into it before each deploy and wipes it on exit, so plaintext secrets never sit at rest.
 
      Skip all of this when the project has no secrets — the trivial wrapper in step 3 is used instead.
