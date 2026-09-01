@@ -43,9 +43,11 @@ MAX_SHOWN = 3
 
 def _payload() -> dict:
     try:
-        return json.load(sys.stdin)
+        payload = json.load(sys.stdin)
     except (json.JSONDecodeError, ValueError):
         return {}
+    # Valid JSON of the wrong shape reaches every caller as a dict-shaped thing that is not one.
+    return payload if isinstance(payload, dict) else {}
 
 
 def _state_path(payload: dict) -> str:

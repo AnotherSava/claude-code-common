@@ -45,6 +45,8 @@ def main() -> int:
         data = json.load(sys.stdin)
     except Exception:
         return 0  # never break a tool call on a parse hiccup
+    if not isinstance(data, dict):
+        return 0  # valid JSON of the wrong shape is still nothing to act on
 
     tool_input = data.get("tool_input") or {}
     response = data.get("tool_response") or {}
