@@ -51,7 +51,7 @@ README.md
 docs/
   _config.yml
   _includes/
-    footer_custom.html        # empty — drops the "This site uses Just the Docs" footer line
+    nav_footer_custom.html    # an HTML comment — drops the theme's footer attribution
   index.md                    # nav_order: 1, the homepage
   pages/
     usage.md                  # nav_order: 2, has_children: true (parent stub)
@@ -99,7 +99,7 @@ Minimal Jekyll config using `just-the-docs` as a remote theme:
 ```yaml
 title: <Project Name>
 description: <same tagline used in README / index.md>
-remote_theme: just-the-docs/just-the-docs
+remote_theme: just-the-docs/just-the-docs@<latest-release-tag>
 baseurl: /<repo-name>
 plugins:
   - jekyll-remote-theme
@@ -111,21 +111,31 @@ exclude:
   - plans/                    # internal planning docs, if any
 ```
 
+### Pin the remote theme
+
+`remote_theme` without a `@ref` resolves to the theme repo's **default branch HEAD on every rebuild** — the build log says so plainly (`Downloading .../just-the-docs/zip/HEAD`). An upstream commit then changes the site with nothing changing in the repo, and nothing triggers it until the next unrelated docs edit, which makes the eventual breakage look like it came from whatever you touched that day. `owner/name@ref` is documented jekyll-remote-theme syntax and takes a tag.
+
+Resolve the current tag rather than hardcoding one — `gh api repos/just-the-docs/just-the-docs/releases/latest --jq .tag_name` — and treat it like any other dependency: bump deliberately, not on every run. Note the theme's releases lag its default branch by months, so pinning moves the site *backwards* from HEAD; check that anything the site relies on from recent theme source (an include's contents, a variable's default) exists at the tag before pinning.
+
 ### Content width
 
-The default content width (~1100px) is conservative. For projects with wide code blocks or tables, override via `_sass/custom/setup.scss` (variable overrides, loaded before CSS):
+**Leave `$content-width` at the theme default** unless you have read `~/.claude/learnings/just-the-docs-customization.md` and accepted what it costs. It looks like a width knob and is not one: the default is `50rem` (800px), and `md` and `lg` in the theme's `$media-queries` are *derived* from it — `md` being the window width at which `.side-bar` stops rendering as a mobile header. The frequently-copied `$content-width: 87.5rem` therefore pushes the sidebar to 1400px, so a 1366px laptop gets the mobile layout.
 
-```scss
-$content-width: 87.5rem; // ~1400px at 16px base
-```
+Nor can the two be separated. At `lg`, `.side-bar` and `.side-bar + .main`'s `margin-left` are both computed from `$nav-width + $content-width`, so forcing a wider `.main` in `_sass/custom/custom.scss` overflows the right edge on mid-size windows. If you do override it, override the variable in `_sass/custom/setup.scss`, in `rem` — GitHub Pages uses sass 3.x, which rejects mixed `px`/`rem` arithmetic.
 
-The value **must be in `rem`** — GitHub Pages uses sass 3.x which rejects mixed `px`/`rem` arithmetic.
-
-Do NOT use `_sass/custom/custom.scss` with `.main-content { max-width: ... }` — that class does not exist in just-the-docs. The actual class is `.main`, driven by `$content-width`.
+A wide table is usually better served by letting the theme's `.table-wrapper` scroll. And do NOT reach for `.main-content { max-width: ... }` — that class does not exist in just-the-docs at all, so the rule is a silent no-op.
 
 ### Footer attribution
 
-just-the-docs renders "This site uses Just the Docs, a documentation theme for Jekyll." in the page footer — that text is the default content of the theme's `_includes/footer_custom.html`, not a config option. Remove it **by default** by shadowing that include with an **empty** `docs/_includes/footer_custom.html` (Jekyll resolves local `_includes/` before the remote theme, same precedence as the `_sass/` overrides). The rest of the footer (search, "back to top") is untouched. To carry a copyright line instead of nothing, put that markup in the same file.
+just-the-docs renders "This site uses Just the Docs, a documentation theme for Jekyll." Remove it **by default** by adding `docs/_includes/nav_footer_custom.html` containing an HTML comment and nothing else — Jekyll resolves local `_includes/` before the remote theme, same precedence as the `_sass/` overrides.
+
+Three things about that sentence are counter-intuitive enough to get wrong; `~/.claude/learnings/just-the-docs-customization.md` has the verified detail:
+
+- The include is **`nav_footer_custom.html`**. The similarly-named `footer_custom.html` is an unrelated `site.footer_content` hook — shadowing it suppresses a feature and leaves the attribution in place.
+- It must be **non-empty**. The theme guards on `!= ""` and ships a 0-byte copy, so an empty override prints the attribution rather than removing it.
+- It must contain **no `{%` or `{{`**, even inside the comment. An include is parsed as Liquid first, so quoting the theme's own guard there fails the Pages build with an unclosed-`if` error.
+
+Verify with comments stripped, and only after confirming the `pages build and deployment` run succeeded — a failed build keeps serving the previous deploy, which reads exactly like a change that did nothing.
 
 ## Front matter cheat sheet
 
@@ -304,7 +314,8 @@ Keep it short enough to read on one screen. Structure, in order:
 4. Cover screenshot: `![<descriptive alt>](docs/screenshots/<cover>.png)` — alt text matches `docs/index.md` for consistency.
 5. **Features** bulleted list — copy from `docs/index.md` Features section. Bullets must match exactly (same set, same wording, same order). Capabilities already named in the context paragraph don't get a bullet — each feature lives in exactly one of the two.
 6. **Install** — one-line pointer to wherever install instructions live (Developer guide or a dedicated Installation page). Omit entirely when the docs site has a dedicated Installation page sitting at the top of the footer list below — a pointer one line above its own footer link is duplication.
-7. Footer block listing every page in the docs site:
+7. **License** — keep whatever licence line the README already carried (`[MIT](LICENSE)`), immediately before the footer. It is the one piece of prose that belongs on the repo page rather than the docs site, and trimming a README to this shape is exactly when it gets dropped by accident.
+8. Footer block listing every page in the docs site:
 
 ```markdown
 ---
@@ -338,7 +349,7 @@ So the rule is: *shared tagline, dialog-own prose, dialog-only version/date + do
 Follow these steps whenever creating or restructuring docs.
 
 1. **Inventory.** List the user-facing capabilities. Decide which top-level pages exist (Home, Usage, Development, optional Privacy) and what children each has. A long page splits into one child per major section once it exceeds ~200 lines / 5+ H2 headings.
-2. **Set up `_config.yml`.** Use the just-the-docs template above. `baseurl` must match the GitHub repo name. Also create an empty `docs/_includes/footer_custom.html` to drop the theme's footer attribution (see [Footer attribution](#footer-attribution)).
+2. **Set up `_config.yml`.** Use the just-the-docs template above. `baseurl` must match the GitHub repo name. Also create `docs/_includes/nav_footer_custom.html` holding an HTML comment to drop the theme's footer attribution (see [Footer attribution](#footer-attribution)) — non-empty and Liquid-free, for the reasons given there.
 3. **Write `docs/index.md`.** Tagline + hero screenshot + (optional Example) + Features bullets + Install pointer + Next steps. Do not include a usage walkthrough — push that to the Usage page tree.
 4. **Write child pages.** One sub-capability per file under `docs/pages/<feature>/`. Each gets `parent: <Feature>` + a local `nav_order`. No nav strips.
 5. **Write the parent stub for each feature.** Brief intro + `has_children: true`. The parent doesn't repeat children's content.
@@ -351,6 +362,21 @@ Follow these steps whenever creating or restructuring docs.
    - Hero-screenshot alt text matches across `README.md` and `docs/index.md`.
    - Footer in `README.md` lists every `docs/pages/**.md` (excluding nav-excluded pages); no listed page is missing on disk.
    - Internal links: bare names for siblings, `..` for cross-level — and search for stale `#anchor-name` references after any section rename.
+9. **Verify git is actually tracking the new files.** A repo whose `.gitignore` ignores `docs/*` and re-includes specific paths (a common way to keep local scratch docs out) swallows the entire site silently: an ignored path never appears in `git status`, so nothing in the normal flow mentions it, and the site simply is not in the commit. Ask git rather than reading the ignore file:
+
+   ```bash
+   git check-ignore -v docs/_config.yml docs/index.md docs/_includes/ docs/pages/
+   ```
+
+   Exit 1 with no output means everything is tracked. Any `<file>:<line>:<pattern>` citation names the rule to add a `!` line beside — repeat until it exits 1. Do this for every new *top-level* entry under `docs/`; re-including a directory covers what is inside it.
+10. **Publish, and point the repo at it.** The README's footer now links to a site that 404s until GitHub Pages is switched on, so this is part of the job, not a follow-up. Confirm with the user first — it publishes the docs — and do it **after** the branch carrying `docs/` is pushed, or the first build runs against a tree with no site in it.
+
+    ```bash
+    gh api repos/<owner>/<repo>/pages -f source[branch]=main -f source[path]=/docs
+    gh repo edit --description "<the tagline>" --homepage "https://<owner>.github.io/<repo>/"
+    ```
+
+    The repo's own description and homepage are a fourth surface for the tagline: leaving the old description in place is the same drift the cross-consistency check exists to catch. `gh api ... /pages` returning 404 on a GET is how you tell Pages is not enabled yet.
 
 ## Out of scope
 
