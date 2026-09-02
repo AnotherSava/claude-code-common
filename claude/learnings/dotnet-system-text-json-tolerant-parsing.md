@@ -101,6 +101,16 @@ ANSI/cp1252 (PowerShell 5.1 `Set-Content` default) does **not** throw — it par
 - **`PropertyNameCaseInsensitive` does not apply to dictionary keys** — only to POCO property names. `{"ACH01": …, "ach01": …}` yields two entries. Worth knowing if the rest of your code matches those same names case-insensitively.
 - **Unmapped members are skipped by default** (`JsonUnmappedMemberHandling.Skip`), including nested objects and arrays. Extra fields another tool writes into your record cost nothing. `Disallow` gives `The JSON property 'x' could not be mapped to any .NET member contained in type 'T'`.
 
+## An explicit `null` defeats a non-nullable property's initialiser
+
+`public string Name { get; set; } = "";` protects you against the property being **absent**, and against nothing else. Given `{"name": null}` the deserializer writes null straight into it — no exception, nullable reference types notwithstanding — so a property the compiler swears is non-null holds null at runtime:
+
+```csharp
+JsonSerializer.Deserialize<Def>("""{"name": null}""")!.Name is null   // true
+```
+
+This stays invisible until something dereferences it. `string.Equals(x.Name, other)` is the static overload and tolerates null happily, so code can sit on such a value for years; the day someone rewrites that comparison as `x.Name.Length` or `foreach (var c in x.Name)`, one third-party file becomes a `NullReferenceException`. When parsing files you did not write, take `string?` in any helper that touches these properties and guard, rather than trusting the declaration — and note the crash surfaces wherever the parsed value is *used*, which may be nowhere near the try/catch around the parse.
+
 ## Writing JSON fixtures in C# tests
 
 Raw string literals (`"""…"""`) are the right tool — no escaping of the JSON's own quotes. But the moment you interpolate a value, `$$"""…{{x}}…"""` collides with JSON's braces and fails to compile:

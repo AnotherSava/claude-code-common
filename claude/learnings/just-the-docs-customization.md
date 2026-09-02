@@ -17,16 +17,35 @@ The main content area width is controlled by the `$content-width` variable, appl
 
 ```scss
 // _sass/custom/setup.scss
-$content-width: 87.5rem; // ~1400px at 16px base
+$content-width: 68.75rem; // 1100px at a 16px base — but read the breakpoint section below first
 ```
 
-The default is ~66rem (~1056px). The value **must be in `rem`** — GitHub Pages uses sass 3.x which rejects mixed `px`/`rem` arithmetic. 87.5rem (~1400px) is a good middle ground for docs with wide code blocks or tables.
+The default is **`50rem` (800px)** — verified against `_sass/support/_variables.scss` on `main`, which is what `remote_theme` pulls. The value **must be in `rem`** — GitHub Pages uses sass 3.x which rejects mixed `px`/`rem` arithmetic.
 
 Do NOT edit `_sass/support/variables.scss` directly — it can break other dependencies.
 
-### `$content-width` ≠ the `xl` breakpoint
+### Raising `$content-width` also moves the sidebar breakpoint
 
-`$content-width` drives exactly **one** rule — `.main { max-width }`, emitted inside `@media (min-width: 50rem)`. It does **not** touch the theme's responsive breakpoints. just-the-docs bakes a fixed xs/sm/md/lg/xl scale into the compiled CSS; the `xl` breakpoint is `87.5rem` (1400px) and appears ~20+ times as `@media (min-width: 87.5rem){…}` for utility classes (`.d-xl-*`, grid helpers). Those are **independent of `$content-width`** and won't change when you lower it — seeing them in the compiled CSS after a content-width change is expected, not leftover cruft. (It's a coincidence that the common 87.5rem content-width override equals the xl breakpoint.)
+It is not a width knob. Two of the theme's five breakpoints are *derived* from it:
+
+```scss
+$content-width: 50rem !default;
+$media-queries: ( xs: 20rem, sm: 31.25rem, md: $content-width, lg: $content-width + $nav-width, xl: 87.5rem );
+```
+
+`.side-bar` becomes the fixed left rail at `mq(md)`, so `md` is the window width at which the site stops rendering as a mobile header. Raising `$content-width` raises it with them:
+
+| `$content-width` | sidebar appears at (`md`) | centred-gutter layout at (`lg`) |
+|---|---|---|
+| `50rem` (default) | 800px | 1064px |
+| `68.75rem` | 1100px | 1364px |
+| `87.5rem` (the common override) | **1400px** | 1664px |
+
+So the popular 87.5rem override silently gives a 1366px laptop the mobile layout. Only `xl` (a literal 87.5rem, driving `.d-xl-*` utility classes) is independent — it does not move when you change the variable, and seeing `@media (min-width: 87.5rem)` in the compiled CSS afterwards is expected rather than leftover cruft.
+
+**The two cannot be decoupled** by overriding `.main { max-width }` in `custom/custom.scss` and leaving the variable alone. At `lg`, `.side-bar` and `.side-bar + .main`'s `margin-left` are both `calc((100% - #{$nav-width + $content-width}) / 2 + #{$nav-width})` — the layout centres a `nav + content` block of exactly that total. A `.main` wider than `$content-width` overflows the right edge on any window narrower than roughly `2 × main − nav`; with `$content-width: 50rem` and `.main` forced to 68.75rem that is anything under ~1500px. The variable is the only correct lever, and moving the breakpoints with it is the design, not a bug.
+
+Decide accordingly: a wide table is usually better served by letting the theme's `.table-wrapper` scroll than by pushing every reader under 1400px into the mobile layout.
 
 To verify a width change actually applied, grep the compiled `assets/css/just-the-docs-default.css` for the `.main{…max-width…}` rule, or measure `.main` in a browser — don't infer from the count of `87.5rem` strings.
 
@@ -42,9 +61,21 @@ Set **`has_toc: false`** in the page's front matter to suppress the auto-generat
 
 ## Removing the footer attribution
 
-just-the-docs renders "This site uses Just the Docs, a documentation theme for Jekyll." in the page footer. That text is the **default content of the theme's `_includes/footer_custom.html`** — not a config option.
+just-the-docs renders "This site uses Just the Docs, a documentation theme for Jekyll." Removing it is not a config option, and the obvious guess — shadowing `_includes/footer_custom.html` with an empty file — is wrong three times over. Verified against the theme on `main` and against a live Pages deploy.
 
-To remove it, create an **empty** `_includes/footer_custom.html` in your own site. Jekyll resolves local `_includes/` before the remote theme (same precedence as the `_sass/` overrides above), so the empty file shadows the theme's default and the line disappears — the rest of the footer (search, "back to top") is untouched. To replace it with your own text (a copyright line, etc.) instead of removing it, put that markup in the same file.
+**The include is `nav_footer_custom.html`, not `footer_custom.html`.** The latter is an unrelated hook that renders `site.footer_content` if you set it; shadowing it suppresses that feature and leaves the attribution untouched. The attribution is the *else-branch* of a test in two theme partials, both reading the same include:
+
+- `_includes/components/sidebar.html` — desktop, inside `<div class="d-md-block d-none site-footer">`
+- `_includes/components/footer.html` — mobile, inside `<div class="d-md-none mt-4 fs-2">`
+
+**An empty file does the opposite of what you want.** The guard is `if nav_footer_custom != ""`, and the theme's own copy of the file is 0 bytes — so empty takes the else-branch and prints the attribution. Your override must be **non-empty and render nothing**. An HTML comment satisfies both. (Note this is inverted from `footer_custom.html`, where empty genuinely means "render nothing" — which is exactly why the wrong guess feels right.)
+
+**The payload is parsed as Liquid, comment or not.** An include's contents go through the Liquid parser before any HTML is considered, so a `{%` sequence inside an HTML comment is a real tag. Writing the theme's own guard verbatim into an explanatory comment produced `Liquid syntax error (components/sidebar.html line 8): 'if' tag was never closed` and failed the Pages build outright. Keep `{%` and `{{` out of the file entirely.
+
+Two verification traps, both of which will convince you the fix failed when it worked:
+
+- **Don't quote the attribution sentence in your comment.** `curl … | grep 'This site uses Just the Docs'` then matches your own suppressor. Strip comments before grepping, or keep the phrase out of the file.
+- **A failed Pages build serves the previous deploy.** The legacy `/pages/builds/latest` API can sit on `building` while the Actions run has already failed, so the live page keeps showing the old footer and looks like the change did nothing. Check `gh run list` for the `pages build and deployment` run's conclusion before drawing any conclusion from the served HTML.
 
 Works identically under `remote_theme: just-the-docs/just-the-docs`.
 

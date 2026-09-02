@@ -17,6 +17,8 @@ with every publish/package/release step gated on `if: startsWith(github.ref, 're
 
 The `pull_request` trigger runs build and test, but the publish/package/`upload-artifact` steps are all tag-gated, so a PR run leaves no artifact. Don't plan on grabbing a zip from a PR unless the workflow deliberately uploads on non-tag runs.
 
+The same gate has a second consequence that is easier to miss: **a change to those steps is unverified until you tag.** Editing the packaging commands or bumping `upload-artifact`/`download-artifact` and pushing to `main` gets a green run that skipped every line you touched, so the change first executes during a real release. Confirm what actually ran before calling it verified — see `github-action-version-bumps.md` for the `skipped`-count query.
+
 ## A tag fires the workflow from any branch
 
 `on: push: tags:` does not care which branch the tagged commit is on — the trigger is the ref, not the branch. So tagging a feature branch's tip does run the full release pipeline. That is the easy way to get a real, tested, packaged build out of a branch.

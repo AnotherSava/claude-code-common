@@ -108,9 +108,36 @@ It also needs an `achievements_schema.json` next to the emulator DLL (required s
 
 The unlock file starts as a byte-identical copy of `achievements_schema.json`, so it is fully self-describing — a reader can resolve display text from the save file alone, without locating the game folder. There is no `steam_appid.txt` anywhere: the game isn't running the Steam emulator at all, and the id appears only inside the `AchSavePath` value.
 
-**Id-space collision:** Ubisoft/Uplay ids are small integers (`4` = AC2, `720` = AC Unity, `4740` = Avatar FoP) that fully overlap the Steam appid range. Anything keyed on a bare numeric id from a GSE Saves folder name can therefore mix up a Uplay and a Steam game — real enough that PSerban93/Achievements ships a `uplay-steam.json` mapping table for it.
+**Id-space collision:** Ubisoft/Uplay ids are small integers (`4` = AC2, `720` = AC Unity, `4740` = Avatar FoP) that fully overlap the Steam appid range. Anything keyed on a bare numeric id from a GSE Saves folder name can therefore mix up a Uplay and a Steam game — real enough that PSerban93/Achievements ships a `uplay-steam.json` mapping table for it. **Matching on the achievement name does not save you** where the schema's names are bare digits — see the survey below; two games installed on this machine name their achievements `1`..`29` and `01`..`54`.
 
 Most of the above is forum-derived (cs.rin.ru thread `f=29&t=111722`) rather than read from source — treat the INI key names and "no icon field" as strong but unverified.
+
+## Achievement API names: shapes, and the zero-padding mismatch
+
+An emulator that is handed a bare integer achievement id has to turn it into the game's Steam API name. `AchKeyPrefix` concatenates a literal string ahead of the raw decimal id, so it can produce `AFOP_Ach_7` but **cannot zero-pad** — and a build configured with no prefix emits the bare `"1"`. Where the Steam schema spells that achievement `"001"`, an exact name match misses and the game gets no icon and no localised text. Padding is therefore the one part of such a name that cannot be fixed at the emulator's end; a reader has to bridge it.
+
+Measured 2026-08-31 via `ISteamUserStats/GetSchemaForGame/v2` — 12,916 apps queried, 9,079 with achievements:
+
+| | |
+|---|---|
+| AC Odyssey (812140) | 93 achievements, `001`..`093`, uniform width 3, never reaches 100. `001` = "This is Sparta!" |
+| AC Origins (582160) | 67, `001`..`067` — the **only** other Ubisoft title like this |
+| Ubisoft overall | of 80 published apps with achievements, 52 use `<Prefix>_Ach_<n>` **unpadded**. Padded numerics are a two-game quirk, not a Ubisoft convention |
+| Anno 1800 (916440) | Ubisoft, numeric, **unpadded**, running to `215` — so the mismatch happens in both directions |
+| all games | 224 entirely unpadded-numeric; 62 containing any padded name; widths 2, 3 **and** 4; 23 of them zero-based (so `0` must reach `00`/`000`) |
+| CasinoRPG (658970) | width-3 padded, then runs `099` straight into `100`..`213` |
+| Legendary Creatures 2 | `000`..`009`, then `0010` |
+| Bulwark: Falconeer Chronicles | the only schema of 9,079 holding both a padded name **and** its unpadded twin (`01` and `1`) |
+
+Consequences for anyone writing the match:
+
+- **Do not reformat the key to a fixed width.** The last three rows break every such rule. Strip leading zeros from *both* sides instead and compare — that handles every width pair with no constant to choose.
+- **Do not synthesise unpadded alias entries** into the parsed schema: it leaks phantom achievements into every other consumer, makes which entry answers a lookup depend on insertion order, and duplicates a real entry on that one schema which already has both spellings.
+- **Try the exact match against the whole list first**, then the folded one. Otherwise a padded entry beats an exact one purely by appearing earlier in the file.
+- **Fold as strings, never parse.** On .NET 10, `long.TryParse` with its default `NumberStyles.Integer` returns true for `"+1"` and `" 1 "`, fails outright past 19 digits, and via `double` equates `1234567890123456789` with `1234567890123456780`. Use `char.IsAsciiDigit`, not `char.IsDigit`, which accepts Arabic-Indic and fullwidth digits that a padding rule means nothing for. And never strip to the empty string — `"000".TrimStart('0')` is `""`, which then folds onto a nameless schema entry.
+- **A folded match is an inference, not the schema naming the achievement.** Where the unlock file is self-describing, let the fold supply the icon and fill blank fields but not overwrite text the file carries: a wrong icon beside right text is visible, wrong text reads as correct.
+
+Steam also redacts hidden achievements' `description`, so even a matched schema often supplies only `displayName` (31 of AC Odyssey's 93 are hidden) — the per-field fallback below still has work to do.
 
 ## Hidden achievement descriptions (Steam redacts; SteamDB via Firecrawl)
 

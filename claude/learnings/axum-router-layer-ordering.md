@@ -67,6 +67,32 @@ fn guard_covers_every_route() {
 The count assertion is the part people leave out. Without it the test keeps passing after the routes are
 refactored out of that expression, at which point it is asserting nothing.
 
+### The second vacuity mode: the test can match its own source
+
+`include_str!("thing.rs")` pulls in the **whole file, the test module included**, so every literal the
+test searches for and asserts on is itself present in the text being searched. The test above is safe by
+construction — its slice is bounded to the router expression, well above the `mod tests` block — but that
+is a property of the bounds, not of the technique, and it is easy to lose.
+
+The failure looks like this — a test locating a call site and asserting a flag is set on it:
+
+```rust
+let at = src.find("let mut cmd = Command::new(&bin);").expect("the spawn moved");
+let body = &src[at..src[at..].find(".spawn()").unwrap() + at];
+assert!(body.contains("creation_flags(CREATE_NO_WINDOW)"));
+```
+
+Delete the real call site and `find` does not fail — it lands on the *test's own* copy of that string,
+slices to the test's own `".spawn()"`, and the assert is satisfied by the test's own assert line. It
+passes while guarding nothing. Anchoring on a string unique to production code helps, but that is a
+property nobody re-checks when editing the test later.
+
+**Negative-control it once, on purpose.** Delete or comment out the thing the test guards, run it,
+confirm it fails with the message you wrote, then restore. That costs one rebuild and is the only
+evidence a source-scanning test is not tautological — reading it is not enough, since both vacuity modes
+look correct on the page. Do it when you write the test, and again when one is handed to you by someone
+who could not run it themselves.
+
 ## Better, when you can
 
 If the router's state is constructible in tests, prefer serving it on an ephemeral loopback port and

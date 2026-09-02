@@ -278,6 +278,54 @@ Don't `DeleteObject` the previous brush returned by `SetClassLongPtrW` — it ma
 
 `COLORREF` encoding is `0x00BBGGRR` (low byte red), so `#1c1c1e` → `0x001E_1C1C`.
 
+## Spawning a console binary flashes a real window — redirecting stdio is not enough
+
+A Tauri app is a GUI process and owns **no console**. Spawn a console-subsystem binary from it
+(`tailscale`, `git`, `ffmpeg`, any CLI) and Windows allocates a fresh console for the child — which
+under Windows Terminal is a genuine window that opens and shuts. It is not a rendering artifact and
+no amount of stdio redirection suppresses it: piping stdout, nulling stderr and stdin all still
+leave the console allocated, because the console is created for the *process*, not for the handles.
+
+The fix is a creation flag:
+
+```rust
+let mut cmd = Command::new(&bin);
+cmd.args([...]).stdout(Stdio::piped()).stderr(Stdio::null()).stdin(Stdio::null());
+#[cfg(windows)]
+{
+    use std::os::windows::process::CommandExt;
+    const CREATE_NO_WINDOW: u32 = 0x0800_0000;   // no winapi dep needed for one constant
+    cmd.creation_flags(CREATE_NO_WINDOW);
+}
+let mut child = cmd.spawn().ok()?;
+```
+
+**This is invisible from macOS in two ways**, which is what lets it ship. A spawn there has no
+console to allocate, so the bug does not exist; and `std::os::windows::process::CommandExt` does not
+exist on macOS, so the `#[cfg(windows)]` block is parsed but never type-checked — an inverted gate
+cannot force it either. A Windows build is the only check that the block even compiles.
+
+The symptom is easy to misattribute because the cadence is not the app's: a periodic spawn behind a
+cache shows up as a window appearing on the *cache TTL*, not on any user action. One real case
+flashed once a minute — a 60s TTL re-resolving against a peer heartbeating every 30s.
+
+### Measuring it: count the spawns, not just the windows
+
+A window-appearance poll alone cannot tell "fixed" from "the code path never ran", and the second
+reads as success. Poll `EnumWindows` for newly-visible top-level windows **and** count the child
+process's spawns in the same loop, then require the spawn count to stay non-zero:
+
+- **Baseline first, on the unfixed binary.** Without it, zero windows afterwards proves only that
+  your detector found nothing. A good baseline is unambiguous: each spawn followed by a window
+  ~60 ms later, 1:1.
+- **A run with zero spawns is void, not a pass** — discard it. Causes seen: the app was quit
+  mid-run, or the upstream trigger (a peer that had to push) went away.
+- The baseline also kills the obvious confounder — that only the *first* spawn flashes and later
+  ones reuse the console. An app running for hours still flashed on every spawn.
+- Prime the "already on screen" set before the loop *and clear the event list after priming*, or
+  every pre-existing window reads as an appearance.
+- Poll interval bounds the claim: at 40 ms a shorter-lived window could slip through. Say so.
+
 ## Multi-window pitfalls
 
 Attempting to add a second always-on-top overlay window (for a tooltip that extends past the main widget) revealed several issues:

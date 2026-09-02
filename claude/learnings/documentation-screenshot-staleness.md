@@ -127,3 +127,30 @@ wrong recapture reads as a normal-looking image beside prose it no longer matche
 Flag and let a human shoot the replacement. The verification method, if a comparison is ever
 needed, is the overlay in `icon-tracing-pixel-overlay.md`: old and new at the same size, old
 faded to grey, new composited semi-transparent, laid out `old | new | overlay`.
+
+## Update 2026-08-31: when automating capture *is* right
+
+The survey above still describes most projects, and its two objections stand — but they are about
+missing preconditions, not an impossibility, and both can be supplied. Automated capture became the
+right call for a WPF desktop app whose settings window is pure, deterministic, local UI, and the
+`documentation` skill now runs it under a per-screenshot policy (`auto` / `confirm` / `never`) the
+user sets once. What made it safe, in the order the objections appear above:
+
+- **The framing is recorded because the capture is a committed script**, not a remembered sequence of
+  clicks — `docs/screenshots/capture/<id>.sh`. That is also the reason a hand-driven capture should
+  become a script on its first success rather than staying manual: the second capture is then free and
+  the diff shows how a published image was made.
+- **The script deploys the working tree first**, so the shot documents the code under review rather
+  than whatever release happens to be installed — the silent failure this file warns about, in its
+  desktop form.
+- **The blockers are per project, not universal.** OAuth-gated mail and a logged-in game session are
+  genuinely unautomatable; a local settings window is not. Decide per screenshot, which is what the
+  policy field is for, and keep `never` as the default for anything whose state cannot be reproduced.
+- **Silent-failure detection is the price of admission.** Assert on the artifact — dimensions, and
+  pixel-level checks on the region that has actually gone wrong before (see
+  `windows-window-capture.md`, which also warns against reusing a threshold tuned to the *previous*
+  defect). Show before and after in a report the user reads, so a wrong capture is caught by the one
+  party who can recognise it.
+
+The rest of this file is unaffected: detection still reads text, still cannot prove a shot current,
+and `policy` governs replacement only — a `never` screenshot is still checked, just never replaced.

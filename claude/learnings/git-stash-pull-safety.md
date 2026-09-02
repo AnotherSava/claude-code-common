@@ -35,6 +35,48 @@ rather than as a fresh judgement call each time: keep both blocks, upstream firs
 the three marker lines. Then confirm both sides survived, since "kept both" is exactly the
 claim a careless edit silently breaks.
 
+## A file that is one enormous line breaks every assumption above
+
+"Non-overlapping edits to the same file merge cleanly" is a statement about *lines*. A file
+whose content is one gigantic line — a prose paragraph kept unwrapped, minified output,
+single-line JSON — has no line granularity, so two edits to completely unrelated sentences
+land in the same hunk and **always** conflict. The markers are worse than useless: git wraps
+the whole line twice, producing a conflict region tens of thousands of characters wide whose
+two versions differ somewhere in the middle. There is nothing to resolve by hand.
+
+Don't pop. Re-apply instead:
+
+```bash
+git stash push -m "local edits" -- bigfile.md
+git merge --ff-only origin/main
+# then re-apply each local edit as an exact-string replacement against the NEW text
+git stash drop
+```
+
+This works because the local edits are known string replacements, and upstream's version
+still contains the original strings whenever the two sides touched different sentences. Check
+that first — `git show origin/main:bigfile.md | grep -c "<the exact old sentence>"` returning
+1 means the replacement is still valid and upstream did not revise the same passage.
+
+**Verify by structural equality, not by reading a diff.** A character-level differ
+(`difflib.SequenceMatcher`) over two 75k-character lines fragments into dozens of one- and
+two-character regions that mean nothing — it finds spurious common substrings everywhere. The
+honest check reconstructs what the file *should* be and compares bytes:
+
+```python
+expected = upstream_text
+for old, new in my_edits:
+    assert expected.count(old) == 1     # catches a passage upstream also revised
+    expected = expected.replace(old, new)
+assert expected == current_text
+```
+
+If that fails, blank out each edited region in *both* texts (replace it with a sentinel) and
+compare the skeletons — identical skeletons prove nothing outside the local edits differs
+from upstream, which is the actual merge-correctness claim. The stash-SHA baseline in the
+next-but-one section is the whole-tree version of the same idea, and is the better check once
+more than one file is in play.
+
 ## Clearing the merge state after a conflicted pop
 
 A `git stash pop` that conflicts **keeps the stash entry** ("The stash entry is kept in case
