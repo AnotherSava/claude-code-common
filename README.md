@@ -245,6 +245,24 @@ Gives a project on the shared VPS a nightly off-box backup, or works on one it a
 
 ---
 
+### Heartbeat
+
+Gives a scheduled job a dead-man's switch, so its silence is noticed. A scheduled job cannot report its own absence: every other check runs *inside* the thing being checked, so when the thing stops, so do they, and a stopped check is indistinguishable from a passing one. Derives the grace from the job's own cadence, creates the check over the healthchecks.io API, puts the ping URL where the job's other credentials live, and proves it by watching the alarm fire.
+
+**Command:** `/heartbeat`
+
+**Features:**
+- Separates the two questions a job answers — *did it pass* (the verdict: mail, report, log) from *did it run at all* (the heartbeat) — so a failing job never looks dead and a dead job never looks merely failing; the heartbeat fires on a failed run too
+- Treats the ping URL as a credential: `scripts/hc.py` never prints one, `store-url` pipes it straight into the job's own Doppler config, and `list` strips the uuid as well, since the ping URL is that uuid in longer form
+- Defaults a new check to all integrations, because the API's own default is *none* — a check with nowhere to send an alert goes red on the dashboard and tells nobody, the exact silent failure the skill exists to prevent
+- Refuses to send a schedule and a period together: healthchecks.io keeps the schedule and silently discards the period, so a caller passing both would get a cadence it never asked for and no error saying so
+- Audits every check the key can see and names the inert ones — never pinged, so it sits in `new` forever and can never alert; or no integrations, so it can go down and nobody is told
+- The one check permitted to degrade quietly: an unset or unreachable ping URL is a note, never a failure, since a heartbeat able to fail the job would turn a monitoring aid into an outage
+- Keeps the inventory of what is and is not monitored out of this public repo — check names and unwatched machines are a map of where nobody is looking, so the method lives here and the map lives in the private repo that owns the thing being watched
+- Grace derivation in `references/grace-derivation.md`; the healthchecks.io API key is per-project, so one key audits one project
+
+---
+
 ### Document Data Flow
 
 Generates or updates a data-flow architecture document (`docs/data-flow.md`).
@@ -583,6 +601,18 @@ Point the symlink at `/opt/homebrew/bin/python3`, not at the versioned `libexec/
 Because the symlink lives outside the repo, it is the one setup step no `git clone` restores. A machine missing it fails silently — hooks simply never fire.
 
 Every invocation also passes `-S`, which skips `site` — the single largest slice of interpreter startup. **The cost is that `site-packages` is off `sys.path`, so every hook must stay stdlib-only.** All of them currently are. A hook needing a third-party package must drop `-S` on its own command line rather than for all of them.
+
+### Screenshot capture helper (macOS)
+
+The `documentation` skill takes screenshots through a small helper rather than through the agent's own binary. macOS grants Screen Recording to a *binary*, and the agent's is version-named, so granting it there would both go stale on every update and hand whole-display access to every session forever. A purpose-built bundle at a fixed path is granted once and scoped to the one job. Build it once per machine:
+
+```bash
+bash claude/skills/documentation/scripts/build-docshot.sh
+```
+
+That installs `DocShot.app` into `~/Applications`. Grant it Screen Recording the first time it asks — a denial is silent rather than loud, since window ids, owners and bounds all still populate while every window *title* comes back empty, so use the helper's `--check` probe to confirm the grant is live instead of discovering it as a black PNG. The grant is pinned to the bundle's ad-hoc signature, so the script refuses to clobber an existing install unless passed `--force`; rebuilding resets the grant.
+
+Like the `python` symlink above, this lives outside the repo and is not restored by `git clone`.
 
 ## Memory
 

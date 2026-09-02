@@ -32,6 +32,7 @@ claude/skills/*
 !claude/skills/github-pages/
 !claude/skills/github-status/
 claude/skills/github-status/config/
+!claude/skills/heartbeat/
 !claude/skills/hooks/
 !claude/skills/memo/
 !claude/skills/move-project/

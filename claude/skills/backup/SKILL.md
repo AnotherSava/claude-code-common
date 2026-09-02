@@ -178,6 +178,21 @@ Update the project's deploy doc, and say in one line where the snapshots live an
 If the project has a self-check, add an assertion on the backup's *freshness and content* — not on the
 unit's exit status, which stays green while the repository rots.
 
+### 9. Make its silence audible — invoke `heartbeat`
+
+Everything above is watched from inside the box. A timer that is disabled, a machine that is rebuilt
+without its units, a scheduled task deleted by an upgrade — none of them fail, they simply stop, and
+every check written so far stops with them. **A backup nobody would notice the absence of is the
+default outcome of this skill, not an unlikely one.**
+
+So finish by invoking `heartbeat`: it derives the grace from the timer written in step 4, creates the
+check, puts its ping URL beside the credentials from step 3, and wires the ping onto the exit codes —
+including the `3` that step 4 already taught this job to distinguish, which belongs on the failure
+side rather than passing as success.
+
+Do it in the same session as the rest. Deferred, it is the step that never happens, and its absence
+looks exactly like success from every angle available here.
+
 ## Out of scope
 
 - Do NOT delete a bucket, a key, or a snapshot, or run `forget`/`prune` by hand — see the boundary in
