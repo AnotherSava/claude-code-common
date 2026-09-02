@@ -104,7 +104,8 @@ Scans project documentation for stale references and fixes them.
 - Fixes stale paths, API references, and behavior descriptions
 - Keeps curated feature listings (features page, docs index, README) in sync with the diff
 - Reconciles documentation screenshots against the docs that cite them, and proves a shot stale by grepping the text visible in it against source
-- Places a replacement screenshot you shot yourself, then sweeps its caption, alt text and surrounding prose — it never captures one itself
+- Records each shot in a `docs/screenshots/screenshots.json` manifest — what the frame shows, how to reproduce it, and whether replacement is `auto`, `confirm` or `never`
+- Replaces one only as its policy allows, capturing through a committed `docs/screenshots/capture/<id>.sh` so the second capture is free and the diff shows how the image was made; anything undecided stops to ask, and a shot you supply yourself is filed the same way
 - Regenerates dimensioned-draft drawings when the model they document changed
 - Suggests new documentation files or reorganization when beneficial
 
@@ -137,6 +138,8 @@ Arranges a project's README and GitHub Pages docs into a consistent user-first l
 - Separates user-facing pages from the one developer entry-point page (`development.md`)
 - Supports flat and monorepo variants with consistent navigation and screenshots
 - Aligns new repos to the shape of existing reference implementations
+- Pins the remote theme to a release tag, so an upstream commit cannot change the site with nothing changing in the repo
+- Enables Pages once `docs/` is pushed and points the repo's description and homepage at it
 
 ---
 
