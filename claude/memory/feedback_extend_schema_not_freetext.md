@@ -20,3 +20,13 @@ Still ask rather than deciding alone — the extension touches code, and it is t
 for the tell that makes it worth raising: the shape is not a one-off, so a comment hack would be the
 first of many. See [[feedback_no_premature_abstraction]] for the other side — this is about data
 that genuinely exists now, not a field added speculatively.
+
+**The converse, same principle.** Designing a screenshot-manifest schema (2026-08-31) I proposed
+eleven fields, several for problems the tooling did not yet have. The user cut it to five: "do we need
+all those fields right away or you tried to come with what might be useful? in the latter case i'd
+prefer to limit those to what we need now and extend the list as soon as we need more." The test that
+survived: a field stays only if a step reads it *today*. Where one was cut, record why in the schema
+doc — `sources`, `dimensions` and a free-text `notes` each had a plausible case, and writing down what
+displaced them stops the same four being re-proposed by whoever next finds the schema thin. That note
+is also what makes the rule safe to apply: cutting speculative fields costs nothing when the reasoning
+survives, and the field is added the moment a step needs it.

@@ -113,3 +113,5 @@
 - [Assert the syntax, not the spelling](feedback_assert_the_syntax_not_the_spelling.md) — an absence check must match a directive; the file's own warning against the thing contains the word
 - [Don't re-check a known answer](feedback_dont_recheck_known_answers.md) — cite the earlier probe's result with its scope; re-run only if something changed that could change it
 - [ASCII paths, ordering in the manifest](feedback_ascii_repo_paths.md) — transliterate committed/served paths, keep the heading in its own script; no numeric filename prefixes
+- [Indicators must not over-claim certainty](feedback_indicator_certainty.md) — healthy/green needs confirmed evidence; unconfirmed gets its own pending rung, never green (false +) nor off (false −)
+- [Ask alongside, not before](feedback_ask_alongside_not_before.md) — don't gate a verified fix on a question whose answer wouldn't change what you build; ship it and ask in one message

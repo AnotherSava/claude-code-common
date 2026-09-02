@@ -104,6 +104,7 @@ A live list of phrases I lean on too heavily. They are banned in all authored te
 - **"smoking gun"** — with the rest of the detective register: "the culprit", "case closed", "caught red-handed", "the plot thickens". Name the evidence and what it shows: "the log records the move", "this line is what does it", "that confirms it".
 - **"load-bearing"** — banned in every sense (a line, a flag, a comment, an assumption), along with the structural register it drags in: "not cosmetic", "does the heavy lifting", "holds the whole thing up". Say what actually depends on it and what breaks without it: "the parser reads this", "the gate reads this file", "removing it re-opens the data loss", "three call sites rely on it".
 - **"earn its keep" / "earned its keep"** — and the same reflex in "paid for itself", "worth its weight". State the result instead: "the review found four defects", "that check caught the truncated file", "worth running".
+- **"caveat"** — in every form: "one caveat", "with the caveat that", "a caveat worth knowing", "caveat:". Drop the preamble and state the limitation as a plain fact: "The position is relative to the display, not to the game's own window", not "One caveat worth knowing: the position is relative to the display".
 
 ## Code Style
 
@@ -231,7 +232,7 @@ Cross-project preferences and feedback. Memory files live in `~/.claude/memory/`
 - [Desktop first, phone later](~/.claude/memory/feedback_desktop_first_then_phone.md) — no breakpoint tuning while the look is still moving; phone gets its own pass
 - [Deploy and publish are separate verbs](~/.claude/memory/feedback_deploy_publish_separate_verbs.md) — `deploy` runs it here, `publish` ships it out; own script each, never `deploy publish`
 - [No per-prompt hooks](~/.claude/memory/feedback_no_per_prompt_hooks.md) — never a hook on every prompt (worse if blocking); use an observable guideline or an on-demand check
-- [Extend the schema, don't free-text it](~/.claude/memory/feedback_extend_schema_not_freetext.md) — data that doesn't fit gets a new field, offered and priced honestly, not stuffed into a comment
+- [Fields earn their place, both ways](~/.claude/memory/feedback_extend_schema_not_freetext.md) — data that doesn't fit gets a new field, priced honestly, not stuffed in a comment; a field no step reads yet doesn't get one
 - [Compound label hierarchy](~/.claude/memory/feedback_compound_label_hierarchy.md) — a label made of several kinds of information gets a colour+weight per part, never one uniform run; a separator inside a part sits tighter than the gaps between parts
 - [Relative timestamps](~/.claude/memory/feedback_relative_timestamps.md) — "3h ago" visible, exact stamp on hover; port `formatInterval` from the What's Next repo, don't reinvent it
 - [Report timestamps in local time](~/.claude/memory/feedback_local_time_timestamps.md) — logs store UTC and these machines run hours behind it; convert before showing, or the quoted moment can't be matched to what the user saw
