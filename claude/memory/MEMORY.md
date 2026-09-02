@@ -115,3 +115,10 @@
 - [ASCII paths, ordering in the manifest](feedback_ascii_repo_paths.md) — transliterate committed/served paths, keep the heading in its own script; no numeric filename prefixes
 - [Indicators must not over-claim certainty](feedback_indicator_certainty.md) — healthy/green needs confirmed evidence; unconfirmed gets its own pending rung, never green (false +) nor off (false −)
 - [Ask alongside, not before](feedback_ask_alongside_not_before.md) — don't gate a verified fix on a question whose answer wouldn't change what you build; ship it and ask in one message
+- [Match the manual shape](feedback_match_the_manual_shape.md) — automating what the user does by hand: invoke their own wrapper/function, not the binary with flags you picked; a lean equivalent drops the part they wanted
+- [Ask at first use](feedback_ask_at_first_use.md) — default an allowlist empty and design the ask, don't ship a config field; record the answer, and raise the prompt where it can actually be seen
+- [Circulate the document](feedback_circulate_the_document.md) — send the path, not a hand-typed restatement; and read the document before acting on one you receive — a paraphrase loses fidelity invisibly, carrying the original's authority
+- [Extend what you already built](feedback_extend_what_you_built.md) — before saying "can't", check the tool you just wrote / the API you already call; the limit is often real only for the path you're on
+- [A probe must not perturb what it measures](feedback_probe_must_not_perturb.md) — if a fast answer could mean "already there" or "asking made it happen", it is not evidence; check for a warm cache from an earlier probe
+- [Detach a wrapper that spawns a survivor](feedback_detach_long_wrappers.md) — nohup + disown, never a foreground call piped to tail; a task-kill takes the whole process group, spawned server included
+- [Drift-proof doc anchors](feedback_drift_proof_doc_anchors.md) — anchor a range on its stable end and let it run open ("X onward"); a line number or today's last item reads exhaustive after it stops being
