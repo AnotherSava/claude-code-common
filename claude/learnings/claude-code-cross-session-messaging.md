@@ -220,6 +220,44 @@ cannot reach each other — different home directories, different socket types.
   start a turn in an idle session. MCP Channels reported "not currently available".
 - Appending to a session's transcript `.jsonl` — no re-reader exists; it does nothing.
 
+## Starting a session so it can be messaged
+
+Measured 2026-08-31 on 2.1.251, macOS, in a scratch directory.
+
+**There is no startup race.** A full interactive `claude` — global CLAUDE.md, 12 hook events, 6 plugins —
+publishes its `<pid>.json` *with* `messagingSocketPath` **0.25 s after exec**. A frame written at 0.249 s
+was not lost: Claude Code held it and released it at 0.383 s, logging *"Released 1 held cross-session
+message to Claude's queue (permissions are prompting again)"*, and answered at 3.42 s. So spawn-then-write
+needs no grace period, and MCP/plugin load gates none of it — the socket binds before the record is even
+complete.
+
+**The trust prompt is the real blocker, and it is unbounded.** A directory Claude Code has never been
+trusted in stops at *"Is this a project you created or one you trust?"* **before** writing any registry
+record — 180 s and 90 s of waiting produced no `<pid>.json`, no `messagingSocketPath`, no socket. The
+record appeared 0.05 s after the prompt was answered. No timeout rescues this, so an unattended spawner
+must *pre-check* rather than wait:
+
+```
+~/.claude.json → projects[<absolute path>].hasTrustDialogAccepted
+```
+
+**`~/.claude.json`'s `projects` map is the only index of unlossy absolute paths — and it is not a project
+list.** It accumulates every directory a session was ever run in. A real one held `C:\WINDOWS\system32`
+(present, untrusted), the user's home, the projects root itself, and three directories that no longer
+exist. Excellent as a *suggestion* source when you need to turn a name back into a path; never usable as
+an allowlist.
+
+**Two things silently produce no record at all**, both easy to hit from an automated spawner:
+
+- A directory that has never been trusted (above).
+- `CLAUDE_CODE_CHILD_SESSION` inherited from a parent Claude Code process. Spawning from inside an agent's
+  own process tree suppresses the pid file entirely — so a session launched by a hook, or by a tool call,
+  is invisible to every reader in this document.
+
+A session given a pty but no *visible* terminal still writes `kind: "interactive"`; `claude --bg`
+publishes an inbox too but under a different `kind`, which any reader filtering on `interactive` will
+drop.
+
 ## Related
 
 - `claude-code-integration.md` — hook payloads, transcript entry types, state classification.

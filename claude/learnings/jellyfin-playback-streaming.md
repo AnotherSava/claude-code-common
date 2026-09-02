@@ -219,6 +219,63 @@ server API key: the session's `UserId` is the all-zero GUID, so the server itera
 `?userId=`-taking endpoints instead (`/UserItems/{id}/UserData`, `/UserPlayedItems/{id}`) — an API key carries the
 Administrator role, which is what makes those accept another user's id.
 
+**Writing nothing is not doing nothing, and the difference is useful.** The POST still creates a real session
+object, and `TranscodingInfo` hangs off a session — so this is the only way to observe a running transcode at all.
+Measured on 10.11.11: `/Sessions` held one entry before the POST and two after, the new one carrying
+`CompletionPercentage`, `Bitrate`, `Framerate` and `HardwareAccelerationType`; `/Sessions/Playing/Stopped` removed
+it again. An app that never reports playback therefore has **no session**, and `/Sessions` tells it nothing about
+its own transcode however the request is authenticated.
+
+That combination is the good one for a read-only diagnostic: the API key gets you the session, and with it the
+transcode's figures, while the zero GUID guarantees no user's watch state moves. The usual objection to reporting
+playback — that the server becomes a second writer of position and played-state alongside your app's own rules —
+does not apply on this auth path.
+
+One limit: `CompletionPercentage` **does not advance on its own**. Sampled three times at seven-second intervals it
+read `4.78739985234202` identically each time, so deriving an encoder speed from a delta over wall clock needs
+`/Progress` calls to move it; a session created and left alone reports a frozen snapshot.
+
+## You cannot measure the encoder's progress by asking for a segment ahead of it
+
+Tempting, and wrong in a way that only shows up on a cold cache. Since Jellyfin blocks a segment request until that
+segment exists, a request that returns quickly looks like proof the encoder has already passed it — so walking the
+index outward looks like it finds the frontier, and dividing by elapsed time looks like an encoder speed.
+
+It is not. Asking for a segment the encoder has not reached makes Jellyfin **start producing at that offset**:
+
+```
+cold item, 2622 segments of ~3.003s
+  segment 0                     206 in 694ms      <- encoder starts
+  segment 900 (~45 min in)      206 in 796ms      <- CANNOT have been encoded; produced on demand
+  segment 1                     206 in   5ms      <- leftovers of the original job
+  segment 2                     206 in 1196ms     <- the original position now costs real time
+```
+
+45 minutes of video in one second is impossible, so the fast answer is the seek, not the frontier. Two consequences:
+
+- **The derived "speed" is meaningless.** Every probe returns in roughly the time it takes to begin encoding at an
+  arbitrary offset (~0.5 s here, the same as segment 0 from cold), so the number measures seek latency and scales
+  with how far you chose to probe. An earlier run of this produced a confident "at least 28.4× real time" that was
+  entirely an artefact.
+- **It is destructive during real playback**, and worst exactly when it matters. A probe only lands past the frontier
+  when the encoder is behind — which is the one case you were trying to diagnose — and it then drags the encoder
+  further from the playhead. Warm caches hide all of this: re-probing an item an earlier run already transcoded
+  returns instantly for every index and looks like confirmation.
+
+The frontier is knowable only from the server side, via the session route above.
+
+## Encoder settings are readable, and the defaults are not what a tuned box uses
+
+`GET /System/Configuration/encoding` (API key is enough) returns `EnableThrottling`, `ThrottleDelaySeconds`,
+`EnableSegmentDeletion`, `SegmentKeepSeconds`, `HardwareAccelerationType`, `EnableHardwareEncoding`. Worth reading
+before reasoning about transcode behaviour: throttling is **off** by default — which is the case that makes ffmpeg
+race ahead and write an entire remuxed film to the cache — but a tuned server may have it on with a lead of a few
+minutes, which changes what "the encoder is not waiting" means and whether an abandoned job is expensive.
+
+Do not lower a throttle delay hoping to speed up startup: throttling only acts once the encoder is already ahead by
+that margin, so it is inert during the phase you want faster. Set below the player's own forward-buffer target it
+does active harm, because the player can then reach the frontier and start waiting on the encoder.
+
 ## Telling real playback from a stalled player, from the server log alone
 
 You often cannot see the picture — a headless/automation tab won't autoplay, and screenshots may be unavailable. The

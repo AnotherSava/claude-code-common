@@ -73,9 +73,45 @@ assert expected == current_text
 
 If that fails, blank out each edited region in *both* texts (replace it with a sentinel) and
 compare the skeletons — identical skeletons prove nothing outside the local edits differs
-from upstream, which is the actual merge-correctness claim. The stash-SHA baseline in the
-next-but-one section is the whole-tree version of the same idea, and is the better check once
-more than one file is in play.
+from upstream, which is the actual merge-correctness claim. The stash-SHA baseline under *A
+dropped stash is still recoverable* is the whole-tree version of the same idea, and is the
+better check once more than one file is in play.
+
+## When both sides rewrote the same rule
+
+The both-append case has a twin that is indistinguishable in `git status` and is not mechanical
+at all: both sides *replaced* the same passage instead of appending to it, because two machines
+grew one document along different axes. Keeping both blocks verbatim yields a file that
+contradicts itself; taking a side silently discards a body of work. Neither is the answer.
+
+The tell is a **dangling cross-reference in the region that merged cleanly**. Auto-merge only
+touches lines one side left alone, so a sentence that survived untouched while pointing at a
+section living in just one of the two conflicted blocks proves that neither block is complete by
+itself. Real case: a skill's step-4 heading read "go straight to the missing-shot pass below".
+That heading auto-merged from the local side; the pass it names existed only in the local block,
+while upstream had rewritten the surrounding bullets around a different design. Taking upstream
+wholesale would have left the reference pointing at nothing.
+
+Resolve by asking what *layer* each side worked at, not which lines to keep. Pull the three
+stages out and diff each against the base — that separates "what did upstream add" from "what
+did I add" far better than reading the marked-up file, where the two are interleaved:
+
+```bash
+git ls-files -u -- <path>            # stage 1 = base, 2 = ours/upstream, 3 = theirs/stashed
+git cat-file -p <stage-1-sha> > /tmp/base.md
+git cat-file -p <stage-2-sha> > /tmp/ours.md
+git cat-file -p <stage-3-sha> > /tmp/theirs.md
+diff -u /tmp/base.md /tmp/ours.md    # upstream's axis
+diff -u /tmp/base.md /tmp/theirs.md  # the local axis
+```
+
+Read that way, most of the apparent conflict is usually complementary — in that case one side had
+built a governance layer (a manifest, a per-item policy) and the other the capability that layer
+presupposed but never specified. Only a small core genuinely disagreed. Merge the complementary
+parts yourself and put the real disagreement to the user rather than settling it: it is a question
+about their rules, not a merge mechanic. Verify afterwards by grepping the merged file for a
+distinctive phrase from each side and *counting* the hits, so a silent duplication shows up
+alongside a silent loss.
 
 ## Clearing the merge state after a conflicted pop
 

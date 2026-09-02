@@ -157,3 +157,94 @@ no file in that PR touches.
 Do not scrub `AGTERM_SESSION_ID` as a workaround either: unset, the skill's `--target
 "$AGTERM_SESSION_ID"` call sites expand to empty and agtermctl falls back to `--target active` — trading
 a fixed wrong pane for whichever pane you happen to be looking at, on `type`, `close` and `split close`.
+
+## Creating a session that runs a program *and* survives it
+
+`session new --command` is the documented launcher (typing is not — see above), but on its own it is the
+wrong shape for anything long-lived. The flags disagree with what you probably want:
+
+| form | what you get when the program exits |
+|---|---|
+| `--command "prog"` | the **session closes**. `--command` replaces the login shell, so the session's process *is* `prog`. |
+| `--command "prog" --wait` | libghostty's press-any-key prompt with the final output intact, then it closes. Good for reading a build's last lines; not a session. |
+| `--command "zsh -ilc 'prog; exec zsh -i'"` | a live interactive prompt in the same cwd. The session never closes. |
+
+The third is what reproduces a session the user started by hand and then ran something in.
+
+**`-ilc`, not `-lc`.** agterm's own docs suggest `zsh -lc '…'` as the PATH wrapper, which is not enough
+when agterm itself was launched from the GUI: a login-but-non-interactive shell never sources `.zshrc`,
+and `.zshrc` is where `~/.local/bin` and the like get prepended. Measured on a normally-launched agterm
+(`ps -Ewww`): `PATH=/usr/bin:/bin:/usr/sbin:/sbin`, nothing else, and `launchctl getenv PATH` empty.
+Under that env, `zsh -lc 'whence -w claude'` answers `claude: none` while `zsh -ilc` answers
+`claude: function`. The `-i` also picks up the user's own shell *functions*, which is usually the point —
+a wrapper function is where their real default flags live, so going through it is what makes the spawned
+session identical to a hand-started one rather than merely similar.
+
+**`--no-select` is free.** It creates the session without stealing focus, and — verified, not assumed —
+the session is still `realized: true` immediately, pty and all. There is no trade-off to weigh.
+
+**`ok: true` is not "it is running".** `session new` reports success for a session that exists in
+agterm's *model*; libghostty refuses to create a surface while the display is asleep, and an unrealized
+session never runs its `--command` at all. So an unattended creator must poll `tree --json` for that
+id's `realized` flag and close the node if it stays false, or it accumulates one dead row per attempt.
+Keep the `result.id` from the `--json` answer — without it the session cannot be checked or cleaned up.
+
+**A `--command` session is remembered.** The command persists as `SessionSnapshot.initialCommand` and
+re-runs on restore when *Restore running commands on restart* is on. App-global `restore clear`
+deliberately does **not** clear it — that only wipes *captured foreground* commands. Fine when you want
+the session to come back as itself; use the per-session `session restore` override when you do not.
+
+## Window commands, and the floor that defeats a sidebar-only capture
+
+`agtermctl window <new|list|select|close|rename|delete|resize|move|zoom|fullscreen|minimize>`
+manages the OS windows themselves — `resize --width W --height H`, `move`, and
+`zoom` (a maximize toggle) are enough to stage a window for a screenshot and put
+it back. `window list --json` reports `geometry`, `zoomed`, `sidebarVisible` and
+the id, so the prior state is readable before changing it.
+
+**There is a hard minimum width of ~640pt.** A `resize --width 250` silently
+lands at 640. That kills the obvious way to photograph the session sidebar as a
+*window* (which would carry transparent rounded corners for free): at 640 the
+pane beside it is still showing, and its content is a live conversation. Two
+consequences:
+
+- the sidebar has to be captured as a screen **region**, and rounded corners
+  added in post-processing — see `macos-app-automation-and-capture.md`;
+- `session scratch on` does **not** blank the pane for this purpose. It also
+  forces the window wider (observed 1111pt), so it fights the resize as well.
+
+Selecting a different session does not help either — every pane holds some
+conversation. Assume the pane is unpublishable and crop it out.
+
+### `tree --json` shows one window, and nothing in the answer says so
+
+A bare `agtermctl tree --json` projects the **frontmost** window only. It returns
+an ordinary `workspaces[]` array, just a short one, so on a single-window setup it
+is indistinguishable from "every session on the machine" — which is exactly how it
+gets mistaken for one. Enumerate instead:
+
+```bash
+agtermctl window list --json          # then, per open id:
+agtermctl tree --json --window <id>
+```
+
+Filter `window list` on `open != false` first: closed windows are listed too, and
+`tree --window <closed>` errors with "window not open", costing a failed
+subprocess each.
+
+The resulting bug is **permanent, not late**, which is what makes it worth
+writing down. A caller that reads the frontmost window, finds a session missing
+and intends to "ask again next time" never recovers — asking again resolves to
+the same window, so the miss ends only when the *user* brings the other one
+forward. Caught in tauri-dashboard 2026-09-02, where a session in a background
+window would have been permanently invisible while a retry loop re-asked forever.
+Anything genuinely per-window has the same shape: `idleMs` covers the projected
+window, and each window has its own selected session.
+
+## The sidebar's status glyph comes from whatever wrote the OSC title
+
+Nothing in agterm produces those marks. `displayName = customName ?? oscTitle ??
+cwd basename`, so a row reading `✋ bga-assistant [70%]` is showing a title some
+other program wrote — for this fleet, the dashboard's `terminal_title::sync`.
+The red count badge beside it *is* agterm's own, and the two are easy to
+conflate when reading a screenshot.

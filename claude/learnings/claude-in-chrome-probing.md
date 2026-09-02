@@ -140,8 +140,37 @@ Then do the work *in the page* — counts, hashes, a diff against a known local 
 
 Two related dead ends when the goal is a file on disk:
 
-- **An anchor-click download may never produce a file.** The click reports success and nothing arrives in the download directory. Fetching the endpoint sidesteps the download path entirely.
+- **An anchor-click download may never produce a file** *under the name you asked for*. The click reports success and `~/Downloads/<name>` does not appear — but look before concluding nothing happened: Chrome writes the complete payload to a staging file called `.com.google.Chrome.XXXXXX` in the download directory and holds it there while its save prompt waits on the user. That file is finished and readable, so `cp` it and carry on; there is no need to interrupt anyone to click Save. Its size is the UTF-8 byte count, which is legitimately larger than the JS string `.length` for any payload with non-ASCII in it — that difference is not truncation.
 - **`computer{action:"screenshot"}` can fail with a script-injection timeout on a page where `javascript_tool` works fine.** Read the DOM instead of trying to look at it; this is not the wedged-renderer case above, and the tab is otherwise healthy.
+
+### Posting the payload to a local sink does not work at all
+
+The obvious way to move a megabyte out of a page without spending context — `POST` it to a throwaway server on `127.0.0.1` — is closed twice over on a modern Chrome, and each layer hides the next:
+
+1. **The page's CSP stops it first.** TripIt ships a `<meta http-equiv="Content-Security-Policy">` with `connect-src 'self' *.tripit.com`, so the fetch fails instantly with a bare `TypeError: Failed to fetch`. A meta CSP applies to that *document* only, so navigating the same origin to a non-HTML path — `/robots.txt` — escapes it entirely while keeping the cookies. Worth knowing on its own: it is the cheapest way to get an unrestricted same-origin scratchpad on a site you do not control.
+2. **Chrome's Local Network Access gate then stops it anyway.** From that CSP-free document the request *hangs* instead of failing, and a hanging fetch eats the whole 45 s `Runtime.evaluate` budget. `localhost` behaves the same as `127.0.0.1`, `mode: 'no-cors'` does not help, and `targetAddressSpace: 'local'` fails fast rather than opting in.
+
+The tell that separates the two is the **sink's own log**: a fast failure with nothing logged is CSP, and a hang with nothing logged is LNA. Log every request including `OPTIONS` before diagnosing, because a server-side `Access-Control-Allow-Private-Network: true` cannot help — Chrome never sends even the preflight, so the header has nothing to answer. Give the sink a `ThreadingHTTPServer` too, or one held-open socket makes a plain `HTTPServer` look exactly like a blocked request.
+
+So for a large payload the order to try is: derive it down to something small in the page → download it as a Blob and take the staging file → and only then pay context for `read_page` slices.
+
+### When the origin you are on cannot download, bridge to one that can
+
+Downloading is a **per-origin** privilege, and some origins simply do not have it. Chrome refuses every download from `mail.google.com`: an `<a download>` click opens the blob in a new tab instead of saving it, an iframe pointed at a `Content-Disposition: attachment` URL does nothing at all, and no staging file appears for either. Do not go looking for the CSP — Gmail's policy contains the string `sandbox.google.com` in a frame list, which greps as a `sandbox` directive and is not one.
+
+The data does not have to be downloaded from the origin that produced it. `window.open` still works without a user gesture, and `postMessage` crosses origins, so hand the payload to a page that is allowed to save:
+
+```js
+// on the origin that has the data but cannot download
+window.__w = window.open('https://permissive.example/robots.txt');
+// …then, in the opened tab, install: addEventListener('message', e => { window.__got = e.data })
+window.__w.postMessage(JSON.stringify(payload), 'https://permissive.example');
+// …then build the Blob + <a download> in THAT tab
+```
+
+The opened tab is a real tab, so `javascript_tool` can target it by id — which is what makes this work where a cross-origin iframe would not. 2.4 MB of PDF attachments moved this way in one file.
+
+Two things that make the harvest itself cheap on a webmail SPA: setting `location.hash` navigates between messages **without reloading**, so `window` survives and one loop can accumulate across every message; and an attachment's own link (`a[href*="view=att"]` in Gmail, `disp=inline` → `disp=safe`) is fetchable same-origin with the session cookie already attached. Read the bytes with `fetch` → `arrayBuffer` → `btoa`, chunking the `String.fromCharCode` conversion at ~8 KB or it blows the argument limit.
 
 ## When the screenshot is wedged but you actually need the pixels
 
@@ -164,6 +193,28 @@ The DOM-instead workaround does not apply when the whole point is to *look* at r
 A blocked `<link>` fails **silently in a way that looks like success**: the element exists and `getElementById` finds it, so check `document.styleSheets` for the sheet and a non-zero `cssRules.length` before concluding the CSS "didn't work". A local HTTP server is therefore useless for injecting into a CSP-protected page — paste the payload into the evaluated code, or serve the whole repro from localhost where no CSP applies.
 
 **`adoptedStyleSheets` cannot reproduce a cascade-order bug.** Adopted sheets always sort after every document stylesheet, so a rule that loses an equal-specificity tie in the real page will win when adopted. To test ordering, insert a real `<style>` element at the position you are simulating.
+
+## You share the page's DOM, not its JavaScript — so you cannot patch page state
+
+Evaluated code runs in an **isolated world**. The DOM is shared, but every JS object wrapping it is per-world, so a
+property you define on an element is invisible to the page's own scripts:
+
+```js
+Object.defineProperty(video, "paused", { get: () => false });   // takes effect in YOUR world only
+```
+
+The page's React kept reading the real `paused` and the component never budged. Nothing errors and the override
+genuinely works when *you* read it back, which makes this look like the app ignoring its own state. Anything that
+needs the page to observe a change has to go through the DOM itself — dispatch a real event, click a real control,
+set a value the page reads from an attribute — never by monkey-patching an object.
+
+## `Runtime.evaluate` is capped at 45 s, so keep sampling loops short
+
+A loop that polls a value over time is the natural way to watch state change, and it dies at
+`CDP sendCommand "Runtime.evaluate" timed out after 45000ms on tab N. The renderer may be frozen or unresponsive.`
+The renderer is usually fine — the budget simply ran out. Six iterations of 4.5 s plus setup was enough to hit it.
+Split a long observation into several calls of ~30 s each, each returning its own slice, rather than one long one:
+the timeout loses **everything** the loop had collected, since the result only comes back at the end.
 
 ## Reaching a game/board page that only exists while logged in
 

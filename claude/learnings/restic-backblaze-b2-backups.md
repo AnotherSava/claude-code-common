@@ -281,3 +281,88 @@ rather than reading it.
 Two restic runs against the same upstream on one small box contend for CPU and bandwidth. If a neighbouring
 project already backs up at some hour, offset by enough to clear it (40 minutes was ample for a few-MB
 repository) and say why in the timer file, or someone will later "tidy" the two onto the same schedule.
+
+## Pin `--host`: it is the other half of the retention key
+
+The section above treats the *path* half of `(hostname, paths)`. The hostname half is just as capable of
+splitting a retention group, and it moves for reasons nothing in the backup config can see: a machine
+rename, a corporate domain suffix appearing, a container picking up a random hostname, or the same
+repository written from two hosts that were meant to be one logical source.
+
+Pass it explicitly on every backup and the grouping key stops depending on the environment:
+
+```bash
+restic backup --host <stable-name> --tag <purpose> /fixed/staging/path
+```
+
+Cheap now, and it removes a silent no-op that only shows up as a storage bill months later. The same
+one-line group assertion quoted above catches it either way — run it after the first two snapshots.
+
+## Verifying a *filesystem* restore
+
+The database drill above counts documents back out. The filesystem equivalent is a whole-tree byte
+comparison, and it is both stronger and cheaper than a spot check — seconds on a few hundred MB:
+
+```bash
+restic restore <snapshot-id> --target /tmp/restore-drill
+diff -rq /original/path /tmp/restore-drill/original/path && echo IDENTICAL
+```
+
+Two traps, both of which make a passing drill mean nothing:
+
+- **The restore lands under the source's full original path inside the target**, not directly in it —
+  `/tmp/restore-drill/original/path/...`. Counting files in the target root returns 0 and reads as a
+  failed restore; worse, a `diff` against the wrong directory can trivially "pass" on two empty sets.
+- **A file count alone does not catch truncation.** `diff -rq` over the whole tree does, and it is what
+  turns "a restore ran" into "the restore is correct". Follow it with a `sha256` on the single largest
+  file if you want a second, independent statement.
+
+Never reach for a `--dry-run` in a verification: for the same reason `mongorestore --dryRun` is useless
+above, it reports zero identically for an empty archive, so it cannot distinguish success from never-ran.
+
+## The workstation shape: no systemd, and the credential flow inverts
+
+Everything above assumes a Linux box with systemd and no secret-manager CLI. Backing up a *workstation*
+(laptop or desktop) changes two halves and leaves the rest intact.
+
+**What ports unchanged:** the whole B2 and restic half — bucket per project, bucket-scoped key with file
+capabilities only, the lifecycle rule set at creation, `--host`/fixed-path grouping, exit 3, and the
+restore drill. None of it is a property of Linux.
+
+**What does not port:** `.service`/`.timer`, `OnCalendar`, `Persistent`, `systemctl enable --now`, and
+staggering against co-tenants — a workstation has no neighbours contending for the same cores. Scheduling
+becomes launchd (macOS) or Task Scheduler (Windows), and a non-zero exit needs a new failure surface,
+because neither tells anyone: systemd's `OnFailure` mail path has no equivalent.
+
+**The credential flow inverts.** Rendering an `EnvironmentFile` over an ssh pipe exists because the server
+deliberately has no secret-manager CLI. A workstation has one, so read at run time and never create the
+artefact at all:
+
+```bash
+doppler run -p <project> -c <config> --command \
+  'RESTIC_REPOSITORY="$RESTIC_REPOSITORY_THIS_MACHINE" restic snapshots'
+```
+
+The value is expanded inside the subshell, so it never reaches the terminal or shell history — the same
+property the rendered file was for, with nothing left on disk to leak or go stale.
+
+**That command does not port to Windows.** `doppler run --command` hands the string to **cmd.exe**, which
+has no `VAR=value cmd` prefix syntax and parses it as a command name:
+
+```
+'RESTIC_REPOSITORY' is not recognized as an internal or external command
+```
+
+Correct on macOS/Linux, silently wrong there. The portable shape is to invoke a script and put the
+assignment inside it, which keeps the value out of the terminal just as well:
+
+```bash
+doppler run -p <project> -c <config> --command 'bash <script>.sh'
+# inside the script:  export RESTIC_REPOSITORY="$RESTIC_REPOSITORY_THIS_MACHINE"
+```
+
+**Rehearse on the replaceable copy first.** When the same procedure must run against both a re-creatable
+source and an irreplaceable one, run the re-creatable one first even if the irreplaceable one is more
+urgent. A first run is where the recipe is wrong, and it is worth being wrong where a mistake costs a
+re-run. Doing this surfaced three defects in a written procedure — a missing `--host`, the restore path
+shape, and the cmd.exe issue above — before any of them touched the copy that mattered.

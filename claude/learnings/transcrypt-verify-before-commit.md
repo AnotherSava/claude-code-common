@@ -112,6 +112,29 @@ two together look like defence in depth and have a shared blind spot. Make the c
 if a staged path resolves to `filter=crypt`, assert the staged blob starts with `U2FsdGVkX1`, whether or not
 transcrypt is installed in that clone.
 
+## The migration's first symptom is a refused pull, not a decryption problem
+
+Un-ignoring a per-machine config into a versioned-encrypted one is not finished when it is committed. Any
+machine that **had a copy of its own** and has not pulled since still holds it, untracked, at exactly the path
+the incoming commit adds — so git refuses the merge before any filter behaviour is reached:
+
+```
+error: The following untracked working tree files would be overwritten by merge:
+        config/publish.env
+```
+
+That names a *file collision*, not a filter, so it reads as unrelated to the encryption work — and where it
+applies it is guaranteed rather than unlucky: the collision IS the migration. Move the local copy aside, pull,
+and only then does the locked-clone case below apply. Once the repo is unlocked, delete the copy that was moved
+aside rather than merging it back: the committed one is the source of truth, and keeping a per-machine edit
+alive is the drift the migration existed to end.
+
+**Establish which machines actually had one before warning about any of them.** A per-machine config exists only
+where the per-machine job ran, so a repo that publishes from a single machine has exactly one copy and nothing
+to collide — while the hazard reads as universal and gets asserted about every checkout. In one repo that guess
+was made by three separate sessions before the correction was written into project memory, and a fourth session
+repeated it into a runbook anyway. The recorded fact outranks the plausible mechanism; go and read it.
+
 ## A reader of an encrypted config must not report a key as absent
 
 The same locked-clone state has a mirror-image consequence for whatever *consumes* the file. On a clone nobody

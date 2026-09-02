@@ -169,9 +169,32 @@ probe.env: line 1: migrate: command not found
 
 Two things make this nastier than a plain error. The variable keeps a *stale* value, so downstream code runs on
 whatever was there before rather than failing; and the only hint is a `command not found` for a word that was
-never meant to be a command, which reads like a missing dependency rather than a parse problem. `set -e` does
-not fire — the prefix assignment's exit status is the failed command's, but it is the last statement of that
-line and the shell carries on to the next.
+never meant to be a command, which reads like a missing dependency rather than a parse problem.
+
+**It then fails two different ways depending on `set -e`, and each one hides something different.** Corrected
+2026-09-01: an earlier version of this section said errexit "does not fire", reasoning that the failed command is
+the last statement of its line so the shell carries on. That reasoning is backwards — the line's exit status *is*
+the failed command's, which is precisely what errexit acts on. It fires.
+
+```bash
+$ bash -c 'source probe.env; echo "returned: $?"'
+probe.env: line 1: migrate: command not found
+returned: 0                      # ← reports SUCCESS; the failure is swallowed, not merely unreported
+
+$ bash -c 'set -e; source probe.env; echo "still running"'
+probe.env: line 1: migrate: command not found
+                                 # ← never prints; the shell is gone, exit 127
+```
+
+Without `set -e` the source returns **0**, because a sourced file returns the status of its LAST line — so a bad
+line anywhere but the end is swallowed whole, and `if source config; then` is satisfied by a file that loaded
+nothing. With `set -e` the sourcing shell aborts on the spot at exit 127, and every key *below* the offending line
+is never assigned while the ones above it are — a dead script plus a half-populated environment. Assume the
+second when auditing: `set -e` is standard in anything that is not a throwaway, and it is the mode where the
+damage reaches keys that have nothing to do with the bad line.
+
+Both hold for the prefix assignment inline in a script, not just sourced from one. Neither is version-specific:
+measured on bash 3.2.57 (macOS system bash) and on `/bin/sh`.
 
 The same line is *fine* when read rather than executed. If a file is a data table for a program that parses it
 (`grep '^KEY=' file | cut -d= -f2-`), its values can legitimately be unquoted commands, spaces and all — the
@@ -275,3 +298,41 @@ The safe route when the value must be validated before use is to prove it works 
 it — a guessed prefix check rejected a perfectly good key here, and the fix was to attempt the API call and
 store only on success. That keeps the value in a variable and a pipe, never in a command line or a script
 body.
+
+## Reading uptime: two mechanisms, and a parse that fails by returning a plausible number
+
+There is no portable way to ask how long a machine has been up, and the macOS form has a trap that
+produces a wrong answer rather than an error.
+
+**Linux, and Git Bash on Windows** — `/proc/uptime`, whose first field is seconds since boot. MSYS
+synthesises it, so this works in Git Bash even though Windows has no procfs. Measured, not assumed:
+
+```bash
+cut -d' ' -f1 /proc/uptime | cut -d. -f1     # -> 206438
+```
+
+**macOS** — no `/proc` at all; it comes from the kernel's boot timestamp:
+
+```
+$ sysctl -n kern.boottime
+{ sec = 1780435744, usec = 167386 } Tue Jun  2 14:29:04 2026
+```
+
+**The trap:** the obvious `sed -E 's/.*sec = ([0-9]+).*/\1/'` matches **`usec`**, because `.*` is
+greedy and `usec = ` ends with the literal `sec = `. It returns `167386` — a boot epoch in 1970,
+and an uptime of about 56 years. Nothing errors; a threshold computed from it is simply wrong, and
+wrong in a direction that looks like a very stale machine.
+
+Match the field rather than the text around it:
+
+```bash
+sysctl -n kern.boottime |
+  awk -F'[= ,]+' '{for(i=1;i<NF;i++) if($i=="sec"){print $(i+1); exit}}'
+```
+
+Cross-check any uptime arithmetic against `uptime(1)` once — 92 days from the epoch subtraction
+against "92 days, 30 mins" from `uptime` is the whole verification, and it takes one line.
+
+The general shape, which recurs well beyond this: a regex that can match a *longer token ending in
+the token you wanted* fails silently. `sec`/`usec`, `id`/`uuid`, `name`/`hostname`. Anchor on a
+field boundary, and prefer a field-splitting tool to a regex over the whole line.
