@@ -57,7 +57,8 @@ Init also refuses on a **dirty tree** — if a tracked file is modified, stash j
 That is mode B happening as a side effect, and it is expected. What is not obvious: transcrypt may then
 re-encrypt to *different ciphertext than what is committed*, so the files show as ` M` forever until
 somebody commits the re-encryption. Transcrypt's salt is derived from the content, so this is not random —
-it is stable across runs and reflects a different transcrypt or openssl version having written the original.
+it is stable across runs. A different transcrypt or openssl version can cause it, but the far more common
+cause is line endings; see "A secret file that is permanently modified" below before believing anything else.
 Init also prints `Unexpected new dirty files in the repository … please check your password`, which reads
 like a wrong key and usually is not.
 
@@ -69,7 +70,8 @@ git show ":$F" | "$(git rev-parse --git-common-dir)/crypt/transcrypt" smudge con
 
 Identical output means the key is right and only the representation differs. Do **not** commit that churn
 as part of an unrelated change — it is a content-free diff, and if another machine re-churns it back the two
-will ping-pong. Raise it as its own decision.
+will ping-pong. Committing it once does not settle it. Find the cause instead — it is almost always the
+line-ending one below, and that one has a one-line fix.
 
 **Why the `core.hooksPath` bracket.** Transcrypt writes its `pre-commit-crypt` helper into whatever
 `core.hooksPath` resolves to, then copies it to `pre-commit` when that name is free — hardcoded in
@@ -118,12 +120,21 @@ From Context and the user's request:
 2. Ensure `.gitattributes` carries the encrypt pattern; add this line if missing (**encrypt attribute** is
    `NONE`):
    ```
-   *.secret.* filter=crypt diff=crypt merge=crypt
+   *.secret.* filter=crypt diff=crypt merge=crypt text=auto eol=lf
    ```
-   Do **not** add `-text` here. Transcrypt stores base64, which is text — marking it binary disables git's
-   line-ending normalization, so a Windows clone commits CRLF-wrapped ciphertext and a macOS/Linux clone
-   rewrites it to LF, churning the file on every cross-platform round trip. Leaving it normalizable is what
-   keeps the blob byte-identical across platforms (see `~/.claude/learnings/git-line-endings.md`).
+   Do **not** add `-text` here, and do **not** leave the line-ending attributes off. Transcrypt stores base64,
+   which is text — marking it binary disables git's line-ending normalization, so a Windows clone commits
+   CRLF-wrapped ciphertext and a macOS/Linux clone rewrites it to LF, churning the file on every
+   cross-platform round trip. Writing `text=auto eol=lf` out in full normalizes the ciphertext whatever a
+   given clone sets `core.autocrlf` to; omitting it merely borrows a global `* text=auto eol=lf`, which is
+   per-machine, uncommitted, and absent on CI. Keep `auto` rather than a bare `text`, so a genuinely binary
+   secret that matches the pattern one day is still safe (see `~/.claude/learnings/git-line-endings.md`).
+   Upstream's own `transcrypt --add` writes the bare line — it has no Windows story, so do not "correct"
+   this back to match it.
+
+   **If the pattern is already there but carries `-text`, that is the bug, not a style difference** — it is
+   the form this skill prescribed before 2026-08. Repair it with "A secret file that is permanently modified"
+   below rather than leaving it.
 3. Ensure the target matches the pattern. If it isn't already `*.secret.*`, rename it —
    `mv <dir>/<name>.<ext> <dir>/<name>.secret.<ext>` — and update any references to the old name (grep the
    repo).
@@ -133,7 +144,7 @@ From Context and the user's request:
    because the reference lives in the caller. Mark the path explicitly instead, and record in a comment
    why it departs from the convention:
    ```
-   config/publish.env filter=crypt diff=crypt merge=crypt
+   config/publish.env filter=crypt diff=crypt merge=crypt text=auto eol=lf
    ```
    The real case: the shared publish script reads `config/publish.env` at that exact path, so
    `publish.secret.env` would break every publish on every machine and there is nothing in the repo to
@@ -179,6 +190,53 @@ encrypted "Salted" magic, and no-ops in non-transcrypt repos. So **ignore transc
 the pre-commit script" message** if you ever see it — the global hook already covers every repo; no
 per-repo hook install is needed. The `core.hooksPath` bracket in the shared-key section keeps transcrypt's
 own copy inside `.git/hooks/`, so that message should not appear at all.
+
+## A secret file that is permanently modified — suspect line endings first
+
+Symptom: one `*.secret.*` file shows ` M` on an otherwise clean tree, forever. The decrypt-and-diff above
+says the content is identical, `git diff` shows nothing useful because git renders filtered files as `Bin`,
+and committing the churn only hands it to the other machine, which hands it straight back.
+
+**The cause is almost always `-text` on the crypt rule, not a version difference.** Transcrypt's stored form
+is base64, and the Windows-native openssl that Git Bash puts on PATH (`/mingw64/bin/openssl`) terminates its
+base64 lines with CRLF where macOS and Linux use LF. Git would normalize that away on the way into the blob,
+except `-text` declares the path binary and short-circuits eol conversion entirely — so each machine stores
+its own line endings and rewrites the other's. Confirm it without changing anything:
+
+```
+F=<the file>; C="$(git rev-parse --git-common-dir)/crypt/transcrypt"
+echo "clean output: $("$C" clean context=default "$F" < "$F" | tr -cd '\r' | wc -c) CRs"
+echo "stored blob:  $(git cat-file -p HEAD:"$F" | tr -cd '\r' | wc -c) CRs"
+```
+
+Different CR counts, with a byte-size delta equal to the line count, is line endings and nothing else. Prove
+no content is at stake by stripping the CRs and hashing — it reproduces the stored blob exactly:
+
+```
+"$C" clean context=default "$F" < "$F" | tr -d '\r' | git hash-object --stdin   # == git rev-parse HEAD:$F
+```
+
+The repair is on the rule, not on the file:
+
+1. Give every `filter=crypt` line `text=auto eol=lf`, replacing `-text` where it appears.
+2. Re-stage with `git add --renormalize <the file>`. Skipping this is safe only when the stored blob already
+   happens to be the LF one: `text=auto` declines to convert a file that is *already in git with CRLF
+   endings*, so without the renormalize the fix can silently do nothing.
+3. Confirm the file went clean — `git status --short` should list only `.gitattributes`.
+
+Then sweep the other repos, because this guidance changed in 2026-08 and anything set up before then has the
+old form baked in. That sweep is what was missed the first time, which left one repo churning for weeks:
+
+```
+grep -rl --include=.gitattributes --exclude-dir=node_modules 'filter=crypt' <projects-root> \
+  | xargs grep -n 'filter=crypt.*-text'
+```
+
+Do **not** try to fix this inside transcrypt. Patching the vendored script to strip CR does nothing — git
+runs the untracked per-clone copy under `.git/crypt/`, never the copy tracked in the repo — and that exact
+fix was tried here once and silently never executed. Repointing `transcrypt.openssl-path` at the msys
+`/usr/bin/openssl`, which emits LF, does work but only on the machine that sets it. Upstream has no position
+to defer to: it has never recommended `-text` in any version, and its tracker has nothing on CRLF ciphertext.
 
 ## The `deprecated key derivation` warning — silence it, do not "fix" it
 

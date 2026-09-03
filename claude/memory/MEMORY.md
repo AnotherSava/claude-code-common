@@ -6,7 +6,7 @@
 - [Reproduce tool failures early](feedback_reproduce_tool_failures_early.md) — when an external tool keeps failing through code-side fixes, inspect the real artifact + run the real command instead of theorizing
 - [Find a signal before proposing a fix](feedback_verify_gui_via_repro.md) — can't observe it? read the log or build a repro; never deploy-and-ask
 - [No unprompted skill edits](feedback_no_unprompted_skill_edits.md) — don't rewrite a working skill's guidance unasked; fixing applies when a skill fails during use
-- [Codify conventions as single rules](feedback_codify_conventions_as_single_rules.md) — one unambiguous rule, no "or Y is also fine" escape hatch; sweep all artifacts after codifying
+- [Codify conventions as single rules](feedback_codify_conventions_as_single_rules.md) — one unambiguous rule, no "or Y is also fine" escape hatch; sweep artifacts across repos, ship a detection command
 - [Glob safety for numeric filenames](feedback_glob_safety_windows.md) — `hex_4*.png` matches hex_40, hex_400, AND hex_441; use explicit ranges
 - [GitHub identity](user_github.md) — login is `AnotherSava`; distinct from git author `Oleg Savelyev`
 - [Prefer loud errors to silent fallback](feedback_loud_errors.md) — surface failures in UI + log; never silently degrade; show status on the active view, prefer truthful "retrying" over a timeout that fakes a terminal result

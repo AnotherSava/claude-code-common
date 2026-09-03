@@ -100,7 +100,7 @@ before writing anything:
 
 - `attribute=0` — add to the repo's `.gitattributes`, then re-check:
   ```
-  config/publish.env filter=crypt diff=crypt merge=crypt
+  config/publish.env filter=crypt diff=crypt merge=crypt text=auto eol=lf
   ```
   Mark it by **path**, not by renaming to `*.secret.*`: the name is part of an interface here, not a label —
   `config/publish.env` is the literal path the publish script reads, nothing in the repo references the name,
@@ -108,9 +108,11 @@ before writing anything:
   rather than `*.env`, too: a host's deliberately-committed plaintext `host.env` and a rendered file full of
   secret values share that suffix and need opposite handling, so the suffix cannot carry the decision.
 
-  **Do not add `-text`** — transcrypt stores base64, which is text, and marking it binary churns the blob on
-  every Windows↔macOS round trip. The `/transcrypt` skill carries the full reasoning; it applies to a
-  path-marked entry exactly as it does to the `*.secret.*` pattern it is written against.
+  **Do not add `-text`, and do not drop the `text=auto eol=lf`** — transcrypt stores base64, which is text,
+  so marking it binary churns the blob on every Windows↔macOS round trip, and leaving the eol attributes off
+  only borrows a per-machine global that CI does not have. The `/transcrypt` skill carries the full reasoning
+  and the repair procedure for an entry that already went in with `-text`; both apply to a path-marked entry
+  exactly as they do to the `*.secret.*` pattern they are written against.
 - `initialised=0` — run `/transcrypt`, which uses the shared Doppler key. Never generate a new passphrase.
 
 Then verify what git would actually store, using the procedure in

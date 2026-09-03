@@ -1,1 +1,4 @@
-claude/memory/*.secret.md filter=crypt diff=crypt merge=crypt
+# Encrypted by transcrypt. The `text=auto eol=lf` normalizes the base64 ciphertext on the way into the blob,
+# which is what stops a Windows clone and a macOS clone re-encrypting each other's commits forever. Never
+# replace it with `-text`, and do not drop it to match upstream's bare line — upstream has no Windows story.
+claude/memory/*.secret.md filter=crypt diff=crypt merge=crypt text=auto eol=lf

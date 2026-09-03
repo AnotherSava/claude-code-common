@@ -42,6 +42,13 @@ Correct output starts with the OpenSSL base64 marker `U2FsdGVkX1...` ("Salted__"
 file is about to be committed in the clear. An `openssl` deprecation warning on stderr is normal and not a
 failure.
 
+**Pass the file's own name — the filename is an input to the cipher, not just a `%f` mechanic.** Transcrypt
+derives each file's salt from an HMAC keyed with `<filename>:<password>`, so a wrong name does not fail: it
+encrypts successfully to a *different, valid-looking* blob. Two consequences follow. Comparing a file under
+another path's attributes (`git hash-object --path=<other> <file>`) is not a control — it returns a third hash
+matching neither side, which reads as a difference that is not there. And renaming a tracked secret re-encrypts
+it wholesale, so the rename lands as a full-content change containing no content change at all.
+
 Run that command under **bash**. The string `git config` hands back contains nested `""$(...)""` quoting, and
 zsh evaluates it differently — producing empty output and exit 0, the same silent, secret-free-looking result
 as the `%f` trap, for an unrelated reason. Two shells, one indistinguishable false pass.

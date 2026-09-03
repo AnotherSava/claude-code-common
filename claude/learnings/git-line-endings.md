@@ -114,6 +114,12 @@ On checkout the order reverses: eol conversion happens *before* the smudge filte
 
 This matters for base64-armored filters (transcrypt, git-crypt in ASCII mode). Their stored form is text, so leaving it normalizable is exactly what keeps blobs byte-identical across platforms — marking it `-text` is what makes them diverge. Only genuinely binary filter output needs `-text`.
 
+Prefer writing `text=auto eol=lf` on the rule over deleting `-text` and inheriting the global. The third row of the table above is a *borrowed* protection: it holds only while that machine has `* text=auto eol=lf` in its `core.attributesFile`, which is per-machine, uncommitted, and absent on CI. An explicit per-path attribute travels with the repo.
+
+**`text=auto` has an escape hatch, and it makes the fix look like it worked when it did not.** Git converts a file only "if it is text **and the file was not already in Git with CRLF endings**" — so on a path whose stored blob is already CRLF, adding `text=auto` changes nothing at all, silently. Clear it with `git add --renormalize <path>`. An unconditional `text` has no such precondition, but it also forfeits the binary heuristic, so `text=auto` plus a renormalize is the better pair for a glob that might match a binary secret later.
+
+Where the CRs come from on Windows: the mingw64-native openssl that Git Bash puts on PATH writes stdout in text mode, so `openssl enc -a` emits CRLF-terminated base64; the msys `/usr/bin/openssl` emits LF. Repointing `transcrypt.openssl-path` at the latter is a real fix but a per-machine one — it does nothing for anyone else's clone, which is why the attribute is the right layer.
+
 ## Diagnosing a Filtered Blob That Churns
 
 To tell "content actually changed" from "only the encoding changed", compare size and CR count rather than the diff (git shows filtered files as `Bin`):
