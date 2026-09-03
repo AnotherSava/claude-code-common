@@ -29,13 +29,22 @@ in `.gitattributes` (e.g. `notes.secret.md`, `config.secret.json`).
 
 Every init/unlock uses the Doppler-stored passphrase and `aes-256-cbc` (the standard cipher for these
 repos). This one sequence is referenced throughout; the key is never printed. Run it from the repo root,
-and keep all three lines — the bracket around the middle one is explained below:
+and keep all four lines — the bracket around the middle one is explained below:
 
 ```
 git config core.hooksPath "$(git rev-parse --path-format=absolute --git-common-dir)/hooks"
 transcrypt -c aes-256-cbc -p "$(doppler secrets get TRANSCRYPT_KEY --project tools --config prd --plain)" -y
 git config --unset core.hooksPath
+git config --local transcrypt.openssl-path "$(sh ~/.claude/skills/transcrypt/scripts/ensure-openssl-shim.sh)"
 ```
+
+The fourth line silences OpenSSL's `deprecated key derivation` warning, which every crypt filter otherwise
+prints on `git status`, `git add` and `git diff` for the life of the repo. It is part of the sequence rather
+than an optional extra because the warning is pure noise that has already crowded out the result of a real
+check, and because **`transcrypt init` rewrites `transcrypt.openssl-path`** — so anything that re-inits has
+to re-apply it anyway. The helper is idempotent, writes the shim next to `transcrypt` only when it is
+missing or the real openssl has moved, and prints the path it wired. See the warning's own section below
+for why the shim redirects rather than fixing the KDF.
 
 Doppler's auth is **directory-scoped**, so read the key from a scoped directory. Fetching it from an
 unscoped path (a temp dir, say) fails with "you must provide a token" and transcrypt then dies on an
@@ -199,29 +208,43 @@ a wrong-key error rather than a wrong-tool error.
 64-character random value, so guessing is infeasible regardless of derivation cost. This changes only if the
 passphrase is ever replaced with something memorable — that is the condition to watch, not the warning.
 
-**To silence it, redirect openssl, not the crypto.** Transcrypt supports `transcrypt.openssl-path`
-([#108](https://github.com/elasticdog/transcrypt/issues/108)) precisely for this. Point it at a shim that
-filters the two lines from stderr and changes nothing else:
+**It is silenced by redirecting openssl, not by touching the crypto** — and the shared-key sequence above
+already does it, so there is nothing to decide here. Transcrypt supports `transcrypt.openssl-path`
+([#108](https://github.com/elasticdog/transcrypt/issues/108)) precisely for this, and
+`scripts/ensure-openssl-shim.sh` writes a shim that filters the two lines from stderr and changes nothing
+else, then prints its path for the `git config --local` that wires it.
+
+What the generated shim does, since the reasoning matters more than the file:
 
 ```sh
-#!/bin/sh
-REAL=/path/to/real/openssl
-exec 3>&1
-err="$("$REAL" "$@" 2>&1 1>&3)"   # stdout on fd 3 — binary ciphertext passes through unaltered
-rc=$?                              # openssl's status, not the filter's
+exec 3>&1                         # stdout on fd 3 — binary ciphertext passes through unaltered
+err="$("$REAL" "$@" 2>&1 1>&3)"
+rc=$?                             # openssl's status, not the filter's
 exec 3>&-
-[ -n "$err" ] && printf '%s\n' "$err" \
-    | grep -vE '^\*\*\* WARNING : deprecated key derivation used\.$|^Using -iter or -pbkdf2 would be better\.$' >&2
+[ -n "$err" ] && printf '%s\n' "$err" | grep -vE '<the two warning lines>' >&2
 exit $rc
 ```
 
-```
-git config --local transcrypt.openssl-path <path-to-shim>
-```
+Route stdout through fd 3 rather than a shell variable, or binary output gets mangled. Per repo and per
+machine, nothing committed, ciphering untouched — blobs stay byte-compatible with a machine running stock
+transcrypt, which is the whole reason for redirecting rather than patching.
 
-Per repo and per machine, nothing committed, ciphering untouched — blobs stay byte-compatible with a machine
-running stock transcrypt. Re-running `transcrypt init` rewrites that setting, so re-apply it afterwards.
-Route stdout through fd 3 rather than a shell variable, or binary output gets mangled.
+Two things the helper handles that a hand-rolled shim gets wrong: it resolves the real openssl by walking
+`PATH` itself, because `command -v -a` is a bashism that yields nothing under a POSIX `sh`; and it skips any
+candidate that is itself a shim, or a second run once the shim is on `PATH` points it at itself and recurses
+until the stack gives out.
+
+**Never `git config --unset transcrypt.openssl-path`.** It reads like reverting to a default and is not —
+there is no default. The clean, smudge and textconv filters all resolve openssl as
+`openssl_path=$(git config --get --local transcrypt.openssl-path)` with **no fallback**, then invoke
+`"$openssl_path" enc …`; unset, that expands to the empty string and every filtered file dies with
+`fatal: <file>: clean filter 'crypt' failed`. `transcrypt init` always writes the key (its last line is
+`git config transcrypt.openssl-path "$openssl_path"`), so the setting is required infrastructure and the
+sequence's fourth line *replaces* it rather than adding anything. To go back to unshimmed openssl, point it
+at the real binary — do not remove it.
+
+Beware of testing this with `git status` alone: git skips the filter entirely when its stat cache says the
+file is untouched, so an unwired repo can look silent. `touch` the encrypted file first to force a re-hash.
 
 **The warning is worth silencing for a reason beyond tidiness:** it pollutes stderr, and it has already
 crowded out the result of a real check, making a test that asserted nothing look like it had passed. Anything
