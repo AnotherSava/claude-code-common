@@ -116,6 +116,27 @@ This matters for base64-armored filters (transcrypt, git-crypt in ASCII mode). T
 
 Prefer writing `text=auto eol=lf` on the rule over deleting `-text` and inheriting the global. The third row of the table above is a *borrowed* protection: it holds only while that machine has `* text=auto eol=lf` in its `core.attributesFile`, which is per-machine, uncommitted, and absent on CI. An explicit per-path attribute travels with the repo.
 
+**To tell borrowed from owned, suppress the global and ask again.** `git check-attr` merges every source, so on the machine doing the borrowing it answers `auto`/`lf` and proves nothing about the repo:
+
+```bash
+git check-attr text eol -- <path>                                    # auto / lf   (looks fine)
+git -c core.attributesfile=/dev/null check-attr text eol -- <path>   # unspecified / unspecified
+```
+
+A second answer of `unspecified` means the repo supplies nothing and every clone is on its own. Where `core.autocrlf` and `core.eol` are both unset — the common macOS case — this isolates the cause completely: exactly one thing was doing the work, and removing it shows what a fresh clone elsewhere sees.
+
+**Probe committed content, not your own working tree.** The moment the fix is in the tree the second line answers `auto`/`lf` from the uncommitted edit, so the probe silently stops measuring the repo and starts measuring you — the same substitution the whole trap is made of, one layer up. Check the committed state out in a throwaway worktree and probe that:
+
+```bash
+git worktree add --detach /tmp/probe origin/main
+git -C /tmp/probe -c core.attributesfile=/dev/null check-attr text eol -- <path>
+git worktree remove --force /tmp/probe
+```
+
+Run it on both states and the pair reads as a before/after: `unspecified` at `origin/main` proves the bug is really in the repo rather than in one machine's config, and `auto`/`lf` in the edited tree with the global still suppressed proves the new rule stands on its own.
+
+Two things make this easy to skip. It **hides behind a comment that looks like the problem was handled**: measured across five repos on 2026-09-02, four carried a crypt rule with no `text`/`eol`, and two sat directly beneath a comment explaining the CRLF churn and correctly rejecting `-text` for the right reason — so a reviewer greps for the trap, finds it apparently considered, and moves on. And on an already-LF repo the fix is a **no-op in the working tree** — the path does not even appear in `git status`, because the global had already normalized the blob. That silence is the correct outcome, not evidence the change did nothing.
+
 **`text=auto` has an escape hatch, and it makes the fix look like it worked when it did not.** Git converts a file only "if it is text **and the file was not already in Git with CRLF endings**" — so on a path whose stored blob is already CRLF, adding `text=auto` changes nothing at all, silently. Clear it with `git add --renormalize <path>`. An unconditional `text` has no such precondition, but it also forfeits the binary heuristic, so `text=auto` plus a renormalize is the better pair for a glob that might match a binary secret later.
 
 Where the CRs come from on Windows: the mingw64-native openssl that Git Bash puts on PATH writes stdout in text mode, so `openssl enc -a` emits CRLF-terminated base64; the msys `/usr/bin/openssl` emits LF. Repointing `transcrypt.openssl-path` at the latter is a real fix but a per-machine one — it does nothing for anyone else's clone, which is why the attribute is the right layer.

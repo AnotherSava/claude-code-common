@@ -18,6 +18,28 @@ Practical knowledge for any Gmail integration (extension, script, server). Not d
 - **Writing** (`users.messages.batchModify` / `messages.modify` with `addLabelIds` / `removeLabelIds`) accepts **only label IDs** — there is no name-based variant. Examples: archive = remove `INBOX`; "remove pending" = remove the resolved `pending` label id; trash = `users.messages.trash` (or add the `TRASH` system id).
 - So any feature **configured by label name but performing writes** must resolve name→id at least once (a `labels.list` fetch). You can't avoid fetching the label list somewhere.
 
+## Attachments: the MCP connector hands over metadata, never bytes
+
+The `claude_ai_Gmail` MCP tools can tell you an attachment exists and nothing more. `get_message` with
+`FULL_CONTENT` returns `attachments` and `attachment_ids` — filename, MIME type, size, id — and there is no
+`GetMessageAttachment` tool exposed to fetch the content, even though the `Attachment` schema on the write side
+describes exactly such an id ("can be retrieved in a separate `GetMessageAttachment` request").
+
+This matters more than it sounds, because a large class of senders puts the entire document in the attachment
+and leaves the body as a covering letter — airline itinerary receipts and hotel folios are almost all like
+this. An extraction that reads only bodies will confidently report "found the mail, it states nothing" for
+every one of them.
+
+Two ways out, neither via the connector:
+
+- `messageFormat: 'RAW'` returns the raw MIME, which *contains* the base64 attachment. Untested here, and note
+  the payload lands in the model's context, where a large PDF is both expensive and unusable — nothing can
+  decode base64 to a file except code, and the bytes would have to be transcribed verbatim to get there.
+- **Drive the browser instead**, which keeps the bytes out of any model's context entirely. See
+  `claude-in-chrome-probing.md` for the working route: hash-navigate the Gmail SPA per message, fetch each
+  `a[href*="view=att"]` with `disp=inline` swapped for `disp=safe`, and bridge the result to an origin that is
+  permitted to download — Chrome refuses every download from `mail.google.com`.
+
 ## Design implication
 
 - Resolve names→ids **where the label list already lives** (e.g. the background service worker / cache layer that already fetched `labels.list`), not in every UI consumer. Benefits:

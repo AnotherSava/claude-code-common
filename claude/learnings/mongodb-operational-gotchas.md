@@ -72,6 +72,33 @@ mv dump.archive.gz.partial dump.archive.gz
 - Restore with `mongorestore --archive --gzip --drop`, and verify with `--dryRun` first — it parses the archive
   without writing anything.
 
+### `--drop` drops the archive's collections, not the database
+
+Worth knowing before pointing a restore at a live database, because it is the difference between a targeted
+replace and a wipe: `--drop` drops each collection **the archive contains**, immediately before restoring that
+collection. Anything else in the target database is untouched. So a dump of three collections restored over a
+database holding five leaves the other two exactly as they were — a safety property you can lean on, and
+equally a gap if you assumed the target would end up identical.
+
+That makes dump-and-restore a reasonable way to push one environment's data onto another, not only a backup
+path. Two conditions: run dump and restore **inside their respective containers**, so each tool's version
+matches its own server, and confirm the two server versions agree before starting. Scope it with
+`--nsInclude 'mydb.*'`, and snapshot the target immediately before and after rather than trusting the nightly
+timer to have run recently.
+
+**Verify with a content fingerprint, not document counts.** Counts match while contents differ, so they cannot
+distinguish a correct restore from a coincidence. Hash a sorted projection of something identifying and compare
+both sides:
+
+```js
+const codes = db.bookings.find({}, {confirmationCode: 1}).toArray().map(b => b.confirmationCode || '').sort();
+print(require('crypto').createHash('sha256').update(codes.join('|')).digest('hex').slice(0, 16));
+```
+
+Indexes travel with the archive — `mongorestore` rebuilds them from the dump's metadata, unique partial indexes
+included — so the constraint the schema depends on is restored with the data rather than left to whenever the
+application next boots.
+
 ## Driver notes
 
 - Cache the `MongoClient` on `globalThis` across hot reloads, the same way a Postgres pool is cached. The
