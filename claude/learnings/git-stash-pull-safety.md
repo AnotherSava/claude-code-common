@@ -11,6 +11,24 @@ git merge --ff-only origin/main
 git stash pop --index
 ```
 
+**Check whether the two sets actually intersect before reaching for the stash.** That refusal is
+per-path: git fast-forwards a dirty tree without complaint as long as no incoming commit touches a
+file you have modified. Compare them, and skip the stash entirely when nothing overlaps:
+
+```bash
+git diff --name-only | sort > /tmp/dirty
+git diff --name-only HEAD @{upstream} | sort > /tmp/incoming
+comm -12 /tmp/dirty /tmp/incoming     # empty → `git merge --ff-only` runs as-is
+```
+
+**When the dirty files are not yours, skipping the stash is the safer path rather than merely the
+shorter one.** These repos are worked by several concurrent sessions, so a pull often finds edits in
+the tree that another live session is partway through. A stash/pop lifts those edits off disk and
+puts them back seconds later, and a session writing inside that window sees a file it did not
+change — while an interrupted pop can leave them stashed rather than in the tree. With an empty
+intersection nothing has to move at all. Verified 2026-09-02: eight incoming files against two dirty
+ones, disjoint, and both dirty files hashed identical either side of the merge.
+
 **`--index` is the part that's easy to miss.** A plain `git stash pop` restores everything
 as *unstaged*, silently flattening the staged/unstaged split. That destroys real
 information whenever the index held something deliberate — a staged file deletion, or a
