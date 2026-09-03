@@ -10,6 +10,14 @@ When presenting text the user is meant to copy verbatim — a form-field value, 
 
 When a copyable string has a part the user must replace with their own value, mark that part with a `{{insert-here}}` placeholder rather than a plausible-looking fake, an ellipsis, or a bare label. Use a short kebab-case hint inside the braces when it clarifies what goes there (e.g. `{{tvdb-api-key}}`). The double-brace form is unmistakably a placeholder — it won't be mistaken for a real value or copied verbatim by accident. Example: `doppler secrets set TVDB_API_KEY="{{insert-here}}" -p whats-next -c dev --silent`.
 
+## Outward Communication
+
+**Never publish human-facing communication without explicit confirmation of the specific text.** This covers anything a person will read as a message: GitHub issue and PR comments, review comments, email, chat messages to other people, social posts, and replies of any kind. Prose that describes your own work rather than addressing a person sits outside it, so a PR body, release notes, and a commit message are not covered.
+
+The sequence is draft, show, confirm, send. "Write and post the response" authorizes the draft, not the send, and so does every other phrasing that bundles the two. Show the full text you intend to publish, verbatim, then ask whether to send that text. Do not summarize what you are about to send in place of showing it, and do not send a version edited after the confirmation without asking again. There is no exception for text the user supplied verbatim: show it back and confirm it like anything else.
+
+**Blanket confirmations do not exist here.** A "yes, post it" covers the one text it was given for. It does not carry to the next message, to a follow-up in the same thread, or to the remainder of a batch. Three drafted comments need three approvals, or one approval that names all three texts. This narrows the Self-Sufficiency section below: for outward human communication there is no standing authorization to accumulate, however routine the exchange has become.
+
 ## Self-Sufficiency
 
 Before asking the user to do something (run a command, edit a file, check a value), figure out how to do it yourself. If the action is non-destructive, just do it. If it's destructive or irreversible, ask the user for permission — but propose the concrete action, don't ask the user to perform it.
@@ -87,6 +95,22 @@ When the offer is accepted:
 - **Fit the tool to the project's documented style**, never the reverse — skip or configure rules that fight an established preference, and document every deliberately disabled rule and its reason inside the tool's config file.
 - **Prefer enforcement at generation time** (e.g. a PostToolUse lint hook) over conventions that rely on remembering to run something.
 
+## Engineering Standards
+
+Quality of what ships is not negotiable; quantity of apparatus around it is. The quality rule and the one-off rule below pull against each other on purpose, and that sentence is where the boundary between them sits.
+
+**Weigh quality over development cost.** When choosing between technical approaches, give little weight to how long the better one takes to build. Prefer quality, simplicity, robustness, and long-term maintainability. Cost breaks a tie between comparable designs; it is never an argument for the worse one. Scalability is deliberately absent from that list, because reaching for it from a single concrete example is the premature abstraction that `~/.claude/memory/feedback_no_premature_abstraction.md` exists to stop.
+
+**For one-off or infrequent operational work, take the simplest direct end-to-end path.** Do not build wrappers, control planes, policy layers, custom verifiers, or automation around a task that runs once or twice. Build that machinery when the direct path exposes a concrete blocker or a repeated need, not in anticipation of one. This is the operational twin of `~/.claude/memory/feedback_no_permanent_logic_for_one_time.md`, which catches the same reflex in production code and UI. A blocker actually hit does justify the tool: the co-tenancy identity checker exists because an HTTP 200 genuinely cannot say whose app answered.
+
+**Reproduce a bug before fixing it, at the altitude the user hits it.** Start from the failure as an end user experiences it in the running product, not from a cause reasoned out of the code. Multiple memories record the cost of the other order: a video player took three reasoned fixes and three "still same" replies before anyone read the log that had held the answer all along, and `~/.claude/memory/feedback_verify_symptom_not_proxy.md` records a panel declared fixed twice on evidence that was never the symptom. Their common shape is a fix that compiles, reads correctly, and changes nothing. Two exceptions, and both must be said rather than assumed: a cause that is unambiguous from a stack trace or a one-character typo needs no harness built around it, and some bugs will not reproduce here at all (a race, a machine you do not have). When you could not reproduce it, say so and say what you used instead, so a fix nobody observed working is never reported as one.
+
+**Notice every defect; fix the ones inside the surface you are already touching.** Never let a problem pass unmentioned because it is not yours.
+
+- **UI.** Be picky about what you actually see when running the product: misalignment, inconsistent spacing, wrong casing, a control that does not match its siblings. Report all of it, including what has nothing to do with the current task.
+- **Lint, tests, flakiness.** A lint error in a file you touched gets fixed now. A failing test is never stepped past, because you cannot know it is unrelated until you have looked, so investigating it is mandatory even when fixing it is not. A flaky test gets investigated far enough to say whether your change caused it, then gets recorded rather than chased.
+- **Routing.** Reporting is always required. Fixing unasked is limited to the change you are already making; anything wider becomes an offer to the user, a `.claude/memos.md` entry, or its own commit, because an unrelated fix folded into a scoped diff makes the commit message describe a change it does not contain. Narrow-width layout problems stay governed by `~/.claude/memory/feedback_desktop_first_then_phone.md`: note them and move on while the desktop look is unsettled.
+
 ## Sharing a Host With Another Project
 
 Several of these projects run as co-tenants on one box behind one reverse proxy. That arrangement has one failure mode, it is silent, and it has already cost 41 hours of a commercial site serving a neighbour's application — with HTTP 200, healthy containers and a valid config throughout. Two rules prevent it; `~/.claude/learnings/docker-compose-shared-host-co-tenancy.md` has the mechanics and the ready-made checkers.
@@ -122,6 +146,8 @@ Default to sentence case for user-facing UI strings (menu items, buttons, dialog
 In prose (docs, READMEs, comments), don't open a sentence or line with code-formatted (backtick-wrapped) text when regular text follows — lead with a real word and fold the code reference in after it ("The `notifications` block controls…" not "`notifications` controls…"). Term-definition list items where the code identifier is the subject are the standard exception. See `~/.claude/memory/feedback_no_code_at_sentence_start.md`.
 
 Parallel enumerations should share grammatical form — list-item blurbs are all imperative verbs or all noun phrases, not a mix ("download …" / "explore …" / "build …", not "download …" alongside "a tour of …").
+
+**Do not use the em dash (`—`) in outward-facing prose.** That covers README and docs text, PR and issue bodies, commit messages, published pages, and code comments; chat responses to the user sit outside it. Rewrite the sentence rather than substituting a hyphen: a comma, a colon, parentheses, or a full stop all read better, and a bare `-` collides with list markers, numeric ranges, and compound words. Two narrow exemptions. **Machine-parsed formats**, where the character is a separator the tooling reads back, keep it: the `- [ ] <timestamp> — <text>` memo line that `memos.py` and the memo-surfacing hook both parse, and the `- [Title](file.md) — hook` index line in a MEMORY.md. **Files that already exist** are not retro-edited, so the rule governs text written from here on rather than a sweep of the thousands of instances already committed.
 
 A factual claim in prose must stay true as the thing it describes grows. Don't anchor a range or a count on the current last item — "APP_CONTAINER through VHOST_SRC" and "all four of them" both rot the moment someone appends. Write the open form ("APP_CONTAINER onward", "every key below it"), which costs nothing and cannot go stale. A line number is the same trap with the shortest half-life of all — one such anchor moved three lines in a single morning, from an edit to the very header that cited it — so point at a file plus a stable landmark (a heading, a key name), never `file:NN`.
 
