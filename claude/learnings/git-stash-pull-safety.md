@@ -113,6 +113,31 @@ about their rules, not a merge mechanic. Verify afterwards by grepping the merge
 distinctive phrase from each side and *counting* the hits, so a silent duplication shows up
 alongside a silent loss.
 
+**Triage several conflicts at once before reading any of them.** The dangling-cross-reference tell
+above is per-file and subtle; a cheaper first screen sorts a whole pop's worth in one command. Print
+each half's section headings — or its bold bullet leads — tagged by side:
+
+```bash
+awk '/^<<<<<<</{s="UPSTREAM";next} /^=======$/{s="LOCAL";next} /^>>>>>>>/{s="";next}
+     s && /^#{2,3} /{print "  ["s"] "$0}' <file>
+```
+
+**Disjoint** heading sets mean both sides appended different sections: mechanical, keep both. **Overlapping**
+sets mean they rewrote the same material: stop and read. Four conflicts sorted into three mechanical and one
+design decision this way, in one pass.
+
+**Assemble a merge by extracting whole bullets verbatim from each half, never by retyping.** Split the region
+into `up.txt` and `loc.txt`, then build the result by pulling each bullet out by its marker text. Retyping
+introduces drift nobody can audit, and the extract-and-order form makes the important question — *which
+bullets did I drop* — answerable by listing what was not selected.
+
+**Expect the whole-patch line check to report the dropped duplicates as missing, and say so.** The stash-SHA
+baseline below is the right verification for a mechanical resolution and is *wrong to trust blindly* here: an
+editorial merge deliberately discards each side's superseded bullet, so those lines are legitimately absent
+and the check counts them as losses. Report the count with its explanation rather than letting it read as a
+failure — or, worse, "repairing" it by pasting the duplicates back. This is the one resolution a mechanical
+check cannot vouch for, which is why the merged block goes in front of the user.
+
 ## Clearing the merge state after a conflicted pop
 
 A `git stash pop` that conflicts **keeps the stash entry** ("The stash entry is kept in case

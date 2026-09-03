@@ -117,3 +117,59 @@ The general rule this is an instance of: **on Windows, "the command is on PATH" 
 "this context can execute it"** — and a reparse point is exactly the kind of thing an existence check sees
 through without noticing. The same blindness is why file-walking code needs an explicit reparse-attribute
 test rather than a symlink test.
+
+## Task Scheduler cannot invoke MSYS `bash.exe` directly
+
+Registering a task whose action *is* Git's `bash.exe` looks correct and does nothing. Measured on Windows 11:
+
+```
+LastTaskResult : 1        within seconds
+the script     : never runs
+any log        : nothing written, so LastTaskResult is the only evidence
+```
+
+Every obvious explanation was ruled out one at a time, and each was wrong:
+
+- Both `Git\bin\bash.exe` and `Git\usr\bin\bash.exe` run fine standalone, and both find `doppler` on PATH.
+- The entry script runs clean under either, exit 0.
+- `Start-Process` with the **identical** exe, arguments and working directory exits 0. So it is not the
+  binary, the arguments, the script, or the working directory.
+- `bash missing-file.sh` returns **exit 0**, not 127 — so "it cannot find the script" was never a viable
+  theory either, though it is the first one that comes to mind.
+
+The fix is to launch it through `cmd.exe`, which presumably supplies the console MSYS bash expects:
+
+```powershell
+$bash = 'C:\Program Files\Git\bin\bash.exe'
+$cmd  = Join-Path $env:SystemRoot 'System32\cmd.exe'
+$args = '/c "{0}" path/to/script.sh >> path\to\task.log 2>&1' -f $bash
+New-ScheduledTaskAction -Execute $cmd -Argument $args -WorkingDirectory $repo
+```
+
+Keep the redirect. It captures bash's own startup failures, which the script by definition cannot log about
+itself — exactly the class of failure above.
+
+## Nothing you rely on interactively is necessarily on a task's PATH
+
+Read the persisted values, not the ones your shell happens to have:
+
+```powershell
+[Environment]::GetEnvironmentVariable('Path','Machine')
+[Environment]::GetEnvironmentVariable('Path','User')
+```
+
+Measured on a normal developer machine: **Git's `bin` is on neither**, so a bare `bash` resolves in an
+interactive shell only. WinGet's `Links` directory *is* on the User PATH, so its App Execution Aliases
+resolve for a task running as that user — but those aliases are 0-byte reparse points, so verify rather
+than assume. A task built on either registers fine, fires at 03:00, and dies with "not recognized" where
+nobody is watching.
+
+Reference every executable by absolute path in the task definition, and resolve anything else explicitly
+inside the script with a fallback that **fails loudly** rather than inheriting whatever PATH happens to hold.
+
+## A directory-scoped credential makes `WorkingDirectory` mandatory
+
+The Doppler CLI token is scoped per directory: it resolves from the repo it was authorised in and fails
+everywhere else with `you must provide a token`. A task that does not set `-WorkingDirectory` therefore
+authenticates in an interactive test and fails unattended, with an error that sounds like a credential
+problem rather than a location one.

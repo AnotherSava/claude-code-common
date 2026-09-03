@@ -366,3 +366,45 @@ source and an irreplaceable one, run the re-creatable one first even if the irre
 urgent. A first run is where the recipe is wrong, and it is worth being wrong where a mistake costs a
 re-run. Doing this surfaced three defects in a written procedure — a missing `--host`, the restore path
 shape, and the cmd.exe issue above — before any of them touched the copy that mattered.
+
+## Running restic on a Windows workstation
+
+The B2 half of this document ports unchanged — same S3 endpoint, same lifecycle rule, same `forget`
+grouping, same exit 3. The *delivery* half does not: there is no systemd, so the timer, the
+`EnvironmentFile` and the `TimeoutStartSec` guard all need Windows equivalents, and one of them has a
+non-obvious failure. See the `windows-scheduled-tasks-nonadmin` learning for those.
+
+**`doppler run --command` hands its string to `cmd.exe`, not to a POSIX shell.** So the form that works on
+macOS and Linux fails here, and fails in a way that reads like a missing binary rather than a shell
+mismatch:
+
+```bash
+# works on macOS/Linux, FAILS on Windows:
+doppler run -p <proj> -c <config> --command \
+  'RESTIC_REPOSITORY="$RESTIC_REPOSITORY_HOSTA" restic snapshots'
+# -> 'RESTIC_REPOSITORY' is not recognized as an internal or external command
+```
+
+The inline `VAR=value cmd` prefix is shell syntax; `cmd.exe` parses it as a command name. Put the
+assignment inside a script and invoke that instead:
+
+```bash
+doppler run -p <proj> -c <config> --command 'bash bin/backup.sh'
+# with `export RESTIC_REPOSITORY="$RESTIC_REPOSITORY_HOSTA"` as the script's first real line
+```
+
+This also preserves the property the inline form was chosen for: the repository URL and password are
+expanded inside the subprocess and never appear in a command line, a task definition, or shell history.
+
+**Both `restic` and `doppler` install from winget as App Execution Aliases** — 0-byte reparse points under
+`…\WinGet\Links`. Git Bash follows them, so they work interactively and can be trusted in a shell. Do not
+trust them from a scheduled context: resolve the real binary under `…\WinGet\Packages\<id>\` and fail
+loudly if it is absent, rather than letting a missing alias look like a missing tool.
+
+**Retention is worth almost nothing on an append-only source, and the numbers say so.** For a corpus that
+only ever grows, an old snapshot shares nearly every chunk with the newest, so forgetting it reclaims close
+to nothing. Measured on one such repository: 7 snapshots of a 754 MiB tree occupied 339 MiB in total — 5.13
+GiB logical, deduplicated to 757 MiB unique, compressed 2.23x. The argument for a retention policy there is
+a readable snapshot list, not disk space, so prefer a generous policy and run `--prune` weekly rather than
+per-run. Pin the snapshot whose restore you actually verified with `--keep-tag`, so a policy change cannot
+age out the one you have evidence for.

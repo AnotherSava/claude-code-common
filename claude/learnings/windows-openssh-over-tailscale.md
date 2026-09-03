@@ -10,6 +10,14 @@ connect *out* via Tailscale SSH but can never accept it, and the failure is quie
 shows the peer online with no `sshHostKeys`, and `ssh` just times out. The supported paths are native Windows
 OpenSSH over the tailnet, RDP, or an SSH server inside WSL2. Use native OpenSSH.
 
+**On macOS that support is variant-dependent, so "Linux and macOS" oversells it.** The SSH server needs the
+open-source `tailscale` + `tailscaled` CLI build; the App Store and standalone (macsys) GUI variants cannot
+host it, and one of those is what a Mac normally runs. A tailnet SSH policy rule is required on top. So the
+same quiet `sshHostKeys: null` means "not enabled" *or* "cannot be enabled here", and the two are
+indistinguishable from the far end — `tailscale ssh <host>` just falls through to a plain port-22 dial and
+reports `connection refused`. Establish which variant a Mac runs before proposing Tailscale SSH for it;
+otherwise native Remote Login is the shorter path.
+
 ## Enabling it
 
 Administrator PowerShell, once:
