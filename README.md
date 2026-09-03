@@ -121,6 +121,8 @@ Scans project documentation for stale references and fixes them.
 - Reconciles documentation screenshots against the docs that cite them, and proves a shot stale by grepping the text visible in it against source
 - Records each shot in a `docs/screenshots/screenshots.json` manifest — what the frame shows, how to reproduce it, and whether replacement is `auto`, `confirm` or `never`
 - Replaces one only as its policy allows, capturing through a committed `docs/screenshots/capture/<id>.sh` so the second capture is free and the diff shows how the image was made; anything undecided stops to ask, and a shot you supply yourself is filed the same way
+- Writes a contact sheet — one HTML page carrying every screenshot, replacements as before/after pairs, each frame numbered and one click apart — and opens it for annotation; under `confirm` the sheet *is* the proposal, written before anything is captured
+- Names the shots that do not exist: sweeps pages for sections doing a picture's work in prose, proposes the two or three strongest, and captures none of them without an explicit yes
 - Regenerates dimensioned-draft drawings when the model they document changed
 - Suggests new documentation files or reorganization when beneficial
 
@@ -456,6 +458,7 @@ Encrypts designated files with [transcrypt](https://github.com/elasticdog/transc
 - Marks files by the `*.secret.*` naming convention in `.gitattributes`
 - Verifies the index holds ciphertext while the working tree stays readable, and stages without committing
 - Relies on the global pre-commit guard as a safety net against committing an unencrypted secret
+- Silences OpenSSL's `deprecated key derivation` warning by pointing `transcrypt.openssl-path` at an idempotent shim, rather than touching the KDF — so blobs stay byte-compatible with a machine running stock transcrypt
 
 ---
 
