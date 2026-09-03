@@ -122,3 +122,4 @@
 - [A probe must not perturb what it measures](feedback_probe_must_not_perturb.md) — if a fast answer could mean "already there" or "asking made it happen", it is not evidence; check for a warm cache from an earlier probe
 - [Detach a wrapper that spawns a survivor](feedback_detach_long_wrappers.md) — nohup + disown, never a foreground call piped to tail; a task-kill takes the whole process group, spawned server included
 - [Drift-proof doc anchors](feedback_drift_proof_doc_anchors.md) — anchor a range on its stable end and let it run open ("X onward"); a line number or today's last item reads exhaustive after it stops being
+- [Derive, don't mirror](feedback_derive_dont_mirror.md) — before fixing when stored state is committed or synced, ask whether it's derivable and whether anything reads it
