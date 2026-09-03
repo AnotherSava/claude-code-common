@@ -93,6 +93,21 @@ Analyzes changes and generates atomic Conventional Commit messages.
 
 ---
 
+### Reset
+
+Unwinds selected unpushed commits back into the working tree so they can be re-committed. The counterpart to `/commit`, which never amends: an unpushed commit is corrected by putting it back and committing again.
+
+**Command:** `/reset`
+
+**Features:**
+- Lists every unpushed commit with hash, timestamp and subject, newest first, offering each as "this commit only" or "this plus everything above it"
+- Always offers "don't reset" as option 0, so the list can be inspected without committing to an action
+- Defaults to the most recent commit alone — except where the newest commits form a contiguous run of `fix: address code review findings`, where the default unwinds the whole run
+- Resets to the parent of the chosen commit, so nothing is discarded; the changes land back in the working tree for `/commit` to regroup
+- Will not commit, push, or switch branches — unwinding is the whole job
+
+---
+
 ### Update Documentation
 
 Scans project documentation for stale references and fixes them.
@@ -227,6 +242,22 @@ Ships a project outward to where its users are — the counterpart to `deploy`, 
 
 ---
 
+### Publish Chrome Extension
+
+Republishes a new version of an existing Chrome extension to the Chrome Web Store: takes the zip from a GitHub release, checks the store listing still covers what the package now does, uploads over the Web Store API and submits for review. Usually run straight after `/release`.
+
+**Command:** `/publish-chrome-extension`
+
+**Features:**
+- Verifies the version inside the release zip's `manifest.json` against the tag before uploading, so an asset that doesn't contain what its tag claims stops the run
+- Keeps `cws-publish.json` beside `manifest.json` as the tracked mirror of the dashboard-only listing data the API can neither read nor write — one per extension folder, so a repo can host several
+- Diffs the package's `permissions` and `host_permissions` against the recorded justifications, drafting the missing ones and flagging orphans: the dashboard blocks submission on exactly this, and the API cannot fix it
+- Re-checks the single-purpose statement and store description against the user-visible changes since the last published version, rather than assuming they still hold
+- Walks the one-time Google Cloud OAuth setup on first run, and re-runs only the token steps when a refresh token expires
+- Will not create a listing or edit listing content — that stays in the dashboard
+
+---
+
 ### Backup
 
 Gives a project on the shared VPS a nightly off-box backup, or works on one it already has: provisions its Backblaze bucket and bucket-scoped key, writes the job and its systemd units, renders the credentials, and proves the restore by running it. Encodes one shape across every co-tenant — restic to B2, one bucket per project, credentials in `/etc/<tenant>/backup.env`, a staggered timer, a drill.
@@ -322,6 +353,36 @@ Cross-project overview of all your GitHub-owned local clones — branch, behind/
 
 ---
 
+### Move Project
+
+Moves or renames the current project folder while preserving the Claude Code data tied to it — session logs, memory, subagent history. That data lives in its own directory keyed by a mangled form of the project's path, so a plain `mv` orphans it.
+
+**Command:** `/move-project`
+
+**Features:**
+- Derives the old and new `~/.claude/projects/<key>` directory names from the path-mangling rule in `claude/skills/skill/references/claude-project-memory-paths.md`, so the session history follows the folder
+- Previews both moves with their resolved paths before anything runs, and refuses a destination that already exists
+- **Prints the commands rather than running them** — moving the working directory out from under a live session would break it, so they are run from elsewhere and Claude reopened at the new location
+- Prints PowerShell alongside bash on Windows, bash alone on macOS and Linux
+- Skips the data move for a project that has no `~/.claude/projects/` directory yet
+
+---
+
+### Annotate
+
+Opens any file in Plannotator's browser annotation UI, not just the markdown and HTML it takes natively. Anything else is wrapped in a temporary `.md` with its contents in a fenced code block, annotated there, and the temporary file deleted afterwards.
+
+**Command:** `/annotate <file>`
+
+**Features:**
+- Passes `.md` and `.html` straight through to `plannotator-annotate`; wraps everything else
+- Infers the fence's language tag from the file's extension using the mapping table in the skill, and emits a bare fence for an extension it does not recognize
+- Copies the file byte-for-byte into the fence — never transformed or summarized — so annotations line up with what is on disk
+- Treats returned annotations as referring to the **original** file; the temporary `.md` is a presentation surface only
+- Cleans up through `trap`/`try-finally` so the temporary file goes even on failure, warns before very large files, and refuses binaries
+
+---
+
 ### Update Plannotator Plugin
 
 Force-updates the plannotator plugin by clearing stale caches and reinstalling.
@@ -365,6 +426,22 @@ Authoring guidance for Claude Code hooks — picking the event and matcher, keep
 - A frequency table pairing each event with the cost budget it can bear, from per-streaming-chunk down to once per session
 - The never-raise contract, plus the rule that hook errors are silent — so anything consequential logs to disk
 - A findings log that accumulates each surprise (a cost, a silent failure, a semantic) instead of leaving it in a session transcript
+
+---
+
+### Skill Authoring
+
+Conventions for writing and changing skills — the directory shape, the frontmatter, how the description controls auto-invocation, and what belongs in the body rather than a reference file. Read before creating or modifying any `SKILL.md`.
+
+**Command:** `/skill`
+
+**Features:**
+- Fixes the layout: `SKILL.md` as the entry point, optional `scripts/` and `references/` beside it, shared resources in `skills/shared/`
+- Treats the un-ignore line as part of *creating* a skill rather than a final step — an allowlisted skills directory leaves a new skill untracked and invisible, and the `skill-tracked.py` hook is a net, not the plan
+- Spells out the `description` field's double duty — the skill list *and* the auto-invocation trigger — with explicit `TRIGGER when` / `DO NOT TRIGGER when` conditions
+- Covers injecting dynamic context through `!` commands, and what that costs on every invocation
+- Points at `references/claude-project-memory-paths.md` for the `~/.claude/projects/<project-id>/` mangling rule, so no skill re-derives it
+- Carries the checks owed before writing anywhere shared — whether the destination is published, and which gitignore scope applies — plus the cross-platform rules for scripts that run on both Windows and macOS
 
 ---
 
