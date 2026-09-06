@@ -293,13 +293,26 @@ candidate that is itself a shim, or a second run once the shim is on `PATH` poin
 until the stack gives out.
 
 **Never `git config --unset transcrypt.openssl-path`.** It reads like reverting to a default and is not —
-there is no default. The clean, smudge and textconv filters all resolve openssl as
-`openssl_path=$(git config --get --local transcrypt.openssl-path)` with **no fallback**, then invoke
+there is no default *on the paths that matter*. transcrypt resolves openssl in five places, and they do not agree:
+lines 229 and 1021 end in `|| printf '%s' "$openssl_path"` and survive an unset, which is why init still works and
+why the breakage looks intermittent. The three that have **no fallback** are the ones git actually calls — clean,
+smudge and textconv (lines 290, 315, 332) — each resolving it as
+`openssl_path=$(git config --get --local transcrypt.openssl-path)` and then invoking
 `"$openssl_path" enc …`; unset, that expands to the empty string and every filtered file dies with
-`fatal: <file>: clean filter 'crypt' failed`. `transcrypt init` always writes the key (its last line is
-`git config transcrypt.openssl-path "$openssl_path"`), so the setting is required infrastructure and the
-sequence's fourth line *replaces* it rather than adding anything. To go back to unshimmed openssl, point it
-at the real binary — do not remove it.
+`fatal: <file>: clean filter 'crypt' failed`.
+
+Two more sites settle *why* the key is infrastructure rather than an optional tweak — it is **written**
+unconditionally in two places, `723` (init) and `1535` (rekey):
+
+```
+229   read,  falls back        290/315/332   read, NO fallback  (clean, smudge, textconv)
+1021  read,  falls back        723/1535      WRITE
+```
+
+So a repo cannot arrive at an unset key by itself; only a hand `--unset` gets it there. That is the sentence that
+stops the next person tidying away a config entry that looks redundant. The shared-key sequence's fourth line
+*replaces* what init wrote rather than adding anything. To go back to unshimmed openssl, point it at the real
+binary — do not remove it.
 
 Beware of testing this with `git status` alone: git skips the filter entirely when its stat cache says the
 file is untouched, so an unwired repo can look silent. `touch` the encrypted file first to force a re-hash.
