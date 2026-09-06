@@ -142,3 +142,56 @@ else { /* Dictionary<string, T> */ }
 Deserializing an object into `List<T>` throws `The JSON value could not be converted to System.Collections.Generic.List\`1[T]. Path: $`.
 
 Gotcha for the map form: if the values don't repeat their own key as a field, `T.Name` comes back `""` and any later lookup-by-name silently never matches. **Backfill the dictionary key into the object** right after deserializing.
+
+## `JsonNode` has one parent, so you cannot reassign a node to its own slot
+
+Walking a `JsonNode` tree and rewriting values looks like this, and the obvious shape throws:
+
+```csharp
+// WRONG: for a non-string, Rewritten returns the same node, and assigning it back into the
+// slot it already occupies throws InvalidOperationException ("node already has a parent").
+foreach (var key in obj.Select(p => p.Key).ToList())
+    obj[key] = Rewritten(obj[key]);
+```
+
+Only assign when you actually built a new node; recurse otherwise:
+
+```csharp
+foreach (var key in obj.Select(p => p.Key).ToList())
+{
+    if (obj[key] is JsonValue value && value.TryGetValue<string>(out var text))
+        obj[key] = JsonValue.Create(Transform(text));   // new node, fine
+    else
+        Walk(obj[key]);                                  // same node, do not reassign
+}
+```
+
+`ToList()` on the key sequence is also required — mutating the object while enumerating it directly
+throws. `DeepClone()` is the escape hatch when a node genuinely has to appear somewhere else.
+
+The failure is loud but easy to misread: it surfaces as a swathe of unrelated tests failing on
+documents that used to compose fine, because a single bad `Walk` takes out the whole tree.
+
+## The default encoder escapes far more than HTML needs
+
+`JsonSerializer` / `JsonNode.ToJsonString` default to `JavaScriptEncoder.Default`, which escapes any
+non-ASCII-alphanumeric it considers unsafe for HTML embedding. In practice that means a semantic
+version comes out unreadable:
+
+```
+"version": "1.9.1+f34b968…"     // the '+' in a SemVer build-metadata suffix
+```
+
+Also hits `<`, `>`, `&`, `'`, and every non-Latin script — so Cyrillic or CJK text renders as a wall
+of `\uXXXX` in a file a human is meant to read.
+
+For a file on disk, or anything shown in a UI, use the relaxed encoder:
+
+```csharp
+public static readonly JsonSerializerOptions FileJson =
+    new() { WriteIndented = true, Encoder = JavaScriptEncoder.UnsafeRelaxedJsonEscaping };
+```
+
+"Unsafe" names the *HTML-embedding* risk only; the output is still valid JSON. Keep the default when
+the string really is going into a page. Where a document is both written to a file and rendered in a
+pane, share one options instance between the two paths so they cannot diverge.

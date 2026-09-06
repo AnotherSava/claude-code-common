@@ -154,3 +154,51 @@ user sets once. What made it safe, in the order the objections appear above:
 
 The rest of this file is unaffected: detection still reads text, still cannot prove a shot current,
 and `policy` governs replacement only — a `never` screenshot is still checked, just never replaced.
+
+## Update 2026-09-02: a "genuinely unautomatable" session usually isn't
+
+The section above lists "a logged-in third-party game session" as unautomatable next to OAuth-gated
+mail. That was wrong, and the reason it was wrong generalises: **the login was a property of where
+the shots had been taken, not of what they showed.** Six screenshots of a browser extension's side
+panel all documented the *project's own renderers*. Driving those renderers directly against a
+committed fixture reproduced every frame with no browser session, no third-party site and no
+account — the panel's HTML is the subject, and the game table was only ever the place it happened to
+be photographed.
+
+Ask what the frame is evidence *of* before accepting a precondition. Only the shots that genuinely
+show the third party's page — a header the extension restyles, cards it redraws on someone else's
+board — still needed a live session, and those stayed `never`.
+
+Two preconditions I asserted and had not checked, both of which made the work look impossible:
+
+- **"This toggle only renders on a table with expansion X."** The toggle was built unconditionally;
+  every game rendered all five options. One look at the builder function removed the requirement.
+- **"The fixture can't show a compound turn."** True of the fixture I happened to use, not of the
+  data available. The original screenshot's own content was the search key — grepping local captures
+  for the action visible in the old frame identified the exact source table, whose log reproduced the
+  original almost pixel for pixel.
+
+### Mechanics worth not rediscovering
+
+- **Match the device pixel ratio of the shots you are not replacing.** Hand-taken shots carry the
+  display's DPR (1.5 on a 150%-scaled monitor); a headless capture defaults to 1 and comes out a
+  third smaller — correct, and visibly a different zoom beside its unreplaced neighbours. Measure a
+  repeating feature (card width, row pitch) in the old shot against the same feature at DPR 1; the
+  ratio lands on a clean value. Derive the framing width the same way: old pixel width ÷ ratio is the
+  CSS width it was taken at.
+- **Commit the processed intermediate, not the raw capture.** A parsed game log was 73 KB against
+  1.2 MB of the raw packets it came from — 17×. Screenshots document renderers, and the parser that
+  produces the intermediate has its own tests.
+- **Wait on `document.fonts.ready`.** Shooting earlier silently substitutes a fallback typeface: a
+  wrong screenshot that looks like a right one.
+- **Frame by trimming to drawn pixels, then padding outward** — not by choosing a viewport width,
+  which only works while the subject fills it. A section that stretches to its container, a page
+  shorter than its own bottom padding, or a grid whose widest row stops short each leave background
+  on one side and not the others.
+- **Pad outward rather than clipping a wider region.** On a stacked layout the neighbouring section
+  sits a few pixels away, so a generous clip frames the subject with someone else's content — and a
+  trim then finds "content" at the very edge and reports a zero margin.
+- **`playwright` clip is bounded by the viewport unless `full_page=True`.** A subject below the fold
+  is silently cropped to the window; the result looks like a complete screenshot.
+- **`body { width: max-content }` is not enough** when sibling sections differ: the body takes the
+  widest one and the narrower siblings still stretch to match. Each section needs it too.

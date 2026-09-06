@@ -48,8 +48,19 @@ arriving" is the tempting design and it is usually worse:
   socket there takes down the thing that was supposed to be watching.
 
 The external monitor still earns its place, but only as a backstop for "the machine never came back at
-all" — where a false alarm costs one email. Use a cron-style schedule with a timezone rather than a flat
-period, so predictable idle windows are not counted as silence.
+all" — where a false alarm costs one email.
+
+**Schedule or period turns on whether the idle windows are predictable, and the two cases invert the
+advice.** A cron-style schedule with a timezone is right when the quiet is *on a calendar* — weekdays only,
+a nightly maintenance window — because it stops a foreseen gap being counted as silence. It is wrong for a
+host that is simply off at unforeseeable times: a schedule marks the check late at every scheduled instant
+the machine happened to miss, so a laptop closed for a weekend spends the weekend amber. Use a **flat
+period** there, which restarts from the last ping and therefore measures "how long since we last heard
+anything" — the only question that is answerable about an unpredictably-absent machine.
+
+The trap is that a daily job at a fixed clock time *looks* like the calendar case. It is the trigger that
+is on a calendar, not the idleness; what decides this is whether the machine's absences are predictable,
+and on a personal laptop or desktop they are not.
 
 ## Two channels, two questions
 

@@ -68,6 +68,26 @@ colour `C` at coverage `a` over backdrop `B` the screen shows `O = C*a + B*(1-a)
 Exact for any partial coverage; write it as a PNG with alpha and it composites correctly on a light
 page or a dark one.
 
+**A known shape needs only one capture.** The solve above exists because both the colour and the
+coverage are unknown at a boundary pixel. When the subject is a shape you can *describe* — a rounded
+rectangle, a panel, a card — its geometry supplies the coverage, and one capture is enough: build the
+mask analytically at 8x and downsample. Two details decide whether it looks right.
+
+- **Inset one pixel.** A mask alone still fringes, because the pixels it half-covers really are half
+  backdrop. Dropping that ring takes the fringe with it, at the cost of a corner one pixel tighter,
+  which is invisible at viewing size.
+- **Do not un-blend an inset edge.** With the inset the boundary sits *inside* the subject, so a
+  partial pixel is pure subject being antialiased by the mask; subtracting a backdrop that is not in
+  it over-brightens toward white. Seen as a 7%-alpha white fringe along one edge that passed every
+  numeric check and was only visible on screen. Un-blend only at zero inset.
+
+Masking by shape also sidesteps a backdrop too close to the subject to colour-key — in one case a
+panel fill and a page background 28 levels of blue apart, which no threshold separates. Two
+consequences: any border added afterwards must trace the **shape**, because a keyed image has no
+rectangular edge for a canvas-wide box to sit on; and estimate the subject's own luminance from a
+**median over a grid**, since one sample lands on text as readily as on fill and will choose a dark
+outline for a dark panel.
+
 Show the backdrop as a borderless form slotted directly *beneath* the target with
 `SetWindowPos(backdrop, target, ..., SWP_NOACTIVATE)` — not topmost, so the target keeps its z-order
 and activation. Pad it past the corners.
@@ -109,3 +129,40 @@ window's own fill.
 - **`AutomationElement.FromHandle(hwnd)` is reliable where a global `Descendants` search is not** — the
   latter can hand back a stale element whose children come up empty, which reads as "the window has no
   controls".
+
+## A desktop-wide UI Automation search dies on one bad provider
+
+The obvious helper walks every descendant of the desktop root:
+
+```powershell
+$ua::RootElement.FindAll([TreeScope]::Descendants, $condition)   # fragile
+```
+
+On a machine running any application whose automation provider misbehaves, this throws
+`RPC_E_SERVERFAULT` (`0x80010105`) outright — and it is not transient, so retrying never clears it.
+Every capture script on that machine fails at once, for a window none of them care about. The error
+names no culprit, so it reads like a bug in the script that happened to run first.
+
+Walk top-level windows instead and skip the ones that fault:
+
+```powershell
+foreach ($top in $ua::RootElement.FindAll($scope::Children, [Condition]::TrueCondition)) {
+  try {
+    foreach ($el in $top.FindAll($scope::Descendants, $condition)) {
+      if ($el.Current.Name -like $Name) { return $el }
+    }
+  } catch { continue }
+}
+```
+
+Same coverage, one bad application skipped instead of taking the run down. Worth fixing in the shared
+helper rather than working around per script: every capture script inherits the fault.
+
+Two related notes for driving a menu this way:
+
+- A WinForms `ContextMenuStrip` lives in a window whose class name is a generated
+  `WindowsForms10.Window.*`, **not** `#32768` — filtering by class to find the menu finds nothing.
+  Enumerate all top-level windows and look for the `MenuItem` by name.
+- A synthetic right-click on a tray icon opens the menu only *sometimes*. Poll-after-one-click never
+  succeeds when the click did nothing; **re-click** in a loop (up to ~6 attempts, ~900 ms apart) and
+  poll after each.

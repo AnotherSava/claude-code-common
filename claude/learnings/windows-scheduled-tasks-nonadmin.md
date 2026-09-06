@@ -137,7 +137,7 @@ Every obvious explanation was ruled out one at a time, and each was wrong:
 - `bash missing-file.sh` returns **exit 0**, not 127 — so "it cannot find the script" was never a viable
   theory either, though it is the first one that comes to mind.
 
-The fix is to launch it through `cmd.exe`, which presumably supplies the console MSYS bash expects:
+The fix is to launch it through something that supplies the console MSYS bash expects. `cmd.exe` does:
 
 ```powershell
 $bash = 'C:\Program Files\Git\bin\bash.exe'
@@ -148,6 +148,35 @@ New-ScheduledTaskAction -Execute $cmd -Argument $args -WorkingDirectory $repo
 
 Keep the redirect. It captures bash's own startup failures, which the script by definition cannot log about
 itself — exactly the class of failure above.
+
+### …but `cmd.exe` puts the console window straight back
+
+This silently undoes *Avoiding a console window* above, for every bash job. The two fixes are natural to
+reach independently and they contradict each other: a task shaped like the block above flashes a window on
+the user's desktop every night at whatever hour it runs, and nobody connects that to a section about
+`pythonw` written for Python entry points.
+
+Both can be had at once, with a launcher that is itself GUI-subsystem and starts the child with
+`CREATE_NO_WINDOW` (`0x08000000`):
+
+```python
+# run-hidden.py -- invoked as: pythonw.exe run-hidden.py --log <file> -- <cmd> <args...>
+subprocess.run(argv, stdout=subprocess.PIPE, stderr=subprocess.STDOUT,
+               creationflags=0x08000000 if os.name == "nt" else 0)
+```
+
+```powershell
+New-ScheduledTaskAction -Execute $pythonw `
+  -Argument ('"{0}" --log "{1}" -- "{2}" {3}' -f $launcher, $log, $bash, 'path/to/script.sh') `
+  -WorkingDirectory $repo
+```
+
+**Both halves are required.** `pythonw` alone still flashes, because the child is a separate process that
+allocates its own console; `CREATE_NO_WINDOW` alone still flashes, because the launcher itself had one.
+
+And because `pythonw` discards stdout and stderr, the launcher has to capture the child's output itself —
+which replaces the `>>` redirect the `cmd.exe` form depended on, and generalises the no-window trick from
+"Python entry points only" to any command at all.
 
 ## Nothing you rely on interactively is necessarily on a task's PATH
 

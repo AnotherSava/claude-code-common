@@ -71,6 +71,8 @@ GET /Items?userId={id}&recursive=true&includeItemTypes=Movie&filters=IsPlayed&li
 
 The big win over Plex: **`fields=MediaSources` returns the full `MediaStreams` in the list call**, so resolution/HDR/audio/subtitles need no per-item follow-up. Same for `GET /Shows/{id}/Episodes?fields=MediaSources` — one request gives every episode's watch state *and* its streams.
 
+Read the inverse as a warning: **omit `MediaSources` from `fields` and the key is simply absent** — no error, and nothing to distinguish it from a genuinely unprobed file. An emptiness check then measures your own query rather than the library, and reads as "the server has not probed these files yet". Ask for the field before concluding anything from its absence.
+
 For Series, `fields=ProviderIds,RecursiveItemCount,ChildCount` gives:
 - `RecursiveItemCount` — total episodes
 - `UserData.UnplayedItemCount` — unwatched; **watched = total − unplayed**

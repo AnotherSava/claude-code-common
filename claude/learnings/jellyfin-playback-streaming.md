@@ -463,6 +463,37 @@ keep up" from "the server can't transcode this fast" client-side, with no server
 Corollary: a healthy segment already on disk is a plain file read, so TTFB is far below any network round trip. A
 useful server-side threshold is `TTFB > max(0.5·D, 4 × baseline_round_trip)`.
 
+### You cannot measure encoder speed by asking for segments — the asking IS what produces them
+
+The obvious probe — fetch segments back to back and divide video seconds by wall clock — does not measure how fast
+ffmpeg is running. **Requesting a segment ahead of the encoder repositions it to that offset.** Verified twice, on
+two items, from freshly started transcodes:
+
+```
+segment 500 of Cloud Atlas (~33 min into a 172 min film)  ->  200 in 1398 ms, 10.18 MB
+segment 900 of another item (~45 min in)                  ->  206 in  796 ms
+```
+
+Nothing reaches 33 minutes of output in 1.4 seconds. So any "N× real time" figure derived that way is an artefact of
+the probe, not a property of the encoder — sequential requests from segment 0 simply push the frontier ahead of
+itself, and a warm cache from an earlier probe hides even that.
+
+Two consequences:
+
+- **The probe is destructive during real playback**, and worst exactly when you would reach for it. It only lands
+  past the frontier when the encoder is *behind*, which is the one moment repositioning it hurts the viewer.
+- **The TTFB signal above is still sound**, because a real player requests sequentially at the playhead and never
+  jumps ahead of the encoder. The distinction is between passively timing what the player asked for (valid) and
+  actively fetching to find out (invalid and harmful).
+
+And the passive signal is not merely the safe one — it is the only one that stays *meaningful* when the encoder is
+behind. An active probe past the frontier changes the very quantity it is measuring; a passive wait at the playhead
+is exactly what the viewer experiences, which is what makes it fit to carry a user-facing verdict at all. If you are
+building a diagnostic, take the numbers off the fragments the player already asked for and add no fetch of your own.
+
+To ask how far the encoder has actually got, look at what exists on disk in the transcode directory, or read the
+server's own log — do not ask the server for it.
+
 ## `TranscodingInfo` only populates when a client reports playback
 
 `GET /Sessions` shows no `TranscodingInfo` if you fetch segments with raw HTTP — the session is only filled in once a

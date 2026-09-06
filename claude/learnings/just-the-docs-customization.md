@@ -13,7 +13,9 @@ Both work with `remote_theme: just-the-docs/just-the-docs` — Jekyll checks loc
 
 ## Content width
 
-The main content area width is controlled by the `$content-width` variable, applied to `.main` at medium+ breakpoints. There is **no `.main-content` class** — using that selector is a silent no-op.
+The main content area width is controlled by the `$content-width` variable, applied to `.main` at medium+ breakpoints — set the variable rather than writing a width rule of your own.
+
+**Correction, 2026-09-02:** this section used to claim there is no `.main-content` class and that the selector is a silent no-op. That is false. `_layouts/default.html` carries `<div id="main-content" class="main-content">` — verified by fetching the raw layout at both `main` and the `v0.10.1` tag and grepping for the literal string. It is a perfectly good hook for styling *content* (this is where a rule targeting every image on a page would go). What remains true is that width belongs to `$content-width`; do not re-derive it from a `max-width` here.
 
 ```scss
 // _sass/custom/setup.scss

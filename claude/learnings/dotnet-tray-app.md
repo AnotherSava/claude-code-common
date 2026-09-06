@@ -650,3 +650,98 @@ while (reader.MoveToNextEntry()) {
 ```
 
 Streaming each entry yourself (rather than `reader.WriteEntryToDirectory`) lets you report byte-level progress and cancel mid-file — extraction is synchronous and otherwise can't be cancelled until it finishes. Always consume each non-directory entry's stream (write to `Stream.Null` if skipping) so the reader stays in sync on a solid archive.
+
+## Read-only text panes, and other WPF/WinForms traps from a diagnostics window
+
+A window whose job is "show the user a document and let them read it" is not a form, and the default
+controls fight that. Everything here was measured on Windows 11, .NET 10, `ThemeMode="System"`.
+
+### A `TextBox` inside a `ScrollViewer` never scrolls
+
+The `ScrollViewer` measures its child with unbounded height, so the `TextBox` sizes itself to the
+whole document and its own scrollbars never appear. Put the pane in a plain `Grid` row sized `*`,
+with the chrome rows `Auto`, and let the `TextBox` scroll itself. This is why a settings-style
+page-in-a-ScrollViewer layout cannot simply be reused for a text pane.
+
+### `Cursor` is an inherited property, so the I-beam leaks onto the scrollbar
+
+`TextBox` sets `Cursor = IBeam` on the control, and the `ScrollBar` inside its own template inherits
+it. Every other Windows app shows the **arrow** over a scrollbar (never a hand — a hand means link),
+so the pane looks subtly wrong and nobody can say why. Fix inside the TextBox's resources:
+
+```xml
+<TextBox.Resources>
+  <Style TargetType="ScrollBar"><Setter Property="Cursor" Value="Arrow" /></Style>
+</TextBox.Resources>
+```
+
+Verify with `GetCursorInfo` + `LoadCursor(NULL, IDC_ARROW/IDC_HAND/IDC_IBEAM)` and compare handles —
+it is a two-minute measurement and beats arguing about what the cursor "should" be.
+
+### The Fluent focus underline says nothing on a read-only pane
+
+The Fluent `TextBox` draws an accent underline when focused. On something read-only that reads as an
+edit box waiting for typing. Rather than hunting the theme's focus-brush resource key, give the pane
+a template with no input chrome at all — selection and scrolling survive, everything else goes:
+
+```xml
+<TextBox.Template>
+  <ControlTemplate TargetType="TextBox">
+    <ScrollViewer x:Name="PART_ContentHost" Focusable="False"
+                  HorizontalScrollBarVisibility="{TemplateBinding ScrollViewer.HorizontalScrollBarVisibility}"
+                  VerticalScrollBarVisibility="{TemplateBinding ScrollViewer.VerticalScrollBarVisibility}" />
+  </ControlTemplate>
+</TextBox.Template>
+```
+
+`PART_ContentHost` is the only part a `TextBox` template strictly needs. Put the border on a wrapper
+so the card supplies the chrome.
+
+### Fluent scrollbar metrics, and when horizontal scrolling is the wrong answer
+
+Measured at 144 DPI (1.5x): native `SM_CYHSCROLL` is **26 px**, the Fluent *horizontal* scrollbar
+reserves **18 px** (12 DIP) and paints **4 px** at rest, 10 px hovered. The *vertical* one matches
+native at 26 px. So a horizontal scrollbar is a 4-physical-pixel hit target at rest.
+
+Before restyling it, ask whether the pane should scroll sideways at all. For content whose long lines
+are the point (file paths, log lines), `TextWrapping="Wrap"` plus
+`HorizontalScrollBarVisibility="Disabled"` is better than any scrollbar: horizontal scrolling hides
+the ends of exactly the lines the user opened the window to read.
+
+### WinForms: a `CheckBox` with `Text` makes its label part of the checkbox
+
+`new CheckBox { Text = "Log" }` means clicking the word "Log" toggles it. In any layout where that
+word doubles as a section header, reaching for the header silently changes the setting. Give the
+checkbox `Text = ""` and put the caption in its own `Label`.
+
+### WinForms `TabControl` has almost no selected state on Windows 11
+
+The stock rendering gives the selected tab so little contrast that the strip reads as a row of plain
+words. Owner-drawing it (`TabDrawMode.OwnerDrawFixed` + a `DrawItem` handler) is possible but is
+hand-painting with `SystemColors` guesses. A templated nav rail (`ListBox` + a `ListBoxItem`
+`ControlTemplate` carrying row fill, an accent marker and SemiBold) gives three simultaneous signals
+instead of one washed-out one, holds longer captions, and is reusable across dialogs.
+
+### A `ListBoxItem` whose content is a panel has no accessible name
+
+`AutomationProperties.SetName(row, "Log")` is needed, or a screen reader (and any UI Automation
+script) reads `System.Windows.Controls.ListBoxItem`. Keep it in sync when the row's state changes:
+`"Log, left out"`. Related: a templated `ToggleButton` reports to UI Automation as **Button** with a
+`TogglePattern`, not as a `CheckBox` — a script looking for `ControlType.CheckBox` finds nothing.
+
+### `UseWindowsForms` + `ImplicitUsings` puts `System.Windows.Forms` in global scope
+
+In a project with both `UseWPF` and `UseWindowsForms`, `MessageBox`, `Clipboard`, `Application` and
+friends are ambiguous in WPF files. Qualify: `System.Windows.MessageBox.Show(...)`. Note
+`System.Windows.Forms.Clipboard.SetText` retries internally where the WPF one throws
+`CLIPBRD_E_CANT_OPEN` when another process holds the clipboard — in a mixed app, deliberately using
+the WinForms one (with a comment saying why) is the more robust choice.
+
+### Sharing chrome between two WPF dialogs
+
+Once a second window wants the same look, move the styles to a `ResourceDictionary` (build action
+`Page`, referenced by `pack://application:,,,/<Assembly>;component/DialogStyles.xaml`) and the
+runtime brushes to a static helper taking the window's `ResourceDictionary`. Brushes written into a
+window's own `Resources` still win `DynamicResource` lookups over the merged dictionary, so the split
+works. Verify **both** windows in light and dark after the move — the extraction silently touches the
+already-shipped one.

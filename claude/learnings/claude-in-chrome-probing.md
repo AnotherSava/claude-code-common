@@ -372,3 +372,42 @@ action that must NOT refresh the page) is otherwise almost impossible to demonst
 
 Return **counts and booleans, never the entry names**: `entry.name` is a full URL, and the guard rejects any result
 carrying a query string — which every `_rsc=` request has by definition.
+
+## A `file:///` URL is refused outright, so a page you generated needs a different browser
+
+`navigate` rejects a local file before it ever reaches Chrome:
+
+```
+Can't interact with browser-internal or unparseable URLs. Navigate to a web page first.
+```
+
+The case this bites is not probing someone's site but looking at a page you produced yourself: a
+contact sheet, a rendered report, a throwaway HTML of icon candidates. The instruction to open it in
+a browser before handing it over still stands. claude-in-chrome simply cannot be that browser.
+
+Serving the directory over `python -m http.server` clears the URL check and not much else: Chrome
+refuses `file:///` sub-resources inside an `http://` document, so every absolute local image path in
+the page would have to be rewritten relative to the served tree first.
+
+Headless Chromium via Playwright is the short path. It opens `file:///` directly, renders at a
+viewport you choose, and can report what actually broke:
+
+```python
+with sync_playwright() as p:
+    b = p.chromium.launch()
+    page = b.new_page(viewport={"width": 1500, "height": 1000})
+    errors = []
+    page.on("pageerror", lambda e: errors.append(str(e)))
+    page.goto("file:///" + str(path).replace("\\", "/"))
+    page.screenshot(path="check.png", full_page=True)
+    broken = page.evaluate("Array.from(document.images).filter(i=>!i.naturalWidth).map(i=>i.src)")
+    b.close()
+```
+
+The `document.images` filter on `naturalWidth` is the part worth keeping. A sheet with one wrong path
+renders as alt text in a gap, which a screenshot shows only if you happen to scroll past it, and the
+check costs one line.
+
+The `chrome-devtools` MCP is not a fallback unless Chrome is already listening on
+`--remote-debugging-port=9222`. Without it the call fails at the connection rather than at the URL:
+`Failed to fetch browser webSocket URL from http://localhost:9222/json/version`.

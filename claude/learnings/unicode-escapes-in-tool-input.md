@@ -74,6 +74,44 @@ Use a stream editor, not Edit, for these files: `sed`/`python` operate on the by
 `\u0022` is just six ordinary characters to them. And validate *before* the copy — settings
 hot-reloads on write, so the first bad save is already in force.
 
+## `\n` has the same problem, and a whitespace-normalizing destination hides it
+
+The trap above is usually caught by a failed match, which is loud. It goes silent when the escape is
+part of **prose being written into a store that collapses whitespace**. Real case, 2026-09-03: a memo
+whose text quoted the shell fix `base64 -i "$CASK" | tr -d '\n'` went through `memos.py`, which does
+`text = " ".join(" ".join(args).split())` to force one line per entry. The `\n` had already become a
+real newline on the way in, `str.split()` treats it as whitespace like any other, and what got stored
+was `tr -d ' '` — a command that deletes **spaces**. No error, no failed match, and the memo's own
+remedy quietly wrong until someone runs it.
+
+Two defences, both cheap:
+
+- Pass the text as an **argv element** rather than through a shell string. Verified:
+  `subprocess.run([sys.executable, script, "add", text])` preserves a literal backslash-n exactly. It
+  is the layered shell-plus-language quoting that turns it into a real newline, not the destination.
+- **Read the entry back** after writing anything holding an escape or a shell fragment. A store that
+  flattens whitespace by design (correct, for one-line-per-entry) cannot warn you, so the write is
+  the last moment the mistake is visible.
+
 ## Why it's worth the trouble
 
 Nothing breaks if the literal character goes in — the code runs identically. What breaks is the convention: the file's own comment claims an escape "rather than the literal character, which is invisible in source", and the next reader sees an empty-looking string with no way to tell U+2003 from U+2009 or a plain space. Whole-file greps for the constant also stop working.
+
+## A third layer: `re.sub`'s replacement string
+
+Even with the backslash built from its code point, `re.sub(pattern, replacement, text)` **parses
+escapes in the replacement** — so a replacement containing `\uXXXX` raises
+`re.PatternError: bad escape \u` before any matching happens, and one containing `\1` silently
+becomes a group reference. Pass a function instead, whose return value is used verbatim:
+
+```python
+s = re.sub(pattern, lambda m: replacement, s)   # replacement used as-is
+```
+
+`str.replace` does **not** parse escapes, so a multi-line search string that fails there is a
+whitespace or line-ending mismatch rather than an escaping one. On a CRLF file read with
+`newline=''`, a search string joined with `\n` never matches. **Edit by line index instead** — it
+sidesteps quoting entirely, and it is the only approach that stayed reliable on a file mixing CRLF
+with literal escape text. Repeated failed `replace` calls also leave a file half-edited: check the
+region afterwards rather than assuming a no-op, since one such sequence left three stray lines that
+only surfaced as a syntax error two runs later.
