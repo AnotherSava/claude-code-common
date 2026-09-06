@@ -82,6 +82,12 @@ Read `~/.claude/skills/shared/bash-rules.md` for bash command constraints.
    - **Plan files (`docs/plans/**`)**: bundle each plan file into the SAME commit as the implementation it describes. Match by filename slug / content keywords against the changed source paths. Only emit a separate `docs(plans):` commit if the plan file is the ONLY change (e.g. editing a plan mid-design without implementing yet, or archiving unrelated historical plans).
    - **Project memory (`.claude/memory/**`)**: the *Wire project memory* context step version-controls it — the first time it runs in a project it migrates the machine-local memory cache into `<repo>/.claude/memory/` and junctions the cache to it (idempotent; it skips already-wired or memory-less repos, so most runs are a no-op). When it *did* migrate files, they show up as untracked in **Uncommitted changes** — fold them into a commit (their own `chore: version-control project memory`, or alongside the session's docs). The Sanitize step already stripped `originSessionId` telemetry, but these are running work-logs that often carry machine-specific absolute paths and ids — the confidentiality check (step 5) MUST still pass over them and genericize/redact before they land.
    - Draft and validate commit messages following the shared rules
+   - **Then count, before presenting anything.** For each message: subject characters, body
+     paragraphs, body lines. Over 50 / over 1 / over 3 means rewrite it, not defend it. Do this
+     as an explicit pass rather than an impression formed while writing — a body reads as
+     proportionate to whoever just did the work, because they are the one person for whom every
+     sentence is still live. Ask of each line: would a reader six months from now, looking at
+     this diff, make a worse decision without it? Almost always no, and then it goes.
 
 7. **Validate plan filenames:**
    For every plan file under `docs/plans/` that's part of this change set (new, modified, or renamed — check both `docs/plans/*.md` and `docs/plans/completed/*.md`):

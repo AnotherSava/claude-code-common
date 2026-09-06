@@ -31,6 +31,12 @@ Summarize the "why" not just the "what".
 paragraph.** The default is a subject line. Add a body only when the diff cannot answer a
 question a later reader will actually have — then answer that question and stop.
 
+**The limit is one paragraph of three lines or fewer, and it is a limit rather than a target.**
+Stated as a number because "short" loses every argument against a body that feels informative
+while it is being written: each sentence is defensible on its own, and the fourth one is what
+makes the message a recap. Over the limit, cut rather than reflow — a four-line body that
+becomes three by rewrapping has not been fixed.
+
 A body running past a few lines is almost always a session recap or a rediscovered argument,
 and neither belongs in the log: an investigation goes in a learning, a preference goes in a
 memory, and a decision goes in the document it governs. `git log` is read to find *which*
