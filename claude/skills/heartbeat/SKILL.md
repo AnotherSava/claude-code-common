@@ -164,6 +164,15 @@ Re-run without `--dry-run` on approval. Notes that matter:
   clock time). A flat period counts an expected weekend of quiet as silence. `--schedule` accepts a
   cron expression or a systemd `OnCalendar` expression, so a timer's cadence can be transcribed
   rather than translated.
+
+  **Unless the host is off at unforeseeable times — then use a flat period.** The test is whether the
+  *idleness* is predictable, not whether the trigger is: a daily job at a fixed clock time looks like
+  the calendar case and is not one, if it runs on a laptop or a desktop somebody switches off. A
+  schedule marks the check late at every scheduled instant the machine happened to miss, so a machine
+  closed for a weekend spends the weekend amber; a period restarts from the last ping and measures the
+  only answerable question, "how long since we heard anything". Verified the hard way: a daily 03:00
+  capture job on two personal machines was created with `0 3 * * *` against a project that had already
+  settled on a period, for exactly this reason.
 - **Never send both.** The API keeps the schedule and silently discards the period. `hc.py` refuses
   to send both for that reason.
 - The upsert is keyed on the name: re-running updates rather than duplicating (HTTP 201 created,
@@ -235,6 +244,34 @@ assertion it replaces. Stop the job, wait past the deadline, then start it again
 **Budget the real wait: `period + grace` from the last ping**, not the grace alone (for a scheduled
 check, grace after the next scheduled time). Expecting the alert a grace period after stopping the
 job means giving up early and concluding the switch is broken when it is merely not due yet.
+
+**Where that wait is long, compress the timers instead of stopping the job.** On a daily job with a
+multi-day grace the literal drill means days with the watched job *not running*, which inverts the
+point — and the wait tests arithmetic you already did, not the thing in doubt. What is uncertain is
+whether the integration delivers at all and whether recovery fires, and both are observable in about a
+minute with the job never stopped. Run it end to end, in this order:
+
+1. **Capture the current config from the API first**, not from memory — `timeout`, `grace`, `tags`,
+   `desc` and `channels`. You restore from this, and an un-restored check false-alarms daily.
+2. **Compress** to `--period-seconds 60 --grace-seconds 60`. `upsert` is keyed on name, so it updates
+   rather than duplicating. **Append** a `DRILL IN PROGRESS <date> — restore to <timeout>/<grace>` marker
+   to the captured `desc`; do **not** replace it. `hc.py list` does not return `desc` at all, so the
+   field reads as empty when it is not, and a replacement silently destroys the grace rationale — which
+   is the text that stops someone later "fixing" the number to a rounder one.
+3. **Watch it fall.** The deadline is `last_ping + period + grace`, already past, so it goes `down`
+   within seconds. The alert fires here.
+4. **Recover by running the real job**, not by pinging the URL by hand. A hand ping proves the URL
+   works; running the job proves the thing that will actually be pinging works.
+5. **Restore immediately and verify by reading it back**, asserting every captured field rather than
+   trusting the write. With a 60-second period the check falls again about a minute after recovery, so
+   this step has a real clock on it.
+
+**Put the restore in a `finally`.** Verified 2026-09-03: a drill whose recovery step failed mid-run would
+otherwise have left a production check on a 60-second period, false-alarming daily — worse than never
+drilling. The teardown must not depend on the drill succeeding.
+
+This proves delivery and recovery. It does **not** prove the grace is the right length; nothing can,
+where that number is an admitted risk budget rather than a derivation.
 
 **You must see** three things, and the third is the one usually skipped:
 
