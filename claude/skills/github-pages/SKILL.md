@@ -123,7 +123,7 @@ Resolve the current tag rather than hardcoding one — `gh api repos/just-the-do
 
 Nor can the two be separated. At `lg`, `.side-bar` and `.side-bar + .main`'s `margin-left` are both computed from `$nav-width + $content-width`, so forcing a wider `.main` in `_sass/custom/custom.scss` overflows the right edge on mid-size windows. If you do override it, override the variable in `_sass/custom/setup.scss`, in `rem` — GitHub Pages uses sass 3.x, which rejects mixed `px`/`rem` arithmetic.
 
-A wide table is usually better served by letting the theme's `.table-wrapper` scroll. And do NOT reach for `.main-content { max-width: ... }` — that class does not exist in just-the-docs at all, so the rule is a silent no-op.
+A wide table is usually better served by letting the theme's `.table-wrapper` scroll. And do NOT re-derive the width from `.main-content { max-width: ... }` — width belongs to `$content-width`. (The class itself does exist, contrary to what this line used to say; see `~/.claude/learnings/just-the-docs-customization.md`.)
 
 ### Footer attribution
 
@@ -231,6 +231,24 @@ nav_order: 1
 | `docs/index.md` | `screenshots/foo.png` |
 | `docs/pages/<feature>.md` | `../screenshots/foo.png` |
 | `docs/pages/<feature>/<sub>.md` | `../../screenshots/foo.png` |
+
+**Every screenshot needs a visible edge, and it belongs in the image, not the stylesheet.** A capture's own background is often the same colour as the page it sits on — a light app on a light theme, a dark app on a dark theme — and then nothing shows the reader where the picture stops. The edge is produced in two steps, in this order, by whatever takes the shot (see `~/.claude/skills/documentation/SKILL.md`): **background out to transparent, then a hairline contrasting with the foreground's own background.**
+
+Do **not** reach for a blanket `.main-content img { border: ... }` rule. It looks tidier and is wrong three ways: a single colour cannot suit both colour schemes, since `color_scheme` in `_config.yml` is one line and a light hairline vanishes under a dark theme and vice versa; it draws a *square* box around any image with transparent rounded corners, leaving page background inside the frame; and it doubles up on any image that already carries its own edge. A per-image border has none of those problems, and is theme-independent by construction — whichever of border-vs-page or image-vs-page lacks contrast, the other one has it. It also reaches `README.md`, which a stylesheet never can: GitHub's markdown sanitizer strips `style` and github.com never loads the site's CSS.
+
+**A before/after pair also needs an arrangement**, and the choice is aspect ratio, not preference:
+
+- **Narrow and tall** (a panel column, a sidebar) → a two-column table, so the height difference *is* the comparison and reads at a glance. Keep no `|` inside a cell's HTML — it ends the cell.
+
+  ```markdown
+  | Before — <what> | After — <what> |
+  |:---|:---|
+  | <a href="../../screenshots/<a>.png"><img src="../../screenshots/<a>.png" alt="..." width="320"></a> | <a href="../../screenshots/<b>.png"><img src="../../screenshots/<b>.png" alt="..." width="320"></a> |
+  ```
+
+- **Wide and short** (a header bar, a board) → stacked, with a bold `**Before**` / `**After**` label above each. Side by side would halve them into a ~370px column and make the text illegible.
+
+Lead in with the measurement rather than the position: "the same header either way — 205 pixels of it, and then 54" survives both arrangements, where "above and below" becomes wrong the moment a pair goes side by side.
 
 **Internal link conventions** (no `.md` extension, no leading `./`):
 
