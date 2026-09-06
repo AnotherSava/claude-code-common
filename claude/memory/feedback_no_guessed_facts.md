@@ -1,6 +1,6 @@
 ---
 name: feedback_no_guessed_facts
-description: don't state a guessed URL/path/endpoint/flag or capability claim as known, widen a supplied fact past what was measured, trust an index line over the file it points at, or report one environment's measurement as a property of the tool
+description: don't state a guessed URL/path/endpoint/flag or capability claim as known, widen a supplied fact past what was measured, trust an index line over the file it points at, report one environment's measurement as a property of the tool, or measure a cheaper artifact than the one the claim is about
 metadata:
   type: feedback
 ---
@@ -24,3 +24,9 @@ A fourth vector: **an index or summary line that disagrees with the file it poin
 **Why (index half):** a project `MEMORY.md` line said `data/projects.7z` holds "~410 sessions retention has since deleted"; the file it linked said 48 (of 83 in the archive). The index was a file count wearing a session label. I quoted it into two cross-machine briefs — where the number *was* the argument for which machine to protect first — and a peer had to measure it to push back. Nothing outside the memory system was consulted, and nothing needed to be.
 
 Finally, **scope a measurement to the environment that produced it.** Reporting "the tool emits nothing non-interactively" from three probes that all ran through one shell asserted a property of the *tool* from evidence about the *tool plus that shell*; a peer ran the same binary non-interactively through a different shell, where it worked. The prescription built on it survived, the stated fact did not. Name the environment an observation came from — especially when the recommendation would be identical either way, since that is exactly when the over-claim goes unchallenged.
+
+A sixth vector, and the one with the most instances behind it: **substituting a cheaper artifact for the one the claim is about.** Not a guess and not an over-broad claim — a real measurement of the wrong object, which is exactly why it survives review: it produces a number, the number is true, and it answers a question nobody asked.
+
+**Why:** four in one evening, 2026-09-02, all mine. Claimed two files were identical having compared their SIZE — 3604 == 3604 is precisely what a same-length edit preserves, and a hash settled it in one command. Claimed a repo's `.gitattributes` lacked a guard having read my WORKING TREE rather than origin. Claimed a repo was current on a `behind=0` taken from a tracking ref twelve days and 29 commits stale, because nothing had fetched it — and `0/0` against a stale ref renders identically to `0/0` against a live one, so the failure wears the reassuring output. Blamed a peer's relay for doubling addresses from a symptom visible on MY side, when the mint was in my own POST body. Peers caught the last two; I would have found neither.
+
+**How to apply:** before reporting a measurement, name what the claim is about and what you actually measured, and check they are the same noun. Content → hash it, don't size it. The repo → `git show origin/main:path`, not `cat`. Current → fetch first and check the exit status. Their bug → read their source. And when a count is the claim, print the list and count the printed list rather than counting while reading.
