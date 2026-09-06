@@ -340,6 +340,22 @@ Parks an off-task idea in the project's memo backlog so it isn't lost — withou
 
 ---
 
+### Wrap Up
+
+Closes out a section of work. Before anything is committed it re-reads the current session's transcript from disk and surfaces the business left unfinished: questions Claude asked that were never answered, concerns raised and passed over, ideas that should have been memo'd, and follow-ups promised but never delivered. Each finding is settled individually, then `/commit` runs and the section ends at a `/clear`.
+
+**Command:** `/wrap-up`
+
+**Features:**
+- Reads the transcript on disk rather than the live context, so a session that has been compacted still gets a complete review
+- Keeps every word both sides said and discards tool traffic; prose is a small fraction of a transcript (82 KB of a 3.5 MB session, measured), so no keyword heuristic has to decide which findings are allowed to surface
+- Restores answers given through question prompts, which carry direction that often appears nowhere else in the session
+- Checks each candidate against the current working tree before presenting it, dropping whatever is already settled: a later message, an existing memo, an earlier `/wrap-up`, or a step of the commit flow that owns it
+- Gates the commit: every finding is answered now, memo'd for later, or dropped, and nothing is committed until the list is disposed of
+- Hands the rest to `/commit` (remote sync, reflect, clean-code, documentation, confidentiality scan, push), then recommends the `/clear` that scopes the next wrap-up to exactly one section
+
+---
+
 ### GitHub Status
 
 Cross-project overview of all your GitHub-owned local clones — branch, behind/ahead counts, uncommitted file/line totals, oldest pending work, and a per-repo description synthesized from the pending changes.

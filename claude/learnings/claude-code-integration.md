@@ -333,6 +333,14 @@ Path: `~/.claude/projects/<mangled-cwd>/<session-id>.jsonl`.
 
 CWD mangling replaces **every non-alphanumeric character** with `-` — separators, dots, and underscores all collapse (`/projects/example/ai.answers.daily` → `-projects-example-ai-answers-daily`, and on Windows a drive colon collapses too, so a `D:` prefix becomes `D--`); existing `-` maps to itself. The mangling is **lossy** — `/projects/foo-bar`, `/projects/foo/bar`, and `/projects/foo.bar` all mangle to `-projects-foo-bar`. Reverse lookup from mangled path back to cwd is unreliable. **Always use the `transcript_path` passed by the hook, never reconstruct it from cwd.**
 
+**A skill or script has no hook payload, so that instruction leaves it with nothing.** The answer is that Claude Code exports `CLAUDE_CODE_SESSION_ID` into the environment of every Bash command it runs, which lets anything running inside a session name its own transcript:
+
+```bash
+ls ~/.claude/projects/*/"$CLAUDE_CODE_SESSION_ID".jsonl
+```
+
+Globbing every project directory instead of computing the mangled one sidesteps the lossy mapping completely, since the session id is unique and exactly one file matches. Fall back to the newest `*.jsonl` under the mangled cwd only when the variable is missing, and report which method was used: the fallback can silently pick a different session, and that is worth saying out loud rather than presenting as the same answer.
+
 ## Transcript entry types
 
 Each line is a JSON object with a top-level `type`. Entries that carry conversation content:
@@ -347,6 +355,21 @@ Metadata entries — skip when inferring state, but some carry data:
 - `permission-mode`
 - `last-prompt`
 - `queue-operation` — enqueue/remove tracking for queued user messages; the `enqueue` entry carries the queued text in `content`
+
+## Telling conversation from injected text
+
+Reading "what both sides actually said" is not the same as reading every `type: "user"` text block. Four kinds of entry wear the user's role without the user having typed anything:
+
+- **Tool results** are `type: "user"` records whose content blocks are `tool_result`. That is output, not speech.
+- **Injected skill and system text** carries `isMeta: true`. A `SKILL.md` body loaded by the Skill tool arrives as a user message the size of the whole skill.
+- **Slash-command markers** appear as `<command-name>...</command-name>`, with the arguments in `<command-args>`. Built-ins keep their leading slash in the name (`/clear`) while skills do not (`workflow-authoring`), so strip it before comparing.
+- **Local command output** is wrapped in `<local-command-stdout>` or `<local-command-caveat>`, and `<system-reminder>` blocks sit embedded inside otherwise-real user text, so they need stripping from it rather than skipping.
+
+**`AskUserQuestion` is the exception that matters, because its result is conversation.** The `tool_result` is a plain string holding both the questions and the chosen answers (`The user answered: "<question>"="<answer>", ...`), including any free text typed under "Other". Discard tool results wholesale and that direction is gone, because an answer given through the prompt is never repeated as a message anywhere in the file. Rescue it by recording the `tool_use` ids of `AskUserQuestion` calls and keeping the `tool_result` whose `tool_use_id` matches. Verified 2026-09-03: a design instruction that changed how a skill was built existed only inside one such result.
+
+**Prose is a rounding error in a transcript**, which is what makes keeping all of it cheap. Measured across seven sessions on 2026-09-03: assistant and user text totalled 11-82 KB inside files running 0.8-3.5 MB, the remainder being tool input, tool output and injected content. Anything reviewing what was said can therefore keep every word and drop the tool traffic, with no keyword filtering deciding what survives.
+
+Thinking arrives as `thinking` content blocks whose text is empty (same seven sessions), so reasoning that was never said out loud is not recoverable from a transcript.
 
 ## Sidechain and synthetic assistant entries
 
