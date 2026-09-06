@@ -1,0 +1,157 @@
+<!-- Contact-sheet template. Copy, fill the marked slots, write to
+     $TEMP/screenshot-contact-sheet-<repo>-<date>.html and hand over the file:/// URL.
+
+     Every part of this earned its place; see references/screenshot-manifest.md for the reasoning.
+     The five that are easiest to drop and most expensive to lose:
+
+       1. THE THEME TOGGLE. A per-image border claims to work on a light page and a dark one. A
+          sheet that renders one of them cannot test that claim, and the reader cannot either.
+       2. THE FOUR-CORNER GRIDS. A one-pixel change is invisible at page scale, and a defect can
+          sit in any corner — sampling one and generalising is how a bad crop survives review.
+       3. TWO TIME SCALES, NOT ONE. The dot says what happened to a frame across the whole session
+          (added / re-captured / touched only in passing); the amber bar and NEW tag say what moved
+          in the last pass alone. The reader needs both — one to see the shape of the work, one to
+          know what to re-check. Give the dot a legend, and watch for it going uniform: a dot that
+          ends up the same colour on every frame has stopped carrying information and wants
+          repurposing to whatever distinction is now live.
+       4. THE "UPDATED THIS PASS" MARKING. A sheet is regenerated many times in one session, and
+          without it the reader must remember which frames moved since they last looked — so they
+          re-check all of them, or none. Keep a sidecar of content hashes beside the sheet and diff
+          against it; hashes, not mtimes, which are identical across a checkout and prove nothing.
+       5. THE SCOPED BADGE CLASSES. `.on` is the section-visible and nav-active class. Writing the
+          badge as a bare `.on { background: … }` paints every visible section that colour, which
+          went unnoticed through several revisions because the sheet was checked by grepping the
+          HTML instead of opening it. Open it in a browser before handing it over.
+-->
+<!doctype html>
+<meta charset="utf-8">
+<title>Documentation screenshots — REPO — DATE</title>
+<style>
+ :root{--bg:#fff;--fg:#1a1a1a;--nav:#f7f7f8;--line:#e0e0e0;--muted:#777;--lede:#f7f9fb;--ledeb:#dde5ec;
+       --hover:#ececf0;--active:#dde7f5;--code:#f3f3f3;--th:#f5f5f5}
+ body.dark{--bg:#0d1117;--fg:#e6edf3;--nav:#161b22;--line:#30363d;--muted:#8b949e;--lede:#161b22;
+       --ledeb:#30363d;--hover:#21262d;--active:#1f2f45;--code:#21262d;--th:#161b22}
+ body{font:14px/1.55 system-ui,sans-serif;margin:0;color:var(--fg);background:var(--bg);
+      display:flex;align-items:flex-start}
+ nav{position:sticky;top:0;flex:0 0 252px;height:100vh;overflow:auto;box-sizing:border-box;
+     background:var(--nav);border-right:1px solid var(--line);padding:1.1rem .6rem}
+ nav a{display:flex;gap:.5rem;align-items:baseline;padding:.38rem .55rem;border-radius:4px;
+       color:var(--fg);text-decoration:none;font-size:13px}
+ nav a:hover{background:var(--hover)} nav a.on{background:var(--active);font-weight:600}
+ /* Changed since the sheet was last written — see the header comment. */
+ nav a.fresh{box-shadow:inset 3px 0 0 #d29922}
+ nav .tag{margin-left:auto;font:700 9px system-ui;letter-spacing:.06em;text-transform:uppercase;
+          color:#8a6d1a;background:#fdf3d6;border-radius:3px;padding:.15em .35em}
+ body.dark nav .tag{color:#f0d68a;background:#3a2f10}
+ .badge.fresh{background:#d29922;color:#231a00}
+ .legend{font-size:11px;color:var(--muted);padding:0 .55rem .3rem;display:flex;flex-direction:column;gap:.25rem}
+ .legend span{display:flex;align-items:center;gap:.4rem}
+ .legend i{width:8px;height:8px;border-radius:50%;flex:0 0 8px}
+ .legend i.fresh-key{border-radius:1px;width:3px;height:11px;background:#d29922}
+ nav .n{color:var(--muted);font-variant-numeric:tabular-nums;min-width:1.5em;text-align:right}
+ nav .dot{width:8px;height:8px;border-radius:50%;flex:0 0 8px;align-self:center}
+ nav hr{border:0;border-top:1px solid var(--line);margin:.55rem .4rem}
+ nav .hd{font:600 10px/1 system-ui;letter-spacing:.09em;text-transform:uppercase;color:var(--muted);
+         padding:.3rem .55rem .15rem}
+ #theme{width:100%;margin:0 0 .8rem;padding:.5rem;border:1px solid var(--line);border-radius:5px;
+        background:var(--bg);color:var(--fg);font:600 12px system-ui;cursor:pointer}
+ #theme:hover{background:var(--hover)}
+ main{flex:1;min-width:0;padding:1.8rem 2.4rem;max-width:1250px}
+ section{display:none} section.on{display:block}
+ /* "All frames" means the frames: the intro is a page in its own right, reachable from the spine. */
+ body.all section:not(#intro){display:block}
+ h1{font-size:1.5rem;margin:0 0 .3rem} h2{margin:0 0 .25rem;font-size:1.15rem} body.all h2{margin-top:2.6rem}
+ /* Scoped deliberately — see the header comment. */
+ .badge{font:600 11px/1 system-ui;padding:.3em .6em;border-radius:3px;vertical-align:middle;margin-left:.5rem}
+ .badge.on{background:#0b6bcb;color:#fff}
+ .badge.off{background:#fdf3d6;color:#7a5c00;border:1px solid #e4cf95}
+ body.dark .badge.off{background:#3a2f10;color:#f0d68a;border-color:#5c4a1a}
+ .meta{color:var(--muted);font-size:12px;font-family:ui-monospace,Consolas,monospace;margin:.1rem 0 .7rem}
+ .proof{color:var(--muted);margin:.35rem 0 .8rem}
+ .lede{background:var(--lede);border:1px solid var(--ledeb);padding:.9rem 1.1rem;border-radius:4px}
+ .lede p{color:var(--fg)}
+ .pair{display:flex;gap:1.5rem;align-items:flex-start;margin-bottom:1.2rem}
+ figure{margin:0 0 1rem} figcaption{font:600 12px system-ui;color:var(--muted);margin-bottom:.4rem}
+ /* No background on img: a transparent shot must composite on the real page colour, which is the
+    property the theme toggle exists to test. */
+ img{max-width:100%} img.px{image-rendering:pixelated}
+ code{background:var(--code);padding:.1em .35em;border-radius:3px}
+ table{border-collapse:collapse;margin:.5rem 0 1rem}
+ td,th{border:1px solid var(--line);padding:.3rem .6rem;font-size:13px;text-align:left}
+ th{background:var(--th)}
+</style>
+
+<nav>
+  <button id="theme"></button>
+  <a href="#all"><span class="n"></span>All frames</a>
+  <a href="#intro"><span class="n"></span>Scope &amp; method</a>
+  <div class="legend">
+    <span><i style="background:#2da44e"></i>new this session</span>
+    <span><i style="background:#0b6bcb"></i>re-captured or keyed</span>
+    <span><i style="background:#8b949e"></i>border only</span>
+    <span><i class="fresh-key"></i>changed in the last pass</span>
+  </div>
+  <hr><div class="hd">ALL n FRAMES</div>
+  <a href="#s1" class="fresh"><span class="n">1</span><span class="dot" style="background:#0b6bcb"></span>ID<span class="tag">new</span></a>
+  <a href="#s2"><span class="n">2</span><span class="dot" style="background:#c9a227"></span>ID</a>
+</nav>
+
+<main>
+
+<section id="intro" class="on">
+  <h1>Documentation screenshots — REPO</h1>
+  <p class="meta">DATE · HEAD sha · one line on what this run did</p>
+  <div class="lede">
+    <p><b>Headline claim.</b> What changed and why, in one sentence.</p>
+    <p><b>What this check can and cannot prove.</b> It reads text, so it can prove a shot stale and never prove one current — which is why every frame is shown.</p>
+    <p><b>Reversible.</b> Originals at <code>%TEMP%\screenshot-originals-REPO-DATE\</code>; tracked files also revert with <code>git checkout -- &lt;path&gt;</code>.</p>
+  </div>
+  <table><tr><th>#</th><th>Frame</th><th>Before → after</th><th>Verdict</th></tr>
+    <tr><td>1</td><td>ID</td><td>W × H → W × H</td><td>…</td></tr>
+  </table>
+  <p class="meta">← / → step through · "All frames" reads straight down · the theme button tests the borders</p>
+</section>
+
+<!-- A frame that changed. Corner grids first: they carry the proof. -->
+<section id="s1">
+  <h2>1. ID <span class="badge on">replaced</span> <span class="badge fresh">updated this pass</span></h2>
+  <p class="meta">file.png · W × H → W × H · hairline <code>#rrggbb</code></p>
+  <p class="proof">PROOF — the literal that vanished and the commit, or the set shown only in part.</p>
+  <p class="proof">All four corners at 6× nearest-neighbour, laid out as they sit in the frame.</p>
+  <div class="pair">
+    <figure><figcaption>Before</figcaption><img class="px" src="file:///ABS/PATH/id-b.png"></figure>
+    <figure><figcaption>After</figcaption><img class="px" src="file:///ABS/PATH/id-a.png"></figure>
+  </div>
+  <figure><figcaption>Result</figcaption><img src="file:///ABS/PATH/id.png"></figure>
+</section>
+
+<!-- A frame left alone, with the reason and the evidence for it. -->
+<section id="s2">
+  <h2>2. ID <span class="badge off">blocked — needs re-capture</span></h2>
+  <p class="meta">file.png · W × H · unchanged</p>
+  <p class="proof"><b>Left alone on purpose.</b> WHY, and what would unblock it.</p>
+  <div class="pair"><figure><figcaption>All four corners at 6×</figcaption><img class="px" src="file:///ABS/PATH/id-a.png"></figure></div>
+  <figure><figcaption>Current</figcaption><img src="file:///ABS/PATH/id.png"></figure>
+</section>
+
+</main>
+
+<script>
+function show(h){var id=(h||'').replace(/^#/,'')||'intro',all=id==='all';
+document.body.classList.toggle('all',all);
+document.querySelectorAll('section').forEach(function(s){s.classList.toggle('on',!all&&s.id===id)});
+document.querySelectorAll('nav a').forEach(function(a){a.classList.toggle('on',a.getAttribute('href')==='#'+id)});
+if(!all)scrollTo(0,0);}
+addEventListener('hashchange',function(){show(location.hash)});
+addEventListener('keydown',function(e){if(e.key!=='ArrowLeft'&&e.key!=='ArrowRight')return;
+var l=[].slice.call(document.querySelectorAll('nav a')),i=l.findIndex(function(a){return a.classList.contains('on')});
+if(i<0)return;e.preventDefault();location.hash=l[(i+(e.key==='ArrowRight'?1:-1)+l.length)%l.length].getAttribute('href');});
+var btn=document.getElementById('theme');
+function paint(){btn.textContent=document.body.classList.contains('dark')?'Page: dark':'Page: light';}
+function setTheme(d){document.body.classList.toggle('dark',d);
+try{localStorage.setItem('sheet-dark',d?'1':'0')}catch(e){}paint();}
+btn.onclick=function(){setTheme(!document.body.classList.contains('dark'))};
+var saved=null;try{saved=localStorage.getItem('sheet-dark')}catch(e){}
+setTheme(saved==='1');
+show(location.hash);
+</script>

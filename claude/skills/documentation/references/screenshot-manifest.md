@@ -38,7 +38,7 @@ date automatically, on approval, or never. Without it that question is re-asked 
 | `policy` | no | `auto`, `confirm` or `never`. **Absent means the user has not decided yet** — see below. |
 | `precision` | no | `impressionistic` when the frame argues breadth rather than fact — a hero collage, a marquee. Absent means literal, the default. **The user's to give, like `policy`** — it lowers what future runs catch. See below. |
 | `verifiedAt` | no | The commit this shot was last actually examined against. **Absent means never examined** — see below. |
-| `capture` | only for `auto` / `confirm` | `command` is the reproducible way to produce the image; `steps` are the ordered instructions used to write that command the first time. A `never` entry needs neither. |
+| `capture` | `command` only for `auto` / `confirm` | `command` is the reproducible way to produce the image; `steps` are the ordered instructions used to write that command the first time. A `never` entry has no `command` — nothing here may run one — but `steps` are worth keeping there, since on a `never` entry they are the setup handed to the person who takes the picture. |
 
 Keep it to these fields. When a run needs a fact the schema cannot hold, add the field then — with the
 step that reads it — rather than reserving one in advance. Fields that were considered and left out,
@@ -137,9 +137,13 @@ you skipped it. It is named for the photographer's contact sheet, every frame la
 person who has to choose can see them side by side; calling it a *report* invited writing it only once
 the work was already done.
 
-Write it outside the repo — `$TEMP/screenshot-contact-sheet-<date>.html` — so it never joins the change
-set, and reference every image by an absolute `file:///` URL so the committed file, a saved original
-and a new capture all resolve. Give the user the page itself as a `file:///` URL too, on its own line
+Write it outside the repo — `$TEMP/screenshot-contact-sheet-<repo>-<date>.html` — so it never joins the
+change set, and reference every image by an absolute `file:///` URL so the committed file, a saved
+original and a new capture all resolve. **The repo name is not decoration:** `$TEMP` is shared by every
+project on the machine, so a date-only name is a generic name in someone else's namespace. Two repos
+running this skill on the same day silently overwrite each other's sheet, and the link handed over in
+chat then opens another project's run — which has happened. Put the saved originals under a
+correspondingly scoped directory for the same reason. Give the user the page itself as a `file:///` URL too, on its own line
 and nothing else on it: a Windows path with backslashes is not clickable, and the point of the page is
 that it opens.
 
@@ -170,117 +174,61 @@ The page is **read-only**. It states the case; it does not collect the decision.
 per screenshot — before a capture, which frames to shoot; after one, keep, revert or re-capture — one
 question covering all of them, in the same shape as the policy question.
 
-```html
-<!doctype html>
-<meta charset="utf-8">
-<title>Documentation screenshots — DATE</title>
-<style>
- body{font:14px/1.5 system-ui,sans-serif;margin:0;color:#1a1a1a;display:flex;align-items:flex-start}
- nav{position:sticky;top:0;flex:0 0 240px;height:100vh;overflow:auto;box-sizing:border-box;
-     background:#f7f7f8;border-right:1px solid #e0e0e0;padding:1.1rem .6rem}
- nav a{display:flex;gap:.5rem;align-items:baseline;padding:.4rem .55rem;border-radius:4px;
-       color:#333;text-decoration:none;font-size:13px}
- nav a:hover{background:#ececf0} nav a.on{background:#dde7f5;font-weight:600}
- nav .n{color:#999;font-variant-numeric:tabular-nums;min-width:1.3em;text-align:right}
- nav a.on .n{color:#555}
- nav .dot{width:8px;height:8px;border-radius:50%;flex:0 0 8px;align-self:center}
- nav hr{border:0;border-top:1px solid #e0e0e0;margin:.55rem .4rem}
- main{flex:1;min-width:0;padding:1.8rem 2.4rem;max-width:1200px}
- section{display:none} section.on{display:block} body.all section{display:block}
- h1{font-size:1.5rem;margin:0 0 .3rem}
- h2{margin:0 0 .25rem;font-size:1.15rem} body.all h2{margin-top:2.6rem}
- .badge{font:600 11px/1 system-ui;padding:.3em .6em;border-radius:3px;vertical-align:middle;margin-left:.5rem}
- .stale{background:#b42318;color:#fff} .replaced{background:#0b6bcb;color:#fff}
- .unchanged{background:#e6e6e6;color:#444}
- .skipped{background:#f4f4f4;color:#777;border:1px solid #ddd}
- .meta{color:#777;font-size:12px;font-family:ui-monospace,Consolas,monospace;margin:.1rem 0 .7rem}
- .proof{color:#555;margin:.35rem 0 .5rem}
- .pre{background:#fbfaf7;border-left:3px solid #d9a441;padding:.6rem .9rem;margin:.6rem 0 1rem;color:#4a4a4a}
- .pair{display:grid;grid-template-columns:1fr 1fr;gap:1.5rem}
- .pair figure{margin:0}
- figcaption{font:600 12px system-ui;color:#666;margin-bottom:.4rem}
- figure{margin:0 0 1rem} img{max-width:100%;border:1px solid #ddd;background:#fff}
-</style>
+`contact-sheet.html` beside this file is the working template — copy it, fill the marked slots, and
+open it in a browser before handing it over. Four of its parts are not decoration:
 
-<nav>
-  <a href="#all"><span class="n"></span>All frames</a>
-  <hr>
-  <a href="#s1"><span class="n">1</span><span class="dot" style="background:#b42318"></span>ID</a>
-  <a href="#s2"><span class="n">2</span><span class="dot" style="background:#0b6bcb"></span>ID</a>
-  <a href="#s3"><span class="n">3</span><span class="dot" style="background:#c9c9c9"></span>ID</a>
-</nav>
+**A theme toggle in the nav, always visible.** Screenshots are judged against a page, and a
+documentation site can be light or dark. A per-image border claims to hold on both; a sheet rendered
+in one of them tests nothing, and neither can the reader. Put the button at the top of the sticky
+column so it stays reachable while stepping through frames, and persist the choice in `localStorage`
+so a reload does not silently revert what was being examined.
 
-<main>
-<section id="intro" class="on">
-  <h1>Documentation screenshots — DATE</h1>
-  <p>REACH SENTENCE — which directories were scanned, which images were opened, and that this
-  check reads text so it can prove a shot stale and never prove one current.</p>
-</section>
+**Four corner crops at 6× nearest-neighbour, before and after.** A one-pixel change — a hairline
+added, a stray line cropped away — is invisible at page scale, so a sheet showing only full images
+asserts a difference the reader cannot see. Crop all four corners, not one: a bad crop can sit on any
+edge, and sampling the top-left and generalising is how one survives review. Lay them out as they sit
+in the frame, separated by a **transparent** gutter, so the page shows through and the separator
+follows the theme instead of needing a colour invented for it.
 
-<section id="s1">
-  <h2>1. ID <span class="badge stale">stale — awaiting your call (POLICY)</span></h2>
-  <p class="meta">file.png · WxH · where it is embedded</p>
-  <p class="proof">PROOF — the literal that vanished and the commit, or the set shown only in part.
-  For an <code>impressionistic</code> frame, say so and judge the claim instead.</p>
-  <p class="pre">TO RE-CAPTURE — the session, app state and preconditions this shot needs.</p>
-  <figure><figcaption>Current — WxH</figcaption><img src="file:///ABS/PATH/current.png"></figure>
-</section>
-
-<section id="s2">
-  <h2>2. ID <span class="badge replaced">replaced (POLICY)</span></h2>
-  <p class="meta">file.png · WxH · where it is embedded</p>
-  <p class="proof">PROOF — what changed and why this replacement was made.</p>
-  <div class="pair">
-    <figure><figcaption>Before — WxH</figcaption><img src="file:///ABS/PATH/original.png"></figure>
-    <figure><figcaption>After — WxH</figcaption><img src="file:///ABS/PATH/new.png"></figure>
-  </div>
-</section>
-
-<section id="s3">
-  <h2>3. ID <span class="badge unchanged">not disproven</span></h2>
-  <p class="meta">file.png · WxH · where it is embedded</p>
-  <p class="proof">Why nothing was disproven — or, for a skipped frame, which backing sources are
-  absent from the diff.</p>
-  <figure><figcaption>Current — WxH</figcaption><img src="file:///ABS/PATH/current.png"></figure>
-</section>
-</main>
-
-<script>
-function show(hash){
-  var id = (hash || '').replace(/^#/, '') || 'intro';
-  var all = id === 'all';
-  document.body.classList.toggle('all', all);
-  document.querySelectorAll('section').forEach(function(s){
-    s.classList.toggle('on', !all && s.id === id);
-  });
-  document.querySelectorAll('nav a').forEach(function(a){
-    a.classList.toggle('on', a.getAttribute('href') === '#' + id);
-  });
-  if (!all) scrollTo(0, 0);
-}
-addEventListener('hashchange', function(){ show(location.hash) });
-addEventListener('keydown', function(e){          // left/right only — up/down stay as scroll
-  if (e.key !== 'ArrowLeft' && e.key !== 'ArrowRight') return;
-  var links = [].slice.call(document.querySelectorAll('nav a'));
-  var i = links.findIndex(function(a){ return a.classList.contains('on') });
-  if (i < 0) return;
-  e.preventDefault();
-  location.hash = links[(i + (e.key === 'ArrowRight' ? 1 : -1) + links.length) % links.length]
-    .getAttribute('href');
-});
-show(location.hash);
-</script>
+```python
+BOX, ZOOM, GAP = 40, 6, 14
+im = Image.open(src).convert("RGB"); w, h = im.size
+b = min(BOX, w // 2, h // 2); side = b * ZOOM
+crops = [im.crop((0,0,b,b)), im.crop((w-b,0,w,b)), im.crop((0,h-b,b,h)), im.crop((w-b,h-b,w,h))]
+sheet = Image.new("RGBA", (side*2+GAP, side*2+GAP), (0,0,0,0))
+for k, c in enumerate(crops):
+    sheet.paste(c.resize((side,side), Image.NEAREST).convert("RGBA"),
+                ((k%2)*(side+GAP), (k//2)*(side+GAP)))
 ```
 
-One frame at a time is the default, so a figure gets the full content column and is sized for reading.
-In **All frames** the pairs fall into their two-column grid and solo figures sit beside them at the
-same scale, so the eye compares like with like down the page. Do not reintroduce a global
-half-width rule for solo figures: a sheet written *before* any capture usually carries no pairs at
-all, and then there is no grid to match — every frame would shrink to half width for nothing.
+**Panel switching over scrolling**, with a numbered spine and a verdict-coloured dot per entry, so the
+shape of the run reads before anything is clicked and "re-shoot 2 and 6" lands somewhere. Keep an
+**All frames** view for reading straight down, and bind ← / → to step the list.
 
-The list is the only navigation, so it must be complete: one entry per manifest entry, in the same
-order, plus **All frames** at the top. A frame reachable only by scrolling in the All view is a frame
-the user was told about by number and then has to hunt for.
+**Carry two time scales, and keep them distinct.** The spine's dot says what happened to a frame
+across the whole session — added, re-captured, or touched only in passing; the last-pass marking says
+what moved since the reader last looked. They answer different questions ("what is the shape of this
+work" against "what do I need to re-check now"), and collapsing them into one signal loses whichever
+the reader needed. Give the dot a legend. **Watch for it going uniform:** a dot whose every frame ends
+up the same colour has stopped carrying information — in one run it meant "bordered" and every frame
+became bordered, at which point it was decoration — and should be repurposed to whatever distinction
+is now live.
+
+**Mark what changed since the reader last looked.** A sheet is regenerated repeatedly inside one
+session — a crop here, a colour fixed there — and by the third pass the reader cannot tell which
+frames moved, so they either re-examine all of them or trust that the summary named them all. Keep a
+sidecar of per-image content hashes beside the sheet, diff against it on each write, and mark the
+differing frames in the spine and with a badge. Hashes rather than mtimes: an mtime is the checkout
+time and identical across the tree, which is the same reason it proves nothing about staleness. Allow
+an explicit override (`--changed=a,b`) for the first run, when the sidecar has no baseline yet.
+
+**Make the marks sticky.** A sheet is regenerated for its own reasons too — a CSS fix, a caption reworded, a view corrected — and on those writes no image has moved, so a naive diff clears every mark before the reader has looked. Store the marked set alongside the hashes and carry it forward on any write where nothing moved; only a write that actually changes an image replaces it.
+
+**Scoped badge classes.** `.on` is already the section-visible and nav-active class, so a badge
+written as a bare `.on { background: … }` paints every visible *section* that colour. This shipped
+through several revisions of a real sheet before anyone saw it, because the sheet was being validated
+by grepping the HTML for dangling image paths and never opened. Write `.badge.on` / `.badge.off`, and
+open the finished page in a browser — the one check that would have caught it.
 
 ## Where the file goes when there is no `docs/screenshots/`
 
