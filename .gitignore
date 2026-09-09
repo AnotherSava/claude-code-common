@@ -1,6 +1,10 @@
 .env
 __pycache__/
 
+# Scratch artifacts that have to be re-read (clones under evaluation, contact sheets, preview renders).
+# Root-anchored so it only matches the repo root, never a committed tmp/ deeper in the tree.
+/tmp/
+
 # Machine-local project config (keep .claude/memory/ tracked)
 .claude/settings.local.json
 
@@ -51,4 +55,5 @@ claude/skills/publish-chrome-extension/config/
 !claude/skills/shared/
 !claude/skills/skill/
 !claude/skills/transcrypt/
+!claude/skills/tune-output/
 !claude/skills/wrap-up/

@@ -463,6 +463,23 @@ Conventions for writing and changing skills — the directory shape, the frontma
 
 ---
 
+### Tune Output
+
+Changes how Claude's replies are shaped — adopting, revising or rejecting a response-style rule — and records each pass in a ledger, so the next one starts from what was already measured rather than from scratch.
+
+**Command:** `/tune-output`
+
+**Features:**
+- Keeps a ledger whose two most useful fields are the rejections and what evidence would re-open each one, since a rejection nobody wrote down gets re-proposed within months
+- Routes a rule to one of four homes from a decision table — the output style for shape, the Overused Phrases section for a banned phrase, a memory file for a preference with a *why*, and CLAUDE.md for anything a subagent must also obey
+- Records the verified mechanics behind that table in `references/mechanisms.md`: why CLAUDE.md is not system-prompt level, why a missing `keep-coding-instructions: true` silently drops the built-in engineering instructions, and why an unresolvable style name is a no-op that looks like a working session
+- Tests a candidate before it ships, with both arms loading the real global CLAUDE.md — a config-less baseline measures the rule against a bare Claude and flatters it
+- Renders the two arms side by side with the sides shuffled per pair and the mapping written only to a key file, so the read is blind for whoever ran it
+- Requires trap cases, not just preference cases: an under-determined failure and a completion report whose items only look verified are what catch a rule that makes the model assert more than it knows
+- Names every rule for the behaviour it produces rather than for a characteristic of the reader, because this repo is public and a commit cannot be taken back
+
+---
+
 ### Transcrypt
 
 Encrypts designated files with [transcrypt](https://github.com/elasticdog/transcrypt) so they are ciphertext in git history but plaintext in the working tree, or unlocks an already-encrypted repo after a fresh clone. See [Encrypted memory](#encrypted-memory-secretmd) for how this repo uses it.
@@ -623,6 +640,20 @@ Read `~/.claude/learnings/chrome-extension.md` for domain-specific patterns.
 
 ---
 
+## Output Styles
+
+The `claude/output-styles/` directory holds response-shape rules — how a reply is laid out and worded, as opposed to what it is allowed to do. Each style is one markdown file whose frontmatter carries a `name`, a one-line `description`, and `keep-coding-instructions: true`; the body is the guidance itself. The `/tune-output` skill owns the process for changing them and keeps its ledger of what has already been tried.
+
+A style takes effect only when `claude/settings.json` selects it by name:
+
+```json
+"outputStyle": "action-first"
+```
+
+Two things about that key are worth knowing before debugging one. The name is resolved against `~/.claude/output-styles/` and the project's own `.claude/output-styles/`, so a missing symlink leaves the selection pointing at nothing — and **an unresolvable name is a silent no-op**: no warning, exit 0, a session that looks exactly like a working one. And omitting `keep-coding-instructions: true` from a style file quietly drops the built-in engineering instructions instead of adding to them. Run `sh ~/.claude/skills/tune-output/scripts/preflight.sh` to see the selected name and the resolved file separately, which is the only way to tell those apart.
+
+---
+
 ## Global Installation
 
 Global files live in `claude/` (symlinked to `~/.claude/`) and `git/` (hooks, gitignore, gitattributes — each symlinked to `~/`). Project-local config stays in `.claude/`. The one directory under `claude/` that is deliberately not symlinked is `claude/tests/`: those run from a checkout of this repo, not from `~/.claude/`.
@@ -651,6 +682,7 @@ New-Item -ItemType SymbolicLink -Path "$env:USERPROFILE\.claude\settings.json" -
 New-Item -ItemType SymbolicLink -Path "$env:USERPROFILE\.claude\learnings" -Target "$PWD\claude\learnings"
 New-Item -ItemType SymbolicLink -Path "$env:USERPROFILE\.claude\memory" -Target "$PWD\claude\memory"
 New-Item -ItemType SymbolicLink -Path "$env:USERPROFILE\.claude\scripts" -Target "$PWD\claude\scripts"
+New-Item -ItemType SymbolicLink -Path "$env:USERPROFILE\.claude\output-styles" -Target "$PWD\claude\output-styles"
 New-Item -ItemType SymbolicLink -Path "$env:USERPROFILE\.git-hooks" -Target "$PWD\git\hooks"
 New-Item -ItemType SymbolicLink -Path "$env:USERPROFILE\.gitignore" -Target "$PWD\git\gitignore"
 New-Item -ItemType SymbolicLink -Path "$env:USERPROFILE\.gitattributes" -Target "$PWD\git\gitattributes"
@@ -672,6 +704,7 @@ ln -s "$(pwd)/claude/settings.json" ~/.claude/settings.json
 ln -s "$(pwd)/claude/learnings" ~/.claude/learnings
 ln -s "$(pwd)/claude/memory" ~/.claude/memory
 ln -s "$(pwd)/claude/scripts" ~/.claude/scripts
+ln -s "$(pwd)/claude/output-styles" ~/.claude/output-styles
 ln -s "$(pwd)/git/hooks" ~/.git-hooks
 ln -s "$(pwd)/git/gitignore" ~/.gitignore
 ln -s "$(pwd)/git/gitattributes" ~/.gitattributes

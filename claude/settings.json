@@ -3,11 +3,16 @@
     "CLAUDE_CODE_DISABLE_NONESSENTIAL_TRAFFIC": "1"
   },
   "preferredNotifChannel": "notifications_disabled",
+  "outputStyle": "action-first",
   "attribution": {
     "commit": ""
   },
   "permissions": {
-    "defaultMode": "auto"
+    "defaultMode": "auto",
+    "allow": [
+      "Read(~/.claude/skills/**)",
+      "Read(//**/claude/claude/skills/**)"
+    ]
   },
   "autoMode": {
     "soft_deny": [
