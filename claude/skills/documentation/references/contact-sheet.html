@@ -1,5 +1,5 @@
 <!-- Contact-sheet template. Copy, fill the marked slots, write to
-     $TEMP/screenshot-contact-sheet-<repo>-<date>.html and hand over the file:/// URL.
+     tmp/screenshot-contact-sheet-<date>.html in the repo and hand over the file:/// URL.
 
      Every part of this earned its place; see references/screenshot-manifest.md for the reasoning.
      The five that are easiest to drop and most expensive to lose:
@@ -104,7 +104,7 @@
   <div class="lede">
     <p><b>Headline claim.</b> What changed and why, in one sentence.</p>
     <p><b>What this check can and cannot prove.</b> It reads text, so it can prove a shot stale and never prove one current — which is why every frame is shown.</p>
-    <p><b>Reversible.</b> Originals at <code>%TEMP%\screenshot-originals-REPO-DATE\</code>; tracked files also revert with <code>git checkout -- &lt;path&gt;</code>.</p>
+    <p><b>Reversible.</b> Originals at <code>tmp/screenshot-originals-DATE/</code>; tracked files also revert with <code>git checkout -- &lt;path&gt;</code>.</p>
   </div>
   <table><tr><th>#</th><th>Frame</th><th>Before → after</th><th>Verdict</th></tr>
     <tr><td>1</td><td>ID</td><td>W × H → W × H</td><td>…</td></tr>

@@ -137,13 +137,13 @@ you skipped it. It is named for the photographer's contact sheet, every frame la
 person who has to choose can see them side by side; calling it a *report* invited writing it only once
 the work was already done.
 
-Write it outside the repo — `$TEMP/screenshot-contact-sheet-<repo>-<date>.html` — so it never joins the
-change set, and reference every image by an absolute `file:///` URL so the committed file, a saved
-original and a new capture all resolve. **The repo name is not decoration:** `$TEMP` is shared by every
-project on the machine, so a date-only name is a generic name in someone else's namespace. Two repos
-running this skill on the same day silently overwrite each other's sheet, and the link handed over in
-chat then opens another project's run — which has happened. Put the saved originals under a
-correspondingly scoped directory for the same reason. Give the user the page itself as a `file:///` URL too, on its own line
+Write it into the repo's own gitignored `tmp/` — `tmp/screenshot-contact-sheet-<date>.html` — so it stays
+out of the change set while remaining a file this skill can open again, and reference every image by an
+absolute `file:///` URL so the committed file, a saved original and a new capture all resolve. **Not
+`$TEMP`:** the file tools refuse reads outside the working directories, so a sheet written there can be
+built and linked but never read back to check, which is the one thing it exists for. A project-local
+`tmp/` also needs no read grant and cannot collide with another repo's run. Put the saved originals in a
+sibling directory under the same `tmp/`. Give the user the page itself as a `file:///` URL too, on its own line
 and nothing else on it: a Windows path with backslashes is not clickable, and the point of the page is
 that it opens.
 
