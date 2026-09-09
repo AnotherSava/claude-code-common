@@ -29,22 +29,33 @@ in `.gitattributes` (e.g. `notes.secret.md`, `config.secret.json`).
 
 Every init/unlock uses the Doppler-stored passphrase and `aes-256-cbc` (the standard cipher for these
 repos). This one sequence is referenced throughout; the key is never printed. Run it from the repo root,
-and keep all four lines — the bracket around the middle one is explained below:
+and keep every line; the bracket around the middle one is explained below:
 
 ```
 git config core.hooksPath "$(git rev-parse --path-format=absolute --git-common-dir)/hooks"
 transcrypt -c aes-256-cbc -p "$(doppler secrets get TRANSCRYPT_KEY --project tools --config prd --plain)" -y
 git config --unset core.hooksPath
-git config --local transcrypt.openssl-path "$(sh ~/.claude/skills/transcrypt/scripts/ensure-openssl-shim.sh)"
+SHIM=$(sh ~/.claude/skills/transcrypt/scripts/ensure-openssl-shim.sh) || SHIM=
+[ -n "$SHIM" ] && git config --local transcrypt.openssl-path "$SHIM" || echo "shim not wired: openssl-path left as transcrypt init wrote it" >&2
 ```
 
-The fourth line silences OpenSSL's `deprecated key derivation` warning, which every crypt filter otherwise
+The shim wiring at the end silences OpenSSL's `deprecated key derivation` warning, which every crypt filter otherwise
 prints on `git status`, `git add` and `git diff` for the life of the repo. It is part of the sequence rather
 than an optional extra because the warning is pure noise that has already crowded out the result of a real
 check, and because **`transcrypt init` rewrites `transcrypt.openssl-path`** — so anything that re-inits has
 to re-apply it anyway. The helper is idempotent, writes the shim next to `transcrypt` only when it is
 missing or the real openssl has moved, and prints the path it wired. See the warning's own section below
 for why the shim redirects rather than fixing the KDF.
+
+**The capture is guarded because an unguarded one can brick the repo.** When the generator fails, `$( )`
+expands to the empty string, so a bare `git config … "$( … )"` writes an **empty** `openssl-path`. That is
+worse than an unset one: `git config --get` then exits 0 and prints nothing, so even the two read sites
+carrying a `|| printf` fallback accept the empty value, and every one of the five resolution points below
+breaks rather than three. What you see is `fatal: <file>: clean filter 'crypt' failed` on every filtered
+file, while the generator's own stderr has already scrolled past above the assignment and reads as the
+generator's problem rather than the config write's. Hence both arms: `|| SHIM=` catches a generator that
+exits non-zero, and the `-n` test catches one that exits 0 having printed no path. Since clean, smudge and
+textconv have no fallback, this is the one command in the setup that can take a repo down.
 
 Doppler's auth is **directory-scoped**, so read the key from a scoped directory. Fetching it from an
 unscoped path (a temp dir, say) fails with "you must provide a token" and transcrypt then dies on an
@@ -309,10 +320,12 @@ unconditionally in two places, `723` (init) and `1535` (rekey):
 1021  read,  falls back        723/1535      WRITE
 ```
 
-So a repo cannot arrive at an unset key by itself; only a hand `--unset` gets it there. That is the sentence that
-stops the next person tidying away a config entry that looks redundant. The shared-key sequence's fourth line
-*replaces* what init wrote rather than adding anything. To go back to unshimmed openssl, point it at the real
-binary — do not remove it.
+So a repo cannot arrive at an *unset* key by itself; only a hand `--unset` gets it there. It can arrive at an
+**empty** one by itself, from an unguarded `git config … "$(generator)"` whose generator died, which is why the
+shared-key sequence above guards that capture. Empty deserves its own check rather than being read as a flavour
+of unset, because it defeats the two fallbacks an unset survives. Either way the entry is not redundant, and that
+is what stops the next person tidying it away. The shared-key sequence's shim wiring *replaces* what init wrote
+rather than adding anything. To go back to unshimmed openssl, point it at the real binary; do not remove it.
 
 Beware of testing this with `git status` alone: git skips the filter entirely when its stat cache says the
 file is untouched, so an unwired repo can look silent. `touch` the encrypted file first to force a re-hash.
