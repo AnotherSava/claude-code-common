@@ -124,3 +124,9 @@
 - [Drift-proof doc anchors](feedback_drift_proof_doc_anchors.md) — anchor a range on its stable end and let it run open ("X onward"); a line number or today's last item reads exhaustive after it stops being
 - [Derive, don't mirror](feedback_derive_dont_mirror.md) — before fixing when stored state is committed or synced, ask whether it's derivable and whether anything reads it
 - [Config field fits its family](feedback_config_field_fits_its_family.md) — copy the siblings' placement and on/off idiom; split a default by build channel, since yours is a stranger's surprise
+- [Icon-scale colour separation](feedback_icon_colour_separation.md) — adjacent steps of a small scale separate on hue not shade, away from the opposite pole; render candidates at final size
+- [Scratch lives in the project's tmp/](feedback_scratch_lives_in_project_tmp.md) — file tools can't read $TEMP back, so previews and contact sheets go in the repo's gitignored tmp/
+- [Audit existing instances](feedback_audit_existing_instances.md) — a skill's rules reach a repo only on scaffolding day; re-check an older one, and verify the deploy not the source
+- [Read-only review, then delete](feedback_read_only_review_loop.md) — collect findings with no edits; answer them by removing something, not by adding a gate
+- [Telegram has no send confirmation](telegram_no_send_confirmation.md) — bots cannot read their own sent messages; duplicate-on-timeout is mitigable, never eliminable
+- [5h resets_at jitters +/-1min](usage_five_hour_resets_at_jitter.md) — never use it as a reset signal; detect a reset by a percentage drop
