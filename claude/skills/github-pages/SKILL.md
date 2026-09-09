@@ -362,6 +362,52 @@ The About dialog additionally carries two things the README/home page handle els
 
 So the rule is: *shared tagline, dialog-own prose, dialog-only version/date + docs link.* Do not copy screenshots, Features bullets, Install pointers, or the docs footer into the About dialog — those stay on the README/site.
 
+## Auditing a site that already exists
+
+Every rule in this skill reaches a repo only on the day that repo is scaffolded. A site set up
+earlier keeps whatever shape it had then, and nothing in the greenfield process below ever revisits
+it, so each rule added here quietly applies to fewer repos than it appears to. Audited 2026-09-08
+across six local sites: three still served the theme's attribution footer and four had an unpinned
+`remote_theme`, all of them scaffolded before those two rules existed. The user found it by reading
+the footer on a published page.
+
+So when a task touches an existing docs site for any reason, audit it first rather than assuming it
+was built to the current rules:
+
+```bash
+for c in $(find "$PROJECTS_ROOT" -maxdepth 4 -path '*/docs/_config.yml' -not -path '*/node_modules/*'); do
+  d=$(dirname "$c"); f="$d/_includes/nav_footer_custom.html"
+  repo=$(cd "$d/.." && basename "$PWD")
+  pinned=$(grep -c '^remote_theme:.*@' "$c"; true)
+  if [ -f "$f" ]; then size=$(wc -c < "$f"); liquid=$(grep -c '{%\|{{' "$f"; true); else size=ABSENT; liquid=-; fi
+  if [ -f "$d/_includes/footer_custom.html" ]; then decoy=yes; else decoy=no; fi
+  printf '%-28s pinned=%s nav_footer=%s liquid=%s decoy=%s\n' "$repo" "$pinned" "$size" "$liquid" "$decoy"
+done
+```
+
+Note the `; true` after each `grep -c`: grep exits 1 when it counts zero matches, so in an
+`A && B || C` chain the `||` branch fires on a legitimate result of 0 and prints a second value.
+Plain assignments avoid it.
+
+Read it as: `pinned` must be 1, `nav_footer` must be a byte count and not ABSENT, `liquid` must be 0,
+and `decoy` should be no. A `footer_custom.html` is the specific trap worth naming, because it looks
+like the fix and is not: it shadows the unrelated `site.footer_content` hook while the attribution
+carries on rendering, so its presence is evidence the footer was *attempted* and missed.
+
+Fix each in its own repo's own commit. Do not fold another project's docs fix into the commit you
+came to make.
+
+**Verify against the published page, never the source.** An unpinned `remote_theme` rebuilds from the
+theme's default branch, which runs ahead of the newest release, so the version serving the site is
+not knowable from the repo and correct-looking sources can sit above a deploy that still shows the
+old markup. Do not try to identify the served version by matching its markup against release tags
+either — on 2026-09-08 that produced a confident wrong answer, because the search covered a range of
+tags that stopped short of the ones introducing the class names in question:
+
+```bash
+curl -sL https://<org>.github.io/<repo>/ | grep -c "documentation theme for Jekyll"
+```
+
 ## Writing process
 
 Follow these steps whenever creating or restructuring docs.
