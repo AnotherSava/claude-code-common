@@ -386,3 +386,36 @@ Assert on the codepoint in tests (`'Mon \u20073 Aug'`); U+2007 and U+0020 are in
 Mono advances wider than sans at the same size, so a fixed-width column sized for the sans version will overflow
 — widen it, and note that `white-space: nowrap` makes that overflow silently overlap the next column rather
 than wrap.
+
+## A space next to a `display: none` inline element is removed, not preserved
+
+An element set to `display: none` generates no box, so a collapsible space sitting immediately before or after
+it is a **leading space on the line** — and CSS text processing removes leading spaces for `normal`, `nowrap`
+*and* `pre-line`. It does not leave a one-character indent behind.
+
+This kills a plausible-sounding refactor. Given a row whose timestamp is hidden by a class:
+
+```html
+<div class="turn-action"><span class="th-time">Sep 08, 17:55</span> <span class="th-name">you:</span> …</div>
+```
+
+the instinct is that hiding `.th-time` strands the space after `</span>`, so the space should be moved *inside*
+the span to go with it. Measured in headless Chromium, both forms are identical:
+
+| markup | white-space | `.th-name` offset |
+| --- | --- | --- |
+| space outside the span | `nowrap` | 0px |
+| space inside the span | `nowrap` | 0px |
+| space outside the span | `normal` (wrapping) | 0px |
+| space inside the span | `normal` (wrapping) | 0px |
+
+With the stamp shown, the two measure 92.39px vs 92.38px — the sub-pixel difference is rounding, not layout.
+`innerText` is `"you: …"` either way too, so it does not leak into copied text as a leading space either.
+
+**`nowrap` is the trap in the reasoning.** It sounds like "preserve whitespace" because it stops *wrapping*,
+but it collapses and trims exactly as `normal` does; only `pre`/`pre-wrap` preserve a leading space. Reach for
+`white-space: pre-wrap` if you actually need one.
+
+Corollary for reviews: a comment justifying a change by a rendering effect is worth one measurement before it
+is believed. This one shipped into a code comment, a test and a committed doc before anyone checked, and all
+three had to be reverted — the change was inert, so the only thing it did was assert something false.

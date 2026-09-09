@@ -114,7 +114,25 @@ return activeContent ? activeContent.Title() : winrt::hstring{};
 
 The custom name wins unconditionally, and the only thing that clears it is `ResetTabText()` (`_runtimeTabText = L""`), reached from exactly one place: the rename action carrying no title, which is what the menu's "Reset tab title" invokes. There is no counter, no timer, no tab-switch hook and no reattach hook, so **no number of console-side writes ever un-pins it**.
 
-### It is invisible to inspection, and detectable only by behaviour
+### It is invisible on the *tab*, but the pane gives it away
+
+**Corrected September 2026.** The dump below is right about the `TabItem` and was read for years as "UIA cannot see this". It cannot — but the sibling it never looked at can. `TermControlAutomationPeer::GetHelpTextCore()` returns `ControlCore::Title()`, i.e. the pane's **real console title**, which a rename does not touch. So one UIA pass over a window yields two independently-sourced strings:
+
+| string | source | a rename |
+|---|---|---|
+| `shown` | selected `TabItem`'s `Name` | overwrites it |
+| `real` | that tab's `TermControl` `HelpText` | leaves it alone |
+
+`shown != real` is a pinned tab, in a single sample, with no probe write and no absence reasoning. Measured live: `shown=ttt` against `real=✋ what-is-next [78%]`.
+
+Four things needed to make that work, each of which cost a wrong turn first:
+
+- **The tab strip is `AutomationId="TabListView"`.** Its `ClassName` is `ListView`; there is **no element named `TabView` anywhere in the tree**. Scoping by class finds nothing and the whole read silently returns empty.
+- **Only the selected tab realizes a `ContentPresenter`**, so a `TermControl` search returns the front tab's panes and no other. Measured 2/1/1/0/3 across windows of six tabs. That is a real limit, not a bug — and it is the moment a stale glyph actually misleads anyone.
+- **`GetCurrentPropertyValue` is `GetCurrentPropertyValueEx(id, FALSE)`**, which substitutes the property's *default* for an unsupported property. The reserved `UiaGetReservedNotSupportedValue` sentinel only comes back with `ignoreDefaultValue = TRUE`. This is why the dump below reads `NotSupported` for some properties and an empty string for others, and why a naive read cannot tell "no value" from "empty value".
+- **Cost is 95 ms cold, ~5 ms warm.** Cold `CoInitializeEx` plus the first `CoCreateInstance` dominate. Fine for an edge-triggered read; do not put it on a lock or a tick.
+
+The original dump, still accurate for the `TabItem` alone:
 
 A full UI Automation property dump of a pinned tab and a normal one is **identical** across every property and pattern the managed API can reach: `ClassName=ListViewItem`, `ControlType=TabItem`, `AutomationId`/`HelpText`/`ItemStatus`/`ItemType` all `NotSupported`, patterns `SelectionItem`/`ScrollItem`/`VirtualizedItem`, subtree `Image` + `Text[HeaderTextBlock]` + `Button[CloseTab]`. Only `Name` differs, and it differs because the *title* differs. `--suppressApplicationTitle` is likewise indistinguishable from a custom name, so a detector cannot even report which kind of pin it hit.
 
@@ -128,7 +146,15 @@ tab D  --suppressApplicationTitle  console -> 'D-PUSHED-2'   tab -> 'D-WTTITLE' 
 
 Sizing the grace period: eight samples of a legitimate change applied in 5.8 to 33.7 ms, every one caught on the *first* UIA read, so the true propagation is below one UIA round trip. Anything above ~200 ms is margin. Note `new-tab --title X` does **not** pin (a later console-side change overrides it); `--suppressApplicationTitle` does.
 
-Two traps for a detector. A **dead pane keeps its stale tab title** indefinitely, so confirm the target process is alive before calling a mismatch a pin. And a caption can only be matched to a session by its text, since nothing exposes which window hosts which process, so a second window showing a lookalike title is judged too.
+**No event announces a rename, and the dangerous case announces nothing at all.** Three probes, each with a working control:
+
+- **MSAA**: over 95 s of real tab switching plus a live rename, 20 events arrived and exactly one was not `OBJID_WINDOW` — `OBJID_CURSOR`, the mouse pointer. WT raises no tab-level name change.
+- **UIA**: no `Name` property-changed event for these elements, across handlers at `TreeScope_Subtree`, at desktop scope and pinned per element, over `LiveRegionChanged`, `Notification`, `Changes`, `TextEdit`, `StructureChanged`, `ItemStatus` and `FullDescription`.
+- **`EVENT_OBJECT_NAMECHANGE` on the window caption**: fires for a rename that *changes* the string, and **not at all when the committed name equals the one already shown**. Measured 2026-09-08 with a control in the same run: typing `zzz` raised it, committing an empty title to reset raised it, and a double-click that accepted the pre-filled name raised nothing. Three `OBJID_CURSOR` events bracket the gesture, so the rename box demonstrably opened and closed.
+
+That last one matters more than it looks, because of how the accident happens. `Tab.cpp` wires `TabViewItem().DoubleTapped` straight to `ActivateTabRenamer()` with no guard; `BeginRename()` does `HeaderRenamerTextBox().Text(Title())` then `SelectAll()`; and the box commits on `LostFocus` as well as Enter (Escape cancels). **So a double-click on a tab followed by a click anywhere else pins that tab to exactly the string it was already showing, with nothing typed.** The committed name is byte-identical, so there is no event *and* no delta — the pin is unobservable at the instant it happens, and becomes visible only when the session's title next changes and the tab fails to follow.
+
+Two traps for a detector. A **dead pane keeps its stale tab title** indefinitely, so confirm the target process is alive before calling a mismatch a pin. A caption can only be matched to a session by its text — but **which window hosts a given console is answerable**, contrary to what this note said before. From inside an `AttachConsole` to that session's process, `GetAncestor(GetConsoleWindow(), GA_ROOTOWNER)` resolves to the hosting `CASCADIA_HOSTING_WINDOW_CLASS` window. The link is cross-process (the pseudo-console window belongs to `OpenConsole.exe`), so it was measured end to end 2026-09-04: six live sessions, six resolutions, all to the same window and matching the handle an `EnumWindows` pass returns for it. Test the owner's *class*, and require `IsWindowVisible` — WT's monarch is an invisible window of that same class.
 
 ### Every route to resetting it from outside is closed
 

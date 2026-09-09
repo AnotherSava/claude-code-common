@@ -5,6 +5,26 @@ survivors get reported. It works: across four rounds on one change it caught a f
 behavioural regression, and two docs that confidently described code that did not exist. These are the ways it
 quietly fails.
 
+## Run it read-only, and keep fixing out of the round
+
+Give every agent an absolute read-only constraint and let the workflow return a report. Not a
+politeness — a mixed round does not converge. Across eight rounds on one feature, three of the
+blocking defects were introduced by the *previous* round's fixes, because the tree kept moving
+while reviewers reasoned about it. The first read-only round found five defects that seven mixed
+rounds had missed.
+
+State it as a constraint the agents cannot read past, and name the mutating commands explicitly
+(`cargo fix`, `git checkout`, `git stash`, package installs) — "review this" is not enough.
+
+Two things make the round land better:
+
+- **Tell them what is already settled**, with the evidence. A reviewer that re-derives a
+  measurement you have already taken spends its budget on nothing, and one told "this path was
+  observed working end to end" will hunt where evidence is actually thin.
+- **Tell them the author's fixes have broken things before**, when true, and to treat each change
+  as guilty until proven innocent. Round four of that feature was scoped as an audit *of the
+  fixes* rather than a fresh sweep, and it was the first to return no blocking findings.
+
 ## Never gate the verify stage on the finder's own severity rating
 
 The bug that cost the most:
@@ -85,3 +105,28 @@ Two failure modes drove nearly all of it, and both are worth naming in the refut
 
 Give the investigator a verdict vocabulary that has somewhere to put this — `still-open` / `partly-overtaken` /
 `obsolete` / `already-done` — or a half-stale item gets rounded to whichever end is closer.
+
+## Dedupe *after* the verify stage, not before — the duplicates are ballots
+
+The section above says to dedupe by file and line before verifying, so one defect is not judged three times.
+That is right about cost and wrong about safety, and the safety side is worth the money.
+
+Measured on a 5-dimension review with 3 refuters per finding and a kill-on-majority-refute rule: one real
+layout defect was reported by three dimensions in three phrasings. Two survived (refuted 1/3 and 0/3); the
+third was killed **3/3**. Same defect, same file, opposite verdicts — the phrasing of the claim, not its
+truth, decided which way the panel went. Deduping before the verify stage collapses those three ballots to
+one, and if the survivor is the wrong one a confirmed defect is reported as clean.
+
+So: let the duplicates run, and dedupe on the way out, keeping the *most* favourable verdict for each
+`(file, defect)` rather than the first. The extra cost is a few judge agents; the failure it prevents is a
+review that says nothing is wrong.
+
+Two corollaries:
+
+- **A split verdict is itself a signal.** One dimension refuting what another confirms means the claim is
+  phrase-sensitive — usually a real defect described badly, or a scope disagreement (is it pre-existing?)
+  rather than a factual one. Surface those rather than letting the majority silently settle it.
+- **Verify the survivors yourself before acting.** The panel is a filter, not an oracle. The defect above
+  reproduced in about fifteen lines of Playwright — 223px overlay against a 231px reserved margin, then 131px
+  against the same stale 231px. Reproducing it took far less time than the review that found it, and is the
+  only thing that turns "three agents think so" into knowing.

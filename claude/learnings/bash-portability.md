@@ -336,3 +336,30 @@ against "92 days, 30 mins" from `uptime` is the whole verification, and it takes
 The general shape, which recurs well beyond this: a regex that can match a *longer token ending in
 the token you wanted* fails silently. `sec`/`usec`, `id`/`uuid`, `name`/`hostname`. Anchor on a
 field boundary, and prefer a field-splitting tool to a regex over the whole line.
+
+## `A && B || C` is not if/then/else — a zero count runs both branches
+
+`grep -c` prints its count and *exits 1 when that count is zero*. So the compact idiom prints two values:
+
+```bash
+liquid="$([ -f "$f" ] && grep -c '{%' "$f" || echo -)"   # file exists, no matches -> "0\n-"
+```
+
+`B || C` is evaluated on B's exit status, not on whether B ran, so a legitimate result of 0 with a
+non-zero status falls through to C as well. Written 2026-09-08 into a skill's audit loop, where it
+broke the output into two lines per repo and was only caught by running the command instead of
+reading it.
+
+Two fixes, both plain:
+
+```bash
+if [ -f "$f" ]; then liquid=$(grep -c '{%' "$f"; true); else liquid=-; fi   # explicit branches
+count=$(grep -c PATTERN "$f"; true)                                        # or just neutralise the status
+```
+
+The `; true` matters on its own: under `set -e`, or inside `$( )` feeding a `set -e` script, a zero
+count aborts the script for reporting zero.
+
+Any command that signals "found nothing" through exit status is unsafe in the B slot — `grep` (1 = no
+match), `diff` and `cmp` (1 = differs), `test`. Reach for `if`/`else` whenever B's failure is a
+legitimate outcome rather than an error.
