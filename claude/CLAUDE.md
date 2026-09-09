@@ -8,6 +8,8 @@ Never add "Generated with Claude Code" attribution (or any equivalent self-promo
 
 When presenting text the user is meant to copy verbatim — a form-field value, commit message, prompt, config snippet, sign-up blurb — wrap it in a fenced code block (```), never a Markdown blockquote (`>`). The terminal renders the blockquote marker as a left-side `|` gutter that gets swept into the copy and corrupts the paste; a fenced code block copies cleanly. Reserve blockquotes for text meant to be read, not copied.
 
+When pointing the user at an HTML file to open — a contact sheet, a comparison page, a generated report — give it as a Markdown link with a `file:///` URL, never as a bare filesystem path. Use forward slashes on both platforms and URL-encode spaces: `[compare.html](file:///{{abs-path-to}}/compare.html)`. A path is something to read; a link is something to open, and this file is meant to be opened. [[feedback_image_report_always]] already requires this for contact sheets — it holds for any HTML artifact handed over, whichever skill produced it.
+
 When a copyable string has a part the user must replace with their own value, mark that part with a `{{insert-here}}` placeholder rather than a plausible-looking fake, an ellipsis, or a bare label. Use a short kebab-case hint inside the braces when it clarifies what goes there (e.g. `{{tvdb-api-key}}`). The double-brace form is unmistakably a placeholder — it won't be mistaken for a real value or copied verbatim by accident. Example: `doppler secrets set TVDB_API_KEY="{{insert-here}}" -p whats-next -c dev --silent`.
 
 ## Outward Communication
@@ -129,6 +131,9 @@ A live list of phrases I lean on too heavily. They are banned in all authored te
 - **"load-bearing"** — banned in every sense (a line, a flag, a comment, an assumption), along with the structural register it drags in: "not cosmetic", "does the heavy lifting", "holds the whole thing up". Say what actually depends on it and what breaks without it: "the parser reads this", "the gate reads this file", "removing it re-opens the data loss", "three call sites rely on it".
 - **"earn its keep" / "earned its keep"** — and the same reflex in "paid for itself", "worth its weight". State the result instead: "the review found four defects", "that check caught the truncated file", "worth running".
 - **"caveat"** — in every form: "one caveat", "with the caveat that", "a caveat worth knowing", "caveat:". Drop the preamble and state the limitation as a plain fact: "The position is relative to the display, not to the game's own window", not "One caveat worth knowing: the position is relative to the display".
+- **Plan-announcing openers** — "Let me…", "Now I'll…", "I'll go ahead and…", "Looking at your…", "To answer your question…", "Great question", "Sure!". Delete the sentence and start with the answer. The harness's rule about a colon before a tool call governs a preamble that happens to exist; it is not a reason to write one.
+- **Closing pleasantries** — "Let me know if you need anything else", "Hope this helps", "Happy to clarify", "Feel free to ask", "Let me know how it goes". End when the answer ends. A genuine open question is not a pleasantry and stays.
+- **Self-congratulating openers** — "Good thing I checked", "Glad I looked", "That turned out to matter", "Caught it just in time". Lead with the finding itself: "The prompts carry a real VPS IP, so the case set stays out of git".
 
 ## Code Style
 
@@ -146,8 +151,6 @@ Default to sentence case for user-facing UI strings (menu items, buttons, dialog
 In prose (docs, READMEs, comments), don't open a sentence or line with code-formatted (backtick-wrapped) text when regular text follows — lead with a real word and fold the code reference in after it ("The `notifications` block controls…" not "`notifications` controls…"). Term-definition list items where the code identifier is the subject are the standard exception. See `~/.claude/memory/feedback_no_code_at_sentence_start.md`.
 
 Parallel enumerations should share grammatical form — list-item blurbs are all imperative verbs or all noun phrases, not a mix ("download …" / "explore …" / "build …", not "download …" alongside "a tour of …").
-
-**Do not use the em dash (`—`) in outward-facing prose.** That covers README and docs text, PR and issue bodies, commit messages, published pages, and code comments; chat responses to the user sit outside it. Rewrite the sentence rather than substituting a hyphen: a comma, a colon, parentheses, or a full stop all read better, and a bare `-` collides with list markers, numeric ranges, and compound words. Two narrow exemptions. **Machine-parsed formats**, where the character is a separator the tooling reads back, keep it: the `- [ ] <timestamp> — <text>` memo line that `memos.py` and the memo-surfacing hook both parse, and the `- [Title](file.md) — hook` index line in a MEMORY.md. **Files that already exist** are not retro-edited, so the rule governs text written from here on rather than a sweep of the thousands of instances already committed.
 
 A factual claim in prose must stay true as the thing it describes grows. Don't anchor a range or a count on the current last item — "APP_CONTAINER through VHOST_SRC" and "all four of them" both rot the moment someone appends. Write the open form ("APP_CONTAINER onward", "every key below it"), which costs nothing and cannot go stale. A line number is the same trap with the shortest half-life of all — one such anchor moved three lines in a single morning, from an edit to the very header that cited it — so point at a file plus a stable landmark (a heading, a key name), never `file:NN`.
 
@@ -220,6 +223,8 @@ For first-time global installation, use the platform-appropriate command block f
 ## Global Memory
 
 Cross-project preferences and feedback. Memory files live in `~/.claude/memory/`. When saving a memory that applies across all projects (not just the current one), write the file there and add an index entry below. Same frontmatter format as project-specific memories.
+
+The index below and `memory/MEMORY.md` point at the same files from different directories, so their entries are not interchangeable: here the path is `~/.claude/memory/<file>.md`, there it is the bare `<file>.md`. Copying a line from one index to the other without rewriting the path yields a link nothing can resolve, because markdown never expands `~`.
 
 **Project memory is version-controlled too.** Repos wired with `~/.claude/scripts/link-project-memory.sh` redirect their machine-local memory cache (`~/.claude/projects/<hash>/memory/`, a symlink) into a committed `<repo>/.claude/memory/`. So when saving *project-specific* memory: resolve the symlink and write to `<repo>/.claude/memory/`, then commit it with the rest of the work. On a fresh clone, re-run the script to re-establish the symlink. If a repo's cache is still a plain directory (not yet wired), run the script first.
 
