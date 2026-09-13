@@ -29,7 +29,7 @@ Tag the current `main` commit as `vX.Y.Z` and let the project's CI workflow buil
 - Manifest version: !`R=$(git rev-parse --show-toplevel 2>/dev/null || pwd) && node -p "require('$R/manifest.json').version" 2>/dev/null || echo n/a`
 - Package version: !`R=$(git rev-parse --show-toplevel 2>/dev/null || pwd) && node -p "require('$R/package.json').version" 2>/dev/null || echo n/a`
 - AssemblyName: !`R=$(git rev-parse --show-toplevel 2>/dev/null || pwd) && sed -n 's/.*<AssemblyName>\([^<]*\)<.*/\1/p' "$R"/src/*.csproj 2>/dev/null | head -1 || echo n/a`
-- Has signing policy section: !`R=$(git rev-parse --show-toplevel 2>/dev/null || pwd) && grep -q "Code signing policy" "$R/README.md" 2>/dev/null && echo yes || echo no`
+- Signing policy documented in: !`R=$(git rev-parse --show-toplevel 2>/dev/null || pwd); F=$(grep -rilE "code[ -]signing" "$R/README.md" "$R/docs" --include=*.md 2>/dev/null | sed "s|^$R/||" | head -3 | tr '\n' ' '); [ -n "$F" ] && echo "$F" || echo none`
 - Tauri config version: !`R=$(git rev-parse --show-toplevel 2>/dev/null || pwd) && node -p "require('$R/src-tauri/tauri.conf.json').version" 2>/dev/null || echo n/a`
 - Tauri Cargo version: !`R=$(git rev-parse --show-toplevel 2>/dev/null || pwd) && sed -n 's/^version = "\([^"]*\)".*/\1/p' "$R/src-tauri/Cargo.toml" 2>/dev/null | head -1 || echo n/a`
 
@@ -69,7 +69,7 @@ Stack-specific:
    - **.NET**: ask the user — version is injected from the tag into the build (no version file to read), so the tag is the source of truth
    - **Tauri**: source-of-truth = **Tauri config version** (`tauri.conf.json`)
 2. List commits since the latest tag: `git log <latest-tag>..HEAD --oneline`. If no prior tag, list all commits.
-3. Recommend patch / minor / major based on commit subjects (`feat:` → minor, `fix:`/`chore:`/`refactor:` → patch, breaking change → major).
+3. Recommend patch / minor / major based on commit subjects (`feat:` → minor, `fix:`/`chore:`/`refactor:` → patch, breaking change → major) — then check that recommendation against what the release actually publishes. A `feat:` whose output is not in the shipped artifact (a maintainer-only tool, any project the publish step does not package) buys a user nothing, so it does not force a minor bump; and a minor whose notes carry only a fix invites "what was the feature?" from anyone reading the releases list. Read the workflow's publish/package step rather than the commit log alone.
 4. Decision:
    - **Chrome extension**: if **Manifest version** > latest tag's version, the bump is already committed — use it and skip step 4. Else proceed to step 4 with the recommended version (or user override).
    - **.NET**: ask user for new version (default = recommended bump). Skip step 4 — version is tag-injected.
@@ -127,7 +127,7 @@ No stack-specific section — the release body is just the generic "What's new" 
 
 **.NET:**
 
-Put the changelog first (the `###` Features/Fixes groups from the generic step above — no `## What's new` parent heading, which GitHub would render with an underline rule). Then append a single combined `> [!NOTE]` callout holding **both** the SmartScreen first-run note and the download guidance — one colored box, not two separate sections. Do NOT list filenames or sizes (GitHub auto-renders the Assets section below); explain only the build *difference* so the reader picks the right asset. For the new release the box is **expanded** (older releases get it collapsed — see step 8). The box is release-independent except `{owner}/{repo}`:
+Put the changelog first (the `###` Features/Fixes groups from the generic step above — no `## What's new` parent heading, which GitHub would render with an underline rule). Then append a single combined `> [!NOTE]` callout holding **both** the SmartScreen first-run note and the download guidance — one colored box, not two separate sections. Do NOT list filenames or sizes (GitHub auto-renders the Assets section below); explain only the build *difference* so the reader picks the right asset. For the new release the box is **expanded** (older releases get it collapsed — see step 8). The box is release-independent except `{owner}/{repo}` and `{signing-policy-url}`:
 
 ```
 ### ✨ Features
@@ -139,14 +139,16 @@ Put the changelog first (the `###` Features/Fixes groups from the generic step a
 <br>
 
 > [!NOTE]
-> The executable is not code-signed yet, so Windows SmartScreen may show a warning on first run. Click **More info** → **Run anyway** to proceed. See [Code signing policy](https://github.com/{owner}/{repo}#code-signing-policy) in the README.
+> The executable is not code-signed yet, so Windows SmartScreen may show a warning on first run. Click **More info** → **Run anyway** to proceed. See [Code signing policy]({signing-policy-url}).
 >
 > **Which download should I pick?** Both builds are the same app and differ only in whether the .NET runtime is bundled:
 > - **Framework-dependent** — only a few hundred KB, but needs the [.NET Desktop Runtime 10](https://dotnet.microsoft.com/download/dotnet/10.0) preinstalled.
 > - **Self-contained** — bundles the .NET runtime; larger, but runs anywhere. Pick this if unsure.
 ```
 
-If **Has signing policy section** is no, drop the SmartScreen sentence and the blank `>` line after it, keeping just the "Which download" box. Do NOT add a "Building from source" section — build instructions belong in the README, not in every release's notes.
+Resolve `{signing-policy-url}` from **Signing policy documented in** (Context). A `README.md` hit links to `https://github.com/{owner}/{repo}#<anchor>`; a `docs/` hit links to that page on the project's GitHub Pages site. **Open the file and take the anchor from the real heading** rather than from the phrase the probe matched — one project's is `## SmartScreen and code signing`, so a guessed `#code-signing-policy` 404s silently.
+
+Only when **Signing policy documented in** reads `none` do you drop the SmartScreen sentence and the blank `>` line after it, keeping just the "Which download" box. Never infer that from the README alone: this probe used to grep `README.md` for the literal "Code signing policy" and answered `no` for a project documenting it on its docs site, which would have dropped a paragraph every Windows user needs. Do NOT add a "Building from source" section — build instructions belong in the README, not in every release's notes.
 
 **Tauri:**
 
