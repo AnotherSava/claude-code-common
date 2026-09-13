@@ -150,7 +150,20 @@ would have accepted `OnCalendar=daily`, the exact edit it existed to refuse. Whe
 assertion, print what it captured once, and mutate the file to the thing the rule forbids to prove the rule
 fires.
 
-The common fix is the same in all three: **mutate the production code the test names and confirm the test
+**A fake server that stalls at the wrong point in the protocol.** Measured 2026-09-06. A test named "aborts
+a body that never arrives, not only headers that never arrive" ran against a `node:http` server written as
+`res.writeHead(200, {...})` and nothing else. But `writeHead` only *sets* the headers — they leave with the
+first `write()` or `end()` — so the client was still waiting on **headers**, a phase the buggy code bounded
+correctly. The mutant that reintroduced the bug passed, and the test had been asserting the opposite of its
+own name. Adding `res.flushHeaders()` and a partial `res.write('{"Id":')` moved the stall to where the name
+claimed, and the same mutant then failed three tests on the runner's own timeout. The tell is a *protocol*
+one: when a test names a phase (after headers, after the first chunk, mid-handshake), check the fixture
+actually reaches that phase rather than an earlier one that looks identical from the assertion's side. An
+earlier attempt with an injected `fetch` double failed differently and just as usefully: a hand-made
+`Response` is not wired to the caller's `AbortSignal`, so it could not express the condition at all and hung
+the suite instead. See `fetch-timeouts-and-hidden-causes.md`.
+
+The common fix is the same in all four: **mutate the production code the test names and confirm the test
 goes red.** Each of these passed its own suite; only deliberately breaking the named behaviour exposed that
 the assertion had never been connected to it.
 

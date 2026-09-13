@@ -70,6 +70,28 @@ can still be the short-lived interactive one. Check before assuming you have a l
 `claude auth status` prints JSON (`loggedIn`, `authMethod`, `email`, `subscriptionType`), and the scope list
 above settles it.
 
+**But `auth status` answers which credential is CONFIGURED, never whether it works.** Measured 2026-09-03 on
+2.1.238:
+
+```
+$ CLAUDE_CODE_OAUTH_TOKEN=sk-ant-oat01-bogus-value-for-testing-only claude auth status
+{ "loggedIn": true, "authMethod": "oauth_token", "apiProvider": "firstParty" }     # exit 0
+```
+
+A string that could not possibly authenticate reports `loggedIn: true`. So it is a presence check, exactly like
+reading the environment variable, and **nothing available locally distinguishes a live token from a dead one** —
+only a real request does, which returns `Failed to authenticate. API Error: 401 OAuth access token is invalid`.
+Anything built on `auth status` to answer "can inference run" inherits that blindness: a container ran for days
+on an expired token while its own health endpoint reported it authenticated, and the first document sent came
+back as a generic parse failure rather than as an auth problem.
+
+**Where `setup-token` does print the token — Linux, and Windows — it then erases the scrollback.** The CLI
+emits `ESC[3J` (erase saved lines) once the flow completes, so the value flashes up and is gone, and scrolling
+back does not recover it. Capture it rather than reading it: on Windows wrap the run in
+`Start-Transcript`/`Stop-Transcript`, or read it out of `.credentials.json` afterwards
+(`$env:USERPROFILE\.claude\.credentials.json`) — and delete the transcript once the value is stored, since it
+holds the token in plaintext.
+
 Do not lift the interactive credential onto a server. Its access token expires the same day, and copying its
 *refresh* token puts a full-scope credential on a shared machine — refresh tokens typically rotate on use, so
 the server refreshing can invalidate the copy the laptop is using.
@@ -91,6 +113,14 @@ Authenticate **in place** rather than transporting a token:
   other session on the account, so a 429 means "retry this unchanged later", and an unauthenticated CLI means
   "nobody has run setup-token yet". Collapsing either into a generic error hides a one-off setup step behind a
   per-item failure.
+- **There is a third state, and it is the one that bites: a credential that is present and rejected.** A
+  pre-flight check cannot see it (see above — nothing local validates), so the request that fails IS the check.
+  Classify a 401 from the CLI as its own outcome alongside the rate limit, or an expired token arrives as N
+  identical parse failures with nothing pointing at the one fix. Gate that classification on a **non-zero
+  exit**: the text being matched includes the model's own answer, so a document mentioning "unauthorized"
+  would otherwise turn a good parse into an auth error. And extract the reason by phrase rather than by the
+  bare `401` — stderr is empty, the readable sentence sits inside the JSON envelope on stdout, and a window
+  around the first `401` lands on `"status":401,` instead of the explanation.
 
 ## Credentials on macOS (Keychain, not a file)
 

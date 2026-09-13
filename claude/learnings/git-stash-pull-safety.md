@@ -29,6 +29,21 @@ change — while an interrupted pop can leave them stashed rather than in the tr
 intersection nothing has to move at all. Verified 2026-09-02: eight incoming files against two dirty
 ones, disjoint, and both dirty files hashed identical either side of the merge.
 
+**A partial intersection wants a path-scoped stash, not a whole-tree one.** Between those two cases sits
+the common one: a few dirty files overlap the incoming commits and most do not. Naming them keeps the
+previous paragraph's answer even though the intersection is not empty, because everything outside the
+overlap stays on disk and is never lifted:
+
+```bash
+git stash push -m "pre-pull local work" -- $(comm -12 /tmp/dirty /tmp/incoming)
+git merge --ff-only origin/main
+git stash pop --index
+```
+
+Verified 2026-09-11: seven dirty files against twenty-eight incoming, two of them overlapping. Stashing
+only those two fast-forwarded cleanly, both popped back as a clean 3-way merge, and the other five were
+never touched.
+
 **`--index` is the part that's easy to miss.** A plain `git stash pop` restores everything
 as *unstaged*, silently flattening the staged/unstaged split. That destroys real
 information whenever the index held something deliberate — a staged file deletion, or a
@@ -229,4 +244,14 @@ git diff --name-only "$SHA" -- . | sort -u > /tmp/actual
 { git diff --name-only "$SHA^" @{upstream} -- .; git ls-files --others --exclude-standard; } |
   sort -u > /tmp/expected
 comm -23 /tmp/actual /tmp/expected     # anything printed here is genuinely unexplained
+```
+
+**A path-scoped stash adds a second exception, and it is the noisier one.** The stash tree then records
+`HEAD`'s version of every dirty file deliberately left out, so each one reads as a difference the merge
+did not cause. Five appeared that way on 2026-09-11 and all five were benign. Union the unstashed dirty
+paths into the expected set alongside the untracked ones, or verify those files by the claim that
+actually matters — that the merge never touched them:
+
+```bash
+git diff --name-only <old-head> <new-head> -- <the unstashed dirty paths>   # empty → untouched
 ```

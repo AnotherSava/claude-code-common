@@ -204,6 +204,35 @@ There is **no** peer-to-peer or LAN path: zero `tailscale` strings in the bundle
 AF_UNIX / named pipe only. Sessions in different containers, or WSL2 vs native Windows on one box,
 cannot reach each other — different home directories, different socket types.
 
+### `no_such_session` does not mean the session is gone
+
+Where a relay routes by **project id**, that id is derived per session and is not stable across a
+restart. Measured 2026-09-06 against the dashboard relay: a Windows session addressable as
+`CHROME/D--projects-what-is-next` came back after a restart as `CHROME/what-is-next`, and sends to
+the old address were refused:
+
+```json
+{"outcome":"refused","reason":"no_such_session",
+ "detail":"no live interactive session on this machine derives that project id",
+ "observed":"refused before anything was written"}
+```
+
+The wording reads as "that session has ended" and is equally consistent with "that session is alive
+under a different name" — which it was. Two sends were spent diagnosing liveness before the address
+was suspected at all. **Ask the relay what it can see rather than reasoning about it:** `/api/agents`
+names every reachable target with its device, project and status, and the mismatch is then obvious.
+Only that path answered — `/api/sessions`, `/api/targets` and `/api/devices` were all 404, so do not
+go fishing for others.
+
+Two traps from the same exchange:
+
+- **`refused before anything was written` is the useful half of the reply.** It says the failure was
+  total, so nothing is half-delivered and a retry cannot duplicate. Read it before re-sending.
+- **A transient timeout is not a dead relay.** Two POSTs and a plain `GET /` timed out at 8 s while
+  the port was demonstrably listening; a retry seconds later answered in under a second. Do not
+  conclude the transport is broken from a timeout — and do not "test" it with a ping, since a message
+  costs the receiving session a real turn.
+
 ## Dead ends, so they aren't re-investigated
 
 - `RemoteTrigger` — schedules **cloud** routines via the claude.ai CCR API (`/v1/code/triggers`).
