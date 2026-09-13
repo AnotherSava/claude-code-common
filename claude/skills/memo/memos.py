@@ -25,7 +25,7 @@ Frontmatter carries the sort key rather than the filename, so a future ordering
   memos.py list [--width N]           numbered, newest-first, wrapped + aligned titles
   memos.py show <n|slug>              one memo in full, title and body
   memos.py path <n|slug>              its absolute path, for editing it directly
-  memos.py done <n|slug>              move it into done/
+  memos.py done <n|slug> [<n|slug>…]  move them into done/, resolved before any move
   memos.py reopen <n|slug>            move one back out of done/ (n indexes done/)
   memos.py drop <n|slug>              delete an open memo outright
   memos.py prune                      delete every done memo
@@ -150,8 +150,12 @@ def _slug(title: str, taken: set[str]) -> str:
     base = base or "memo"
     if base in RESERVED:
         base = f"{base}-memo"
+    # Fold the case before testing membership. APFS and NTFS resolve filenames
+    # case-insensitively, so a case-sensitive test hands back a slug the filesystem
+    # then opens onto an existing memo — measured, and it destroyed the file it hit.
+    folded = {s.casefold() for s in taken}
     slug, n = base, 2
-    while slug in taken:
+    while slug.casefold() in folded:
         slug, n = f"{base}-{n}", n + 1
     return slug
 
@@ -183,12 +187,18 @@ def _write_memo(slug: str, created: str, title: str, body: str) -> str:
     memo_dir, _ = _dirs()
     os.makedirs(memo_dir, exist_ok=True)
     path = os.path.join(memo_dir, f"{slug}.md")
+    # "x" rather than "w": every caller arrives with a slug that is supposed to be free, so
+    # an existing file means the slug logic was wrong and writing would destroy a memo. The
+    # backstop matters because the filesystem, not this code, decides what counts as a clash.
     # newline="\n" keeps the committed file LF on Windows too, so the two machines
     # sharing these repos never see a whole-file line-ending diff.
-    with open(path, "w", encoding="utf-8", newline="\n") as fh:
-        fh.write(f"---\ncreated: {created}\n---\n\n# {title}\n")
-        if body:
-            fh.write(f"\n{body}\n")
+    try:
+        with open(path, "x", encoding="utf-8", newline="\n") as fh:
+            fh.write(f"---\ncreated: {created}\n---\n\n# {title}\n")
+            if body:
+                fh.write(f"\n{body}\n")
+    except FileExistsError:
+        sys.exit(f"refusing to overwrite {os.path.basename(path)} — a memo already holds that slug")
     return path
 
 
@@ -237,10 +247,16 @@ def _select(args: list[str], done: bool = False) -> Memo:
     return hits[0]
 
 
-def _move(memo: Memo, directory: str) -> None:
+def _move(memo: Memo, directory: str) -> str:
+    """Move a memo between open and done, returning the slug it now has.
+
+    The slug is re-derived against the destination, so it can differ from the one the
+    memo arrived with — which is why the caller must print this rather than `memo.slug`.
+    """
     os.makedirs(directory, exist_ok=True)
     slug = _slug(memo.title, {m.slug for m in _load() if m.done != memo.done})
     os.replace(memo.path, os.path.join(directory, f"{slug}.md"))
+    return slug
 
 
 def cmd_add(args: list[str]) -> None:
@@ -295,18 +311,30 @@ def cmd_path(args: list[str]) -> None:
 
 
 def cmd_done(args: list[str]) -> None:
-    memo = _select(args)
-    _move(memo, _dirs()[1])
-    # Name the undo at the one moment it might be wanted. A number would be wrong here: it
-    # indexes the open list this memo has just left, so only the slug still points at it.
-    print(f"done: {memo.title}\nundo: memos.py reopen {memo.slug}")
+    if not args:
+        sys.exit("a memo number or slug is required")
+    # Resolve every identifier against ONE listing before moving anything. A number indexes
+    # the live open list, so closing one renumbers the rest — `done 2 4` used to close the
+    # memo at 4 and then whatever had slid into 4, silently, without touching what was at 2.
+    chosen, seen = [], set()
+    for key in args:
+        memo = _select([key])
+        if memo.path not in seen:
+            seen.add(memo.path)
+            chosen.append(memo)
+    done_dir = _dirs()[1]
+    for memo in chosen:
+        # Name the undo at the one moment it might be wanted, using the slug the memo has
+        # NOW: a number indexes the open list it has just left, and its slug can change on
+        # the way into done/ when something there already holds it.
+        print(f"done: {memo.title}\nundo: memos.py reopen {_move(memo, done_dir)}")
     cmd_count([])
 
 
 def cmd_reopen(args: list[str]) -> None:
     memo = _select(args, done=True)
-    _move(memo, _dirs()[0])
-    print(f"reopened: {memo.title}")
+    slug = _move(memo, _dirs()[0])
+    print(f"reopened: {memo.title}\nslug: {slug}")
     cmd_count([])
 
 
