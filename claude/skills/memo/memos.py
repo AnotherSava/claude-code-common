@@ -26,8 +26,8 @@ Frontmatter carries the sort key rather than the filename, so a future ordering
   memos.py show <n|slug>              one memo in full, title and body
   memos.py path <n|slug>              its absolute path, for editing it directly
   memos.py done <n|slug> [<n|slug>…]  move them into done/, resolved before any move
-  memos.py reopen <n|slug>            move one back out of done/ (n indexes done/)
-  memos.py drop <n|slug>              delete an open memo outright
+  memos.py reopen <n|slug> […]        move them back out of done/ (n indexes done/)
+  memos.py drop <n|slug> […]          delete open memos outright
   memos.py prune                      delete every done memo
   memos.py count                      "<open> open · <done> done"
 
@@ -123,7 +123,11 @@ def _load(root: str | None = None) -> list[Memo]:
             continue
         for name in sorted(names):
             path = os.path.join(directory, name)
-            if name.endswith(".md") and os.path.isfile(path):
+            # The extension is folded for the same reason `_slug` folds the stem: a hand-made
+            # `Case-Test.MD` that this test skipped stayed out of the `taken` set, and
+            # `_move`'s `os.replace` — which has no exclusive mode to fall back on — then
+            # overwrote it. Measured on NTFS, exit 0, the memo gone.
+            if name.lower().endswith(".md") and os.path.isfile(path):
                 memos.append(_parse(path, done))
     return memos
 
@@ -224,27 +228,58 @@ def _take_flag(args: list[str], name: str) -> str | None:
     return value
 
 
-def _select(args: list[str], done: bool = False) -> Memo:
-    """Resolve a number or slug against the open backlog, or against done/ when `done`.
-
-    Numbers index the same newest-first order the caller just printed, so they only mean
-    anything within one turn; a slug is stable and is what the undo hints hand back.
-    """
-    if not args:
-        sys.exit("a memo number or slug is required")
-    key, noun = args[0], "done" if done else "open"
-    memos = _newest_first([m for m in _load() if m.done]) if done else open_memos()
+def _resolve(key: str, memos: list[Memo], noun: str) -> Memo:
     if key.isdigit():
         n = int(key)
         if not 1 <= n <= len(memos):
             sys.exit(f"no {noun} memo {n} ({len(memos)} {noun})")
         return memos[n - 1]
-    hits = [m for m in memos if m.slug == key] or [m for m in memos if key.lower() in m.slug]
+    # Exact case, then folded, then as a substring. The middle rung reaches a memo whose file
+    # differs only in case from the name a listing handed back; the first keeps two such memos
+    # separately addressable where the filesystem does distinguish them.
+    key_low = key.lower()
+    hits = ([m for m in memos if m.slug == key]
+            or [m for m in memos if m.slug.lower() == key_low]
+            or [m for m in memos if key_low in m.slug.lower()])
     if not hits:
         sys.exit(f"no {noun} memo matching {key!r}")
     if len(hits) > 1:
         sys.exit("ambiguous, matches: " + ", ".join(m.slug for m in hits))
     return hits[0]
+
+
+def _select_all(args: list[str], done: bool = False) -> list[Memo]:
+    """Resolve every number or slug against ONE listing, before any of them moves.
+
+    Numbers index the same newest-first order the caller just printed, so they only mean
+    anything within one turn — and only until the first memo moves, since closing one
+    renumbers the rest. Taking the whole batch against a single snapshot is what makes
+    `done 2 4` act on what it names. A slug is stable either way, and is what the undo
+    hints hand back.
+    """
+    if not args:
+        sys.exit("a memo number or slug is required")
+    noun = "done" if done else "open"
+    memos = _newest_first([m for m in _load() if m.done]) if done else open_memos()
+    picked: list[Memo] = []
+    for key in args:
+        memo = _resolve(key, memos, noun)
+        # One memo named twice (as a number and as its slug) is one memo — and skipping the
+        # repeat keeps the second reference off a file the first has already moved.
+        if memo.path not in {m.path for m in picked}:
+            picked.append(memo)
+    return picked
+
+
+def _select(args: list[str]) -> Memo:
+    """Resolve a single number or slug, for the commands that act on one memo.
+
+    Extras are refused rather than dropped: their siblings take a list now, so obeying the
+    first half of `show 2 4` would be the reading a caller cannot check.
+    """
+    if len(args) > 1:
+        sys.exit("one memo number or slug, not several")
+    return _select_all(args)[0]
 
 
 def _move(memo: Memo, directory: str) -> str:
@@ -311,19 +346,8 @@ def cmd_path(args: list[str]) -> None:
 
 
 def cmd_done(args: list[str]) -> None:
-    if not args:
-        sys.exit("a memo number or slug is required")
-    # Resolve every identifier against ONE listing before moving anything. A number indexes
-    # the live open list, so closing one renumbers the rest — `done 2 4` used to close the
-    # memo at 4 and then whatever had slid into 4, silently, without touching what was at 2.
-    chosen, seen = [], set()
-    for key in args:
-        memo = _select([key])
-        if memo.path not in seen:
-            seen.add(memo.path)
-            chosen.append(memo)
     done_dir = _dirs()[1]
-    for memo in chosen:
+    for memo in _select_all(args):
         # Name the undo at the one moment it might be wanted, using the slug the memo has
         # NOW: a number indexes the open list it has just left, and its slug can change on
         # the way into done/ when something there already holds it.
@@ -332,16 +356,16 @@ def cmd_done(args: list[str]) -> None:
 
 
 def cmd_reopen(args: list[str]) -> None:
-    memo = _select(args, done=True)
-    slug = _move(memo, _dirs()[0])
-    print(f"reopened: {memo.title}\nslug: {slug}")
+    open_dir = _dirs()[0]
+    for memo in _select_all(args, done=True):
+        print(f"reopened: {memo.title}\nslug: {_move(memo, open_dir)}")
     cmd_count([])
 
 
 def cmd_drop(args: list[str]) -> None:
-    memo = _select(args)
-    os.remove(memo.path)
-    print(f"dropped: {memo.title}")
+    for memo in _select_all(args):
+        os.remove(memo.path)
+        print(f"dropped: {memo.title}")
     cmd_count([])
 
 

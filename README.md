@@ -336,10 +336,13 @@ Parks an off-task idea in the project's memo backlog so it isn't lost — withou
 **Features:**
 - `/memo <text>` writes one markdown file to `<repo>/.claude/memos/` (created on first use); `/memo` with no args lists the open backlog and offers to address one
 - One memo is one file — a `created:` frontmatter block, an `# H1` title, and a body as long as the idea needs; open versus addressed is `memos/` versus `memos/done/`, so nothing parses a status marker
-- Read one in full with `show`, close it with `done`, and undo that with `reopen` — a listing shows titles only, with a trailing `…` marking a memo that has more to read
+- Read one in full with `show`, close it with `done`, undo that with `reopen`, and delete a redundant duplicate outright with `drop` — a listing shows titles only, with a trailing `…` marking a memo that has more to read
+- The three that change the backlog — `done`, `reopen` and `drop` — each take several identifiers at once and resolve them all before acting, because a number indexes the live listing and closing one renumbers the rest
 - Memos are deliberately lighter than GitHub issues — half-formed thoughts, committed with the project
 - Open items resurface on their own: at session start / `/clear` (via the `memos-surface.py` hook), at task completion, and after a `/commit` push
 - Capturing a memo never starts the work — that's the point; addressing one is always an explicit, separate choice
+
+**Tests:** `python claude/tests/memos.py` — exit 0 all cases behave, 1 otherwise. It pins the numbering (one snapshot per command, and that two commands cannot share one), the case folding that keeps a generated filename off an existing memo on a case-insensitive filesystem, and the undo hint naming where a memo went rather than where it came from.
 
 ---
 
