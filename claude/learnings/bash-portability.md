@@ -121,10 +121,66 @@ missing=$(printf '%s\n' "$list" | while IFS= read -r h; do
 done)
 ```
 
+**It is also bash-version-dependent, which is the nastier form.** Measured 2026-09-06: the same
+construct is a parse error under macOS's `/bin/bash` 3.2.57 while a script containing it ran fine
+on Git Bash (4.x/5.x), where it was written and tested. So this is not only a zsh-vs-bash
+difference — a script can be authored, exercised and reviewed on Windows and still be dead on
+arrival on every Mac. And because it is a *parse* error, it fires even when the offending line is
+inside a branch that machine never takes:
+
+```sh
+if command -v transcrypt >/dev/null 2>&1; then
+    DIR=$(dirname "$(command -v transcrypt)")     # the branch actually taken
+else
+    DIR=$(for d in …; do case … esac; done)       # never runs, still kills the script
+fi
+```
+
+The fix is usually to lift the loop out of the substitution and assign in it directly, which is
+clearer anyway:
+
+```sh
+DIR=
+for d in "$HOME/.local/bin" "$HOME/bin" /usr/local/bin; do
+    case ":$PATH:" in
+        *":$d:"*) if [ -d "$d" ]; then DIR=$d; break; fi ;;
+    esac
+done
+```
+
 **Verify with the target shell, not the tool.** `bash -n file` / `sh -n file` catch parse
 errors, and running the script under each shell catches the splitting differences. Note
 `bash -n` on an *empty* file also passes — if extraction produced nothing, the check is
-vacuous, so assert the file is non-empty first.
+vacuous, so assert the file is non-empty first. For anything shared between these two machines,
+`/bin/bash -n` on the Mac is the binding check: it is the oldest bash in the fleet, so it rejects
+things every other shell accepts.
+
+## A failed `$( )` yields empty, and writing that empty is the real damage
+
+The mirror image of the section below, and worse when the destination is configuration. A script that
+dies on a *parse* error prints to stderr and substitutes to the empty string, so the obvious one-liner
+writes emptiness into the very key it was installing:
+
+```sh
+git config --local transcrypt.openssl-path "$(.../ensure-openssl-shim.sh)"
+# script fails to parse -> $( ) is ""  ->  the key is now set to ""  ->  every crypt filter dies
+```
+
+That is not hypothetical: it happened here, and transcrypt's `clean`/`smudge`/`textconv` read that key
+with **no** fallback, so an empty value breaks every encrypted file in the repo. The error text scrolls
+past above the assignment and looks like it belongs to the script rather than to the config write.
+
+Capture first, check, then write — and prefer a guard that names what went wrong:
+
+```sh
+SHIM=$(.../ensure-openssl-shim.sh) || { echo "shim generator failed"; exit 1; }
+[ -n "$SHIM" ] || { echo "shim generator produced no path"; exit 1; }
+git config --local transcrypt.openssl-path "$SHIM"
+```
+
+Both arms are needed: `||` catches a non-zero exit, and the `-n` test catches a script that exits 0
+having printed nothing. When the target is config that something else depends on, read the current
+value back afterwards rather than trusting the write.
 
 ## `exit` inside `$( )` ends the subshell, not the script
 

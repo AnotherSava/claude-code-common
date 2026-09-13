@@ -41,9 +41,15 @@ IFS=$saved_ifs
 if command -v transcrypt >/dev/null 2>&1; then
     DIR=$(dirname "$(command -v transcrypt)")
 else
-    DIR=$(for d in "$HOME/.local/bin" "$HOME/bin" /usr/local/bin; do
-        case ":$PATH:" in *":$d:"*) [ -d "$d" ] && echo "$d" && break ;; esac
-    done)
+    # Assigned in a plain loop rather than captured from $( ): bash 3.2 — which is what macOS ships, and will
+    # keep shipping, since 4.x went GPLv3 — cannot parse a `case` inside a command substitution at all. It is a
+    # parse error, so it fires even on machines that take the `if` branch above and never run this line.
+    DIR=
+    for d in "$HOME/.local/bin" "$HOME/bin" /usr/local/bin; do
+        case ":$PATH:" in
+            *":$d:"*) if [ -d "$d" ]; then DIR=$d; break; fi ;;
+        esac
+    done
 fi
 [ -n "$DIR" ] || die "ensure-openssl-shim: nowhere on PATH to put the shim"
 SHIM="$DIR/openssl-transcrypt-quiet"
