@@ -95,14 +95,18 @@ its log is what made a misfire diagnosable after the fact.
 ## 6. Script hygiene
 
 - **Windows UTF-8 is handled globally — don't re-fix it per hook.** Claude Code sends UTF-8 bytes;
-  Python on Windows decodes stdin with the system codepage, so a payload carrying Cyrillic, an
-  emoji or an em-dash raises `UnicodeDecodeError`. That subclasses `ValueError`, so the
-  never-raise `except` every hook already has swallows it and the hook runs on an empty payload —
-  it does not crash, it silently stops working for exactly those inputs. `"PYTHONUTF8": "1"` in
-  the `env` block of `settings.json` puts every hook in UTF-8 mode and closes it for all of them
-  at once; it survives `-S`, and it covers hooks living in other repos that this one cannot edit.
-  A per-file `sys.stdin.reconfigure(...)` is now a second mechanism for the same job, so leave it
-  out. Keep `sys.stdout.reconfigure(encoding="utf-8")` where a hook already has one.
+  Python on Windows decodes stdin with the system ANSI codepage. **It does not raise** — CPython
+  opens stdio with `errors="surrogateescape"`, so the payload arrives *mangled into mojibake*,
+  `json.load` still succeeds (JSON punctuation is ASCII), and the hook runs on a populated but
+  corrupted payload. Nothing reaches the never-raise `except`, which is why it is so quiet. The
+  damage lands wherever a mangled *value* is used: a non-ASCII repo path sent a whole memo backlog
+  into a directory outside the repo, and made `skill-tracked.py` early-return on a failed
+  `os.path.isdir`. `"PYTHONUTF8": "1"` in the `env` block of `settings.json` closes it for every
+  hook at once; it survives `-S` and covers hooks in repos this one cannot edit. A per-file
+  `sys.stdin.reconfigure(...)` is a second mechanism for the same job, so leave it out. Keep
+  `sys.stdout.reconfigure(encoding="utf-8")` where a hook already has one. Note the variable is
+  process-wide: it also sets the default encoding for `open()` and `subprocess.run(text=True)`,
+  so a helper that reads codepage-encoded output can start raising where it used to mis-decode.
 - **Derive cwd** as `CLAUDE_PROJECT_DIR` → `payload["cwd"]` → `os.getcwd()`. Add
   `git rev-parse --show-toplevel` only when the target is repo-relative.
 - **`realpath` before git** when the path may be a symlink out of the worktree — everything under
