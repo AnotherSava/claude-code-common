@@ -4,9 +4,11 @@ created: 2026-09-13 11:21:32
 
 # PYTHONUTF8 changes subprocess decoding, and the failure is invisible
 
+**The shape to hold on to: `returncode` 0, `stdout` `None`, and the exception raised on a thread the caller cannot catch.** This is not a wrong-string bug, which is how the title reads and how it will be misremembered. `subprocess.run(..., text=True)` decodes in its own reader thread, so when that decode raises, the call still returns — successfully, by every signal the caller can test. The traceback goes to stderr where nothing reads it, the caller's own `try`/`except` never fires, and the program dies later and elsewhere with `AttributeError` on the `None`. A reader on macOS will never picture this, because there the decode simply succeeds.
+
 `PYTHONUTF8=1` was added to `claude/settings.json`'s `env` block to stop Windows mangling hook payloads. It is process-wide rather than hook-scoped, so it also changes the default encoding of every bare `open()` and of `subprocess.run(..., text=True)` in any Python that Claude Code spawns.
 
-Reported 2026-09-13 by the session on the Windows box, measured there and not reproducible on macOS. Console output on that machine is codepage 866. Without the variable, a subprocess's output decodes as the ANSI codepage — wrong glyphs, no error. With it, the decode raises *inside subprocess's reader thread*, which is the bad part: `returncode` stays 0, `stdout` comes back `None`, the traceback goes to stderr where nothing reads it, and the caller's own try/except never sees anything. It then fails later and elsewhere with `AttributeError` on the `None`.
+Reported 2026-09-13 by the session on the Windows box, measured there and not reproducible on macOS. Console output on that machine is codepage 866. Without the variable, a subprocess's output decodes as the ANSI codepage — wrong glyphs, no error. With it, it takes the path above.
 
 Reproduced there against the `git()` helper in `github-status/scripts/repos-status.py`, on a commit whose message carries non-ASCII.
 
