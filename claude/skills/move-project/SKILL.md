@@ -16,7 +16,7 @@ allowed-tools: Read, Glob, Bash(pwd:*), Bash(git rev-parse:*), Bash(test -e:*), 
 Move or rename the current project folder while preserving all associated Claude Code data (session logs, memory, subagent history).
 
 ## Context
-- Current project path: !`pwd`
+- Current project path: !`pwd -W 2>/dev/null || pwd`
 - Platform: !`uname -s`
 
 ## Process
@@ -25,7 +25,7 @@ Move or rename the current project folder while preserving all associated Claude
    > Where should I move this project? Provide a new folder path (relative or absolute) or just a new name (keeps the same parent directory).
 
 2. **Resolve paths.** Determine:
-   - `OLD_PATH`: **Current project path** from Context
+   - `OLD_PATH`: **Current project path** from Context. It uses `pwd -W` where that exists, because on Git Bash a plain `pwd` yields `/d/work/my-app`, which mangles to `-d-work-my-app` instead of `D--work-my-app` — the reference below says so explicitly, and the wrong key names a directory that does not exist
    - `NEW_PATH`: the target — if the user gave just a name, resolve it relative to the parent of `OLD_PATH`
    - Validate that `NEW_PATH` does not already exist (`test -e "NEW_PATH"`)
 
