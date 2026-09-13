@@ -130,3 +130,5 @@
 - [Read-only review, then delete](feedback_read_only_review_loop.md) — collect findings with no edits; answer them by removing something, not by adding a gate
 - [Telegram has no send confirmation](telegram_no_send_confirmation.md) — bots cannot read their own sent messages; duplicate-on-timeout is mitigable, never eliminable
 - [5h resets_at jitters +/-1min](usage_five_hour_resets_at_jitter.md) — never use it as a reset signal; detect a reset by a percentage drop
+- [Peer register, not support](feedback_peer_register_not_support.md) — write to another dev as a peer, not support-to-user; four concrete swaps
+- [Use the tool you built](feedback_use_the_tool_you_built.md) — make the new instrument the ask, not a fallback; a guess about habits isn't evidence
