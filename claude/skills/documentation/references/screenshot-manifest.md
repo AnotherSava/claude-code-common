@@ -40,6 +40,14 @@ date automatically, on approval, or never. Without it that question is re-asked 
 | `verifiedAt` | no | The commit this shot was last actually examined against. **Absent means never examined** — see below. |
 | `capture` | `command` only for `auto` / `confirm` | `command` is the reproducible way to produce the image; `steps` are the ordered instructions used to write that command the first time. A `never` entry has no `command` — nothing here may run one — but `steps` are worth keeping there, since on a `never` entry they are the setup handed to the person who takes the picture. |
 
+`capture.steps` is also where the shot's **subject** is recorded — which session, which week, which scroll
+position — because a re-shoot has to reproduce it (see *A re-shoot keeps the subject of the shot it
+replaces* in `SKILL.md`). It is deliberately not its own field: it is an instruction for reproducing the
+frame, which is what `steps` already are, and `shows` answers a different question — what a reader sees,
+for the staleness check, rather than which instance to point the capture at. Where the capture script
+takes the subject as a parameter, its **default** is the other half of the record, and the more useful
+half, since it is what runs.
+
 Keep it to these fields. When a run needs a fact the schema cannot hold, add the field then — with the
 step that reads it — rather than reserving one in advance. Fields that were considered and left out,
 so the same ground is not re-argued: `sources` (which files back the shot) and `thirdPartyUi` (whether

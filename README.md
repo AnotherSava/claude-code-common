@@ -121,7 +121,7 @@ Scans project documentation for stale references and fixes them.
 - Reconciles documentation screenshots against the docs that cite them, and proves a shot stale by grepping the text visible in it against source
 - Records each shot in a `docs/screenshots/screenshots.json` manifest — what the frame shows, how to reproduce it, and whether replacement is `auto`, `confirm` or `never`
 - Replaces one only as its policy allows, capturing through a committed `docs/screenshots/capture/<id>.sh` so the second capture is free and the diff shows how the image was made; anything undecided stops to ask, and a shot you supply yourself is filed the same way
-- Writes a contact sheet — one HTML page carrying every screenshot, replacements as before/after pairs, each frame numbered and one click apart — and opens it for annotation; under `confirm` the sheet *is* the proposal, written before anything is captured
+- Writes a contact sheet — one self-contained HTML page carrying every screenshot, replacements as before/after pairs, each frame numbered and one click apart — and hands it over as a `file:///` link for the user to open; under `confirm` the sheet *is* the proposal, written before anything is captured
 - Names the shots that do not exist: sweeps pages for sections doing a picture's work in prose, proposes the two or three strongest, and captures none of them without an explicit yes
 - Regenerates dimensioned-draft drawings when the model they document changed
 - Suggests new documentation files or reorganization when beneficial
@@ -217,7 +217,7 @@ Tags a new version, pushes to trigger CI, monitors the build, and updates the Gi
 **Features:**
 - Validates preconditions: clean tree, on main, in sync with remote
 - Auto-detects project type (dotnet or Tauri) and extracts project name
-- Recommends version bump based on commit history, asks for confirmation
+- Recommends version bump from commit history, checked against what the release actually ships, then asks for confirmation
 - Bumps version in all manifest files before tagging (csproj / package.json / tauri.conf.json / Cargo.toml)
 - Creates signed annotated tags for GitHub "Verified" badge
 - Compiles platform-appropriate release notes (SmartScreen + Gatekeeper first-launch warnings)
