@@ -38,7 +38,19 @@ body = re.match(r'[A-Za-z0-9+/=_-]*', text[m.end():]).group(0)
 verdict = "real" if len(body) >= 40 else "prefix only"
 ```
 
-## Two corollaries
+## Corollaries
+
+**A second check that shares the first one's assumption is not a second check.** Real case
+2026-09-13: a script written to verify that every skill's `allowed-tools` covers the commands that
+skill runs matched only parenthesised `Bash(...)` entries, and had no case for a bare `Bash` — which
+is unrestricted and therefore covers everything. It reported a skill as having zero coverage for a
+helper it invokes. The follow-up check, meant to establish whether the gap predated the session,
+read the file's first twelve lines while the field sits on the fifteenth, and agreed. Two
+independent-looking confirmations, one blind spot between them, and a defect reported to the user
+that had never existed. Agreement between checks is worth only as much as their independence, so
+ask what both would miss before trusting it — and run each against a case whose answer you already
+know, in **both** directions, since a checker that only ever sees failures is as untested as one
+that only ever sees passes.
 
 **Print the size of the haystack next to the verdict.** "No secrets found in 0 bytes read" and "no
 secrets found in 400 MB" are the same sentence and different facts. An empty input passes every test.
