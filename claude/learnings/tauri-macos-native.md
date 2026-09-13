@@ -63,6 +63,46 @@ frontend calls a `show_window` Tauri command at the end of mount; this is
 also where the rAF gating goes. A 1500ms safety net in the Rust setup() is
 fine to keep — it only fires if the frontend never calls show.
 
+## Rounding an undecorated window: four things must agree
+
+A `"decorations": false` window gets no rounding from macOS — the compositor rounds *titled* windows
+only, so an undecorated one is square unless the app draws its own shape. Turning that on takes four
+changes, and three of them are silently insufficient alone:
+
+1. `"transparent": true` on the window in `tauri.conf.json`.
+2. `"macOSPrivateApi": true` at the `app` level — transparency needs it.
+3. The **`macos-private-api` Cargo feature** on the `tauri` dependency (see below).
+4. A `border-radius` on the frontend's root element, plus `overflow: hidden`.
+
+**The trap is a fifth thing that undoes all four.** If the app sets `NSWindow.backgroundColor` at
+runtime — a common fix for the white flash on first show — that overrides the config, and the window
+stays opaque with no error anywhere. The alpha component is the whole question: `0xff` makes the
+config's `transparent: true` inert; `0x00` is what lets the compositor round the corners. Check for a
+runtime background setter before concluding the config flag does not work.
+
+Verify by capturing the window with the desktop behind it and reading the corner ramp: `0, 0, 0, 0,
+0, 70, 255` down the diagonal is a rounded, antialiased corner. Opaque from the first pixel is not.
+
+### `macOSPrivateApi` and the Cargo feature must match, and only a bare `cargo` run says so
+
+Tauri's build script asserts that the config's allowlist matches the `tauri` dependency's features:
+
+```
+The `tauri` dependency features on the `Cargo.toml` file does not match
+the allowlist defined under `tauri.conf.json`.
+Please run `tauri dev` or `tauri build` or add the `macos-private-api` feature.
+```
+
+`cargo tauri dev` and `cargo tauri build` **inject the feature silently**, so the mismatch never
+surfaces while you drive builds through the CLI. A bare `cargo test` or `cargo build` fails with
+exit 101. The practical consequence: config and `Cargo.toml` can drift apart indefinitely and the
+first thing to notice is CI or a pre-commit hook running cargo directly — on whichever machine
+commits next, not the one that made the change. There is nothing useful to add as a guard; the build
+script already makes the assertion. What is worth knowing is *which* invocation can see it.
+
+Note this is not macOS-specific in its effect: the assertion compares config against features, so it
+fails on every platform, including ones where `macOSPrivateApi` does nothing.
+
 ## Default window positioning: work_area() vs size()
 
 `tauri::window::Monitor::size()` returns the **full screen** including the

@@ -37,7 +37,7 @@ date automatically, on approval, or never. Without it that question is re-asked 
 | `shows` | yes | One line naming what is in the frame, specific enough to tell two shots of the same app apart. |
 | `policy` | no | `auto`, `confirm` or `never`. **Absent means the user has not decided yet** — see below. |
 | `precision` | no | `impressionistic` when the frame argues breadth rather than fact — a hero collage, a marquee. Absent means literal, the default. **The user's to give, like `policy`** — it lowers what future runs catch. See below. |
-| `verifiedAt` | no | The commit this shot was last actually examined against. **Absent means never examined** — see below. |
+| `verifiedAt` | no | When this shot was last actually examined: a short sha, or `at-capture` when it was examined by being re-taken. **Absent means never examined** — see below. |
 | `capture` | `command` only for `auto` / `confirm` | `command` is the reproducible way to produce the image; `steps` are the ordered instructions used to write that command the first time. A `never` entry has no `command` — nothing here may run one — but `steps` are worth keeping there, since on a `never` entry they are the setup handed to the person who takes the picture. |
 
 `capture.steps` is also where the shot's **subject** is recorded — which session, which week, which scroll
@@ -102,12 +102,31 @@ source is not in today's diff. It stays wrong indefinitely, and the prose beside
 
 So the scoping applies only to shots that have been examined at least once. An entry with **no
 `verifiedAt`** is opened and checked whatever the diff says; one that has it falls back under the
-normal rule. Write the current commit's short sha after examining a shot — whether or not it turned
-out stale, since "checked and fine" is exactly the fact worth not re-deriving.
+normal rule. Record it after examining a shot whether or not it turned out stale, since "checked and
+fine" is exactly the fact worth not re-deriving.
+
+**Two values, because one of the two cases cannot name its own commit.**
+
+| value | means |
+|---|---|
+| absent | never examined — this is what the scoping rule above reads |
+| `at-capture` | examined as part of the commit that introduces this image |
+| `<short sha>` | examined and found current **without** being re-captured |
+
+The sentinel exists because the obvious rule is unsatisfiable. A shot examined *by being re-taken* is
+verified against the commit that carries it — and that sha does not exist while you are composing
+that commit, so recording it means committing twice for one change. `at-capture` says "resolve it
+from git", and `git log -1 --format=%h -- docs/screenshots/<id>.png` answers exactly that. Writing the
+sha of HEAD instead is wrong in a way that shows up later: HEAD is the *parent* of the commit carrying
+the shot, so the change that prompted the re-shoot lands after it and the frame reads as instantly
+stale. The literal-sha case has no such problem — nothing about the image is moving, so the current
+HEAD is both knowable and correct.
 
 Only its presence is read today. The value is there for a human reading the file, and because a later
 version that also records which sources back a shot could ask the sharper question — *have those
-files changed since this sha* — without another schema change.
+files changed since this sha* — without another schema change. That is also why a checker should
+reject anything that is neither the sentinel nor a resolvable sha: nothing consumes the value, so a
+wrong one is invisible. A date was written into this field on 2026-09-13 and nothing noticed.
 
 `auto` skips the question, not the evidence: a replacement made under it is still shown before and
 after on the contact sheet, still reversible from the copy taken before overwriting, and still settled

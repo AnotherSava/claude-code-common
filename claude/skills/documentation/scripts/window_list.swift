@@ -1,4 +1,4 @@
-// Dump every on-screen top-level window as JSON, for `dashboard.py` to match on.
+// Dump every on-screen top-level window as JSON, for a capture script to match on.
 //
 // This exists because `screencapture` can photograph a window only by its
 // CGWindowID, and nothing in the shell hands one out: `osascript` reports

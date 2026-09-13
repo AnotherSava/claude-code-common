@@ -177,3 +177,28 @@ Two related notes for driving a menu this way:
 - A synthetic right-click on a tray icon opens the menu only *sometimes*. Poll-after-one-click never
   succeeds when the click did nothing; **re-click** in a loop (up to ~6 attempts, ~900 ms apart) and
   poll after each.
+
+## PrintWindow's alpha cannot tell you whether a window is transparent
+
+`PrintWindow` renders the window's content into a DC you supply, and that surface comes back
+**opaque** — every pixel alpha 255, including the ones outside a rounded corner where the desktop
+actually shows through. So reading the alpha channel of a `PrintWindow` grab answers a question it
+was never asked: it describes the DC, not the window.
+
+This produces a confident wrong answer rather than an error. Verifying a Tauri window's
+`"transparent": true` on Windows, a first pass read alpha 255 at all four corners and was about to
+report "transparency is not working"; the window was in fact transparent and correctly rounded.
+
+**Compare two captures of the same window instead**, one via `PrintWindow` and one composited off
+the screen:
+
+| corner | PrintWindow (window's own surface) | Screen (composited) |
+|---|---|---|
+| top-left | `(243,243,243)` | `(241,241,241)` |
+| bottom-left | `(0,0,0)` | `(210,210,210)` |
+
+The two *disagreeing* is the proof. An opaque window composites to its own pixels, so any corner
+where the screen grab differs from the window's own surface is a corner showing what is behind it.
+Reading the ramp inward on the composited grab then shows the antialiasing — `241, 240, 237, 213,
+188, 23` down into the window's own colour is a correctly rendered `border-radius`, where a square
+corner would step straight from background to content.
