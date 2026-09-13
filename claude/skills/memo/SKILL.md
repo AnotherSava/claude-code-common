@@ -27,7 +27,8 @@ The memo file is `<Repo root>/.claude/memos.md` — a Markdown checklist, one li
 ### If `$ARGUMENTS` is non-empty — record a memo
 
 1. Run `python3 ~/.claude/skills/memo/memos.py add "<the idea, lightly cleaned up>"`. The helper creates the file (and `.claude/`) if needed, stamps the local time, appends the entry, and prints the new counts. Preserve the user's intent and scope — don't expand a one-liner into a spec.
-2. Confirm in a single line with the new open count (e.g. "Memo'd — 3 open."). **Do not** start working on the idea, switch tasks, or elaborate. The whole point is to offload it and keep going.
+2. **Anchor on symbol names, never `file:NN`.** Name the method, the heading, the config key, the test — `the (leading, filling) = matchedExactly ? ... ternary in ResolvePreferringSchema`, not `AchievementMetadata.cs:494`. A memo is read weeks or months after it is written, by which time a line number points at unrelated code and reads as authoritative while being wrong. Measured: one memo carried five line numbers into the same file and all five were stale within a day, off by ~50 lines, invalidated by edits made in the session that wrote them. The global prose rule already bans line anchors; memos get them anyway because the number is on screen at the moment of writing.
+3. Confirm in a single line with the new open count (e.g. "Memo'd — 3 open."). **Do not** start working on the idea, switch tasks, or elaborate. The whole point is to offload it and keep going.
 
 ### If `$ARGUMENTS` is empty — review the backlog
 
