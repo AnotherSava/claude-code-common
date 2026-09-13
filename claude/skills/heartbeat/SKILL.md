@@ -82,7 +82,7 @@ From **Scheduled jobs here** and **Ping already wired**, decide which case this 
 For an audit across a whole account rather than one job:
 
 ```bash
-python3 ~/.claude/skills/heartbeat/scripts/hc.py list
+python ~/.claude/skills/heartbeat/scripts/hc.py list
 ```
 
 That lists every check the key can see with its cadence, grace and last ping, and flags the two ways
@@ -143,7 +143,7 @@ with any other threshold for tidiness — the reference explains what that silen
 Show the exact request first and **wait for the user** — this writes to their account.
 
 ```bash
-python3 ~/.claude/skills/heartbeat/scripts/hc.py upsert \
+python ~/.claude/skills/heartbeat/scripts/hc.py upsert \
   --name '<machine>-<job>' --grace-seconds <N> \
   --schedule '<cron or OnCalendar>' --tz '<IANA zone>' --channels '*' \
   --tags '<machine> <kind>' --desc '<what silence here means>' --dry-run
@@ -181,7 +181,7 @@ Re-run without `--dry-run` on approval. Notes that matter:
 ### 4. Put the ping URL where the job's other credentials live
 
 ```bash
-python3 ~/.claude/skills/heartbeat/scripts/hc.py store-url \
+python ~/.claude/skills/heartbeat/scripts/hc.py store-url \
   --name '<machine>-<job>' --doppler-project '<shard>' --doppler-config 'prd_<app>'
 ```
 

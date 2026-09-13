@@ -10,7 +10,7 @@ description: >-
   DO NOT TRIGGER when: the subject is prose inside a document or README (that is `documentation`), commit
   message wording (`shared/commit-message-rules.md`), a single one-off reply the user just wants rewritten, or
   a subagent's prompt.
-allowed-tools: Read, Write, Edit, Glob, Grep, AskUserQuestion, Bash(bash ~/.claude/skills/tune-output/scripts/preflight.sh:*), Bash(bash ~/.claude/skills/tune-output/scripts/ab-run.sh:*), Bash(python ~/.claude/skills/tune-output/scripts/ab-sheet.py:*), Bash(python3 ~/.claude/skills/tune-output/scripts/ab-sheet.py:*), Bash(git check-ignore:*), Bash(git status:*), Bash(gh repo view:*)
+allowed-tools: Read, Write, Edit, Glob, Grep, AskUserQuestion, Bash(bash ~/.claude/skills/tune-output/scripts/preflight.sh:*), Bash(bash ~/.claude/skills/tune-output/scripts/ab-run.sh:*), Bash(python ~/.claude/skills/tune-output/scripts/ab-sheet.py:*), Bash(git check-ignore:*), Bash(git status:*), Bash(gh repo view:*)
 ---
 
 # Tune output

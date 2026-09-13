@@ -41,8 +41,8 @@ PREAMBLE='Answer directly, from what you already know. Do not use any tools, do 
 
 '
 
-PY=python3
-command -v python3 >/dev/null 2>&1 || PY=python
+PY=python
+command -v python >/dev/null 2>&1 || PY=python3
 
 [ -f "$RULE" ] || { echo "no such rule file: $RULE" >&2; exit 1; }
 [ -f "$PROMPTS" ] || { echo "no such prompts file: $PROMPTS" >&2; exit 1; }

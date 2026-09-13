@@ -165,7 +165,7 @@ Mitigations, in order of preference:
    `Bash(test -f ~/.claude/skills/<name>/config/<file>:*)`. The `:*` allows arguments and shell continuations after the prefix.
 4. **Read content via the `Read` tool**, not Bash, when content really is required. `Read(~/.claude/skills/<name>/config/<file>)` declared in `allowed-tools` doesn't go through the Bash classifier.
 
-If the skill's own script (`Bash(python3 ~/.claude/skills/<name>/scripts/<script>)`) is also denied when invoked from outside CWD, the user can add a project-local or global permission rule in `settings.json` allowing scripts under `~/.claude/skills/`.
+If the skill's own script (`Bash(python ~/.claude/skills/<name>/scripts/<script>)`) is also denied when invoked from outside CWD, the user can add a project-local or global permission rule in `settings.json` allowing scripts under `~/.claude/skills/`.
 
 ## Full-width terminal output
 

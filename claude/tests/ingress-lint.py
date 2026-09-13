@@ -19,7 +19,7 @@ Two halves, tested differently:
 
 Pure Python, no network, no Docker, no Caddy.
 
-Usage:  python3 claude/tests/ingress-lint.py
+Usage:  python claude/tests/ingress-lint.py
 Exit:   0 all cases behave, 1 at least one does not
 """
 

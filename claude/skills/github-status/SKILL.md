@@ -11,7 +11,7 @@ description: >-
   remotes", or "what have I been working on".
   DO NOT TRIGGER when: user is asking about a single specific repo (use
   `git status` / `git log` directly).
-allowed-tools: Bash(python3 ~/.claude/skills/github-status/scripts/repos-status.py:*), Bash(test -f ~/.claude/skills/github-status/config/config.env:*), Bash(tput cols:*), PowerShell, AskUserQuestion, Read(~/.claude/skills/github-status/config/config.env), Write(~/.claude/skills/github-status/config/config.env)
+allowed-tools: Bash(python ~/.claude/skills/github-status/scripts/repos-status.py:*), Bash(test -f ~/.claude/skills/github-status/config/config.env:*), Bash(tput cols:*), PowerShell, AskUserQuestion, Read(~/.claude/skills/github-status/config/config.env), Write(~/.claude/skills/github-status/config/config.env)
 ---
 
 ## Context
@@ -42,7 +42,7 @@ If **Config file** is `PRESENT`, proceed directly to step 2.
 
 **Then subtract a gutter margin of 2** and pass the result as `--width <N>`. Claude Code's TUI indents message/tool output by a couple of columns, so a table exactly as wide as the window has its right border clipped off-screen — the margin keeps the whole table visible. (e.g. a 156-column window → `--width 154`.)
 
-Then run `python3 ~/.claude/skills/github-status/scripts/repos-status.py --width <N>` (drop `--width` if undetected). The script output has up to three parts:
+Then run `python ~/.claude/skills/github-status/scripts/repos-status.py --width <N>` (drop `--width` if undetected). The script output has up to three parts:
 
 1. **Table**, fixed-width. A repo appears if it has pending work (uncommitted changes, unpushed commits, or inbound remote commits after the auto-pull pass) **or** at least one open issue on its origin; everything else is filtered out. Rows are sorted by AGE ascending (freshest pending work first; oldest at the bottom). Issue-only repos have no pending-work age, so they sort to the very bottom with blank LOCAL/AGE cells. Columns:
    - **PROJECT** is always present.
@@ -71,7 +71,7 @@ Read the "Uncommitted changes" and "Unpushed commits" sections from the script o
 Then **render the final table with the script's own renderer** — do NOT hand-draw the box table. The DESCRIPTION column stretches to fill the `--width` you pass (the same width detected in step 2), padding short text to the right edge and wrapping long text across lines — fiddly to reproduce by hand. Build a JSON spec with the descriptions filled in and pipe it to `--render`, passing the same `--width <N>`:
 
 ```
-python3 ~/.claude/skills/github-status/scripts/repos-status.py --render --width <N> <<'JSON'
+python ~/.claude/skills/github-status/scripts/repos-status.py --render --width <N> <<'JSON'
 {"columns": ["project", "branch", "remote", "local", "age", "issues", "description"],
  "rows": [
    {"project": "claude", "branch": "main", "remote": "6", "local": "20 (+669/-52)", "age": "3 days", "issues": "", "description": "<your one-line summary>"}

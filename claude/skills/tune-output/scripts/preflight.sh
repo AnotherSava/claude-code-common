@@ -11,8 +11,8 @@
 CLAUDE_DIR="${CLAUDE_CONFIG_DIR:-$HOME/.claude}"
 SKILL_DIR="$CLAUDE_DIR/skills/tune-output"
 
-PY=python3
-command -v python3 >/dev/null 2>&1 || PY=python
+PY=python
+command -v python >/dev/null 2>&1 || PY=python3
 command -v "$PY" >/dev/null 2>&1 || PY=""
 
 selected=""

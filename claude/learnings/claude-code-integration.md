@@ -26,7 +26,7 @@ Configure in `~/.claude/settings.json`:
   "hooks": {
     "<EventName>": [
       { "hooks": [ { "type": "command", "async": true,
-          "command": "python3 /path/to/script.py <arg>" } ] }
+          "command": "python /path/to/script.py <arg>" } ] }
     ]
   }
 }
@@ -245,7 +245,7 @@ The naive install — `PreToolUse` without a matcher — fires for every tool ca
 "PreToolUse": [
   { "matcher": "^(AskUserQuestion|ExitPlanMode)$",
     "hooks": [ { "type": "command", "async": true,
-        "command": "python3 /path/to/your-hook.py awaiting" } ] }
+        "command": "python /path/to/your-hook.py awaiting" } ] }
 ]
 ```
 
@@ -261,7 +261,7 @@ corrects an earlier note here that called it silently ignored:
 { "matcher": "^Write$",
   "hooks": [ { "type": "command",
       "if": "Write(//**/SKILL.md)",
-      "command": "python3 \"$HOME/.claude/hooks/skill-tracked.py\"" } ] }
+      "command": "python \"$HOME/.claude/hooks/skill-tracked.py\"" } ] }
 ```
 
 Verified 2026-08-17 in both directions, using a sentinel file appended to by the hook command: writing
@@ -582,7 +582,7 @@ The `PostToolUse`/`ExitPlanMode` matcher is narrow enough that the hook doesn't 
 "PostToolUse": [
   { "matcher": "ExitPlanMode",
     "hooks": [ { "type": "command", "async": true,
-        "command": "python3 /path/to/archive-plan.py start" } ] }
+        "command": "python /path/to/archive-plan.py start" } ] }
 ]
 ```
 

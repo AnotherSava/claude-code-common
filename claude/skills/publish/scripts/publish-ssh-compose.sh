@@ -267,7 +267,7 @@ identity_run() {
         tr -s '[:space:]' ' ' < "$_mf.err" 2>/dev/null | cut -c1-120 | sed 's/^/    /'
         rm -f "$_mf" "$_mf.err"; return 2
     fi
-    python3 "$_ck" "$_mf"; _rc=$?
+    python "$_ck" "$_mf"; _rc=$?
     # Capture BEFORE the cleanup and return it explicitly: without this the status is `rm -f`'s, always 0, so a
     # failed identity check would report success.
     rm -f "$_mf" "$_mf.err"
