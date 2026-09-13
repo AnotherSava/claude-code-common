@@ -1,7 +1,7 @@
 ---
 name: commit
 description: Reflects on the session, then analyzes changes and generates Conventional Commit messages
-allowed-tools: Read, Edit, Write, Grep, Glob, ListAgents, ToolSearch, SendMessage, Bash(git diff:*), Bash(git add:*), Bash(git commit:*), Bash(git status:*), Bash(git log:*), Bash(git reset HEAD:*), Bash(git ls-files:*), Bash(git rev-list:*), Bash(git rev-parse:*), Bash(git push:*), Bash(gh issue list:*), Bash(bash ~/.claude/scripts/sanitize-project-memory.sh:*), Bash(bash ~/.claude/scripts/link-project-memory.sh:*), Bash(python3 ~/.claude/skills/commit/scripts/peer_repo_changes.py:*), Bash(rm:*)
+allowed-tools: Read, Edit, Write, Grep, Glob, ListAgents, ToolSearch, SendMessage, Bash(git diff:*), Bash(git add:*), Bash(git commit:*), Bash(git status:*), Bash(git log:*), Bash(git reset HEAD:*), Bash(git ls-files:*), Bash(git rev-list:*), Bash(git rev-parse:*), Bash(git push:*), Bash(gh issue list:*), Bash(bash ~/.claude/scripts/sanitize-project-memory.sh:*), Bash(bash ~/.claude/scripts/link-project-memory.sh:*), Bash(python ~/.claude/skills/commit/scripts/peer_repo_changes.py:*), Bash(python ~/.claude/skills/memo/memos.py:*), Bash(python ~/.claude/skills/commit/scripts/format_files.py:*), Bash(rm:*)
 ---
 
 # Commit Changes
@@ -22,9 +22,9 @@ Read `~/.claude/skills/shared/bash-rules.md` for bash command constraints.
 - Full diff: !`git diff $(git rev-parse -q --verify HEAD || echo 4b825dc642cb6eb9a060e54bf8d69288fbee4904)`
 - Recent commits: !`git log --oneline -10 2>/dev/null || echo "(no commits yet)"`
 - Open issues: !`gh issue list --repo "$(git remote get-url origin 2>/dev/null | sed -E 's#^.*github\.com[:/]##; s#\.git$##; s#/$##')" --state open --limit 30 2>/dev/null || echo "n/a"`
-- Pending memos: !`R=$(git rev-parse --show-toplevel 2>/dev/null || pwd) && cat "$R/.claude/memos.md" 2>/dev/null | grep '^- \[ \]' || echo "(none)"`
+- Pending memos: !`python ~/.claude/skills/memo/memos.py list --width 120 2>/dev/null || echo "(none)"`
 - Project commit-checks: !`R=$(git rev-parse --show-toplevel 2>/dev/null || pwd) && test -f "$R/.claude/commit-checks.sh" && echo "PRESENT — step 6 MUST run it" || echo "none"`
-- Peer repositories this session left dirty: !`python3 ~/.claude/skills/commit/scripts/peer_repo_changes.py 2>/dev/null || echo "peer-repos: check unavailable"`
+- Peer repositories this session left dirty: !`python ~/.claude/skills/commit/scripts/peer_repo_changes.py 2>/dev/null || echo "peer-repos: check unavailable"`
 
 ## Working directory
 
@@ -79,7 +79,7 @@ Read `~/.claude/skills/shared/bash-rules.md` for bash command constraints.
    - Identify which files belong together
    - If a single file contains changes that belong to different commits, do NOT attempt to split it with `git add -p` or partial staging — assign the file to the commit where it fits best and note the mixed content in the plan
    - Put tests and documentation changes in the same commit as the feature they cover, unless there is a significant reason to separate
-   - **Implemented memos**: if a pending memo (Context **Pending memos** / `<repo>/.claude/memos.md`) is clearly implemented by this change set, flip its `- [ ]` to `- [x]` **now** and fold `.claude/memos.md` into the commit that implements it — check it off *with the changes*, not as a follow-up after the push. (Only memos this change set actually delivers; still-open ones stay untouched until step 11.)
+   - **Implemented memos**: if a pending memo (Context **Pending memos** / `<repo>/.claude/memos/`) is clearly implemented by this change set, run `python ~/.claude/skills/memo/memos.py done <n>` **now** and fold the resulting move into the commit that implements it — close it *with the changes*, not as a follow-up after the push. The memo's file moves from `.claude/memos/` to `.claude/memos/done/`, so stage both paths. (Only memos this change set actually delivers; still-open ones stay untouched until step 11.)
    - **Plan files (`docs/plans/**`)**: bundle each plan file into the SAME commit as the implementation it describes. Match by filename slug / content keywords against the changed source paths. Only emit a separate `docs(plans):` commit if the plan file is the ONLY change (e.g. editing a plan mid-design without implementing yet, or archiving unrelated historical plans).
    - **Project memory (`.claude/memory/**`)**: the *Wire project memory* context step version-controls it — the first time it runs in a project it migrates the machine-local memory cache into `<repo>/.claude/memory/` and junctions the cache to it (idempotent; it skips already-wired or memory-less repos, so most runs are a no-op). When it *did* migrate files, they show up as untracked in **Uncommitted changes** — fold them into a commit (their own `chore: version-control project memory`, or alongside the session's docs). The Sanitize step already stripped `originSessionId` telemetry, but these are running work-logs that often carry machine-specific absolute paths and ids — the confidentiality check (step 5) MUST still pass over them and genericize/redact before they land.
    - Draft and validate commit messages following the shared rules
@@ -104,10 +104,10 @@ Read `~/.claude/skills/shared/bash-rules.md` for bash command constraints.
      3. Number of files and lines changed, then without an empty line in between, the file list — produced by `scripts/format_files.py`, not by hand:
 
         ```bash
-        printf '%s\n' \
-          $'path/one.ts\tBrief description' \
-          $'path/two.css\tBrief description' \
-          | python3 ~/.claude/skills/commit/scripts/format_files.py
+        python ~/.claude/skills/commit/scripts/format_files.py <<'EOF'
+        path/one.ts   Brief description
+        path/two.css  Brief description
+        EOF
         ```
 
         Paste its output verbatim. It emits a fenced code block with the paths padded to a common width, which is the only way the columns survive — rendered markdown collapses runs of spaces, so hand-padding (or `&nbsp;` entities, which render literally in a terminal) does not align.
@@ -129,10 +129,10 @@ Read `~/.claude/skills/shared/bash-rules.md` for bash command constraints.
     - Send with `SendMessage` (deferred — `ToolSearch` it first), addressed by the name `ListAgents` printed, one message per repo. Report what was sent and to whom.
 
 11. **Surface pending memos:**
-    Using **Pending memos** from Context (the open `- [ ]` items in `<Repo root>/.claude/memos.md`), surface the user's idea backlog as a closing informational heads-up so it isn't forgotten now that the work is committed.
-    - If there are open memos, list them as a numbered backlog (newest first), after the post-push issue notice and any step 10 handoff. Keep it brief. Do NOT ask whether to start one, invite the user to pick a number, or otherwise pose a question — just surface them and stop. Don't start any memo unasked.
-    - A memo this change set implemented was already checked off and folded into the commit back in step 6, so it won't appear here — don't re-offer it. This step only surfaces memos that are still genuinely open.
-    - If **Pending memos** is `(none)` or the file is absent, say nothing about memos.
+    Using **Pending memos** from Context (the open memos under `<Repo root>/.claude/memos/`, already rendered newest-first), surface the user's idea backlog as a closing informational heads-up so it isn't forgotten now that the work is committed.
+    - If there are open memos, list them as a numbered backlog (newest first), after the post-push issue notice and any step 10 handoff. Titles only — a trailing ` …` marks a memo with more to read, and expanding one here would bury the notice. Keep it brief. Do NOT ask whether to start one, invite the user to pick a number, or otherwise pose a question — just surface them and stop. Don't start any memo unasked.
+    - A memo this change set implemented was already moved into `done/` and folded into the commit back in step 6, so it won't appear here — don't re-offer it. This step only surfaces memos that are still genuinely open.
+    - If **Pending memos** is `(none)` or `(no open memos)`, say nothing about memos.
 
 ## Important:
 - **NEVER execute commits without explicit user approval.** Invoking `/commit` (even repeatedly) only restarts skill execution — it is NOT approval to proceed. Wait for a clear "yes", "proceed", or equivalent before running any `git commit` commands.

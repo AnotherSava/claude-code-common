@@ -78,11 +78,15 @@ hot-reloads on write, so the first bad save is already in force.
 
 The trap above is usually caught by a failed match, which is loud. It goes silent when the escape is
 part of **prose being written into a store that collapses whitespace**. Real case, 2026-09-03: a memo
-whose text quoted the shell fix `base64 -i "$CASK" | tr -d '\n'` went through `memos.py`, which does
-`text = " ".join(" ".join(args).split())` to force one line per entry. The `\n` had already become a
-real newline on the way in, `str.split()` treats it as whitespace like any other, and what got stored
+whose text quoted the shell fix `base64 -i "$CASK" | tr -d '\n'` went through `memos.py`, which then
+did `text = " ".join(" ".join(args).split())` to force one line per entry. The `\n` had already become
+a real newline on the way in, `str.split()` treats it as whitespace like any other, and what got stored
 was `tr -d ' '` — a command that deletes **spaces**. No error, no failed match, and the memo's own
 remedy quietly wrong until someone runs it.
+
+That particular store has since stopped collapsing: a memo is its own file, so only the title is
+normalised to one line and the body is written verbatim. The lesson generalises past the fix — ask of
+any destination whether it normalises what it stores, because the ones that do cannot warn you.
 
 Two defences, both cheap:
 

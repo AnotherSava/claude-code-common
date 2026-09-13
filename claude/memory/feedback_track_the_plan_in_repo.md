@@ -28,5 +28,5 @@ at the end, and keep state in exactly **one** file. Where a runbook already trac
 at the tracker instead of repeating them; two files claiming what is done is how a runbook ends up asserting a
 step is complete when it is not.
 
-Distinct from memos (`.claude/memos.md`, the **Memos** section of the global CLAUDE.md), which park *ideas
+Distinct from memos (`.claude/memos/`, the **Memos** section of the global CLAUDE.md), which park *ideas
 that are not part of the current work*. This tracks the work itself.

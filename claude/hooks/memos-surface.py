@@ -22,7 +22,10 @@ Three modes, selected by argv[1]:
       "memo N" / "start N" / "do N" / "pick N" — injects context telling the
       assistant to start memo N, bound to that very prompt.
 
-State lives per-session (keyed by session_id) in the system temp dir.
+State lives per-session (keyed by session_id) in the system temp dir. Only
+session-start reads the backlog, and it imports `memos.py` to do it rather
+than re-implementing the parse — the status line refreshes every couple of
+seconds and must stay off that path entirely.
 """
 import json
 import os
@@ -31,12 +34,11 @@ import subprocess
 import sys
 import tempfile
 
-# Emit UTF-8 regardless of the platform console codepage so em-dashes in memo text survive
+# Emit UTF-8 regardless of the platform console codepage so em-dashes in memo titles survive
 # (Windows defaults stdout to cp1252, which would mangle them in the status line).
 if hasattr(sys.stdout, "reconfigure"):
     sys.stdout.reconfigure(encoding="utf-8")
 
-OPEN_RE = re.compile(r"^- \[ \] \d{4}-\d\d-\d\d \d\d:\d\d — (.*)$")
 PICK_RE = re.compile(r"^\s*(?:memo|start|do|pick|work on)?\s*#?\s*(\d+)\s*[.)]?\s*$", re.I)
 MAX_SHOWN = 3
 
@@ -56,9 +58,9 @@ def _state_path(payload: dict) -> str:
 
 
 def _repo_root(base: str) -> str:
-    """Resolve the repo root from `base`, matching how memos.py locates the file.
+    """Resolve the repo root from `base`, matching how memos.py locates the backlog.
 
-    The /memo skill writes to `<git toplevel>/.claude/memos.md`, so resolve the
+    The /memo skill writes under `<git toplevel>/.claude/memos/`, so resolve the
     same way — otherwise launching from a subdirectory makes the writer (git
     root) and reader disagree and the backlog vanishes. Falls back to `base`.
     """
@@ -71,24 +73,27 @@ def _repo_root(base: str) -> str:
     return base
 
 
-def _open_ideas(payload: dict) -> list[str]:
+def _open_memos(payload: dict) -> list[dict]:
     base = os.environ.get("CLAUDE_PROJECT_DIR") or payload.get("cwd") or os.getcwd()
-    memos_path = os.path.join(_repo_root(base), ".claude", "memos.md")
+    # Imported here rather than at module scope so the status-line mode never pays for it.
+    sys.path.insert(0, os.path.join(os.path.dirname(os.path.abspath(__file__)), "..", "skills", "memo"))
+    # Reading a directory of files has more ways to fail than reading one did — an unreadable
+    # file, a corrupt encoding, a broken import. The never-raise contract wants every one of
+    # them swallowed: a backlog that fails to render is a missing reminder, never a failed hook.
     try:
-        with open(memos_path, encoding="utf-8") as fh:
-            lines = fh.read().splitlines()
-    except OSError:
+        import memos
+        return [{"slug": m.slug, "title": m.title} for m in memos.open_memos(_repo_root(base))]
+    except Exception:
         return []
-    ideas = [m.group(1) for m in (OPEN_RE.match(ln) for ln in lines) if m]
-    return list(reversed(ideas))  # newest first, matching the /memo skill's numbering
 
 
-def _read_state(payload: dict) -> list[str]:
+def _read_state(payload: dict) -> list[dict]:
     try:
         with open(_state_path(payload), encoding="utf-8") as fh:
-            return json.load(fh).get("ideas", [])
+            memos = json.load(fh).get("memos", [])
     except (OSError, json.JSONDecodeError, ValueError, AttributeError):
         return []
+    return memos if isinstance(memos, list) else []
 
 
 def _drop_state(payload: dict) -> None:
@@ -107,41 +112,43 @@ def _prompt_text(payload: dict) -> str:
 
 
 def session_start(payload: dict) -> None:
-    ideas = _open_ideas(payload)
-    if not ideas:
+    memos = _open_memos(payload)
+    if not memos:
         _drop_state(payload)
         return
     with open(_state_path(payload), "w", encoding="utf-8") as fh:
-        json.dump({"ideas": ideas}, fh)
+        json.dump({"memos": memos}, fh)
 
 
 def statusline(payload: dict) -> None:
-    ideas = _read_state(payload)
-    if not ideas:
+    memos = _read_state(payload)
+    if not memos:
         return
-    rows = [f"Memos ({len(ideas)}) - pick one or start fresh:"]
-    for i, idea in enumerate(ideas[:MAX_SHOWN], 1):
-        rows.append(f" {i}. {idea[:90]}")
-    if len(ideas) > MAX_SHOWN:
-        rows.append(f" +{len(ideas) - MAX_SHOWN} more - /memo")
+    rows = [f"Memos ({len(memos)}) - pick one or start fresh:"]
+    for i, memo in enumerate(memos[:MAX_SHOWN], 1):
+        rows.append(f" {i}. {memo.get('title', '')[:90]}")
+    if len(memos) > MAX_SHOWN:
+        rows.append(f" +{len(memos) - MAX_SHOWN} more - /memo")
     print("\n".join(rows))
 
 
 def on_prompt(payload: dict) -> None:
-    ideas = _read_state(payload)
+    memos = _read_state(payload)
     _drop_state(payload)  # any interaction ends the bar reminder
-    if not ideas:
+    if not memos:
         return
-    m = PICK_RE.match(_prompt_text(payload))
-    if not m:
+    match = PICK_RE.match(_prompt_text(payload))
+    if not match:
         return
-    n = int(m.group(1))
-    if not 1 <= n <= len(ideas):
+    n = int(match.group(1))
+    if not 1 <= n <= len(memos):
         return
+    memo = memos[n - 1]
     context = (
-        f'The user selected memo #{n} from the status-bar backlog: "{ideas[n - 1]}". Start working on '
-        "it now as a fresh task. Once it's genuinely done, flip its `- [ ]` to `- [x]` in "
-        ".claude/memos.md (match it by this text)."
+        f'The user selected memo #{n} from the status-bar backlog: "{memo.get("title", "")}". Read it in '
+        f'full with `python ~/.claude/skills/memo/memos.py show {memo.get("slug", n)}` — the title is only '
+        "its first line — then start working on it now as a fresh task. Once it's genuinely done, run "
+        f'`python ~/.claude/skills/memo/memos.py done {memo.get("slug", n)}` to move it into done/.'
     )
     print(json.dumps({
         "hookSpecificOutput": {"hookEventName": "UserPromptSubmit", "additionalContext": context},

@@ -9,7 +9,7 @@ description: >-
   or wrap up the current section of work.
   DO NOT TRIGGER when: the user only wants to commit (use /commit), to park a single
   idea (/memo), or to persist durable knowledge (/reflect).
-allowed-tools: Bash(python3 ~/.claude/skills/wrap-up/scripts/session_scan.py:*), Bash(python3 ~/.claude/skills/memo/memos.py:*), Bash(git rev-parse:*), Bash(git status:*), Bash(git log:*), Read, Edit, Write, Glob, Grep, Skill
+allowed-tools: Bash(python ~/.claude/skills/wrap-up/scripts/session_scan.py:*), Bash(python ~/.claude/skills/memo/memos.py:*), Bash(git rev-parse:*), Bash(git status:*), Bash(git log:*), Read, Edit, Write, Glob, Grep, Skill
 ---
 
 # Wrap Up
@@ -25,14 +25,14 @@ neither will a context that has been compacted. The transcript on disk still hol
 ## Context
 - Repo root: !`git rev-parse --show-toplevel 2>/dev/null || pwd`
 - Uncommitted changes: !`git status --short`
-- Pending memos: !`R=$(git rev-parse --show-toplevel 2>/dev/null || pwd) && cat "$R/.claude/memos.md" 2>/dev/null | grep '^- \[ \]' || echo "(none)"`
-- Session digest: !`python3 ~/.claude/skills/wrap-up/scripts/session_scan.py`
+- Pending memos: !`python ~/.claude/skills/memo/memos.py list --width 120 2>/dev/null || echo "(none)"`
+- Session digest: !`python ~/.claude/skills/wrap-up/scripts/session_scan.py`
 
 ## Working directory
 
-The memo file is `<Repo root>/.claude/memos.md`. The `memos.py` helper resolves that path
-itself, so it works from any subdirectory; every other path in this skill is relative to
-**Repo root**, which may differ from the current directory.
+The memo backlog is `<Repo root>/.claude/memos/`, one file per memo. The `memos.py` helper
+resolves that path itself, so it works from any subdirectory; every other path in this skill is
+relative to **Repo root**, which may differ from the current directory.
 
 ## Process
 
@@ -144,10 +144,13 @@ Then stop and wait. This is a gate: nothing is committed until the list is dispo
 - **answer** is ordinary work. Do it now, in full, and let the resulting changes flow into the
   commit in step 7. If the answer settles a decision without changing any code, leave recording
   it to `/reflect`, which step 7 runs anyway.
-- **memo** appends one entry per item: `python3 ~/.claude/skills/memo/memos.py add "<text>"`.
+- **memo** writes one file per item:
+  `python ~/.claude/skills/memo/memos.py add --title "<short title>" "<the detail>"`.
   Write each one to stand on its own, naming the thing and the concrete next step. The session
   it came from is about to be cleared, so a memo that only gestures at the conversation
-  ("fix the thing we discussed") will be unreadable in three weeks.
+  ("fix the thing we discussed") will be unreadable in three weeks. Title it as a sentence that
+  names the thing and the change — it is the only line that shows up in every later listing —
+  and put the evidence, the reproduction and the reasoning in the body, which has no length limit.
 - **drop** means do nothing at all: no memo, no work, no argument, no raising it again later in
   the same run.
 

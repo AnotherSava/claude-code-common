@@ -334,7 +334,9 @@ Parks an off-task idea in the project's memo backlog so it isn't lost — withou
 **Command:** `/memo [idea]`
 
 **Features:**
-- `/memo <text>` appends a dated `- [ ]` item to `<repo>/.claude/memos.md` (created on first use); `/memo` with no args lists the open backlog and offers to address one
+- `/memo <text>` writes one markdown file to `<repo>/.claude/memos/` (created on first use); `/memo` with no args lists the open backlog and offers to address one
+- One memo is one file — a `created:` frontmatter block, an `# H1` title, and a body as long as the idea needs; open versus addressed is `memos/` versus `memos/done/`, so nothing parses a status marker
+- Read one in full with `show`, close it with `done`, and undo that with `reopen` — a listing shows titles only, with a trailing `…` marking a memo that has more to read
 - Memos are deliberately lighter than GitHub issues — half-formed thoughts, committed with the project
 - Open items resurface on their own: at session start / `/clear` (via the `memos-surface.py` hook), at task completion, and after a `/commit` push
 - Capturing a memo never starts the work — that's the point; addressing one is always an explicit, separate choice
@@ -550,13 +552,13 @@ export CLAUDE_AGWINTERM="$HOME/programs/agwinterm"
 
 **File:** `claude/hooks/memos-surface.py` (one script, three modes)
 
-Surfaces the open `/memo` backlog (`.claude/memos.md`, resolved at the git root, numbered newest-first) as a **transient status-bar reminder** so a fresh or freshly cleared session shows "what's next" without the user typing anything — then clears it the moment they start working. Three wired entry points:
+Surfaces the open `/memo` backlog (`.claude/memos/`, resolved at the git root, numbered newest-first) as a **transient status-bar reminder** so a fresh or freshly cleared session shows "what's next" without the user typing anything — then clears it the moment they start working. It imports `memos.py` for the parse rather than re-implementing it, and only in the session-start mode — the status line refreshes every couple of seconds and stays off that path. Three wired entry points:
 
 - **`SessionStart`** (`startup`/`clear`, no arg) — writes a per-session state file with the open memos. Injects **nothing** into chat, so the model never greets with or pushes the backlog — the status bar is the only reminder.
 - **`statusLine`** (`statusline` arg, `refreshInterval: 2`) — renders the compact backlog (top 3 + a `+N more` line) from the state file; the interval makes it appear within ~2s while the session is idle.
-- **`UserPromptSubmit`** (`on-prompt` arg) — clears the state (the bar reminder is done). If the message is a bare number — or `memo N` / `start N` / `do N` / `pick N` — it injects, bound to that prompt, which memo N maps to, so Claude reliably starts it instead of treating the number as noise.
+- **`UserPromptSubmit`** (`on-prompt` arg) — clears the state (the bar reminder is done). If the message is a bare number — or `memo N` / `start N` / `do N` / `pick N` — it injects, bound to that prompt, which memo N maps to, so Claude reliably starts it instead of treating the number as noise. The injection carries the memo's slug and the commands to read it in full and to close it, since the bar showed only its title.
 
-Stays silent when there's no file or nothing open. Needs no environment variable. See the [Memo](#memo) skill for how items get there and the other two moments they resurface (task completion, `/commit`).
+Stays silent when there's nothing open. Needs no environment variable. See the [Memo](#memo) skill for how items get there and the other two moments they resurface (task completion, `/commit`).
 
 ---
 
@@ -596,7 +598,7 @@ Where several projects share one box behind one reverse proxy, a generic name is
 - **The hook** is a `PostToolUse` adapter that feeds the checker one just-written path. It loads the rules by path instead of copying them, so there is exactly one copy. It is **not registered in `settings.json` by default** — its docstring carries the entry to add, along with the three things that fail silently if you get them wrong (the mandatory `//` root anchor, `if` belonging *inside* the hook object, and `"async": false` being set explicitly because a backgrounded hook cannot deliver `additionalContext` at all).
 - **The tenancy rules are not implemented here.** What a vhost may claim inside a shared `conf.d` belongs to the `landlord` repo, whose on-box gate enforces it; this checker loads `landlord/bin/vhost-lint.py` by path and applies it to the single file `VHOST_SRC` in `config/publish.env` names, so the two cannot disagree. A Caddy file the repo has *answered for* — it names a different one, or names none via an empty `VHOST_SRC=` — is skipped in silence, since a keyless global-options block, a snippet definition and a port-only address are all legitimate when you own the proxy. Every other way the rules fail to run is **NOT CHECKED**, never a bare "clean": no landlord checkout, no declaration at all, or a declaration naming a file that is not there. That third state is what the checker is for — an undeclared live tenant printed `clean (2 file(s) checked)` over a vhost no tenancy rule had touched, character-for-character what a real pass prints. See [`CLAUDE_LANDLORD`](#external-hook-paths).
 
-**Tests:** `python3 claude/tests/ingress-lint.py` — exit 0 all cases behave, 1 otherwise. It pins the compose rules, the delegation, the silent skips and all three NOT CHECKED paths, and it stubs landlord so it runs on a machine with no checkout.
+**Tests:** `python claude/tests/ingress-lint.py` — exit 0 all cases behave, 1 otherwise. It pins the compose rules, the delegation, the silent skips and all three NOT CHECKED paths, and it stubs landlord so it runs on a machine with no checkout.
 
 **Related:** `claude/scripts/identity-check.py` is the other half — the same problem checked from outside instead of prevented at the source. Given a per-host manifest it asserts, for every hostname on a box, that the host's own marker is present *and* that every other tenant's marker is absent; the second half is what turns "up" into "up and correct". The `/publish` skill wires it in via `IDENTITY_CHECK`. The manifest is per-host data and is passed in rather than kept here — see the note in [Global Installation](#global-installation).
 
@@ -727,6 +729,12 @@ ln -s /opt/homebrew/bin/python3 ~/.local/bin/python
 ```
 
 Point the symlink at `/opt/homebrew/bin/python3`, not at the versioned `libexec/bin/python`, so it follows future upgrades. Make sure `~/.local/bin` is on `PATH`, then confirm with `python -V`.
+
+The `/memo` skill and the memo commands inside `/commit` and `/wrap-up` use the bare `python` too, allowlist strings included — an allowlist that names a different interpreter than its command makes every call prompt for permission.
+
+### UTF-8 mode
+
+The `env` block of `claude/settings.json` sets `PYTHONUTF8=1`, which puts every Python process Claude Code spawns into UTF-8 mode. It is there for one failure that is invisible on macOS and silent on Windows: Claude Code writes each hook's JSON payload to stdin as UTF-8 bytes, but Python on Windows decodes stdin with the system codepage, so a payload carrying Cyrillic, an emoji or an em-dash raises `UnicodeDecodeError`. That subclasses `ValueError`, so the never-raise `except` that every hook is required to have swallows it and the hook proceeds on an empty payload — no crash, no log line, just a hook that quietly stops working for exactly the inputs containing non-ASCII. One env var closes it for all of them, survives `python -S`, and reaches hook scripts that live in other repos this one cannot edit.
 
 Because the symlink lives outside the repo, it is the one setup step no `git clone` restores. A machine missing it fails silently — hooks simply never fire.
 
