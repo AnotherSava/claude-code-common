@@ -94,9 +94,15 @@ its log is what made a misfire diagnosable after the fact.
 
 ## 6. Script hygiene
 
-- **Windows UTF-8** — Claude Code sends UTF-8 bytes; Python on Windows decodes stdin with the
-  system codepage and mangles non-ASCII before your logic runs. `sys.stdin.reconfigure(encoding="utf-8", errors="replace")`
-  at the entry point, guarded by `hasattr`. Same for stdout when the hook prints.
+- **Windows UTF-8 is handled globally — don't re-fix it per hook.** Claude Code sends UTF-8 bytes;
+  Python on Windows decodes stdin with the system codepage, so a payload carrying Cyrillic, an
+  emoji or an em-dash raises `UnicodeDecodeError`. That subclasses `ValueError`, so the
+  never-raise `except` every hook already has swallows it and the hook runs on an empty payload —
+  it does not crash, it silently stops working for exactly those inputs. `"PYTHONUTF8": "1"` in
+  the `env` block of `settings.json` puts every hook in UTF-8 mode and closes it for all of them
+  at once; it survives `-S`, and it covers hooks living in other repos that this one cannot edit.
+  A per-file `sys.stdin.reconfigure(...)` is now a second mechanism for the same job, so leave it
+  out. Keep `sys.stdout.reconfigure(encoding="utf-8")` where a hook already has one.
 - **Derive cwd** as `CLAUDE_PROJECT_DIR` → `payload["cwd"]` → `os.getcwd()`. Add
   `git rev-parse --show-toplevel` only when the target is repo-relative.
 - **`realpath` before git** when the path may be a symlink out of the worktree — everything under
