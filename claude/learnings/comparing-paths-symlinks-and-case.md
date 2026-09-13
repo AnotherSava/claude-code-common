@@ -59,6 +59,38 @@ This is safe on a case-insensitive volume by definition. On a case-sensitive one
 principle join two files differing only in case — a shape that cannot occur on the volume where the
 problem exists in the first place.
 
+## Generating a name that already exists, on a volume that folds case
+
+The same disagreement destroys data when the string is a name you are about to *write* rather than
+one you are comparing. A helper that picks a free filename — `slug`, `slug-2`, `slug-3` — tests its
+candidate against a set of names it read from the directory. Test that set with `==` and a
+hand-made `Case-Test.md` does not match a generated `case-test`, so the candidate is declared free
+and `open(path, "w")` opens the existing file and truncates it. Measured on NTFS 2026-09-13 in a
+memo-backlog helper: exit 0, a plausible success line printed, the original memo's body gone, and
+one file on disk where the tool believed there were two.
+
+Three things have to fold, and missing any one of them reopens the hole:
+
+- **The collision test.** `candidate.casefold() in {n.casefold() for n in taken}`.
+- **The filter that builds `taken`.** A `name.endswith(".md")` test skips `Case-Test.MD`, so the
+  file never enters the set the collision test consults — the guard above is then correct and
+  consulted an incomplete set. This one is easy to miss precisely because the *stem* logic looks
+  fixed.
+- **The lookup that resolves a name back to a file**, or the entry becomes unreachable by every
+  spelling a listing hands back. Prefer exact match first and folded second, so two names differing
+  only in case stay separately addressable on a volume that does distinguish them.
+
+**`open(path, "x")` is a real backstop and covers only creation.** `O_EXCL` is enforced by the
+filesystem, so it raises `FileExistsError` on the case-variant too — the guard you want whenever a
+computed name is about to become a new file. There is **no equivalent for a rename**:
+`os.replace` (and `os.rename` on POSIX) overwrites the destination by design and takes no exclusive
+flag, so a move between directories has nothing between it and a silent clobber but the name it was
+handed. In the measured case the write path was protected and the move path was not, so `add`
+refused loudly while `done` destroyed a file — same defect, two outcomes, one of them invisible.
+
+A regression test for this has to close *onto* an existing mixed-case twin and assert the `-2`
+suffix. Asserting only that the write path refuses proves nothing about the move.
+
 ## The general rule
 
 Treat a path string as belonging to its producer. `git`, `realpath`, a symlink target, an editor's

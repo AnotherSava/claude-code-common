@@ -224,6 +224,16 @@ names every reachable target with its device, project and status, and the mismat
 Only that path answered — `/api/sessions`, `/api/targets` and `/api/devices` were all 404, so do not
 go fishing for others.
 
+**A session name and a project id are different identifiers, and the relay routes by the second.**
+Measured 2026-09-13 on the same relay: a Windows session whose `ListAgents` header read
+`claude-b8 [368a70]` posted a reply with `from_agent: "claude-b8"`, and the peer's answer to that
+address came back `no_such_session`. The routable id was `CHROME/claude` — the project, not the
+session. The mistake is invisible at send time, because `from_agent` is only the *reply* address: the
+outbound message is written and receipted normally, and the failure surfaces one round trip later in
+the other agent's transcript, where you cannot see it. `ListAgents` names are the address for
+`SendMessage` on the same machine and are **not** interchangeable with the relay's, so derive the
+relay's from the relay (`/api/agents`) rather than from the roster you already have on screen.
+
 Two traps from the same exchange:
 
 - **`refused before anything was written` is the useful half of the reply.** It says the failure was
