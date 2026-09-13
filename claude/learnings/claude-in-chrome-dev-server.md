@@ -12,6 +12,23 @@ The page has actually loaded (title and DOM are present) — only the idle wait 
 it's structural (a persistent connection), not transient. Any dev server with a long-lived HMR/SSE/websocket can
 trip it, not just Next.
 
+## Live reload is a sufficient cause, not the only one — check before blaming the dev server
+
+The title above is how this was first written up, and it is too narrow. Verified 2026-09-11: the same
+`Script injection timed out after 5000ms` came back from a **production build**, served over https by a real
+deployment, with **the tab visible and focused**. No HMR, no dev server, no backgrounded tab — and no build or
+window state that made screenshots work.
+
+So a persistent connection explains *some* of these and is not required for one. Before concluding "it's the dev
+server", try the deployed build once: if that fails too, the app simply cannot be photographed by the agent, and
+the right response is to stop planning around screenshots rather than to keep looking for the state that fixes
+them. Say so explicitly when handing work over — a UI change verified only structurally is a UI change nobody
+has looked at, and that gap ships defects a glance would have caught (a label at 1.17:1 contrast, in one case,
+found by the user within minutes of release).
+
+`javascript_tool` keeps working throughout — different injection path — so the DOM, `getComputedStyle`,
+`getBoundingClientRect()` and `performance` entries stay available even when no picture can be taken.
+
 ## Workarounds
 
 - **`javascript_tool` bypasses it.** It uses a different injection path and runs regardless of idle. Read the DOM

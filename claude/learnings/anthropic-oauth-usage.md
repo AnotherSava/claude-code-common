@@ -167,7 +167,25 @@ You don't have to spawn the Claude Code CLI to refresh an expired access token �
 Tracked in [claude-code#31637](https://github.com/anthropics/claude-code/issues/31637) and [claude-code#31021](https://github.com/anthropics/claude-code/issues/31021).
 
 - Short-interval polling triggers `HTTP 429 rate_limit_error`. Rapid dev-loop restarts are a common trigger.
-- **No `Retry-After` header** — no hint when the bucket clears.
+- **There IS a `Retry-After` header, and this file said there wasn't for months.** Corrected 2026-09-11
+  against live 429s from this route, which carried `retry-after: 832` and `retry-after: 2449`. The old
+  claim came from a client that never looked: `reqwest`'s `resp.text()` **consumes the response and
+  takes the header map with it**, so reading the body first and the headers second yields an empty map
+  on every failure — which reads exactly like a server that sends no headers. Read headers before the
+  body. (General form: a negative result from one probe is a reason to check how you probed.)
+  - Values in the wild also include `retry-after: 0` and the header genuinely absent, so treat a
+    non-positive or missing value as *"told you nothing"* rather than as *"retry now"*.
+  - The value is in delta-seconds here, not the RFC-2822 date form the spec also permits. Parse both.
+  - Cap whatever you parse before acting on it — a garbage value turns into an indefinite self-ban,
+    and the user has no way to see why the figures stopped moving.
+- **Honour the deadline across restarts, or you never learn its length.** The window it names outlives
+  any single process, so an in-memory deadline is reset by the very event that most often causes the
+  429 in the first place (a dev-loop restart). Persist it to disk, skip the poll while it is live, and
+  replay the last good sample so the UI keeps showing a real figure instead of blanks.
+- **Count your requests per launch, not per interval.** A ten-minute poll looks harmless and is not the
+  thing that trips this: an app that fires one request at startup makes one request per *deploy*, and a
+  working session produces a dozen of those in the time one interval covers. Skip the opening request
+  when a stored sample is younger than the interval.
 - Rate-limit quota is **pooled per organizationUuid**, not per-account ([claude-code#41886](https://github.com/anthropics/claude-code/issues/41886)).
 - **Polling every 10 minutes is stable in practice** (verified on a Max subscription). Still retain last-good values on 429 since community reports indicate recovery isn't always immediate.
 

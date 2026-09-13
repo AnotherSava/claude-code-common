@@ -111,6 +111,17 @@ window's own fill.
   double-quoted string becomes three bytes, one of which ends the string early — and the parser
   reports `Missing closing '}' in statement block` pointing at a line far below. Keep capture scripts
   pure ASCII, or save them UTF-8-with-BOM.
+  - **It comes back through your tooling, not through your typing.** Editing one of these scripts with
+    anything that writes UTF-8 *without* a BOM by default — Python's `write_text(encoding="utf-8")` is
+    the usual culprit — silently strips it and reinstates the bug in a file that was previously fine.
+    After a scripted edit, assert the first three bytes are `EF BB BF` on every `.ps1` that contains a
+    non-ASCII byte; it is two lines and it is the only thing that catches this.
+- **A simple `param()` block silently swallows arguments it does not declare.** Without
+  `[CmdletBinding()]`, `script.ps1 -Method PrintWindow` puts the flag in `$args` and runs on with the
+  declared parameters bound and no error at all — so a documented flag that was never implemented reads
+  as working. With the attribute the same call fails with *"A parameter cannot be found that matches
+  parameter name 'Method'"*. Put it on every script that takes parameters, especially one whose comment
+  block tells an operator which flags to pass.
 - **Per-pixel work belongs in C# via `Add-Type`, not a PowerShell loop.** A 1300x1650 window is 2.2M
   pixels; `GetPixel`/`SetPixel` in script takes the better part of a minute, while `LockBits` +
   `Marshal.Copy` + a C# loop is instant.

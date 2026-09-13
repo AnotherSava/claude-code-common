@@ -737,6 +737,27 @@ friends are ambiguous in WPF files. Qualify: `System.Windows.MessageBox.Show(...
 `CLIPBRD_E_CANT_OPEN` when another process holds the clipboard — in a mixed app, deliberately using
 the WinForms one (with a comment saying why) is the more robust choice.
 
+It also **takes two away**. The desktop SDK swaps the implicit-using set rather than extending it, so
+`System.IO` and `System.Net.Http` — both present under a plain `Microsoft.NET.Sdk` — are gone, and
+`Path`, `File` and `IOException` fail with `CS0103: The name 'Path' does not exist in the current
+context`. The error names types everyone assumes are always in scope, so it reads as a broken
+reference rather than a missing using. Read the generated list rather than guessing at it:
+
+```
+$ cat obj/Debug/net10.0-windows/<Assembly>.GlobalUsings.g.cs
+global using System;
+global using System.Collections.Generic;
+global using System.Drawing;
+global using System.Linq;
+global using System.Threading;
+global using System.Threading.Tasks;
+global using System.Windows.Forms;
+```
+
+Every file touching the filesystem therefore carries an explicit `using System.IO;`. This bites a
+*new* project added to such a solution hardest — a console tool referencing the app, say — because
+the existing files already have the using and look like they never needed one.
+
 ### Sharing chrome between two WPF dialogs
 
 Once a second window wants the same look, move the styles to a `ResourceDictionary` (build action

@@ -566,7 +566,52 @@ implausibly low bitrates. A *rise* in output bitrate after enabling it is the ex
 ### Transcodes write the whole film to disk by default
 
 `EnableThrottling` and `EnableSegmentDeletion` both default **false**, so ffmpeg races to the end of the film whether
-or not anyone is watching, and keeps every segment. Turn both on (`ThrottleDelaySeconds` 180, `SegmentKeepSeconds` 720
-are sane defaults). Note that throttling deliberately pauses ffmpeg, which in principle can look like a slow transcode
+or not anyone is watching, and keeps every segment. Turn throttling on (`ThrottleDelaySeconds` 180 is a sane default).
+Note that throttling deliberately pauses ffmpeg, which in principle can look like a slow transcode
 to a TTFB-based diagnostic — it engages only once the client is far ahead, so the segments being asked for are already
 written.
+
+**Segment deletion is the one to leave alone, and the section below is why.**
+
+## `EnableSegmentDeletion` costs ~1.8 s on every stream-copy play
+
+This is the single largest term in time-to-first-frame, it is invisible from the client, and nothing about the
+setting's name suggests it. `EncodingHelper.cs` adds `-readrate 10` to the ffmpeg command whenever
+
+```
+EnableSegmentDeletion && TranscodingType == Hls && IsCopyCodec(OutputVideoCodec)
+```
+
+— so it fires on exactly the good case, a remux where the video is `-codec:v copy`. `-readrate 10` throttles input
+reading to 10× realtime, and the HLS muxer finalizes segment 0 only when it opens segment 1. The client therefore
+waits for **two segments of content at one tenth of realtime**: with `-hls_time 6` that is 12 s ÷ 10 = **1.2 s**,
+plus 0.1–0.3 s of genuine process start.
+
+The signature is a *constant* floor that does not vary with file size, codec or bitrate — which is what makes it
+look like an unfixable cold start rather than a flag. Measured on one library, time to segment 0 finalized, same
+command with only that flag removed:
+
+| title | with `-readrate 10` | without |
+|---|---|---|
+| A Clockwork Orange | 2348 ms | 270 ms |
+| Amour (n=3) | 2017 / 2025 / 2070 ms | 116 / 116 / 118 ms |
+| The Hobbit | 1692 ms | 294 ms |
+| HP: Goblet of Fire | 1267 ms | 192 ms |
+
+End to end in a real app that number was ~1260 ms of a ~1324 ms open; everything else — all DB work, the whole
+PlaybackInfo negotiation, master and child playlists — summed to under 60 ms on loopback. Direct-play titles skip
+it entirely and open in 17–83 ms.
+
+**No device profile can dodge it.** The gate reads the *output video codec decision*, which the server makes after
+reading your profile, so nothing you send changes the branch. Turn the setting off instead (Dashboard → Playback →
+Transcoding, or `POST /System/Configuration/encoding`), and restart Jellyfin.
+
+What you give up is pruning during a play. Throttling still paces the write, so a 2 h film accumulates roughly the
+remux — never more than the source — and `stopEncoding` reclaims it when the client tears the job down. Verify the
+change took by grepping a *fresh* `FFmpeg.*.log` for `-readrate`; the setting is global, so every client on that
+server gets the improvement at once.
+
+`ffmpeg -readrate_initial_burst 30` alongside `-readrate 10` gives 108–117 ms *and* keeps deletion — verified on
+ffmpeg 7.1.4-Jellyfin — but Jellyfin emits no such option and exposes no setting for it, so reaching it means
+patching Jellyfin or shimming `EncoderAppPath`. Worth knowing the tradeoff is not actually forced; not worth doing
+before simply turning the setting off.

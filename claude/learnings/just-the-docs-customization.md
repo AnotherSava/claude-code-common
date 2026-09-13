@@ -102,3 +102,23 @@ Mermaid label gotchas (these break rendering or render wrong):
 - Quote any edge/node label with special chars: `-->|"#[tauri::command]"|`, `-->|"a -> b"|`.
 - Inside node labels, use `&lt;`/`&gt;` for angle brackets and `<br/>` for line breaks: `AS[("AppState<br/>Mutex&lt;Vec&lt;T&gt;&gt;")]`.
 - Validate the diagram parses (e.g. the claude-mermaid plugin's `mermaid_preview`) before committing — a syntax error renders as a broken diagram on the live site, not a build failure.
+
+## The search index contains every word on the page, including your includes' chrome
+
+`search-data.json` is built from `page.content | markdownify | strip_html`. That keeps all the **text**
+and drops all the **attributes**, with two consequences worth knowing before you design an include:
+
+- Any string an include emits into the page body is indexed as if the prose had written it. A
+  per-platform figure include whose `<figcaption>` carries a "Windows"/"macOS" badge, a swap button
+  labelled with the other OS, and a "the macOS screenshot hasn't been taken yet" note puts all of that
+  in the index — so searching for a platform name returns sections that say nothing about it, and a
+  sentence about your own backlog becomes a search result.
+- There is **no attribute that excludes text from the index** — no `data-search-ignore`, nothing on the
+  element. `strip_html` has already thrown attributes away by the time anything could read them, so the
+  only levers are emitting less text or overriding the theme's own `search-data.json` template.
+- Under `remote_theme` that override is not a small change: the template is not in the working tree, so
+  there is no local file to copy and edit. You would be vendoring the theme to change one file.
+
+The practical answer is usually to accept it and say so in a comment beside the include, because the
+hits are often defensible (the section really does carry a screenshot of that platform) and the
+genuinely wrong entries tend to be transient.

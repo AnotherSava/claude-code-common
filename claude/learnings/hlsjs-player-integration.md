@@ -160,3 +160,56 @@ that no longer exists. Two consequences when swapping streams:
   import — the code split survives.
 - `bandwidthEstimate` exists and is maintained even with a single level, but it is the EWMA described above; prefer
   per-fragment arithmetic when you need to attribute a delay to a cause.
+
+## `crossOrigin` on the `<video>` also governs the POSTER fetch — and can make it fail from cache
+
+Chrome applies the media element's CORS mode to `poster`, not just to the media. Set `crossOrigin="anonymous"` and
+the poster is requested in CORS mode; the image host must then answer with `Access-Control-Allow-Origin`.
+
+That alone is survivable. What is not is the cache interaction. A CDN that answers a **no-cors** request without an
+ACAO header and sends no `Vary: Origin` keeps **one cache entry for both modes**. So:
+
+1. The page renders the same artwork in an ordinary `<img>` (a grid, a hero) — a no-cors fetch, cached without ACAO.
+2. The player later asks for the byte-identical URL in CORS mode, gets that entry back, finds no ACAO, and fails.
+3. Nothing paints, no error surfaces, and it persists for the cache lifetime — a year, on a typical image CDN.
+
+The signature is maddening: **some titles show a poster and others don't, arbitrarily**, because it depends purely
+on which mode happened to reach each URL first. Verified against TMDB's CDN, which returns `access-control-allow-origin: *`
+when an `Origin` header is present and omits it otherwise, with no `Vary: Origin` either way.
+
+Reproduce it in one page, no server needed:
+
+```js
+const test = (url, cors) => new Promise(res => {
+  const im = new Image(); if (cors) im.crossOrigin = 'anonymous';
+  im.onload = () => res('ok'); im.onerror = () => res('FAIL'); im.src = url;
+});
+await test(u, false);  // ok  — and poisons the entry for CORS
+await test(u, true);   // FAIL
+// fetch(u, {cache: 'reload'}) re-populates it WITH the header and both modes then work
+```
+
+**Fix by deleting `crossOrigin`, not by proxying the image.** Check first what the attribute is actually for: it
+exists to allow canvas/WebAudio access to the media and to let a *cross-origin* `<track>` load. If nothing draws
+the video to a canvas (`grep -rE "drawImage|captureStream|toDataURL|getImageData|createMediaElementSource"`) and
+every `<track src>` is same-origin, the attribute has no consumer and removing it costs nothing — a media element
+plays cross-origin media happily in no-cors mode; it only becomes canvas-tainted. Adding `crossOrigin` to every
+`<img>` instead inverts the damage onto the page. If a future feature does need pixel access, the poster has to
+move off the element at the same time.
+
+## Resource Timing is how you measure what hls.js fetched — with two traps
+
+hls.js issues the manifest, the child playlist and every segment itself, so `performance.getEntriesByType("resource")`
+is the only place those timings exist. Two things will quietly ruin the numbers:
+
+- **Cross-origin entries report every size as 0** unless the server sends `Timing-Allow-Origin`. `transferSize`,
+  `encodedBodySize` and `decodedBodySize` all read 0 for a stream fetched straight from a media server, while a
+  same-origin fetch on the same play reports real figures. Treat 0 as *unmeasurable* and carry null — reporting a
+  5 MB segment as "0.0 MB" reads as an empty response, which is a different fact.
+- **The buffer holds 250 entries by default.** A feature-length HLS play fetches hundreds of segments, so the
+  second play in the same document finds it full and sees nothing. Call `performance.clearResourceTimings()` as each
+  play begins; that also makes any `startTime >= since` filtering redundant.
+
+Excluding the init segment by a byte-size floor is tempting and wrong — a low-bitrate or short first segment is a
+real measurement a floor would discard. Jellyfin numbers segments from `-1`, so match the index (`/hls1/main/-1.mp4`)
+and drop negatives.

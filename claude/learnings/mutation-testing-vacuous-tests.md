@@ -215,3 +215,18 @@ Two mechanical prerequisites, both of which have silently invalidated whole runs
 
   Keep a pristine copy (`cp file /tmp/file.bak`) and restore from it rather than reversing the edit —
   an inverse `replace()` fails the same silent way.
+- **Touch the file after restoring it, on any build that compares timestamps.** The copy-and-restore
+  above has a sting the Python case hides: `cp` stamps the backup at copy time, so moving it back
+  leaves the source *older* than the artefact built from the mutant, and MSBuild, Make, Go and Cargo
+  all then consider the project up to date and skip the rebuild. The next test run executes the
+  **mutant's** binary against restored source. Measured 2026-09-11 on a .NET repo: after `mv` restored
+  a clean `AchievementMetadata.cs`, `dotnet test` reported the same 2 failures as the mutant run, and
+  `git diff` showed a clean file — the contradiction is the tell. `touch src/File.cs` and re-run, and
+  it goes green.
+
+  This is the mirror of the two lies above: those report a mutant *killed* that was not, this reports
+  the tree *broken* when it is clean, and it arrives at the end of the run, when the conclusion being
+  drawn is "the revert failed" or "the code really is wrong". Before believing a failure that follows a
+  restore, check that the source on disk disagrees with the result — and prefer a build flag that
+  refuses the cache outright (`--no-incremental`, `-a`, `-B`) for the verification run, since it needs
+  no discipline at the one moment discipline is scarce.

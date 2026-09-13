@@ -93,6 +93,45 @@ Two defences, both cheap:
   flattens whitespace by design (correct, for one-line-per-entry) cannot warn you, so the write is
   the last moment the mistake is visible.
 
+## A NUL byte passes every compiler gate; only git notices
+
+The failures above are at least *visible* once you look at the bytes. U+0000 is the case where nothing looks at
+them. Real case, 2026-09-11: an `Edit` meant to write separators inside a TypeScript template literal —
+
+```ts
+this.userKey = `${baseUrl} ${opts.token} ${this.userName}`;
+```
+
+— put two literal NUL bytes where the spaces belonged. The separator still *worked* (NUL is a fine delimiter), so
+there was no behavioural symptom, and **`tsc --noEmit`, `vitest` (451 tests) and a full `next build` all passed**.
+The only thing that objected was git:
+
+```
+web/src/lib/jellyfin/client.ts | Bin 14949 -> 16999 bytes
+Binary files a/…/client.ts and b/…/client.ts differ
+```
+
+**`Bin` or `Binary files … differ` on a text source file means NUL bytes, essentially always** — git's heuristic is
+a NUL in the first 8000 bytes. Left alone it costs every future diff, blame and review of that file.
+
+Find them by byte offset rather than by eye, since `head`/`cat` render them as nothing:
+
+```python
+b = open(path, "rb").read()
+print(b.count(b"\x00"), b.find(b"\x00"))
+print(repr(b[i - 60:i + 60]))        # surrounding source, with \x00 shown
+```
+
+Fix with a byte-level replace (`open(path, "wb").write(b.replace(old, new))`), not Edit — same reason as above: you
+cannot type the character into a tool argument to match on it.
+
+Two things generalise:
+
+- **Read the diff, not just the gates.** Three green checks said this file was fine; `git diff --stat` was the only
+  instrument that saw it. That is an argument for running the commit flow rather than committing off a passing build.
+- **Prefer a separator you can see.** `JSON.stringify([a, b, c])` as a cache key is unambiguous, plain ASCII, and
+  cannot go invisible — reach for it over a hand-joined delimiter when the value only has to be unique.
+
 ## Why it's worth the trouble
 
 Nothing breaks if the literal character goes in — the code runs identically. What breaks is the convention: the file's own comment claims an escape "rather than the literal character, which is invisible in source", and the next reader sees an empty-looking string with no way to tell U+2003 from U+2009 or a plain space. Whole-file greps for the constant also stop working.
