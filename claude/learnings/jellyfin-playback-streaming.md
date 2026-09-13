@@ -178,6 +178,34 @@ client that wants the original still has to retune for foreign-language titles.
 - Omitting `audioCodec` from a hand-built URL makes the server infer it from the path extension and emit
   `AudioCodec=m3u8` — a video-only stream. Another reason to use the server's URL as-is.
 
+## A resumed play starts the encoder TWICE — unless you ask for the resume segment first
+
+`DynamicHlsController.GetDynamicSegment` treats the fMP4 init segment (`/hls1/main/-1.mp4`) as `segmentId = 0` with
+`startTranscoding = true`, unconditionally. hls.js must fetch that init segment before any media fragment — it is the
+playlist's `EXT-X-MAP` — so a resumed play starts ffmpeg at offset zero whatever the client's `startPosition` says,
+and the first real fragment request then kills that job and relaunches at the offset. Two encoder start-ups in
+series on the path to the first frame. Measured across 44 resume pairs in three days of one server's logs:
+
+- The two jobs **never overlap**. The segment handler runs its kill inside `using (await
+  _transcodeManager.LockAsync(playlistPath))` and `TranscodingJob.Stop()` blocks on `process.WaitForExit(5000)`, so
+  the replacement cannot launch until the old process is gone — `FFmpeg exited with code 0` precedes the second
+  `"ffmpeg" …` line by 1–13 ms, without exception. The cost is serialized latency, never contention.
+- Median 568 ms between the two launches, of which 200–350 ms is pure wait for the first process to die.
+- The abandoned job's output is not swept at handover — the kill predicate is `p => false` — so its segments
+  (11–12 MiB of NVENC output in the measured cases) survive under the shared playlist prefix until the session's own
+  teardown.
+
+The fix is to ask for the resume segment BEFORE letting the init segment load: a one-byte `Range` request on the
+fragment containing the resume point. It is the asking that starts the encoder, not the reading, so the single job
+that comes up is already at the right offset and the init file is then served off its output. Take the fragment from
+the parsed playlist rather than computing `seconds / segmentLength` — segments are keyframe-aligned and not uniform
+— and aim at or BEFORE the resume point: a job running at segment 77 relaunches if you ask for 76, and costs nothing
+if you ask for 78.
+
+Reading the logs for any of this: `FFmpeg.Transcode-*.log` ends with `[q] command received. Exiting.` followed by
+ffmpeg's final `Lsize=` summary, which it prints only on a normal exit. A log's mtime does not prove the process
+died; that pair of lines does.
+
 ## Teardown is not optional
 
 `DELETE /Videos/ActiveEncodings?deviceId=…&playSessionId=…` (both required; missing `playSessionId` → 400).
@@ -188,6 +216,10 @@ client that wants the original still has to retune for foreign-language titles.
   one Play click writes the entire remuxed film to the transcode cache within a minute or two (measured 2.4 GB in
   40 s; 48 segments within 2.5 s of the first segment request). Every abandoned play that misses teardown leaves a
   film-sized directory behind. A successful teardown removes that job's own segments.
+- **The sweep is tied to the KILL, not to the job ending.** A job stopped with a `q` — by teardown, by a seek outside
+  its range, by the inactivity kill timer — logs `Deleting partial stream file(s)` and leaves nothing behind. A job
+  that exits on its own gets neither line and its segments stay: one such play left 143 files / 785 MiB on disk with
+  no ffmpeg process alive.
 - Call it from `pagehide` with `fetch(…, {keepalive: true})` — a Server Action cannot be sent that way, which is why
   teardown wants to be a plain route.
 - `POST /Sessions/Playing/Ping?playSessionId=` keeps a job from being reaped during a long pause.

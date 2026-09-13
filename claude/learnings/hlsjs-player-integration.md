@@ -154,6 +154,39 @@ that no longer exists. Two consequences when swapping streams:
 - A `timeupdate` handler that records position should ignore events while `readyState === HAVE_NOTHING`, or a close
   during the swap reports position 0 over an almost-finished play.
 
+## A custom `fLoader` that defers `super.load()` must honour `abort()` and `destroy()`
+
+Subclassing `Hls.DefaultConfig.loader` is the documented way to get in front of one specific fragment request — the
+init segment, say, to do work before it goes out. The trap is that a deferred load outlives the player:
+
+```ts
+load(context, config, callbacks) {
+  if (shouldDefer(context)) {
+    void somethingAsync().then(() => super.load(context, config, callbacks)); // fires after destroy()
+    return;
+  }
+  super.load(context, config, callbacks);
+}
+```
+
+`hls.destroy()` does reach the instance — `stopLoad()` → `fragmentLoader.abort()` → `this.loader.abort()`, and
+`onHandlerDestroyed` → `fragmentLoader.destroy()` → `this.loader.destroy()`, with `FragmentLoader.load` having
+assigned your instance to `this.loader` before calling `load` on it. But no hook can cancel a promise you chained
+yourself. Override both, hold your own `AbortController`, and gate the deferred `super.load` on a flag those
+overrides set. Two details:
+
+- `XhrLoader.abort()` and `destroy()` are safe before `load()` — `abort()` guards on `this.callbacks` and
+  `abortInternal()` on `this.loader`, both still null — so `super.abort()` in the override cannot throw on a loader
+  whose real load never started. (`load()` itself throws `Loader can only be used once` on a second call.)
+- Gate on an explicit `cancelled` flag, NOT on `controller.signal.aborted`, whenever that controller also carries a
+  timeout. A deferred load that gave up waiting must still fall through to the load it was gating; only a teardown
+  must drop it. One flag conflates them and hangs the player on a slow server.
+
+Testing this under vitest's `environment: "node"` wants a fake base loader, and the fake's methods must be
+**prototype methods, not instance fields holding `vi.fn()`** — the subclass reaches them through `super`, which
+looks at the prototype, so a field-based fake is invisible to it and every assertion passes vacuously. Sabotage the
+guard once (`if (!this.cancelled || true)`) and watch the teardown test fail, or it is not tested.
+
 ## Misc
 
 - `Events` is a plain `declare enum` (not `const`), so `Hls.Events.X` off a dynamically-imported `Hls` needs no static
