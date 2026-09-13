@@ -133,3 +133,4 @@
 - [Peer register, not support](feedback_peer_register_not_support.md) — write to another dev as a peer, not support-to-user; four concrete swaps
 - [Use the tool you built](feedback_use_the_tool_you_built.md) — make the new instrument the ask, not a fallback; a guess about habits isn't evidence
 - [Sort keys live in metadata, not the name](feedback_sort_key_not_in_identifier.md) — an ordering baked into a filename costs a mass rename to change or extend; use a field
+- [Keep your half of the task](feedback_keep_your_half.md) — hand back only what needs a human; reading the log and saying what it shows stays mine
