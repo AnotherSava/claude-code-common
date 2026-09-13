@@ -33,7 +33,7 @@ let public  = route_source("0.0.0.0:0", "1.1.1.1:53");
 let real_tailnet = tailnet.is_some() && tailnet != public;
 ```
 
-Measured with Tailscale up: `100.67.137.90` vs `192.168.1.97` — they differ, so the check is inert when
+Measured with Tailscale up: `100.x.y.z` vs `192.168.1.97` — they differ, so the check is inert when
 things are normal. An exit node makes them match, which degrades to a wide bind: the safe direction.
 
 ## Finding your own address without a crate or a shell-out
@@ -125,9 +125,9 @@ because WireGuard authenticated the node behind it — the mistake is discarding
 self-declared string instead. `tailscale whois` hands it back, from the local daemon:
 
 ```
-$ tailscale whois --json 100.86.97.31:9078
+$ tailscale whois --json 100.x.y.z:9078
 Node.ComputedName : chrome            # short node name
-Node.Name         : chrome.tail3e8704.ts.net.
+Node.Name         : chrome.<tailnet>.ts.net.
 UserProfile       : someone@example.com   # the tailnet user owning the node
 ```
 
