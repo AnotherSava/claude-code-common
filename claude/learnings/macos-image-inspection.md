@@ -67,3 +67,59 @@ look at: emit `IHDR`, one `IDAT` of `zlib.compress` over rows each prefixed with
 and `IEND`, with a CRC32 over type+data on each chunk. Compositing the crop over a solid background
 while writing it is worth doing — transparency renders as white in most viewers, which hides exactly
 the padding you were trying to measure.
+
+## Colour tags: what `sips` writes is not what Pillow can keep
+
+A PNG can carry its colour space two different ways, and **which one `sips` writes depends on the
+profile handed to it** — so a rule derived from one `--matchTo` run does not hold for the next.
+Measured on one image, tagged three ways and then saved through Pillow:
+
+| tagged by                        | chunks in              | Pillow sees | chunks out    |
+|----------------------------------|------------------------|-------------|---------------|
+| Pillow `icc_profile=` (P3)       | `IHDR iCCP`            | 536 bytes   | `IHDR iCCP`   |
+| `sips --matchTo` **sRGB**        | `IHDR sRGB eXIf`       | **0 bytes** | **`IHDR`**    |
+| `sips --matchTo` **Display P3**  | `IHDR iCCP cICP eXIf`  | 536 bytes   | `IHDR iCCP`   |
+
+Matching to sRGB writes a **`sRGB` chunk** — a one-byte rendering intent — because PNG has a
+dedicated chunk for that case, and `sips` reports success either way. Pillow cannot see that chunk
+at all (`Image.open(p).info["icc_profile"]` is empty) and cannot write one back, so the tag is gone
+after any save. Matching to any other profile embeds an ordinary `iCCP`, which Pillow reads and the
+passthrough below carries through byte-identical.
+
+The **`eXIf` block dies in both `sips` cases, and so does `cICP`**, whether or not the profile
+survives — Pillow rebuilds the file from the pixels it holds and carries over only what it was
+handed.
+
+So on macOS, run the `sips` colour step **after** anything that saves through Pillow, never before.
+That is not only about the sRGB row: the other rows keep their profile but still lose `eXIf`.
+
+The `icc_profile=` passthrough is for the other kind of tag and does hold:
+
+```python
+im = Image.open(p)
+# ... every operation builds a NEW image, so info["icc_profile"] must be handed over explicitly
+out.save(p, icc_profile=im.info.get("icc_profile"))
+```
+
+Handed a real embedded profile — `iCCP`, e.g. `/System/Library/ColorSync/Profiles/Display P3.icc`,
+536 bytes — that round-trips byte-identical. Which means the passthrough is untestable against a
+file tagged `sips --matchTo` **sRGB**: it will read 0 bytes there forever, so a pipeline whose
+inputs are all sRGB-tagged has a passthrough that has never carried anything. Tag a scratch copy
+with a non-sRGB profile to test it — either tool will produce an `iCCP`:
+
+```python
+prof = Path("/System/Library/ColorSync/Profiles/Display P3.icc").read_bytes()
+Image.open("in.png").convert("RGBA").save("tagged.png", icc_profile=prof)
+```
+
+Read the chunk list rather than trusting either tool's report — it is ~8 lines and it is the only
+thing that answers "which kind of tag is actually in there":
+
+```python
+import struct
+from pathlib import Path
+
+d = Path(p).read_bytes(); i = 8
+while i < len(d):
+    ln = struct.unpack('>I', d[i:i+4])[0]; print(d[i+4:i+8].decode('latin1'), ln); i += 12 + ln
+```
