@@ -134,14 +134,28 @@ window's own surface is a corner showing what is behind it.
 **Both captures have to cover the same rectangle, or the comparison invents its own
 answer.** Flag `3` includes `PW_CLIENTONLY`, so the copy stops at the client area
 while the screen grab above is of the window rect. On a decorated window those are
-different rectangles, and the part of a window-rect-sized bitmap `PrintWindow` never
-writes keeps a fresh 32bpp bitmap's `(0,0,0)` — the same value the table above reads
-as proof of transparency. Measured against decorated Explorer: flag `2` returns
-`(232,232,232)` at all four corners, flag `3` returns it at TL and `(0,0,0)` at the
-other three, on a window that is entirely opaque. The widget measured above has
-custom chrome, where window rect and client rect coincide and the clipping is a
-no-op — which is why the procedure held there. Elsewhere, grab the client rect on
-both sides or pass flag `2`.
+different rectangles, and `PrintWindow` writes nothing at all outside the client
+area — so those pixels keep whatever the destination bitmap was initialised to, and
+a corner reading "not the window's colour" there says nothing about transparency.
+
+Two independent runs against decorated Explorer, both with a window-rect-sized
+bitmap, both on an entirely opaque window:
+
+| run | flag `2` | flag `3` |
+|---|---|---|
+| A | `(232,232,232)` at all four corners | `(232,232,232)` at TL, `(0,0,0)` at the other three |
+| B | `(232,232,232)` except BR `(255,255,255)` | `(232,232,232)` at TL and TR, `(255,255,255)` at BL and BR |
+
+The clipping is real and reproduces — flags `2` and `3` disagree in both runs. The
+*value* does not: one run's unwritten region is black and the other's is white,
+depending only on how the bitmap was allocated and cleared, and the affected corners
+differ with the window's geometry. So do not grep for a sentinel colour; the tell is
+that the two captures cover different rectangles, which makes everything outside the
+client area inadmissible whatever it reads.
+
+The widget measured above has custom chrome, where window rect and client rect
+coincide and the clipping is a no-op — which is why the procedure held there.
+Elsewhere, grab the client rect on both sides or pass flag `2`.
 
 Then read the ramp inward along the corner diagonal on the composited grab, which
 shows the antialiasing: `241, 240, 237, 213, 188, 23` down into the window's own
