@@ -75,10 +75,10 @@ EXCLUDED: set[str] = {"notion", "claude-mermaid-fix"}
 PEER_TIMEOUT = 300
 PEER_CONNECT_TIMEOUT = 15
 
-# Minimum width the DESCRIPTION column may shrink to before the total-width
-# budget stops being honored — below this, wrapping produces unreadable
-# one-or-two-word ribbons, so the table overflows instead.
-DESC_MIN_WIDTH = 18
+# Below this the DESCRIPTION column is dropped from the terminal table rather
+# than squeezed — see print_table for the measurement behind the number.
+DESC_USEFUL_WIDTH = 34
+
 
 
 # ── formatting ────────────────────────────────────────────────────────────────
@@ -101,30 +101,6 @@ def format_local(uncommitted: int, added: int, deleted: int) -> str:
         return ""
     lines = format_lines(added, deleted)
     return f"{uncommitted} ({lines})" if lines else str(uncommitted)
-
-
-def human_age(seconds: float) -> str:
-    """Format a delta in seconds as a short label like '5 hours', '2 weeks'.
-
-    Picks the largest unit where the count is >= 1, rounds down. Future
-    timestamps (negative delta) and zero return empty string.
-    """
-    if seconds <= 0:
-        return ""
-    minute, hour, day, week, month, year = 60, 3600, 86400, 86400 * 7, 86400 * 30, 86400 * 365
-    for limit, unit, label in [
-        (minute, 1, "sec"),
-        (hour, minute, "min"),
-        (day, hour, "hour"),
-        (week, day, "day"),
-        (month, day * 7, "week"),
-        (year, day * 30, "month"),
-        (float("inf"), day * 365, "year"),
-    ]:
-        if seconds < limit:
-            n = max(1, int(seconds // unit))
-            return f"{n} {label}" if n == 1 else f"{n} {label}s"
-    return ""
 
 
 def local_stamp(epoch: float) -> str:
@@ -539,11 +515,18 @@ class RepoRow:
     open_issues: int | None
     sort_epoch: float
     states: dict[str, RepoState | None]  # machine name -> state, None where absent
-    description: str = ""
+    # machine name -> its own one-line summary. Per machine rather than per repo
+    # because a description describes work and work belongs to a machine: one
+    # string for a repo busy on both leaves the second machine's column unexplained.
+    descriptions: dict[str, str] = field(default_factory=dict)
 
     @property
     def has_work(self) -> bool:
         return any(st.has_work for st in self.states.values() if st)
+
+    def working(self, reached: list[str]) -> list[str]:
+        """The reached machines with pending work — the ones a description is owed for."""
+        return [m for m in reached if (st := self.states.get(m)) and st.has_work]
 
 
 def merge(snapshots: list[MachineSnapshot]) -> list[RepoRow]:
@@ -607,10 +590,9 @@ PENDING_DESCRIPTION = "<analyze below>"
 
 @dataclass
 class DisplayGroup:
-    """One repo's block of the table: a line per machine, sharing a description."""
+    """One repo's block of the table: a line per machine, each with its own description."""
 
     rows: list[dict[str, str]]
-    description: str
 
 
 def machine_cell(name: str, state: RepoState | None) -> str:
@@ -640,6 +622,7 @@ def build_groups(rows: list[RepoRow], reached: list[str]) -> list[DisplayGroup]:
                 "project": row.name if first else "",
                 "machine": machine_cell(machine, state),
                 "branch": "", "unpushed": "", "remote": "", "local": "", "age": "",
+                "description": row.descriptions.get(machine, ""),
                 "issues": str(row.open_issues) if first and row.open_issues else "",
             }
             if state:
@@ -651,9 +634,9 @@ def build_groups(rows: list[RepoRow], reached: list[str]) -> list[DisplayGroup]:
                     cells["remote"] = f"{state.behind} ✓" if state.pulled else str(state.behind)
                 cells["local"] = format_local(state.uncommitted, state.lines_added, state.lines_deleted)
                 if state.oldest_epoch:
-                    cells["age"] = human_age(now - state.oldest_epoch)
+                    cells["age"] = compact_age(now - state.oldest_epoch)
             lines.append(cells)
-        groups.append(DisplayGroup(rows=lines, description=row.description))
+        groups.append(DisplayGroup(rows=lines))
     return groups
 
 
@@ -664,8 +647,6 @@ def visible_columns(groups: list[DisplayGroup], machine_count: int) -> list[tupl
     down the whole table and say nothing.
     """
     filled = {key for g in groups for line in g.rows for key, value in line.items() if value}
-    if any(g.description for g in groups):
-        filled.add("description")
     if machine_count > 1:
         filled.add("machine")
     else:
@@ -703,13 +684,31 @@ def print_table(groups: list[DisplayGroup], cols: list[tuple[str, str]], width: 
 
     # DESCRIPTION is the elastic column: it takes whatever width is left after
     # the fixed columns so the table fills the full target width — expanding to
-    # pad short text out to the right edge, wrapping text too long to fit. The
-    # floor keeps it readable on very narrow screens (the table overflows the
-    # target instead of crushing the column below it).
+    # pad short text out to the right edge, wrapping text too long to fit.
     table_chrome = 3 * len(cols) + 1  # "│ " + " │ "*(n-1) + " │" per row line
+    budget = 0
+    dropped_description = False
     if desc_i is not None:
         others = sum(w for i, w in enumerate(widths) if i != desc_i)
-        widths[desc_i] = max(width - others - table_chrome, DESC_MIN_WIDTH, len(headers[desc_i]))
+        budget = width - others - table_chrome
+        # Below DESC_USEFUL_WIDTH the column stops being a column and becomes a
+        # ribbon: a one-line summary wraps to four or five rows, and the table
+        # grows past three times the height of the report it summarises —
+        # measured at 122 lines for 18 repos on an 80-column terminal, and still
+        # 122 at 120. Drop the column rather than print that, and say where the
+        # text went. This relocates, it does not discard: the HTML carries every
+        # description in full, which is the same split the column already lives
+        # under. Eight fixed columns simply do not leave room for prose.
+        if budget < DESC_USEFUL_WIDTH:
+            cols = [c for c in cols if c[1] != "description"]
+            headers = [h for h, _ in cols]
+            keys = [k for _, k in cols]
+            widths.pop(desc_i)
+            desc_i = None
+            table_chrome = 3 * len(cols) + 1
+            dropped_description = True
+        else:
+            widths[desc_i] = budget
 
     bar = lambda left, mid, right: left + mid.join("─" * (w + 2) for w in widths) + right
     header_cells = [f"{h:^{w}}" if k in CENTERED_HEADERS else f"{h:<{w}}"
@@ -718,15 +717,23 @@ def print_table(groups: list[DisplayGroup], cols: list[tuple[str, str]], width: 
     print("│ " + " │ ".join(header_cells) + " │")
     print(bar("├", "┼", "┤"))
     for group in groups:
-        # The description belongs to the repo, not to a machine, so it wraps
-        # down the group's machine lines and extends the group when it is longer.
-        desc = textwrap.wrap(group.description, widths[desc_i]) if desc_i is not None and group.description else []
-        for i in range(max(len(group.rows), len(desc))):
-            line = group.rows[i] if i < len(group.rows) else {}
-            cells = [(desc[i] if i < len(desc) else "") if ci == desc_i else line.get(keys[ci], "")
-                     for ci in range(len(cols))]
-            print("│ " + " │ ".join(f"{c:<{w}}" for c, w in zip(cells, widths)) + " │")
+        # Each machine's description wraps under that machine's own line, so it
+        # stays next to the metrics it explains rather than running down the whole
+        # group. Continuation lines carry the wrapped text alone.
+        for line in group.rows:
+            desc = textwrap.wrap(line.get("description", ""), widths[desc_i]) if desc_i is not None else []
+            for i in range(max(1, len(desc))):
+                cells = [(desc[i] if i < len(desc) else "") if ci == desc_i
+                         else (line.get(keys[ci], "") if i == 0 else "")
+                         for ci in range(len(cols))]
+                print("│ " + " │ ".join(f"{c:<{w}}" for c, w in zip(cells, widths)) + " │")
     print(bar("└", "┴", "┘"))
+    if dropped_description:
+        # budget goes negative once the fixed columns alone overrun the target,
+        # and "-42 columns left" reads as a bug rather than as a narrow window.
+        left = max(0, budget)
+        print(f"DESCRIPTION omitted — {left} columns left for it, {DESC_USEFUL_WIDTH} needed. "
+              f"The report carries every one in full.")
 
 
 def print_machine_summary(snapshots: list[MachineSnapshot]) -> None:
@@ -735,8 +742,10 @@ def print_machine_summary(snapshots: list[MachineSnapshot]) -> None:
         if snap.status != "ok":
             print(f"{snap.name}: NOT REACHED — {snap.error}")
             continue
-        age = human_age(now - snap.scanned_at)
-        when = f"{age} ago" if age else "just now"
+        # Sub-minute rounds up to "1m" in the shared formatter, and this line is
+        # printed seconds after the scan it describes, so it would always say that.
+        elapsed = now - snap.scanned_at
+        when = f"{compact_age(elapsed)} ago" if elapsed >= 60 else "just now"
         print(f"{snap.name}: {snap.os_label} · {snap.projects_root} · {snap.scanned_count} repos · scanned {when}")
 
 
@@ -790,12 +799,9 @@ PAGE = """<!doctype html>
               padding:7px 12px; font-size:12.5px; display:flex; align-items:baseline; gap:8px; }}
   .machine.bad {{ border-color:var(--warn); }}
   .mname {{ font-weight:650; }}
-  .mmeta, .mtime {{ color:var(--mut); }}
+  .mmeta {{ color:var(--mut); }}
   .merr {{ color:var(--warn); font-family:ui-monospace,SFMono-Regular,Menlo,Consolas,monospace; font-size:11.5px; }}
-  /* align-items:start, not stretch: opening one card's file list would
-     otherwise grow every other card in its row. */
-  main {{ padding:22px 26px 64px; display:grid; gap:14px; align-items:start;
-          grid-template-columns:repeat(auto-fill,minmax(430px,1fr)); }}
+  main {{ padding:22px 26px 64px; display:grid; gap:14px; grid-template-columns:1fr; }}
   article.repo {{ border:1px solid var(--line); border-radius:9px; background:var(--card); padding:12px 14px; }}
   article.repo > header {{ display:flex; align-items:baseline; gap:9px; margin-bottom:6px; }}
   .rname {{ font-weight:650; font-size:14.5px; }}
@@ -803,18 +809,30 @@ PAGE = """<!doctype html>
              border-radius:20px; padding:1px 9px; font-size:11.5px; font-weight:600; white-space:nowrap; }}
   p.desc {{ margin:0 0 9px; font-size:13.5px; }}
   p.desc.pending {{ color:var(--mut); font-style:italic; }}
+  /* One column per reached machine; the count is set inline per card, since a
+     repo is rendered against however many machines answered. align-items:start,
+     not stretch: opening one column's file list would otherwise grow its
+     neighbour to match. */
+  .mcols {{ display:grid; gap:0 20px; align-items:start; }}
+  .mcol {{ min-width:0; }}
+  /* Each machine is named once here instead of on every row, so the header has to
+     survive scrolling — a column scrolled away from its label is unreadable.
+     Horizontal padding is the card's 14px plus its 1px border, which lines these
+     tracks up with the columns inside each card. */
+  .cols-head {{ position:sticky; top:0; z-index:1; background:var(--bg);
+                display:grid; gap:0 20px; padding:10px 15px 8px;
+                border-bottom:1px solid var(--line); }}
+  .cname {{ font-weight:650; font-size:13.5px; }}
+  .cmeta {{ color:var(--mut); font-size:11.5px; overflow-wrap:anywhere; }}
   .mrow {{ display:flex; align-items:baseline; gap:8px; flex-wrap:wrap; padding:3px 0;
            border-top:1px solid var(--line); font-size:12.5px; }}
-  .mtag {{ font-weight:600; min-width:58px; }}
   .mpath {{ color:var(--mut); font-size:11.5px;
             font-family:ui-monospace,SFMono-Regular,Menlo,Consolas,monospace; }}
   .m {{ color:var(--mut); }}
   .m b {{ color:var(--fg); font-weight:600; }}
   .add {{ color:var(--add); font-weight:600; }}
   .del {{ color:var(--del); font-weight:600; }}
-  .state {{ color:var(--mut); font-style:italic; }}
-  .state.gone {{ color:var(--warn); font-style:normal; }}
-  details {{ margin:5px 0 0 66px; }}
+  details {{ margin:5px 0 0 8px; }}
   details summary {{ cursor:pointer; color:var(--mut); font-size:12px; }}
   /* Deep paths wrap onto a hanging indent rather than opening a horizontal
      scrollbar inside every file list. The indent is per entry, so each entry is
@@ -829,27 +847,57 @@ PAGE = """<!doctype html>
 <header class="top">
   <h1>{title}</h1>
   <p class="sub">{sub}</p>
-  <div class="machines">{machines}</div>
+  {machines}
 </header>
 {body}
+{script}
 """
+
+# Kept out of PAGE because PAGE goes through str.format, which reads every brace
+# in a script as a field and fails on the first one. It arrives through the
+# `{script}` slot instead, where its braces are never scanned.
+#
+# formatInterval is ported verbatim from the What's Next repo's web/src/lib/format.ts
+# rather than rewritten, so every surface that shows an interval agrees on where
+# the boundaries fall. Recomputing on an interval is the point: a report left open
+# — or reopened tomorrow — otherwise keeps asserting the age it had when written.
+LIVE_TIME_SCRIPT = """<script>
+(() => {
+  const formatInterval = (ms) => {
+    const min = Math.floor((ms > 0 ? ms : 0) / 60000);
+    if (min < 60) return `${Math.max(1, min)}m`;
+    const hrs = Math.floor(min / 60);
+    if (hrs < 24) return `${hrs}h`;
+    const days = Math.floor(hrs / 24);
+    if (days < 30) return `${days}d`;
+    if (days < 365) return `${Math.floor(days / 30)}mo`;
+    return `${Math.floor(days / 365)}y`;
+  };
+  const tick = () => {
+    const now = Date.now();
+    for (const el of document.querySelectorAll('.rel[data-ts]')) {
+      const ts = Number(el.dataset.ts);
+      if (!Number.isFinite(ts)) continue;
+      el.textContent = formatInterval(now - ts) + (el.dataset.suffix || '');
+    }
+  };
+  tick();
+  setInterval(tick, 30000);
+  // A backgrounded tab throttles timers hard, so a page returned to after hours
+  // would show whatever it last managed to render. Recompute on the way back in.
+  document.addEventListener('visibilitychange', () => { if (!document.hidden) tick(); });
+})();
+</script>"""
 
 
 def esc(text: str) -> str:
     return html.escape(str(text))
 
 
-def machine_card(snap: MachineSnapshot, now: float) -> str:
-    if snap.status != "ok":
-        return (f'<div class="machine bad"><span class="mname">{esc(snap.name)}</span>'
-                f'<span class="mmeta">not reached</span>'
-                f'<span class="merr">{esc(snap.error)}</span></div>')
-    age = human_age(now - snap.scanned_at)
-    return (f'<div class="machine"><span class="mname">{esc(snap.name)}</span>'
-            f'<span class="mmeta">{esc(snap.os_label)} · {esc(snap.projects_root)} · '
-            f'{snap.scanned_count} repos</span>'
-            f'<span class="mtime" title="{esc(local_stamp(snap.scanned_at))}">'
-            f'scanned {esc(age) + " ago" if age else "just now"}</span></div>')
+def failed_machine_card(snap: MachineSnapshot) -> str:
+    return (f'<div class="machine bad"><span class="mname">{esc(snap.name)}</span>'
+            f'<span class="mmeta">not reached</span>'
+            f'<span class="merr">{esc(snap.error)}</span></div>')
 
 
 def metric_html(state: RepoState, now: float) -> str:
@@ -869,20 +917,21 @@ def metric_html(state: RepoState, now: float) -> str:
         noun = "file" if state.uncommitted == 1 else "files"
         parts.append(f'<span class="m"><b>{state.uncommitted}</b> {noun}{lines}</span>')
     if state.oldest_epoch:
-        parts.append(f'<span class="m" title="oldest pending change: {esc(local_stamp(state.oldest_epoch))}">'
-                     f'{esc(human_age(now - state.oldest_epoch))} ago</span>')
+        parts.append(f'<span class="m">{rel_time(state.oldest_epoch)}</span>')
     return "".join(parts)
 
 
-def machine_row_html(machine: str, state: RepoState | None, repo_name: str, now: float) -> str:
-    tag = f'<span class="mtag">{esc(machine)}</span>'
-    if state is None:
-        return f'<div class="mrow">{tag}<span class="state gone">not cloned here</span></div>'
+def machine_row_html(state: RepoState | None, repo_name: str, now: float) -> str:
+    # Only pending work renders. A machine that is clean, and one with no clone at
+    # all, both leave the column empty — the report exists to show what is
+    # outstanding, and neither of them is. The table still separates the two, where
+    # a blank cell sits between filled neighbours and would read as either.
+    if state is None or not state.has_work:
+        return ""
     # The clone path only earns a place when it differs from the repo's own name;
     # otherwise it repeats the card's title on every row.
     path = f'<span class="mpath">{esc(state.path)}</span>' if state.path != repo_name else ""
-    body = metric_html(state, now) if state.has_work else '<span class="state">clean</span>'
-    out = f'<div class="mrow">{tag}{path}{body}</div>'
+    out = f'<div class="mrow">{path}{metric_html(state, now)}</div>'
     # The metrics row above already carries both counts, so the summaries name
     # what is inside rather than repeating the number.
     if state.changes:
@@ -902,13 +951,78 @@ def repo_card(row: RepoRow, reached: list[str], now: float) -> str:
     if row.open_issues:
         label = "1 open issue" if row.open_issues == 1 else f"{row.open_issues} open issues"
         head += f'<a class="issues" href="https://github.com/{esc(row.slug)}/issues">{label}</a>'
-    desc = ""
-    if row.description == PENDING_DESCRIPTION:
-        desc = '<p class="desc pending">description not written</p>'
-    elif row.description:
-        desc = f'<p class="desc">{esc(row.description)}</p>'
-    rows = "".join(machine_row_html(m, row.states.get(m), row.name, now) for m in reached)
-    return f'<article class="repo"><header>{head}</header>{desc}{rows}</article>'
+    # Each machine's description sits in its own column, on a shared row above the
+    # metrics — so a description is never read against a neighbour saying "clean",
+    # and a repo busy on both machines explains both. The row is shared rather than
+    # per-column so a long description on one side cannot push that side's metrics
+    # out of line with the other's.
+    cells = []
+    for i, machine in enumerate(reached, start=1):
+        place = f'style="grid-row:1;grid-column:{i}"'
+        text = row.descriptions.get(machine, "")
+        if text == PENDING_DESCRIPTION:
+            cells.append(f'<p class="desc pending" {place}>description not written</p>')
+        elif text:
+            cells.append(f'<p class="desc" {place}>{esc(text)}</p>')
+        cells.append(f'<div class="mcol" style="grid-row:2;grid-column:{i}">'
+                     f'{machine_row_html(row.states.get(machine), row.name, now)}</div>')
+    return (f'<article class="repo"><header>{head}</header>'
+            f'<div class="mcols" style="grid-template-columns:{track(len(reached))}">'
+            f'{"".join(cells)}</div></article>')
+
+
+def track(count: int) -> str:
+    """The column track shared by the sticky header and every card, so the two align."""
+    return f"repeat({count},minmax(0,1fr))"
+
+
+def rel_time(epoch: float, suffix: str = " ago") -> str:
+    """A relative timestamp the page keeps current by itself.
+
+    Baking the interval in at render time makes it wrong the moment the file is
+    left open — a report generated eight minutes ago went on claiming "8 mins
+    ago" indefinitely. The epoch travels in `data-ts` and the script at the foot
+    of the page recomputes from it; the text written here is the no-JS fallback,
+    correct at the instant of writing. The exact local stamp sits on hover, per
+    feedback_relative_timestamps.
+    """
+    if not epoch:
+        return ""
+    return (f'<span class="rel" data-ts="{int(epoch * 1000)}" data-suffix="{esc(suffix)}"'
+            f' title="{esc(local_stamp(epoch))}">{esc(compact_age(time.time() - epoch))}{esc(suffix)}</span>')
+
+
+def compact_age(seconds: float) -> str:
+    """Format a delta as 5m / 3h / 2d / 4mo / 1y.
+
+    Ported from formatInterval in the What's Next repo (web/src/lib/format.ts)
+    rather than rewritten, so every surface that shows an interval agrees on
+    where the boundaries fall. LIVE_TIME_SCRIPT carries the same function for the
+    page to recompute with; this copy renders the terminal table and the no-JS
+    fallback. A delta at or below zero returns empty, which callers read as
+    "just now".
+    """
+    if seconds <= 0:
+        return ""
+    minutes = int(seconds // 60)
+    if minutes < 60:
+        return f"{max(1, minutes)}m"
+    hours = minutes // 60
+    if hours < 24:
+        return f"{hours}h"
+    days = hours // 24
+    if days < 30:
+        return f"{days}d"
+    if days < 365:
+        return f"{days // 30}mo"
+    return f"{days // 365}y"
+
+
+def column_head(snap: MachineSnapshot, now: float) -> str:
+    return (f'<div><div class="cname">{esc(snap.name)}</div>'
+            f'<div class="cmeta">'
+            f'{esc(snap.os_label)} · {esc(snap.projects_root)} · {snap.scanned_count} repos · '
+            f'scanned {rel_time(snap.scanned_at)}</div></div>')
 
 
 def write_html(path: Path, rows: list[RepoRow], snapshots: list[MachineSnapshot], owner: str) -> None:
@@ -919,15 +1033,22 @@ def write_html(path: Path, rows: list[RepoRow], snapshots: list[MachineSnapshot]
     title = f"Repo status — {owner}"
     if rows:
         sub = f"{len(rows)} of {total} repos have pending work or open issues"
-        body = "<main>" + "".join(repo_card(r, names, now) for r in rows) + "</main>"
+        heads = "".join(column_head(s, now) for s in reached)
+        body = (f'<main><div class="cols-head" style="grid-template-columns:{track(len(reached))}">'
+                f'{heads}</div>' + "".join(repo_card(r, names, now) for r in rows) + "</main>")
     else:
         scanned = " and ".join(f"{s.scanned_count} on {s.name}" for s in reached) or "none"
         sub = "Nothing pending"
         body = (f'<p class="none">Every repo is clean, pushed, and has no open issues — '
                 f'{esc(scanned)} scanned. A repo appears here only when it has uncommitted changes, '
                 f'unpushed or inbound commits, or an open issue.</p>')
+    # Reached machines are named by the column headers; only an unreached one still
+    # needs a card up here, so its SSH error is stated rather than the machine just
+    # missing from a report that otherwise looks complete.
+    failed = "".join(failed_machine_card(s) for s in snapshots if s.status != "ok")
     page = PAGE.format(title=esc(title), sub=esc(sub),
-                       machines="".join(machine_card(s, now) for s in snapshots), body=body)
+                       machines=f'<div class="machines">{failed}</div>' if failed else "", body=body,
+                       script=LIVE_TIME_SCRIPT)
     path.parent.mkdir(parents=True, exist_ok=True)
     path.write_text(page, encoding="utf-8")
 
@@ -1115,7 +1236,7 @@ def render(snapshots: list[MachineSnapshot], rows: list[RepoRow], width: int) ->
 def state_to_json(snapshots: list[MachineSnapshot], rows: list[RepoRow]) -> str:
     return json.dumps({
         "machines": [asdict(s) for s in snapshots],
-        "repos": [{"slug": r.slug, "description": r.description} for r in rows],
+        "repos": [{"slug": r.slug, "descriptions": r.descriptions} for r in rows],
     }, ensure_ascii=False)
 
 
@@ -1123,27 +1244,74 @@ def state_from_json(text: str) -> tuple[list[MachineSnapshot], list[RepoRow]]:
     data = json.loads(text)
     snapshots = [MachineSnapshot.from_dict(m) for m in data["machines"]]
     rows = merge(snapshots)
-    saved = {r["slug"]: r["description"] for r in data.get("repos", [])}
+    # A state file written before descriptions became per-machine carries a
+    # `description` string where this wants a `descriptions` object. Defaulting
+    # to {} would render every cell blank and say nothing — the same silence a
+    # scan with genuinely nothing to describe produces, so it has to be named.
+    saved, stale = {}, []
+    for r in data.get("repos", []):
+        if "descriptions" in r:
+            saved[r["slug"]] = r["descriptions"]
+        elif "description" in r:
+            stale.append(r["slug"])
+    if stale:
+        print(f"WARNING: the state file predates the per-machine description model, so "
+              f"{len(stale)} repo(s) lost theirs. Re-run the scan before --report.", file=sys.stderr)
     for row in rows:
-        row.description = saved.get(row.slug, "")
+        row.descriptions = dict(saved.get(row.slug, {}))
     return snapshots, rows
 
 
-def apply_descriptions(rows: list[RepoRow], text: str) -> None:
-    """Fold in `{"<project>": "<one-line summary>"}`, keyed by the PROJECT cell.
+def apply_descriptions(rows: list[RepoRow], text: str, reached: list[str]) -> None:
+    """Fold in `{"<project>": ...}`, keyed by the PROJECT cell.
 
-    A key matching no repo is reported rather than dropped — a description
-    silently going nowhere reads exactly like one that was never written.
+    A value is either one string, which belongs to the repo's single working
+    machine, or `{"<machine>": "<summary>"}` when more than one is working. A
+    string given for a repo working on several machines is refused rather than
+    guessed at: putting it over one column would assert something unchecked about
+    the other, and spanning both is what left a column unexplained.
+
+    A key matching no repo — or no machine — is reported rather than dropped: a
+    description going nowhere reads exactly like one that was never written.
+
+    Any machine's folder name for a repo is accepted, not only the one in the
+    PROJECT cell. Those differ, and the mismatch lands exactly where it is most
+    confusing: a repo checked out as `jsonl-logs-intellij-plugin` here and
+    `intellij-jsonl-extension` on the peer takes its title from whichever machine
+    lists first — clean or not — while the column you are describing shows the
+    other name. Keying by the title alone means reading one name and typing a
+    different one. An alias shared by two repos is ignored rather than guessed.
     """
     described = json.loads(text)
     by_name = {r.name: r for r in rows}
-    for name, desc in described.items():
-        if name in by_name:
-            by_name[name].description = desc
-    unmatched = [n for n in described if n not in by_name]
-    if unmatched:
-        print(f"WARNING: no repo named {', '.join(unmatched)} in the report — "
-              "those descriptions were dropped.", file=sys.stderr)
+    alias_counts: dict[str, int] = {}
+    for r in rows:
+        for path in {st.path for st in r.states.values() if st}:
+            alias_counts[path] = alias_counts.get(path, 0) + 1
+    for r in rows:
+        for path in {st.path for st in r.states.values() if st}:
+            if path not in by_name and alias_counts[path] == 1:
+                by_name[path] = r
+    problems: list[str] = []
+    for name, value in described.items():
+        row = by_name.get(name)
+        if row is None:
+            problems.append(f"no repo named {name}")
+            continue
+        working = row.working(reached)
+        if isinstance(value, dict):
+            for machine, desc in value.items():
+                if machine in working:
+                    row.descriptions[machine] = desc
+                else:
+                    problems.append(f"{name}: {machine} has no pending work")
+        elif len(working) == 1:
+            row.descriptions[working[0]] = value
+        else:
+            problems.append(f"{name} has work on {' and '.join(working) or 'no machine'} — "
+                            f'give it {{"<machine>": "<summary>"}}')
+    if problems:
+        print("WARNING: " + "; ".join(problems) + " — those descriptions were dropped.", file=sys.stderr)
 
 
 def main() -> int:
@@ -1187,7 +1355,7 @@ def main() -> int:
         snapshots, rows = state_from_json(state_path.read_text(encoding="utf-8"))
         source = flag_value(argv, "--descriptions")
         text = Path(source).read_text(encoding="utf-8") if source else sys.stdin.read()
-        apply_descriptions(rows, text.strip() or "{}")
+        apply_descriptions(rows, text.strip() or "{}", [s.name for s in snapshots if s.status == "ok"])
         render(snapshots, rows, target_width(config))
         owner = rows[0].slug.split("/", 1)[0] if rows else github_user()
         write_html(html_path, rows, snapshots, owner)
@@ -1198,9 +1366,10 @@ def main() -> int:
     if snapshots is None:
         return 2
     rows = merge(snapshots)
+    reached_names = [s.name for s in snapshots if s.status == "ok"]
     for row in rows:
-        if row.has_work:
-            row.description = PENDING_DESCRIPTION
+        for machine in row.working(reached_names):
+            row.descriptions[machine] = PENDING_DESCRIPTION
     render(snapshots, rows, target_width(config))
     print_detail(rows, multi=sum(s.status == "ok" for s in snapshots) > 1)
     state_path.parent.mkdir(parents=True, exist_ok=True)

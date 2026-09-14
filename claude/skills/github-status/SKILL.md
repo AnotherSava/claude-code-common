@@ -4,7 +4,7 @@ description: >-
   Cross-machine overview of your GitHub-owned local clones — every repo with
   pending work (uncommitted changes, unpushed commits, inbound remote commits)
   or open issues, merged across this machine and its peer, with branch, counts,
-  age of the oldest pending work, and a one-line summary per repo. Prints a box
+  age of the oldest pending work, and a one-line summary per working machine. Prints a box
   table and writes a self-contained HTML report. Each run fetches every repo's
   origin on both machines so the counts reflect the current remote.
   TRIGGER when: user asks "/github-status", wants a cross-project overview of
@@ -94,16 +94,23 @@ of the two rather than their sum. Output has three parts:
      `+A/-D` is omitted when 0; a change set with no line diff at all (an untracked dir of binaries)
      shows just `N`.
    - **AGE** — age of the oldest pending work on that machine, as the older of (oldest uncommitted
-     file mtime, oldest unpushed commit date). A deletion leaves no mtime behind, so a clone with only
-     deletions falls back to whatever commits exist and can show a blank AGE against a filled LOCAL.
+     file mtime, oldest unpushed commit date), in the compact form `5m` / `3h` / `2d` / `4mo` / `1y`.
+     A deletion leaves no mtime behind, so a clone with only deletions falls back to whatever commits
+     exist and can show a blank AGE against a filled LOCAL.
    - **ISSUES** — open issues (PRs excluded) on the repo's own `origin`, printed once per repo since
      it is a property of the repo rather than of a machine. Whichever machine's `gh` could answer
      supplies it, and a repo the peer alone has but could not answer for is asked again from this
      machine — `gh` needs no clone, so an unauthenticated `gh` over there neither blanks the column
      nor drops a clean-but-ticketed repo out of the report. Blank means zero, issues disabled, or
      neither machine could ask.
-   - **DESCRIPTION** — `<analyze below>` for every repo with pending work. **You fill this in** per
-     step 3.
+   - **DESCRIPTION** — `<analyze below>` on every machine line with pending work, so a repo busy on
+     both carries two. It is the one cell that wraps, under its own machine's line. **You fill these
+     in** per step 3. On a narrow terminal the column is **dropped entirely** rather than squeezed,
+     with a line under the table saying so: eight fixed columns leave it under ~34 characters, a
+     one-line summary then wraps to four or five rows, and the table grows past three times the height
+     of the report — measured at 122 lines for 18 repos on an 80-column terminal, against 42 without
+     it. Nothing is lost; the HTML carries every description in full. Still write them in step 3, and
+     still paste the table as it comes.
 3. **Detail sections** — `git status --porcelain` and `git log @{upstream}..HEAD` per repo per
    machine, tagged `[machine]` when both were reached. This is raw material for step 3, **not** part
    of the user-facing report: do not paste it back to the user.
@@ -113,25 +120,50 @@ descriptions land on exactly the state they were written from.
 
 ## 3. Write the descriptions and render the report
 
-For every repo the table marks `<analyze below>`, read its detail sections and synthesize a
-**one-line description** of what the in-flight work accomplishes (≤ ~80 chars; the user-visible change
-or theme, not file- or commit-level detail).
+**A description belongs to a machine, not to a repo.** The table marks `<analyze below>` once per
+machine with pending work, and each one is owed its own **one-line description** of what that
+machine's in-flight work accomplishes (≤ ~80 chars; the user-visible change or theme, not file- or
+commit-level detail). A repo working on both machines gets two, written from that machine's detail
+section alone — one line covering both leaves whichever machine it did not describe unexplained.
 
-- When a repo has work on **both** machines, say so in the one line — that contrast is the reason the
-  report spans two machines. "Memo migration here; on chrome an untracked config/ and 32 commits
-  behind" beats describing only the machine you are sitting at.
-- When a repo has both uncommitted changes and unpushed commits, combine them: "Mid-flight macOS
-  deploy support; 3 commits already, 2 docs files still uncommitted."
-- Repos with no pending work (issue-only rows) get no description; leave them out of the map.
+**Key each entry by the PROJECT cell — or by whatever that machine calls the folder.** The two differ
+when a repo is cloned under different names, and the title comes from whichever machine lists first
+even if that one is clean, so the column you are describing can be showing the *other* name. Either
+resolves; an alias two repos share is refused rather than guessed.
 
-Then feed the descriptions back as a JSON object keyed by the **PROJECT cell value**, verbatim:
+**Describe the work; leave the bookkeeping to the columns.** Both surfaces already state counts,
+branches, issue totals and absence next to the machine they belong to — the HTML in a per-machine
+column, the table in its own columns — so repeating any of them in the description says the same
+thing twice and pushes out the part only you can write. Keep out:
+
+- commit counts ("4 commits behind", "3 ahead") — REMOTE/UNPUSHED and the HTML metrics carry them;
+- a non-default branch — the BRANCH column and the HTML's `on <branch>` carry it;
+- open-issue totals — the ISSUES column and the card's issue chip carry them;
+- "not cloned on chrome" — the MACHINE cell says `chrome absent`, and in the HTML that column is
+  simply empty;
+- **the machine's own name.** Every description already sits in that machine's column, under its
+  header, so naming it repeats the header and costs characters the summary needs. Write "An untracked
+  config/ and an .env.example edit.", not "on chrome, an untracked config/ …".
+
+- When a machine has both uncommitted changes and unpushed commits, combine them by theme rather than
+  by count: "Mid-flight macOS deploy support, partly committed."
+- Repos with no pending work (issue-only rows) get no description; leave them out of the map. A
+  machine that is clean or absent gets none either — only the ones marked `<analyze below>`.
+
+Then feed the descriptions back as a JSON object keyed by the **PROJECT cell value**, verbatim. A
+repo working on one machine takes a plain string, which binds to that machine; a repo working on
+several takes an object keyed by machine name:
 
 ```
 python ~/.claude/skills/github-status/scripts/repos-status.py --report --width <N> <<'JSON'
-{"claude": "<one-line summary>",
- "3d/FreeCAD": "<one-line summary>"}
+{"3d/FreeCAD": "<one-line summary>",
+ "scheduler": {"air": "<what air is doing>", "chrome": "<what chrome is doing>"}}
 JSON
 ```
+
+A plain string given for a repo working on several machines is refused with a warning rather than
+guessed at — it would have to be assigned to one column, asserting something unchecked about the
+other. Naming a machine that has no pending work is refused the same way.
 
 - Pass the same `--width <N>` as step 2.
 - A key matching no repo is reported on stderr rather than silently dropped — if you see that
@@ -151,8 +183,8 @@ The user sees exactly two things:
    `[Open the report](file:///Users/…/tmp/github-status.html)`. A path is something to read; this file
    is meant to be opened.
 
-Do not paste the machine summary separately (it is in the report's header), and do not paste the
-detail sections at all.
+Do not paste the machine summary separately (the report carries it in its column headers), and do not
+paste the detail sections at all.
 
 ## Behavior notes
 
@@ -177,8 +209,29 @@ detail sections at all.
 - **Auto-pulls clean repos on both machines.** After collecting state, `git pull --ff-only --quiet`
   runs in parallel for every repo that is behind and has no uncommitted changes. `--ff-only`
   guarantees no merge commits — a diverged branch fails safely and stays unpulled.
+- **The report is one full-width block per project, machines side by side in a column each.** The
+  machine is named once, in a sticky column header that also carries its OS, projects root, repo count
+  and scan age — so the page header holds no machine cards and the columns stay labelled as a long
+  list scrolls. A column's position is what attributes its contents, which is why nothing inside a
+  block repeats a machine name. The column count is written per block from however many machines
+  answered, so a single-machine run renders one column rather than a half-empty pair.
+- **Descriptions are per machine, and each sits over the column it describes.** A description is about
+  work and work belongs to a machine, so the model is `RepoRow.descriptions`, machine name → summary,
+  not one string per repo. One string could only ever span both columns — which put prose over a
+  column reading "clean" with nothing to say which machine it meant — or be placed over one, leaving
+  the other's work unexplained. Descriptions share a grid row above the metrics, so a long one on a
+  single side never pushes that side's metrics out of line with its neighbour's. The terminal table
+  follows the same model: DESCRIPTION is a per-machine cell wrapping under its own machine's line.
+- **In the HTML, a machine with no pending work renders nothing at all** — no text, no rule, an empty
+  column. That covers a clean clone and a missing one alike, so the report deliberately stops
+  distinguishing them: it exists to show what is outstanding, and neither of those is. **Do not "fix"
+  the empty column by putting `clean` or `not cloned here` back** — the ambiguity was chosen knowingly,
+  and restoring the labels re-fills every column on a quiet day, which is what the change removed. The
+  terminal table still separates the two, because a blank cell there sits between filled neighbours in
+  a fixed grid and would read as either fact.
 - **An unreachable peer degrades loudly**, never silently: the machine summary and the report header
-  both name it with the SSH error, and the table falls back to the single-machine shape. A 300s
+  both name it with the SSH error, and the table falls back to the single-machine shape. A machine
+  that did not answer has no column, so the page header is where its failure is stated. A 300s
   timeout bounds the wait.
 - **The table is a snapshot taken before your analysis.** If a repo's state moves while you are
   reading its detail — a sibling Claude session committing mid-run is the usual cause, and the tell is

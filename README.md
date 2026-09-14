@@ -364,19 +364,20 @@ Closes out a section of work. Before anything is committed it re-reads the curre
 
 ### GitHub Status
 
-Cross-machine overview of all your GitHub-owned local clones — branch, behind/ahead counts, uncommitted file/line totals, oldest pending work, open issues, and a per-repo description synthesized from the pending changes. Prints a box table and writes a self-contained HTML report.
+Cross-machine overview of all your GitHub-owned local clones — branch, behind/ahead counts, uncommitted file/line totals, oldest pending work, open issues, and a description synthesized from the pending changes for each machine that has any. Prints a box table and writes a self-contained HTML report.
 
 **Command:** `/github-status`
 
 **Features:**
 - Walks `PROJECTS_ROOT` (configured per-machine on first run), filters to repos owned by your GitHub user
 - **Covers both machines in one run** — the peer is scanned by piping this same script into its interpreter over SSH, so nothing is installed on the far side and the two ends cannot run different versions of the scan
-- Merges the two on each repo's `OWNER/REPO` origin slug, the only identity that survives a different clone path per machine, and reports `clean` and `absent` as the different facts they are
+- Merges the two on each repo's `OWNER/REPO` origin slug, the only identity that survives a different clone path per machine; the terminal table separates `clean` from `absent`, while the report shows only outstanding work and leaves both as an empty column
 - Fetches every repo's origin in parallel on both machines before reading state, so counts reflect the current remote
 - Auto-pulls clean repos with inbound commits via `git pull --ff-only` on both machines, marks pulled repos with `✓`
-- Auto-hides columns nothing fills — MACHINE disappears on a single-machine run, BRANCH when every clone is on main
+- Auto-hides columns nothing fills — MACHINE disappears on a single-machine run, BRANCH when every clone is on main — and drops DESCRIPTION entirely on a terminal too narrow to hold prose, rather than wrapping every summary into a four-line ribbon
 - Degrades loudly when the peer is unreachable: the SSH error is named once in the summary and the report header, and the table falls back to the single-machine shape rather than quietly dropping half the picture
-- Writes an HTML report to the repo's gitignored `tmp/` — one card per repo, each machine's state on its own row, file lists and commit subjects behind expanders, light and dark
+- Writes an HTML report to the repo's gitignored `tmp/` — one full-width block per project with the machines side by side in a column each, named once in a sticky header carrying their OS, projects root and scan age, so a column's position is what attributes its contents
+- Recomputes every interval in the page rather than baking it in, so a report left open or reopened tomorrow still reads correctly; exact timestamps sit on hover
 - Reports uncommitted-file lists and unpushed-commit subjects so Claude can summarize each repo in one line
 
 ---
