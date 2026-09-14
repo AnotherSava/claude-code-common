@@ -18,3 +18,6 @@ Detect it: the run's `journal.jsonl` shows one `started` with no matching `resul
 
 ## Journal is the source of truth for what an agent returned
 Before concluding a workflow "returned nothing," read `journal.jsonl` — cached/returned values are recorded there. Don't assume a cached result was non-empty.
+
+## The task-notification `.output` file is an envelope, not the return value
+On completion the notification's `<output-file>` holds `{"summary", "agentCount", "logs", "result"}` — the script's return value sits under `.result`, not at the top level. The notification itself truncates a long result, so reading that file is the normal way to see all of it, and parsing it as though it were the bare return value fails with `JSONDecodeError: Extra data`. Read it as `json.loads(p.read_text(encoding="utf-8"))["result"]`.
