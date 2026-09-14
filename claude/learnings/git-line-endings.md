@@ -78,13 +78,20 @@ git commit -m "chore: normalize line endings"
 
 Common cause: a tool or editor converted CRLF→LF on disk, so the file size changed (fewer bytes), but `autocrlf=input` normalizes to LF when comparing, making the content match HEAD.
 
-**`git update-index --refresh` does NOT fix this** — it re-stats but sees the size mismatch and still reports "needs update." The fix is:
+**`git update-index --refresh` does NOT fix this** — it re-stats but sees the size mismatch and still reports "needs update."
+
+**Clear it with `git add <path>`, and reach for `git checkout` only per-path.** Staging re-hashes the file through its filters and rewrites the index entry; when the content is identical it stages nothing, so `git status` goes clean and `git diff --cached` stays empty. `git checkout -- .` also works — it rewrites the working tree from the index, producing LF files under `autocrlf=input` — but it overwrites *every* path, discarding all real uncommitted changes in the repo. That matters because the workflow most likely to meet a phantom is `/commit`, which runs on a dirty tree by premise: the phantom appears in the same status listing as the work about to be committed, so the bare `.` form would destroy exactly what the session was there to save.
+
+**Prove the content is identical before either fix.** On a genuinely modified file `git add` quietly stages the change instead of revealing a phantom, so the check comes first:
 
 ```bash
-git checkout -- .
+git show :<path> | cmp - <path>   # exit 0 → working bytes match the stored blob
+git ls-files -v <path>            # leading H → not assume-unchanged / skip-worktree
 ```
 
-This re-writes the working tree from the index, and with `autocrlf=input` the checkout produces LF files. Now disk matches the index stat cache and status is clean.
+Compare hashes instead only with `git hash-object --path=<path> <file>`; the bare `git hash-object <file>` skips the path's clean filter and agrees with the index by luck on an already-LF file.
+
+The signature is `git status` naming the path while every diff form is empty — `git diff`, `git diff --stat` and `git diff --raw` all print nothing. A wrapper that reports an uncommitted change from `status` next to an empty diff is showing this, not a broken probe.
 
 ## `-text` Disables eol Conversion Entirely
 
