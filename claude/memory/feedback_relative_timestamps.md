@@ -17,3 +17,9 @@ The house implementation is `formatInterval` in that repo's `web/src/lib/format.
 **Why:** the interval is what a reader actually wants from a past event, and the exact instant is wanted rarely enough that hover is the right place for it — which also frees the visible column to be narrow.
 
 **How to apply:** relative in the text, absolute in `title`, on the same span. Read the clock **once per page**, not per row, or two rows written by the same event disagree about how long ago it happened. In a Next 16 render body that clock read trips `react-hooks/purity` — use a `nowMs()` wrapper in a lib module rather than a per-call-site disable (see the `nextjs-react-hooks-purity` learning). Related: [[feedback_minimal_ui_chrome]].
+
+**A generated artifact has no second render, so the interval has to recompute itself.** The rule above assumes a page that renders again; a static HTML file written to disk does not, so an interval baked in at write time is simply wrong from the next minute onward — a report reading "scanned 8m ago" still reads it tomorrow. Asked about exactly that on 2026-09-14: *"'scanned 8 mins ago' is not correct - can it show interval dynamically instead?"*
+
+- Embed the epoch on the element (`data-ts`) and compute the text in the page: on load, on a ~30s interval, and on `visibilitychange`. That last one is not optional — a backgrounded tab throttles timers hard, so a page returned to after hours shows whatever it last managed to render.
+- Write the server-side value too, as the no-JS fallback, and render both through the **same** ported `formatInterval` so the two cannot disagree at a boundary.
+- The same trap in the other direction: a value printed **once** to a terminal is a snapshot by nature and is correctly frozen. Don't add machinery there.
