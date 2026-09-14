@@ -31,6 +31,18 @@ A TCP connect that times out rather than being refused reads like a DROP, and on
 nothing: the default inbound action is Block, so a port with **no listener at all** also times out with
 no RST. A closed port and a filtered port are indistinguishable from outside. Get the drop record instead.
 
+## Outbound, without elevation: the socket errors are the record
+
+The procedures above need an elevated token. For an **outbound** block there is a non-elevated
+substitute, because WFP reports itself through the socket API: a `connect()` refused at
+`FWPM_LAYER_ALE_AUTH_CONNECT_V4` fails immediately with `WSAEACCES` / native **10013**, while the UDP
+equivalent is a silent drop — the `sendto` succeeds and no reply ever arrives. Probe a control port in
+the same run (TCP 443, or UDP 123) and the pair localises the filter to one port without reading a
+single filter id. Use a raw socket from Python or a `TcpClient`/`UdpClient` in PowerShell; a
+resolver-level or library-level tool answers about a different process than the one you are testing.
+[[proton-vpn-blocks-port-53]] is the worked example, including why `Resolve-DnsName` reports success
+against a port that is blocked for every other process on the machine.
+
 ## Net-event collection is often already on, so this is read-only
 
 Check before reaching for `auditpol`, which would be a mutation:
