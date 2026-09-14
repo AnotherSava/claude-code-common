@@ -1,12 +1,12 @@
 ---
 name: feedback_warning_leads_with_instruction
-description: A warning says what to do first and why second, with the reason load-bearing for the instruction
+description: A warning says what to do first and why second, with a reason that actually forces the instruction
 metadata:
   type: feedback
 ---
 
-A warning tells the user **what to do** first and **why** second. The reason has to be load-bearing
-for the instruction rather than decoration beside it.
+A warning tells the user **what to do** first and **why** second. The reason has to be what forces the
+instruction rather than decoration beside it.
 
 **Why:** the two halves fail independently, and both failures look fine in isolation. A warning with
 no instruction states a fact and never asks for anything. A warning whose reason is a tautology asks
@@ -24,4 +24,12 @@ Real case, one notice, two bad drafts:
 - Correct: both, in that order. "GitHub uploads it the moment you drop it in" is precisely *why*
   reading has to happen beforehand, which is what makes it a reason rather than a fact.
 
-Related: [[feedback_sentence_case_ui]], [[feedback_minimal_ui_chrome]].
+Third failure mode, found 2026-09-14: **a reason that names the mechanism instead of the consequence.**
+Handing over a destructive command, I wrote *"disconnect the VPN first: the command matches by marker, so
+while connected it deletes the live rule too."* Every word true, and the user ran it while connected
+anyway — "deletes the live rule" is unpriceable to anyone who does not already model the mechanism. The
+actual cost was that all name resolution on the machine stopped. Give the cost, not the internal step that
+produces it: *"while connected, this takes DNS down for the whole machine."*
+
+Related: [[feedback_sentence_case_ui]], [[feedback_minimal_ui_chrome]],
+[[feedback_live_values_source_of_truth]].
