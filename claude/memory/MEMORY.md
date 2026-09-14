@@ -135,3 +135,5 @@
 - [Sort keys live in metadata, not the name](feedback_sort_key_not_in_identifier.md) — an ordering baked into a filename costs a mass rename to change or extend; use a field
 - [Keep your half of the task](feedback_keep_your_half.md) — hand back only what needs a human; reading the log and saying what it shows stays mine
 - [Message a sibling agent](peer_messaging.md) — `ListAgents` + `SendMessage` reach other projects' live sessions and need no approval to send; a message starts a real turn there, so the bar is high
+- [Sweep the old wording](feedback_sweep_the_old_wording.md) — retiring a rule: grep the old behaviour's words, not the new rule's, then check the lists that encode it
+- [Read upward from the match](feedback_read_upward_from_the_match.md) — a grep shows what follows a definition, never what precedes it; read above before calling a value unexplained
