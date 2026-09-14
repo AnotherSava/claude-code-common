@@ -14,7 +14,7 @@ When a copyable string has a part the user must replace with their own value, ma
 
 ## Outward Communication
 
-**Never publish human-facing communication without explicit confirmation of the specific text.** This covers anything a person will read as a message: GitHub issue and PR comments, review comments, email, chat messages to other people, social posts, and replies of any kind. Prose that describes your own work rather than addressing a person sits outside it, so a PR body, release notes, and a commit message are not covered.
+**Never publish human-facing communication without explicit confirmation of the specific text.** This covers anything a person will read as a message: GitHub issue and PR comments, review comments, email, chat messages to other people, social posts, and replies of any kind. Prose that describes your own work rather than addressing a person sits outside it, so a PR body, release notes, and a commit message are not covered. **A message to another agent is outside it too** — `SendMessage` to a sibling session, or a relayed message to one on the other machine — and needs no approval to send; see [[peer_messaging]] for when one is worth sending at all.
 
 The sequence is draft, show, confirm, send. "Write and post the response" authorizes the draft, not the send, and so does every other phrasing that bundles the two. Show the full text you intend to publish, verbatim, then ask whether to send that text. Do not summarize what you are about to send in place of showing it, and do not send a version edited after the confirmation without asking again. There is no exception for text the user supplied verbatim: show it back and confirm it like anything else.
 
@@ -307,7 +307,7 @@ The index below and `memory/MEMORY.md` point at the same files from different di
 - [Peer register, not support](~/.claude/memory/feedback_peer_register_not_support.md) — write to another dev as a peer, not support-to-user; four concrete swaps
 - [Use the tool you built](~/.claude/memory/feedback_use_the_tool_you_built.md) — make the new instrument the ask, not a fallback; a guess about someone's habits isn't evidence
 - [Sort keys live in metadata, not the name](~/.claude/memory/feedback_sort_key_not_in_identifier.md) — an ordering baked into a filename costs a mass rename to change or extend; use a field
-- [Message a sibling agent](~/.claude/memory/peer_messaging.md) — `ListAgents` + `SendMessage` reach the other projects' live sessions; a message starts a real turn there, so never send one to chat, confirm or thank. **An empty `ListAgents` does NOT mean unreachable** — it is local-only by design, and cross-machine goes through the dashboard relay.
+- [Message a sibling agent](~/.claude/memory/peer_messaging.md) — `ListAgents` + `SendMessage` reach the other projects' live sessions and need no approval to send; a message starts a real turn there, so never send one to chat, confirm or thank. **An empty `ListAgents` does NOT mean unreachable** — it is local-only by design, and cross-machine goes through the dashboard relay.
 
 ## Memos
 
