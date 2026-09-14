@@ -229,6 +229,15 @@
             "command": "python -S \"$HOME/.claude/hooks/memos-surface.py\""
           }
         ]
+      },
+      {
+        "hooks": [
+          {
+            "type": "command",
+            "command": "python -S \"$HOME/.claude/hooks/check-install.py\" hook",
+            "async": false
+          }
+        ]
       }
     ]
   },

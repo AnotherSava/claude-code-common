@@ -364,15 +364,19 @@ Closes out a section of work. Before anything is committed it re-reads the curre
 
 ### GitHub Status
 
-Cross-project overview of all your GitHub-owned local clones — branch, behind/ahead counts, uncommitted file/line totals, oldest pending work, and a per-repo description synthesized from the pending changes.
+Cross-machine overview of all your GitHub-owned local clones — branch, behind/ahead counts, uncommitted file/line totals, oldest pending work, open issues, and a per-repo description synthesized from the pending changes. Prints a box table and writes a self-contained HTML report.
 
 **Command:** `/github-status`
 
 **Features:**
 - Walks `PROJECTS_ROOT` (configured per-machine on first run), filters to repos owned by your GitHub user
-- Fetches every repo's origin in parallel before reading state, so counts reflect the current remote
-- Auto-pulls clean repos with inbound commits via `git pull --ff-only`, marks pulled repos with `✓`
-- Auto-hides columns that have no meaningful data (no unpushed commits → no UNPUSHED column, all on main → no BRANCH column, etc.)
+- **Covers both machines in one run** — the peer is scanned by piping this same script into its interpreter over SSH, so nothing is installed on the far side and the two ends cannot run different versions of the scan
+- Merges the two on each repo's `OWNER/REPO` origin slug, the only identity that survives a different clone path per machine, and reports `clean` and `absent` as the different facts they are
+- Fetches every repo's origin in parallel on both machines before reading state, so counts reflect the current remote
+- Auto-pulls clean repos with inbound commits via `git pull --ff-only` on both machines, marks pulled repos with `✓`
+- Auto-hides columns nothing fills — MACHINE disappears on a single-machine run, BRANCH when every clone is on main
+- Degrades loudly when the peer is unreachable: the SSH error is named once in the summary and the report header, and the table falls back to the single-machine shape rather than quietly dropping half the picture
+- Writes an HTML report to the repo's gitignored `tmp/` — one card per repo, each machine's state on its own row, file lists and commit subjects behind expanders, light and dark
 - Reports uncommitted-file lists and unpushed-commit subjects so Claude can summarize each repo in one line
 
 ---
@@ -565,6 +569,22 @@ Stays silent when there's nothing open. Needs no environment variable. See the [
 
 ---
 
+### Install Check
+
+**File:** `claude/hooks/check-install.py`
+
+A `SessionStart` hook verifying every symlink and git setting the [install blocks](#global-installation) create — eleven links plus `core.hooksPath`, `core.excludesFile` and `core.attributesFile`. Silent unless something is broken; it also runs by hand as `python ~/.claude/hooks/check-install.py`, where it prints a pass/fail line per check.
+
+A missing link is silent in a way that looks like working software, and each one fails differently: no `output-styles` link leaves `outputStyle` in `settings.json` resolving to nothing, so response-style rules apply on one machine and not the other; no `memory` link sends saved memories outside the repo; no `learnings` link makes every lookup come back empty as though nothing had been written down. None of it shows in git, because the links are machine-local while the settings depending on them are committed and identical everywhere.
+
+- **Paths are compared by inode (`os.path.samefile`), never as strings.** These links store `projects` where the disk spells it `Projects`, so a textual comparison passes or fails depending on whether the script was reached through the symlink or from the repo. The inode test also catches a "link" that is really a copy — what Git-Bash `ln -s` leaves behind on Windows, and what every textual check calls healthy.
+- **No matcher**, deliberately. The events reference lists `|` among the characters that keep a matcher an *exact* string, which would make `startup|resume` match nothing and the hook silently never fire; an absent matcher is the one form certain to run. A broken install is a persistent state rather than a passing event, so re-reporting it after a `/clear` is honest rather than noisy.
+- **It cannot verify `~/.claude/settings.json` or `~/.claude/hooks` when run as a hook**, since it is reached through them — but nothing else runs either when those are broken, so the hook firing at all is what vouches for them. Run it from the repo to check them for real.
+
+Adding a link to the install blocks needs a matching line in the script's `LINKS` list, which is the only other copy of that contract.
+
+---
+
 ### Doppler Guard
 
 **File:** `claude/hooks/doppler-guard.py`
@@ -718,6 +738,16 @@ git config --global core.hooksPath ~/.git-hooks
 git config --global core.excludesFile "~/.gitignore"
 git config --global core.attributesFile "~/.gitattributes"
 ```
+
+### Verifying the install
+
+Confirm every link above resolves, on this machine:
+
+```bash
+python ~/.claude/hooks/check-install.py
+```
+
+It prints a pass/fail line per link and per git setting, and the same script runs at every session start — silent unless something is broken. A link added to the blocks above needs a matching line in its `LINKS` list or it goes unchecked. See [Install Check](#install-check) for what it catches and what it cannot.
 
 ### Python interpreter
 

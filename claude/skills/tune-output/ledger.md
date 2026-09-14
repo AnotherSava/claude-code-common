@@ -258,3 +258,78 @@ a preference test, and it needs nobody's eyes but mine.
 - The problem was never which marker to use. Two rounds went into gutters, labels and arrows before the user
   pointed out the actual defect was what got admitted. Tune the admission test before the typography.
 
+---
+
+## 2026-09-14 — Third pass: the rules were already right and were not installed
+
+**Source:** the user, on a mid-task status report: *"i see too much non-essential information in the previous
+message and nothing is highlighted - does it mean i can skip the whole message, or something
+important/actionable was there?"* Two complaints — bulk, and no way to triage without reading all of it. The
+offending reply ran ~400 words and buried one command to run and one design decision needing approval inside
+several paragraphs of root-cause explanation.
+
+**Mechanism:** none. **No rule was added, changed or removed in this pass.** The fix was one missing symlink.
+
+**The finding, which is the whole entry.** Both complaints are already covered by rules adopted in the two
+passes above — the 120-word body budget, the closing ask carrying at most one action and one concern, the cap
+of one bold run, and the "read only the last paragraph" check before sending. The offending reply violated
+every one of them. It could not have obeyed them: `~/.claude/output-styles` **did not exist on the macOS
+machine**, so `outputStyle: action-first` in `settings.json` resolved to nothing and both prior passes had been
+inert there since the day they shipped. The Windows machine had the symlink and was applying the style
+normally, which is why the divergence went unnoticed — the same repo, the same settings key, two machines,
+opposite behaviour.
+
+The 2026-09-08 entry's own **Do not re-litigate** predicted this exactly: *"An unknown `outputStyle` name is a
+silent no-op. A style that fails to install produces a normal-looking session that applies nothing, so verify
+the selection resolves rather than assuming it."* It was written down, the README install block was updated
+with the `ln -s` line, `preflight.sh` was written to detect it — and the check still never ran on this machine,
+because nothing makes it run. Writing the warning is not the same as wiring the check.
+
+**Adopted:** nothing. The symlink was created (`ln -s .../claude/output-styles ~/.claude/output-styles`) and
+`preflight.sh` now reports the file resolving with `keep-coding-instructions: true`.
+
+**Rewritten:** nothing.
+
+**Rejected:**
+
+- **Adding a rule in response to this complaint.** The rules that answer it exist and are now loaded for the
+  first time on this machine. Adopting a fourth copy of "be shorter, mark the ask" would have measured a
+  candidate against a baseline that was *also* unstyled, so both arms would have shown the unstyled behaviour
+  and any new rule would have looked like it worked. **An A/B run on a machine where the style does not resolve
+  is void for the same reason the 2026-09-08 run was void with `--tools ""`** — the arms differ by something
+  other than the candidate.
+
+**What would re-open it:** the complaint recurring in a session started *after* the symlink existed. That is
+the only evidence that would show the adopted rules are insufficient rather than absent, and it is worth
+waiting for — a style change ships per session, so replies in the session that discovered this were still
+unstyled.
+
+**Tested:** not tested, and deliberately not. No candidate rule existed to test. The verification that matters
+here is `preflight.sh` reporting the selected name and the resolved file separately, which is what caught it.
+
+**Do not re-litigate:**
+
+- **A style being *selected* is not evidence it is *applied*, and this is per-machine.** `settings.json` is in
+  the repo and identical everywhere; the symlink that makes the name resolve is machine-local and is not. So
+  the failure is invisible in git, survives every commit, and looks like ordinary behaviour. Run
+  `preflight.sh` on each machine before concluding anything about response shape — including before blaming a
+  rule for not working.
+- **Before adding an output rule, check the existing ones are in force.** A complaint that the rules are not
+  working has two explanations, and "they were never loaded" is cheaper to check than "they are wrong". This
+  pass is the case where it was the first one.
+- A hash difference in a style file across the two machines is CRLF versus LF, not drift. Compare with
+  `git hash-object`, not `shasum`.
+
+**Closed in the same session, generically.** The first proposal here was a SessionStart hook checking the
+output style alone. The user's reply reframed it — *"why don't you come up with a generic approach for all the
+symlinks from dotfiles repository?"* — and that is what shipped: `claude/hooks/check-install.py`, registered on
+`SessionStart`, verifying all eleven links and the three git settings the README installs, silent unless
+something is broken. The output style was only the link whose failure happened to be invisible; `memory`,
+`learnings` and `gitignore` each fail just as quietly in their own way. Documented under "Verifying the
+install" in the README.
+
+Two notes for whoever touches it next. The 2026-09-08 pass rejected a SessionStart hook for *delivering* the
+style content, on cost grounds; this one only *verifies*, which is a different proposal and is why the earlier
+rejection does not cover it. And `preflight.sh` keeps its job — it reports the selected name and the resolved
+file separately, which is the output-style-specific detail the generic checker does not go into.
+
