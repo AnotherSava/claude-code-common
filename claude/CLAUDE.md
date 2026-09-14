@@ -309,6 +309,8 @@ The index below and `memory/MEMORY.md` point at the same files from different di
 - [Sort keys live in metadata, not the name](~/.claude/memory/feedback_sort_key_not_in_identifier.md) — an ordering baked into a filename costs a mass rename to change or extend; use a field
 - [Read upward from the match](~/.claude/memory/feedback_read_upward_from_the_match.md) — a grep shows what follows a definition, never what precedes it; read above it before calling a value unexplained or a list unaudited
 - [Keep your half of the task](~/.claude/memory/feedback_keep_your_half.md) — hand back only what needs a human; reading the log and saying what it shows stays mine
+- [Route the output, don't ask for a paste](~/.claude/memory/feedback_route_output_not_paste.md) — a command only they can run gets `2>&1 | tee tmp/<name>.log`; I read it, clipboard is the fallback
+- [Fix the class, not the instance](~/.claude/memory/feedback_fix_the_class_not_the_instance.md) — a defect in one member of an already-enumerated set is a defect in the set; find the list and check all of it
 - [Message a sibling agent](~/.claude/memory/peer_messaging.md) — `ListAgents` + `SendMessage` reach the other projects' live sessions and need no approval to send; a message starts a real turn there, so never send one to chat, confirm or thank. **An empty `ListAgents` does NOT mean unreachable** — it is local-only by design, and cross-machine goes through the dashboard relay.
 - [Sweep the old wording](~/.claude/memory/feedback_sweep_the_old_wording.md) — retiring a rule: grep the old behaviour's words, not the new rule's, then check the lists and gate enumerations that encode it with no words at all
 
