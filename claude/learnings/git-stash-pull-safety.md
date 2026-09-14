@@ -196,6 +196,30 @@ into whichever one is better placed, taking each side's strongest parts; do not 
 not pick a side, for the same reason the section above gives. The risk scales with how many
 sessions write to one knowledge base, and it is highest exactly where the base is most useful.
 
+**The same duplication happens across two files, where no table of contents can see it.** The check
+above is per-document and assumes the duplicate is a *section*. A pull that **adds a file** on a
+subject an existing file already covers yields two documents that are each internally coherent,
+share no heading, and conflict in no line — so every instrument above reports clean. Measured
+2026-09-14: a pull added a learnings file on cargo's target scope while an uncommitted one on cargo
+warning gates sat in the tree, covering the same finding with the same measured probe table, reached
+independently by two sessions. Neither `git status`, the merge output, nor either file's headings
+said anything.
+
+The instrument moves up one level, from the document's headings to the directory's filenames:
+
+```bash
+git diff --name-status <old-head> <new-head> | awk '$1=="A"{print $2}'   # what the pull added
+```
+
+Read each added file's title against the existing *filenames*, because a knowledge base indexed by
+filename makes the same claim in its names that a document makes in its headings. The tell that two
+files are one subject is that they **cite the same evidence** — two sessions reporting identical
+measured numbers is duplication, not corroboration.
+
+Resolving across files carries one hazard the within-document case cannot: deleting the loser breaks
+every cross-reference pointing at it, including one you may have just written into the survivor
+while merging. Grep for the deleted basename **after** the deletion, not before.
+
 ## Clearing the merge state after a conflicted pop
 
 A `git stash pop` that conflicts **keeps the stash entry** ("The stash entry is kept in case
