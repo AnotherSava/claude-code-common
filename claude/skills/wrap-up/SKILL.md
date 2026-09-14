@@ -121,6 +121,17 @@ the strongest first inside each group. For each item give a short bold title, th
 with their `[N] HH:MM` reference from the digest, one line on why it is still open, and a
 recommended disposition.
 
+**A recurring defect is an `answer`, not a `memo`.** A memo parks an idea nobody is doing; it is
+the wrong home for something that will present itself again next week, because the next review
+rediscovers it and files it a second time. When a finding is a *class* of problem and the project
+already has a place that would catch it — `.claude/commit-checks.sh`, a CI workflow, a lint config
+— recommend extending **that** place, and name it. Real case: nine dead-code warnings sitting in
+every build were offered here as a memo, and the user's answer was to ask why the commit check was
+not being taught to fail on them instead; two lines closed the class permanently. This is extending
+a gate that already exists to cover a blind spot, which is the opposite of the per-objection guard
+`~/.claude/memory/feedback_read_only_review_loop.md` warns against — that one adds a new mechanism
+per complaint, this one removes a finding that would otherwise keep coming back.
+
 ```
 **Concerns passed over**
 
