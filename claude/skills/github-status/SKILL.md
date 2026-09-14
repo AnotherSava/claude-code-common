@@ -1,113 +1,201 @@
 ---
 name: github-status
 description: >-
-  List your GitHub-owned local clones under PROJECTS_ROOT that have
-  pending work (uncommitted changes, unpushed commits, or inbound
-  remote commits), with branch, counts, age of oldest pending work,
-  open-issue count, and a per-repo summary. Each run fetches every
-  repo's origin in parallel so the counts reflect the current remote.
-  TRIGGER when: user asks "/github-status", wants a cross-project overview
-  of their repos, "which repos have unpushed commits", "what's new on
-  remotes", or "what have I been working on".
+  Cross-machine overview of your GitHub-owned local clones — every repo with
+  pending work (uncommitted changes, unpushed commits, inbound remote commits)
+  or open issues, merged across this machine and its peer, with branch, counts,
+  age of the oldest pending work, and a one-line summary per repo. Prints a box
+  table and writes a self-contained HTML report. Each run fetches every repo's
+  origin on both machines so the counts reflect the current remote.
+  TRIGGER when: user asks "/github-status", wants a cross-project overview of
+  their repos, "which repos have unpushed commits", "what's new on remotes",
+  "what have I been working on", or "what is uncommitted on the other machine".
   DO NOT TRIGGER when: user is asking about a single specific repo (use
   `git status` / `git log` directly).
-allowed-tools: Bash(python ~/.claude/skills/github-status/scripts/repos-status.py:*), Bash(test -f ~/.claude/skills/github-status/config/config.env:*), Bash(tput cols:*), PowerShell, AskUserQuestion, Read(~/.claude/skills/github-status/config/config.env), Write(~/.claude/skills/github-status/config/config.env)
+allowed-tools: Bash(python ~/.claude/skills/github-status/scripts/repos-status.py:*), Bash(python3 ~/.claude/skills/github-status/scripts/repos-status.py:*), Bash(test -f ~/.claude/skills/github-status/config/config.env:*), Bash(grep -q PEER_SSH ~/.claude/skills/github-status/config/config.env:*), Bash(tput cols:*), PowerShell, AskUserQuestion, Read(~/.claude/skills/github-status/config/config.env), Write(~/.claude/skills/github-status/config/config.env)
 ---
 
 ## Context
 - Config file: !`test -f ~/.claude/skills/github-status/config/config.env && echo PRESENT || echo MISSING`
 - GitHub user (script default): AnotherSava — override via `GITHUB_USER` env var
 
-## 1. Ensure PROJECTS_ROOT is configured
+## 1. Ensure the config exists
 
-If **Config file** above is `MISSING`:
+If **Config file** above is `PRESENT`, go straight to step 2. Otherwise ask the user (via one
+`AskUserQuestion` call carrying both questions) for:
 
-1. Ask the user (via `AskUserQuestion`) for the absolute path to the directory that contains all their local git clones. Suggest `$HOME/Projects` as the default if the user is on macOS, or `$HOME/code` on Linux.
-2. Write `~/.claude/skills/github-status/config/config.env` with this exact content (substituting `<absolute path>`):
+1. **Projects root** — the absolute path to the directory holding all their local clones. Suggest
+   `$HOME/Projects` on macOS, `$HOME/code` on Linux, `D:/projects` on Windows.
+2. **The other machine** — whether there is a second machine to include, and if so its SSH target
+   (`user@host`). Offer "no other machine" as an option; a single-machine report is a supported
+   configuration, not a degraded one.
 
-   ```
-   # github-status skill config — gitignored, user-specific
-   PROJECTS_ROOT="<absolute path>"
-   ```
-
-If **Config file** is `PRESENT`, proceed directly to step 2.
-
-## 2. Run the report
-
-**First, detect the terminal width** so the table fills the screen. The script's stdout is piped, which hides the real width from it, so determine it yourself:
-
-- **Windows:** use the **PowerShell tool** to evaluate `$Host.UI.RawUI.WindowSize.Width`. Use the PowerShell tool specifically — running `powershell.exe` from the Bash tool returns the wrong value (it gets its own console, not the real one).
-- **macOS/Linux:** run `tput cols` (or read `$COLUMNS`).
-- If you can't determine it, omit `--width`; the script falls back to the `GHS_WIDTH` line in config.env, then to 120.
-
-**Then subtract a gutter margin of 2** and pass the result as `--width <N>`. Claude Code's TUI indents message/tool output by a couple of columns, so a table exactly as wide as the window has its right border clipped off-screen — the margin keeps the whole table visible. (e.g. a 156-column window → `--width 154`.)
-
-Then run `python ~/.claude/skills/github-status/scripts/repos-status.py --width <N>` (drop `--width` if undetected). The script output has up to three parts:
-
-1. **Table**, fixed-width. A repo appears if it has pending work (uncommitted changes, unpushed commits, or inbound remote commits after the auto-pull pass) **or** at least one open issue on its origin; everything else is filtered out. Rows are sorted by AGE ascending (freshest pending work first; oldest at the bottom). Issue-only repos have no pending-work age, so they sort to the very bottom with blank LOCAL/AGE cells. Columns:
-   - **PROJECT** is always present.
-   - **BRANCH** appears only if any repo is on a branch other than `main` or `master`.
-   - **UNPUSHED** appears only if any repo has unpushed commits (`@{upstream}..HEAD` > 0).
-   - **REMOTE** appears only if any repo is behind its upstream (`HEAD..@{upstream}` > 0). Shows the count of commits inbound from the remote. A trailing `✓` (e.g. `4 ✓`) means the script auto-pulled those commits via fast-forward; the displayed count is the pre-pull behind count. Auto-pull happens only when the repo also has no uncommitted changes (`LOCAL` empty); diverged branches (`UNPUSHED > 0`) fail the fast-forward check and show the count without a `✓`.
-   - **LOCAL** appears only if any repo has uncommitted entries. Format is `N (+A/-D)` (e.g. `5 (-211)`, `6 (+530/-61)`), where `N` is the porcelain entry count and `(+A/-D)` is the line-level diff in parentheses. Either side of `+A/-D` is omitted when 0; if there's no line diff at all (rare — e.g., untracked dir with only binaries) the cell shows just `N`. Lines come from `git diff HEAD --numstat` for tracked files plus `wc -l` of each untracked text file (untracked counts entirely as additions). Binary files (NUL-byte sniff) and files > 1 MB are skipped.
-   - **AGE** appears only if any repo has unpushed commits or uncommitted changes. Shows the age of the oldest pending work in short human form (`"5 hours"`, `"2 weeks"`, `"1 year"`). The age is the older of (oldest uncommitted-file mtime, oldest unpushed-commit committer date) for that repo. Deleted files can't contribute (no mtime survives a delete) — for a repo with only deletions, this falls back to whatever commits exist.
-   - **ISSUES** appears only if any shown repo has at least one open issue. Shows the count of open GitHub issues (pull requests excluded) on the repo's **own `origin`** — the query is pinned to the origin slug with `gh issue list --repo OWNER/REPO`, so a fork reports its own issues, never its `upstream` parent's. A blank cell means zero open issues, issues disabled on the fork, or that `gh` was unavailable/unauthenticated for that repo. A repo with open issues but no pending git work still appears (as its own row), with the other columns blank and DESCRIPTION `—`.
-   - **DESCRIPTION** appears only if any repo has unpushed commits **or** uncommitted changes — populated with `<analyze below>` for those repos, `—` for the rest. **You fill this in** per step 3.
-2. **Uncommitted changes** section — per-repo `git status --porcelain` listing for every dirty repo. Each line starts with a 2-char status: X (staged) Y (unstaged). Spaces are rendered as `·` for column alignment — e.g. `·M file` (unstaged modify), `M· file` (staged modify), `MM file` (both), `??  file` (untracked), `·D file` (unstaged deletion).
-3. **Unpushed commits** section — per-repo `git log @{upstream}..HEAD --format="%h %s"` for every repo with unpushed work. This is the raw data you use in step 3.
-
-The script's table contains placeholders by design — you are not meant to paste it verbatim. Read off its columns and cell values, then feed them back through the script's `--render` mode with the DESCRIPTION cells filled in (see step 3).
-
-## 3. Re-render the table with descriptions filled in
-
-Read the "Uncommitted changes" and "Unpushed commits" sections from the script output. For every repo whose row shows `<analyze below>`, synthesize a **one-line description** of what the in-flight / unpushed work accomplishes (≤ ~80 chars; focus on the user-visible change or theme, not file- or commit-level detail).
-
-- If a repo has BOTH uncommitted changes and unpushed commits, combine them into one line — e.g. "Mid-flight macOS deploy support; 3 commits already; 2 docs files still uncommitted."
-- If a repo has only one kind, describe just that.
-- Repos with `—` in the DESCRIPTION cell stay as `—`.
-
-**The table is a snapshot taken before this analysis.** If a repo's state moves while you are reading its diffs — a sibling Claude session committing mid-run is the usual cause, and the giveaway is a `git diff` that comes back empty for a row the table listed as dirty — re-run the script and render from the fresh output. Do not render a row you already know is stale, and say in the report that you re-ran and why.
-
-Then **render the final table with the script's own renderer** — do NOT hand-draw the box table. The DESCRIPTION column stretches to fill the `--width` you pass (the same width detected in step 2), padding short text to the right edge and wrapping long text across lines — fiddly to reproduce by hand. Build a JSON spec with the descriptions filled in and pipe it to `--render`, passing the same `--width <N>`:
+Then write `~/.claude/skills/github-status/config/config.env`:
 
 ```
-python ~/.claude/skills/github-status/scripts/repos-status.py --render --width <N> <<'JSON'
-{"columns": ["project", "branch", "remote", "local", "age", "issues", "description"],
- "rows": [
-   {"project": "claude", "branch": "main", "remote": "6", "local": "20 (+669/-52)", "age": "3 days", "issues": "", "description": "<your one-line summary>"}
- ]}
+# github-status skill config — gitignored, user-specific
+PROJECTS_ROOT="<absolute path>"
+MACHINE_NAME="<what to call this machine in the report>"
+PEER_SSH="<user@host>"
+PEER_PYTHON="<the interpreter name on the peer>"
+```
+
+- Drop the `PEER_SSH` and `PEER_PYTHON` lines entirely when there is no second machine.
+- `PEER_PYTHON` is `python` when the peer runs Windows and `python3` everywhere else — a Windows
+  install has no `python3` on PATH, and a Homebrew macOS install has no bare `python`. Getting this
+  wrong shows up as the peer row reading `not reached`.
+- `MACHINE_NAME` defaults to the hostname when omitted. Set it when the hostname is long or does not
+  match what the user calls the machine.
+
+The peer needs nothing installed and nothing configured from this side beyond those two lines: the
+scan is piped into its interpreter over SSH, and it reads its own `config.env` for its own projects
+root. Key-based SSH must already work non-interactively (`ssh -o BatchMode=yes <user@host> true`).
+
+## 2. Run the scan
+
+**First, detect the terminal width** so the table fills the screen. The script's stdout is piped,
+which hides the real width from it, so determine it yourself:
+
+- **Windows:** use the **PowerShell tool** to evaluate `$Host.UI.RawUI.WindowSize.Width`. Use the
+  PowerShell tool specifically — running `powershell.exe` from the Bash tool returns the wrong value
+  (it gets its own console, not the real one).
+- **macOS/Linux:** run `tput cols` (or read `$COLUMNS`).
+- If you can't determine it, omit `--width`; the script falls back to the `GHS_WIDTH` line in
+  config.env, then to 120.
+
+**Then subtract a gutter margin of 2** and pass the result as `--width <N>`. Claude Code's TUI indents
+message/tool output by a couple of columns, so a table exactly as wide as the window has its right
+border clipped off-screen — the margin keeps the whole table visible (e.g. a 156-column window →
+`--width 154`).
+
+Run `python ~/.claude/skills/github-status/scripts/repos-status.py --width <N>` (`python3` on macOS
+and Linux; drop `--width` if undetected). It scans both machines concurrently, so it costs the slower
+of the two rather than their sum. Output has three parts:
+
+1. **Machine summary**, one line each: name, OS, projects root, repos discovered, and how long ago it
+   was scanned. A machine that could not be reached prints `NOT REACHED` with the SSH error instead,
+   and drops out of the table entirely — it is named once here rather than under every repo.
+2. **The table**, fixed-width. A repo appears if any machine has pending work or the repo has open
+   issues; everything else is filtered out. Repos are **grouped**: one line per machine under a single
+   PROJECT cell, sorted by AGE ascending (freshest pending work first, oldest at the bottom), with
+   issue-only repos last. Columns appear only when some cell fills them:
+   - **PROJECT** is always present — the clone path relative to the projects root, taken from this
+     machine where it has the repo. It doubles as the key you write descriptions against in step 3.
+   - **MACHINE** appears only when two machines were reached. The cell carries the machine's state
+     when it has no metrics to show: `chrome clean` (present, nothing pending) and `chrome absent`
+     (no clone there) are different facts, and a blank cell would say both.
+   - **BRANCH** shows only for a machine on something other than `main`/`master`.
+   - **UNPUSHED** — commits in `@{upstream}..HEAD`.
+   - **REMOTE** — commits in `HEAD..@{upstream}`. A trailing `✓` (e.g. `4 ✓`) means the script
+     auto-pulled them; the count shown is the pre-pull one. Auto-pull runs on **both** machines, only
+     where that clone has no uncommitted changes, and `--ff-only` means a diverged branch fails safe
+     and keeps its count without the `✓`.
+   - **LOCAL** — `N (+A/-D)`, the porcelain entry count with the line-level diff. Either side of
+     `+A/-D` is omitted when 0; a change set with no line diff at all (an untracked dir of binaries)
+     shows just `N`.
+   - **AGE** — age of the oldest pending work on that machine, as the older of (oldest uncommitted
+     file mtime, oldest unpushed commit date). A deletion leaves no mtime behind, so a clone with only
+     deletions falls back to whatever commits exist and can show a blank AGE against a filled LOCAL.
+   - **ISSUES** — open issues (PRs excluded) on the repo's own `origin`, printed once per repo since
+     it is a property of the repo rather than of a machine. Whichever machine's `gh` could answer
+     supplies it, and a repo the peer alone has but could not answer for is asked again from this
+     machine — `gh` needs no clone, so an unauthenticated `gh` over there neither blanks the column
+     nor drops a clean-but-ticketed repo out of the report. Blank means zero, issues disabled, or
+     neither machine could ask.
+   - **DESCRIPTION** — `<analyze below>` for every repo with pending work. **You fill this in** per
+     step 3.
+3. **Detail sections** — `git status --porcelain` and `git log @{upstream}..HEAD` per repo per
+   machine, tagged `[machine]` when both were reached. This is raw material for step 3, **not** part
+   of the user-facing report: do not paste it back to the user.
+
+The run also writes a state file next to the report. Step 3 reads it rather than re-scanning, so the
+descriptions land on exactly the state they were written from.
+
+## 3. Write the descriptions and render the report
+
+For every repo the table marks `<analyze below>`, read its detail sections and synthesize a
+**one-line description** of what the in-flight work accomplishes (≤ ~80 chars; the user-visible change
+or theme, not file- or commit-level detail).
+
+- When a repo has work on **both** machines, say so in the one line — that contrast is the reason the
+  report spans two machines. "Memo migration here; on chrome an untracked config/ and 32 commits
+  behind" beats describing only the machine you are sitting at.
+- When a repo has both uncommitted changes and unpushed commits, combine them: "Mid-flight macOS
+  deploy support; 3 commits already, 2 docs files still uncommitted."
+- Repos with no pending work (issue-only rows) get no description; leave them out of the map.
+
+Then feed the descriptions back as a JSON object keyed by the **PROJECT cell value**, verbatim:
+
+```
+python ~/.claude/skills/github-status/scripts/repos-status.py --report --width <N> <<'JSON'
+{"claude": "<one-line summary>",
+ "3d/FreeCAD": "<one-line summary>"}
 JSON
 ```
 
-- `columns` lists the column keys (`project`, `branch`, `remote`, `local`, `age`, `issues`, `description`) that appeared in the script's table, **in the same order**. Omit any column the script omitted.
-- Each row is a dict keyed by those column keys. Copy every non-description cell value **verbatim** from the script's table (including any `✓` marker and blank cells); set `description` to your one-line summary, or `—` for repos the script marked `—`. Project names use forward slashes (e.g. `bga/assistant`), so no backslash escaping is needed.
-- If a description contains a character awkward for a single-quoted heredoc (a literal backslash, or the `JSON` end marker), write the spec to a file instead and pass its path: `repos-status.py --render path/to/spec.json`.
-- Paste the renderer's output **verbatim** as the user-facing report — it is already width-bounded and aligned.
+- Pass the same `--width <N>` as step 2.
+- A key matching no repo is reported on stderr rather than silently dropped — if you see that
+  warning, fix the key and re-run; `--report` re-reads the state file, so re-running is free.
+- If a description contains a character awkward for a single-quoted heredoc (a literal backslash, or
+  the `JSON` end marker), write the object to a file and pass `--descriptions <path>` instead.
 
-Do NOT paste the "Uncommitted changes" or "Unpushed commits" sections to the user — those are raw data for your analysis, not part of the user-facing report. The DESCRIPTION cell already summarizes them.
+This prints the final table and writes the HTML report, then prints its path as a `file:///` link.
 
-Do not show the script's original placeholder table either; your filled table replaces it. The user sees: just the filled table.
+## 4. Hand it over
+
+The user sees exactly two things:
+
+1. **The final table**, pasted verbatim from the `--report` output. It is already width-bounded and
+   aligned — do not hand-draw it, and do not show the step 2 table with its placeholders.
+2. **The report**, as a Markdown link built from the `file:///` URL the script printed, e.g.
+   `[Open the report](file:///Users/…/tmp/github-status.html)`. A path is something to read; this file
+   is meant to be opened.
+
+Do not paste the machine summary separately (it is in the report's header), and do not paste the
+detail sections at all.
 
 ## Behavior notes
 
-- **Origin-URL filter**: only repos whose `origin` matches `github.com[:/]$GITHUB_USER/` appear. Third-party clones living under PROJECTS_ROOT (e.g. forks of upstream tools) are skipped automatically.
-- **Forks are counted** if AnotherSava owns the `origin` — even when they have an `upstream` remote pointing at the original author.
-- **Hard exclusions**: `notion` and `claude-mermaid-fix`. To change the list, edit the `EXCLUDED` set at the top of `scripts/repos-status.py`.
-- **Fetches every run.** Before reading state, the script runs `git fetch --quiet` per repo in parallel (max 16 workers, 30s timeout each). Failures are swallowed — a dead remote or offline machine just means the displayed counts fall back to whatever the local tracking refs already knew.
-- **Auto-pulls clean repos.** After collecting state, the script runs `git pull --ff-only --quiet` in parallel for every repo where `REMOTE > 0` AND `LOCAL` is empty (no uncommitted changes). `--ff-only` guarantees no merge commits — diverged branches fail safely and stay unpulled. Successful pulls add a trailing `✓` to the REMOTE column value.
-- **Counts open issues via `gh`.** For every owned repo (not just the pending-work set — a repo can earn a row on open issues alone), the script runs `gh issue list --repo OWNER/REPO --state open` (in parallel, PRs excluded) to populate the ISSUES column. The `OWNER/REPO` slug is parsed from the repo's `origin` URL and passed explicitly — without `--repo`, gh would auto-resolve a fork to its `upstream` parent and report the wrong project's issues. This is the only GitHub API call the skill makes; if `gh` is missing, unauthenticated, the fork has issues disabled, or it times out, the cell falls back to blank rather than failing the run.
-- **Full-width, elastic DESCRIPTION.** The table fills the target width and the DESCRIPTION column is elastic — it takes whatever the fixed columns leave, padding short text out to the right edge and wrapping long text across lines. Target width resolves as: `--width N` (or `GHS_WIDTH` env) → the `GHS_WIDTH` line in config.env → the detected terminal width → 120. A piped stdout can't see the real terminal, which is why step 2 detects the width and passes `--width` — minus a 2-column gutter margin, because Claude Code indents message/tool output and a table as wide as the window gets its right border clipped. DESCRIPTION won't shrink below ~18 chars — past that the table overflows rather than producing unreadable one-word ribbons.
-- **Forward-slash project names.** Project names are rendered with `/` separators on every platform (not Windows `\`), so they round-trip cleanly through the `--render` JSON.
-- **`UNPUSHED`** = commits in `@{upstream}..HEAD` (local-only commits the remote doesn't have).
-- **`REMOTE`** = commits in `HEAD..@{upstream}` (remote commits you haven't pulled).
-- **`LOCAL`** = `git status --porcelain | wc -l` (entry count) combined with line-level diff totals for both tracked and untracked text content.
-- The per-file detail section reproduces `git status --porcelain` output for each dirty repo, with the leading XY status code's spaces replaced by `·` so the columns line up.
-- Branches with no upstream show empty UNPUSHED / REMOTE cells; they appear only if they have local uncommitted changes, sorted alongside everything else by AGE.
+- **Two machines, one scan.** The peer is scanned by piping this same script file into its
+  interpreter over SSH (`ssh <peer> "<python> - --json"`). Nothing is copied to the far side, there is
+  no temp file to clean up, and the two ends cannot run different versions of the scan. The peer reads
+  its own `config.env` from the conventional install path for its own `PROJECTS_ROOT` and
+  `MACHINE_NAME`.
+- **Repos merge on their origin slug**, `OWNER/REPO` — the only identity that survives a different
+  clone path on each machine. `AnotherSava/jsonl-logs-intellij-plugin` checked out as
+  `jsonl-logs-intellij-plugin` on one machine and `intellij-jsonl-extension` on the other is one row,
+  and the HTML report shows the differing path on the machine it differs on.
+- **Origin-URL filter**: only repos whose `origin` matches `github.com[:/]$GITHUB_USER/` appear, on
+  either machine. Third-party clones living under a projects root are skipped automatically.
+- **Forks are counted** if the user owns the `origin` — even when they have an `upstream` remote
+  pointing at the original author.
+- **Hard exclusions**: `notion` and `claude-mermaid-fix`. To change the list, edit the `EXCLUDED` set
+  at the top of `scripts/repos-status.py`.
+- **Fetches every run, on both machines.** `git fetch --quiet` per repo in parallel (max 16 workers,
+  30s timeout each). Failures are swallowed — a dead remote or an offline machine just means the
+  displayed counts fall back to whatever the local tracking refs already knew.
+- **Auto-pulls clean repos on both machines.** After collecting state, `git pull --ff-only --quiet`
+  runs in parallel for every repo that is behind and has no uncommitted changes. `--ff-only`
+  guarantees no merge commits — a diverged branch fails safely and stays unpulled.
+- **An unreachable peer degrades loudly**, never silently: the machine summary and the report header
+  both name it with the SSH error, and the table falls back to the single-machine shape. A 300s
+  timeout bounds the wait.
+- **The table is a snapshot taken before your analysis.** If a repo's state moves while you are
+  reading its detail — a sibling Claude session committing mid-run is the usual cause, and the tell is
+  a detail section that no longer matches what the table claimed — re-run step 2 and describe from the
+  fresh output. Say in the report that you re-ran and why.
+- **Artifacts go in the dotfiles repo's gitignored `tmp/`**, as `github-status.html` and
+  `github-status-state.json`. The filenames are stable, so an open browser tab reloads onto the new
+  report. Override with `--html <path>` / `--state <path>`.
+- **The only GitHub API call is the open-issue count** (`gh issue list --repo OWNER/REPO`), pinned to
+  the origin slug so a fork reports its own issues and never its `upstream` parent's.
 
-See `references/findings.md` for background on the depth-4 walk, ownership filter rationale, and the explicit-exclusion history.
+See `references/findings.md` for background on the depth-4 walk, the ownership filter, and the
+explicit-exclusion history.
 
 ## Out of scope
 
-- Do NOT push, commit, stash, merge, rebase, or check out anything. The only mutations the skill performs are `git fetch` and `git pull --ff-only` on clean repos (both intentional, see Behavior notes).
-- Do NOT scan paths outside PROJECTS_ROOT.
-- Do NOT call the GitHub API beyond the open-issue count (`gh issue list`) — everything else is local git state only.
+- Do NOT push, commit, stash, merge, rebase, or check out anything, on either machine. The only
+  mutations are `git fetch` and `git pull --ff-only` on clean repos — both intentional, see above.
+- Do NOT scan paths outside each machine's configured `PROJECTS_ROOT`.
+- Do NOT call the GitHub API beyond the open-issue count — everything else is local git state.
