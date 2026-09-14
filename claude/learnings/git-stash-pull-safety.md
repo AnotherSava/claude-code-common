@@ -171,6 +171,31 @@ and the check counts them as losses. Report the count with its explanation rathe
 failure — or, worse, "repairing" it by pasting the duplicates back. This is the one resolution a mechanical
 check cannot vouch for, which is why the merged block goes in front of the user.
 
+## The worst case makes no conflict at all
+
+Both sections above are about a pop that *stops*. The case to fear is the one that succeeds: two
+sides added the **same knowledge in different places**, so the hunks never touch and git has
+nothing to report. Measured 2026-09-14 on a shared learnings file — one session appended a
+"PrintWindow's alpha is not the window's transparency" section at line 108, another pushed the
+same finding, in its own wording and with the same measured numbers, at the end of the file. The
+pop applied clean, exit 0, and left one document asserting it twice.
+
+Nothing mechanical catches this. A line check passes (no lines lost), a conflict check passes (no
+conflict), and a diff against either parent looks like a normal addition. **The only instrument is
+the table of contents**: after any pop or merge on a document, list its headings and read them for
+two that mean the same thing.
+
+```bash
+grep -n '^#\{1,3\} ' <path>          # before the pop, and after
+```
+
+Two headings can differ in every word and still be one section — "`PrintWindow`'s alpha channel is
+not the window's transparency" against "PrintWindow's alpha cannot tell you whether a window is
+transparent" — so compare what they *claim*, not how they are spelled. Resolve by merging the two
+into whichever one is better placed, taking each side's strongest parts; do not keep both and do
+not pick a side, for the same reason the section above gives. The risk scales with how many
+sessions write to one knowledge base, and it is highest exactly where the base is most useful.
+
 ## Clearing the merge state after a conflicted pop
 
 A `git stash pop` that conflicts **keeps the stash entry** ("The stash entry is kept in case

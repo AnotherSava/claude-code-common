@@ -2,7 +2,7 @@
 
 Verifying a desktop app's UI by screenshot has two pitfalls: full-screen capture grabs whatever the user has on screen (privacy + the target may be covered), and `Graphics.CopyFromScreen` of the window's rect still captures whatever is *visually on top* — a fullscreen video or overlay above the target wins, returning its pixels instead of the app's.
 
-The fix is `PrintWindow` with `PW_RENDERFULLCONTENT` (flag `3`), which asks the window to render its own content into a DC regardless of occlusion or z-order. It works with WebView2-backed windows (Tauri, Electron, WebView2 apps), where the plain `PrintWindow` flag `0` often returns black.
+The fix is `PrintWindow` with `PW_RENDERFULLCONTENT`, which asks the window to render its own content into a DC regardless of occlusion or z-order. Flag `3` is the usual value and is `PW_CLIENTONLY | PW_RENDERFULLCONTENT` — the client-only half restricts the copy to the client area, which matters once you start comparing the result against a screen grab (see below). It works with WebView2-backed windows (Tauri, Electron, WebView2 apps), where the plain `PrintWindow` flag `0` often returns black.
 
 Getting the window handle: `(Get-Process <name>).MainWindowHandle` is reliable. `FindWindowW($null, "<title>")` can fail to find Tauri/WebView2 windows even when the title matches — don't debug that path, just use the process handle.
 
@@ -28,7 +28,7 @@ $w = $r.R - $r.L; $ht = $r.B - $r.T
 $bmp = New-Object System.Drawing.Bitmap($w, $ht)
 $g = [System.Drawing.Graphics]::FromImage($bmp)
 $dc = $g.GetHdc()
-[Win32Cap]::PrintWindow($h, $dc, 3)  # 3 = PW_RENDERFULLCONTENT
+[Win32Cap]::PrintWindow($h, $dc, 3)  # 3 = PW_CLIENTONLY | PW_RENDERFULLCONTENT
 $g.ReleaseHdc($dc)
 $bmp.Save("$env:TEMP\capture.png"); $g.Dispose(); $bmp.Dispose()
 ```
@@ -105,6 +105,54 @@ ramp that is glaring against a `#F3F3F3` window. Assert on what the pixel *becom
 background it will be shown on (`C*a + 255*(1-a)` for a white page) and compare that against the
 window's own fill.
 
+## `PrintWindow`'s alpha channel is not the window's transparency
+
+A capture taken with `PrintWindow` comes back **fully opaque** — alpha 255 in every
+pixel, including the rounded corners of a window that is genuinely transparent on
+screen. It is the window rendering itself into a DC, not the desktop compositor's
+output, so there is no compositing and nothing for alpha to mean.
+
+This reads as a definite answer and is not one. Asked whether a Tauri window with
+`"transparent": true` was actually transparent on Windows, a `PrintWindow` grab
+said alpha 255 at all four corners, which looks exactly like "no". The window was
+transparent, and correctly rounded.
+
+**Compare two captures of the same window instead**: `PrintWindow` (the window's own
+surface) against a `CopyFromScreen` of its frame rect (what the compositor put on
+the display). An opaque window composites to its own pixels, so the two agree; a
+transparent one cannot, because the screen grab contains whatever is behind it.
+Measured on a real widget:
+
+| corner | PrintWindow (window's own surface) | Screen (composited) |
+|---|---|---|
+| top-left | `(243,243,243)` | `(241,241,241)` |
+| bottom-left | `(0,0,0)` | `(210,210,210)` |
+
+The two *disagreeing* is the proof: a corner where the screen grab differs from the
+window's own surface is a corner showing what is behind it.
+
+**Both captures have to cover the same rectangle, or the comparison invents its own
+answer.** Flag `3` includes `PW_CLIENTONLY`, so the copy stops at the client area
+while the screen grab above is of the window rect. On a decorated window those are
+different rectangles, and the part of a window-rect-sized bitmap `PrintWindow` never
+writes keeps a fresh 32bpp bitmap's `(0,0,0)` — the same value the table above reads
+as proof of transparency. Measured against decorated Explorer: flag `2` returns
+`(232,232,232)` at all four corners, flag `3` returns it at TL and `(0,0,0)` at the
+other three, on a window that is entirely opaque. The widget measured above has
+custom chrome, where window rect and client rect coincide and the clipping is a
+no-op — which is why the procedure held there. Elsewhere, grab the client rect on
+both sides or pass flag `2`.
+
+Then read the ramp inward along the corner diagonal on the composited grab, which
+shows the antialiasing: `241, 240, 237, 213, 188, 23` down into the window's own
+colour is a `border-radius` rendering correctly. A square corner steps straight from
+background to content instead.
+
+The two-exposure alpha solve under *Removing a background, and telling background
+from chrome* answers the same question quantitatively, but it needs a backdrop
+staged behind the window and a second exposure; the two-capture comparison needs
+neither, so reach for it first when the question is just *is this transparent*.
+
 ## Two traps in the tooling itself
 
 - **PowerShell 5.1 reads a `.ps1` as ANSI unless it has a BOM.** A UTF-8 em dash inside a
@@ -177,28 +225,3 @@ Two related notes for driving a menu this way:
 - A synthetic right-click on a tray icon opens the menu only *sometimes*. Poll-after-one-click never
   succeeds when the click did nothing; **re-click** in a loop (up to ~6 attempts, ~900 ms apart) and
   poll after each.
-
-## PrintWindow's alpha cannot tell you whether a window is transparent
-
-`PrintWindow` renders the window's content into a DC you supply, and that surface comes back
-**opaque** — every pixel alpha 255, including the ones outside a rounded corner where the desktop
-actually shows through. So reading the alpha channel of a `PrintWindow` grab answers a question it
-was never asked: it describes the DC, not the window.
-
-This produces a confident wrong answer rather than an error. Verifying a Tauri window's
-`"transparent": true` on Windows, a first pass read alpha 255 at all four corners and was about to
-report "transparency is not working"; the window was in fact transparent and correctly rounded.
-
-**Compare two captures of the same window instead**, one via `PrintWindow` and one composited off
-the screen:
-
-| corner | PrintWindow (window's own surface) | Screen (composited) |
-|---|---|---|
-| top-left | `(243,243,243)` | `(241,241,241)` |
-| bottom-left | `(0,0,0)` | `(210,210,210)` |
-
-The two *disagreeing* is the proof. An opaque window composites to its own pixels, so any corner
-where the screen grab differs from the window's own surface is a corner showing what is behind it.
-Reading the ramp inward on the composited grab then shows the antialiasing — `241, 240, 237, 213,
-188, 23` down into the window's own colour is a correctly rendered `border-radius`, where a square
-corner would step straight from background to content.
