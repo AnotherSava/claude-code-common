@@ -80,11 +80,14 @@ correct on white and leaves a dark page with two visible edges and two invisible
 ones; and stroking all four while preserving alpha, which dilutes the colour to
 whatever the native alpha allows and reads as a corner darker than the flats.
 
-ON macOS, RUN THE COLOUR-PROFILE STEP AFTER THIS, not before. The marker
-`sips --matchTo` leaves is a PNG `sRGB` CHUNK rather than an embedded ICC
-profile: `sips` writes and reports it, Pillow can neither see it
-(`info["icc_profile"]` is empty) nor write it back, so any save through Pillow
-drops it and the frame lands untagged.
+ON macOS, RUN THE COLOUR-PROFILE STEP AFTER THIS, not before. A save through
+Pillow keeps an embedded `iCCP` profile — the passthrough at the save hands it
+over explicitly — but drops the `sRGB` chunk that `sips --matchTo sRGB` leaves,
+along with `eXIf` and `cICP`, because Pillow cannot see those and rebuilds the
+file from what it holds. These captures are sRGB, so the tag goes entirely and
+the frame lands untagged. `~/.claude/learnings/macos-image-inspection.md` carries
+the measured chunk-by-chunk table and the per-profile differences; the rule here
+is the ordering, which holds whichever profile is used.
 """
 import sys
 from pathlib import Path
@@ -107,8 +110,22 @@ SILHOUETTE = 128
 # widget, keyed from two exposures) and ~130 (a decorated window), which straddle
 # `SILHOUETTE`, so the same constant cannot serve both paths: at 128 exactly the
 # alpha-119 frames doubled. Measured across all five Windows frames, every value
-# from 32 to 100 gives 2px on all four sides and 2.12px through the corner, and
-# the corner is visually identical across that range; 64 is the middle of it.
+# from 32 to 100 gives 2px on all four sides, and the corner is visually identical
+# across that range; 64 is the middle of it.
+#
+# THE CORNER HAS NO SINGLE THICKNESS UNDER `--opaque`, and a figure quoted here
+# (2.12px) said otherwise until it was re-measured. Walking the normal to the
+# curve at 5-degree steps, the band runs 1.99–3.05px around one quarter arc at
+# this cut, 1.99–3.18 at 100 — never below the flats, up to half as much again at
+# the worst angle. That is the NEAREST upsample above showing through: the shape
+# the disk erodes is a 1x staircase rather than a curve, so the band's width
+# depends on where around the arc it is asked for. The default path keeps its
+# curve and stays even (2.06 against 2.00, in the 3x note above). It is left as
+# it is because the alternative is the speckle `ring_of` documents — a visible
+# defect traded for a measurable one that nobody has seen. Do not tune a single
+# number back into this comment: a 45-degree pixel count cannot resolve it either
+# (two samples spaced sqrt(2) apart fit any thickness from ~1.4 to ~2.8), so a
+# claim about this corner needs the normal walk, and it comes out a range.
 OPAQUE_SILHOUETTE = 64
 
 # `has_own_edge` tuning. `probe` is how far in to look for the content behind the
@@ -325,7 +342,11 @@ def main(argv: list[str]) -> int:
         else:
             files.append(Path(a))
     if not files:
-        raise SystemExit(__doc__.strip().splitlines()[6].strip())
+        # Found by prefix rather than by line number, which is how this broke: the
+        # index was 6 and printed "capture scripts are rarely in the same language",
+        # a sentence from the middle of a paragraph, as the usage message. Any edit
+        # to the prose above the usage line moves it.
+        raise SystemExit(next(l.strip() for l in __doc__.splitlines() if l.strip().startswith("python hairline.py")))
     for f in files:
         add_hairline(f, color=color, width=width, opaque=opaque, require=require)
     return 0
