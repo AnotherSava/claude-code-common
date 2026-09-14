@@ -220,6 +220,44 @@ Resolving across files carries one hazard the within-document case cannot: delet
 every cross-reference pointing at it, including one you may have just written into the survivor
 while merging. Grep for the deleted basename **after** the deletion, not before.
 
+## A local migration that deletes the file upstream just appended to
+
+Everything above assumes the contested file survives on both sides. The asymmetric case is a local
+change that **removes** it — a format migration fanning one list file out into a directory of
+per-item files, a config split, a document replaced by a folder — while upstream appended to the
+old file because the other machine was still using it.
+
+The trap is that the resolution looks settled. A path-scoped stash of the deleted file pops as a
+modify/delete conflict, and the migration is plainly the newer design, so you keep the deletion —
+and the appended item goes with it. Nothing objects, because every instrument is watching the wrong
+thing: the file is *supposed* to vanish, so the conflict resolves cleanly; the stash-SHA baseline
+lists that path as an incoming-commit file and calls it expected; and neither the heading check nor
+the filename check applies to a document that no longer exists.
+
+Don't pop. Reconcile by content, starting from what the migration was actually built against:
+
+```bash
+git show <pre-merge-head>:<old-path>   # the version the migration read
+git show @{upstream}:<old-path>        # what upstream actually has
+```
+
+Carry each item present only in the second one into the new structure by hand, taking its sort key
+from the item itself rather than from the clock — a migration that never saw the item has no
+timestamp for it, and stamping it "now" silently reorders the result. Then assert per item, never on
+a count:
+
+```python
+for item in old_items:
+    hits = [p for p, text in new_files.items() if probe(item) in normalize(text)]
+    assert len(hits) == 1, (item, hits)   # 0 = lost, 2+ = migrated twice
+```
+
+Verified 2026-09-14: the migration had produced four files from the four-item list it could see,
+while upstream's copy of that list held five. The fifth came back only because the two sides were
+compared item by item after the merge. A count check happens to catch that particular shape, and
+stops working the moment one item is lost while another is migrated twice — which is why the
+assertion above matches text rather than tallies.
+
 ## Clearing the merge state after a conflicted pop
 
 A `git stash pop` that conflicts **keeps the stash entry** ("The stash entry is kept in case
