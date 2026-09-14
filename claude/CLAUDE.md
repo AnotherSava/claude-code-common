@@ -307,6 +307,7 @@ The index below and `memory/MEMORY.md` point at the same files from different di
 - [Peer register, not support](~/.claude/memory/feedback_peer_register_not_support.md) — write to another dev as a peer, not support-to-user; four concrete swaps
 - [Use the tool you built](~/.claude/memory/feedback_use_the_tool_you_built.md) — make the new instrument the ask, not a fallback; a guess about someone's habits isn't evidence
 - [Sort keys live in metadata, not the name](~/.claude/memory/feedback_sort_key_not_in_identifier.md) — an ordering baked into a filename costs a mass rename to change or extend; use a field
+- [Keep your half of the task](~/.claude/memory/feedback_keep_your_half.md) — hand back only what needs a human; reading the log and saying what it shows stays mine
 - [Message a sibling agent](~/.claude/memory/peer_messaging.md) — `ListAgents` + `SendMessage` reach the other projects' live sessions and need no approval to send; a message starts a real turn there, so never send one to chat, confirm or thank. **An empty `ListAgents` does NOT mean unreachable** — it is local-only by design, and cross-machine goes through the dashboard relay.
 
 ## Memos
