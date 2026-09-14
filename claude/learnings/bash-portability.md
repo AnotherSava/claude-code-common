@@ -83,6 +83,16 @@ error from the tool being called, and the loop case silently "finds" everything 
 Write `${=P}` in zsh, or better, don't rely on splitting at all — quote properly and
 iterate with `while IFS= read -r`.
 
+**Inside a measurement harness this is worse than confusing — the parse error becomes a
+data point.** A probe shaped `run() { tool $flags; echo "exit=$?"; }` records the
+*shell's* failure to pass the flags as though it were the tool's answer, so a results
+table fills with clean-looking false negatives. Measured 2026-09-14: a harness probing
+which `cargo check` flag sets catch a warning reported `exit=1, 0 errors` for every row,
+which reads exactly like "this flag set is blind" — the real cause was `--lib --tests`
+arriving as one argument. Pass flags as real positional arguments (`probe --lib --tests`
+with `"$@"`), and treat a row whose exit code is not one the tool documents as a broken
+probe rather than a finding.
+
 **Unquoted `[...]` in a path is a glob, and in zsh it is fatal or silent depending on
 where it lands.** This bites hardest on Next.js dynamic routes, whose directory names
 are literally bracketed:
