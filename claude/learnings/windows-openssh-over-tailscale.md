@@ -91,6 +91,44 @@ Two more cleanups for readable output: start the script with `$ProgressPreferenc
 PowerShell emits a wall of `#< CLIXML` progress objects onto the stream, and pipe results through `tr -d '\r'`
 locally since every line arrives CRLF.
 
+## ssh.exe as a *client*, spawned inside an sshd session, cannot forward stdin
+
+Driving a Windows box over SSH and having *it* ssh somewhere else — a peer scan, a relayed
+command — puts ssh.exe inside an sshd session. There it hangs the moment it has to forward any
+stdin at all, and the hang is silent: it prints its version banner and stops, before the line where
+it would normally say it is reading its config.
+
+Measured 2026-09-14, same session, same target, only the handle type differing:
+
+| call | handles | result |
+|---|---|---|
+| `ssh host "echo hi"` (no stdin data) | pipes | **hangs** |
+| `ssh host "echo hi"` (no stdin data) | files | 0.2 s |
+| `ssh host "cat"` with 53 KB in | files | 0.2 s |
+| `ssh host "python3 -"` with 18 bytes in | pipes | **hangs** |
+
+Payload size is irrelevant — 18 bytes hangs exactly like 53 KB. `git` and `gh` on the same box,
+in the same session, use pipes happily, so this is ssh.exe specifically rather than subprocess
+pipes in general.
+
+**From an ordinary console on that machine it all works.** Confirmed by having something with a real
+console run the same probe (`SSH_CONNECTION` empty, `SESSIONNAME=Console`): all four calls returned,
+including piping a 53 KB script into the far side's interpreter. So the defect belongs to the
+*nesting*, not to ssh.exe.
+
+Two consequences, and the second is the expensive one:
+
+- **Use real file handles, not `capture_output=True` / `input=`,** for any ssh.exe you spawn from
+  Python on Windows. `tempfile.TemporaryFile()` for all three handles costs a few lines and works in
+  both contexts.
+- **A test harness that reaches the box over SSH cannot test that box's own outbound ssh.** Every
+  route onto the machine is an sshd session, so the harness is inside the fault it is measuring, and
+  the symptom — a 300 s timeout reported as the far end being unreachable — looks exactly like a real
+  network or auth failure. Nothing on the machine can tell you otherwise. Get a process with a real
+  console there to run the probe: the user's own shell, or the Claude session already running on that
+  box via [[peer_messaging]]'s dashboard relay. Then have it write to a file you read back over SSH,
+  per [[feedback_route_output_not_paste]].
+
 ## Probing reachability without fooling yourself
 
 - **zsh has no `/dev/tcp`.** That is a bash feature; `(echo >/dev/tcp/host/port)` under zsh reports every port

@@ -429,3 +429,26 @@ count aborts the script for reporting zero.
 Any command that signals "found nothing" through exit status is unsafe in the B slot — `grep` (1 = no
 match), `diff` and `cmp` (1 = differs), `test`. Reach for `if`/`else` whenever B's failure is a
 legitimate outcome rather than an error.
+
+## `timeout` does not exist on macOS
+
+`timeout <n> <cmd>` is GNU coreutils. Linux and Git-Bash-on-Windows both have it; stock macOS has
+neither `timeout` nor `gtimeout` unless coreutils is installed, and the command dies with
+`command not found` — taking the whole step with it, since the wrapper fails before the wrapped
+command ever runs. A cross-platform script that reaches for it to bound a hang is therefore most
+likely to break on the one machine where it was never tested.
+
+Bound the wait inside the tool instead, where nearly every candidate already supports it:
+
+```bash
+ssh -o ConnectTimeout=15 host …        # not: timeout 15 ssh host …
+curl --max-time 15 …
+git -c http.lowSpeedLimit=1 -c http.lowSpeedTime=15 …
+```
+
+From Python, pass `timeout=` to `subprocess.run` — but **catch `subprocess.TimeoutExpired`**, which it
+raises rather than folding into the return code. A `timeout=` with no `except` converts a slow command
+into a crash, which is worse than the hang it was added to prevent.
+
+Where an external bound is genuinely the only option, guard it rather than assuming:
+`command -v timeout >/dev/null && TO="timeout 20" || TO=""`, then `$TO cmd`.

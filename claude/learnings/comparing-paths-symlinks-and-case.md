@@ -34,6 +34,14 @@ was the one it could not see.
   paths to exist. A deleted-but-uncommitted file, which is exactly what `git status` reports as
   ` D`, raises `FileNotFoundError`.
 
+`samefile` also answers a question no textual comparison can: **is this actually a link, or a copy
+standing where a link belongs?** A copy resolves to itself, so `realpath` on it returns a perfectly
+sensible path and every string check calls it healthy — while it silently stops tracking the file it
+was supposed to mirror. That is not hypothetical here: Git-Bash `ln -s` on Windows creates copies
+rather than links, so a dotfiles install run from the wrong shell produces exactly this. Different
+inodes is the only signal, and it costs nothing extra once you are using `samefile` for the case
+problem anyway.
+
 ## What does
 
 **Make both sides come from the same producer.** The comparison that worked was between two
