@@ -90,7 +90,7 @@ Analyzes changes and generates atomic Conventional Commit messages.
 - Drafts commit messages in imperative mood with type prefixes
 - Presents a full plan for approval before executing any commits
 - GPG-signs all commits, never adds AI attribution
-- Asks the live session that owns a peer repository to commit work this session left there, scoped to repos it actually wrote to and shown for approval before any message is sent
+- Asks the live session that owns a peer repository to commit work this session left there, scoped to repos it actually wrote to
 
 ---
 
