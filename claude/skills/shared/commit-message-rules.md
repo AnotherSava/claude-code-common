@@ -18,6 +18,11 @@ Summarize the "why" not just the "what".
 
 - Imperative mood ("add" not "added")
 - Subject line ≤ 50 characters, body lines wrapped at 72 characters
+- **Count them, on every message, including one written outside a commit plan.** `/commit` step 6
+  counts as an explicit pass, but it only sees messages drafted *for a plan* — a lone follow-up
+  commit bypasses it. Measured 2026-09-14: a batch of four was counted mechanically and passed, then
+  a single re-commit went out at 58 characters and needed `/reset` to fix, because it was eyeballed
+  rather than measured. Length is the one rule here that reading cannot check
 - No trailing period
 - Type prefix not repeated in description (e.g. not "refactor: refactor...")
 - No capitalized first word after type prefix
