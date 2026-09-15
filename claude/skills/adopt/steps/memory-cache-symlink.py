@@ -41,6 +41,7 @@ machine where this machine's paths mean nothing.
 import hashlib
 import os
 import re
+import shutil
 import subprocess
 import sys
 from typing import NamedTuple
@@ -221,8 +222,15 @@ def run_link_script(root: str) -> tuple[int, str]:
     """
     if not os.path.isfile(LINK_SCRIPT):
         return 3, f"the linking script is not at claude/scripts/link-project-memory.sh ({LINK_SCRIPT})"
+    # Resolve the interpreter to an absolute path rather than passing the bare name. MSYS bash finds
+    # its own install root from argv[0], so Git Bash launched as "bash" cannot resolve ANY path it is
+    # then handed: the script comes back "No such file or directory" whether it is spelled with
+    # backslashes, D:/… or /d/…, while the identical call with which()'s absolute path runs it.
+    bash = shutil.which("bash")
+    if bash is None:
+        return 3, "bash is not on PATH, so claude/scripts/link-project-memory.sh cannot be run"
     try:
-        done = subprocess.run(["bash", LINK_SCRIPT, root], capture_output=True, encoding="utf-8",
+        done = subprocess.run([bash, LINK_SCRIPT, root], capture_output=True, encoding="utf-8",
                               errors="replace", timeout=LINK_TIMEOUT)
     except (OSError, ValueError, subprocess.SubprocessError) as exc:
         return 3, f"link-project-memory.sh could not be run ({exc})"
