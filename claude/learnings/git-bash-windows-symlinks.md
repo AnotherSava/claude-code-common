@@ -78,6 +78,29 @@ if [ -L "$cache" ] && [ "$(cygpath -w "$(readlink "$cache")")" = "$target_win" ]
 fi
 ```
 
+### From Python the same junction is not a link at all
+
+Do not port that `[ -L ]` test into Python by analogy — the two disagree on the
+same path, on the same machine, in the same second. Measured 2026-09-15 on a
+wired memory cache:
+
+```
+exists: True | islink: False | samefile as the target: True
+```
+
+`os.path.islink()` returns **False** for a directory junction, because a junction
+is a reparse point and not a symlink, while Git Bash's `[ -L ]` returns true for
+it. A Python idempotency check written from the bash form above therefore reports
+a correctly wired cache as unwired, and whatever it guards runs again or records
+a gap that is not there.
+
+Use `os.path.samefile(link, target)` instead: it compares `st_dev`/`st_ino`, so it
+answers the question actually being asked — do these two paths reach the same
+directory — for a junction, a symlink and a bind mount alike. It is also the only
+form that catches a *copy* standing in for a link, which every textual comparison
+passes. See `comparing-paths-symlinks-and-case.md` for the case-folding half of
+the same problem.
+
 ## Checking one over SSH, where the shell is cmd.exe
 
 Windows OpenSSH hands you **cmd.exe**, not Git Bash, so `[ -L ]`, `readlink` and
