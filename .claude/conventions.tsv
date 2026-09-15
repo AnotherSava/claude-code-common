@@ -14,3 +14,4 @@
 11	docs-theme-pinned	n/a	2026-09-15	no docs/_config.yml in this repo, so it publishes no Jekyll site and there is no theme line to pin; this step never creates one
 12	cotenant-service-names	n/a	2026-09-15	no compose file, no .caddy vhost and no config/publish.env: this repo deploys nothing to the shared box today, so it claims no name in a namespace another project writes to
 13	commit-checks	n/a	2026-09-15	.claude/commit-checks.sh runs conventions.py selftest (227 assertions), claude/tests/memos.py and claude/tests/ingress-lint.py, plus a report-only skill-tracking audit; a linter is deliberately absent (no lint config here) and the symlink check belongs to check-install.py at session start
+14	memos-done-dated	applied	2026-09-15	6 memo(s) in .claude/memos/done/ now open with the date they were closed, read from the commit that put each in done/; each asserted byte-identical at its new name and gone from its old one
