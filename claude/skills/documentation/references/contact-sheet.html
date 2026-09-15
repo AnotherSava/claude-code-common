@@ -22,6 +22,16 @@
           badge as a bare `.on { background: … }` paints every visible section that colour, which
           went unnoticed through several revisions because the sheet was checked by grepping the
           HTML instead of opening it. Open it in a browser before handing it over.
+
+     EVERY `src` IS A BASE64 `data:` URI, never a path. SKILL.md requires it and this file used to
+     contradict it with `file:///ABS/PATH/` placeholders, which is how a sheet gets built against
+     the wrong rule: measured 2026-09-15, a run followed the template and shipped paths. Three
+     things go wrong with a path and none of them with a data URI — the sheet and the saved
+     originals live in different directories, so the page stops rendering the moment `tmp/` is
+     cleared; claude-in-chrome refuses a `file:///` URL outright, so the "open it in a browser"
+     check above cannot run; and serving the directory instead does not rescue an *absolute* src,
+     because Chrome blocks `file:///` sub-resources inside an `http://` document. Self-contained
+     answers all three at once, which is why it is the rule rather than a preference.
 -->
 <!doctype html>
 <meta charset="utf-8">
@@ -119,10 +129,10 @@
   <p class="proof">PROOF — the literal that vanished and the commit, or the set shown only in part.</p>
   <p class="proof">All four corners at 6× nearest-neighbour, laid out as they sit in the frame.</p>
   <div class="pair">
-    <figure><figcaption>Before</figcaption><img class="px" src="file:///ABS/PATH/id-b.png"></figure>
-    <figure><figcaption>After</figcaption><img class="px" src="file:///ABS/PATH/id-a.png"></figure>
+    <figure><figcaption>Before</figcaption><img class="px" src="data:image/png;base64,{{BASE64-BEFORE}}"></figure>
+    <figure><figcaption>After</figcaption><img class="px" src="data:image/png;base64,{{BASE64-AFTER}}"></figure>
   </div>
-  <figure><figcaption>Result</figcaption><img src="file:///ABS/PATH/id.png"></figure>
+  <figure><figcaption>Result</figcaption><img src="data:image/png;base64,{{BASE64-RESULT}}"></figure>
 </section>
 
 <!-- A frame left alone, with the reason and the evidence for it. -->
@@ -130,8 +140,8 @@
   <h2>2. ID <span class="badge off">blocked — needs re-capture</span></h2>
   <p class="meta">file.png · W × H · unchanged</p>
   <p class="proof"><b>Left alone on purpose.</b> WHY, and what would unblock it.</p>
-  <div class="pair"><figure><figcaption>All four corners at 6×</figcaption><img class="px" src="file:///ABS/PATH/id-a.png"></figure></div>
-  <figure><figcaption>Current</figcaption><img src="file:///ABS/PATH/id.png"></figure>
+  <div class="pair"><figure><figcaption>All four corners at 6×</figcaption><img class="px" src="data:image/png;base64,{{BASE64-AFTER}}"></figure></div>
+  <figure><figcaption>Current</figcaption><img src="data:image/png;base64,{{BASE64-RESULT}}"></figure>
 </section>
 
 </main>

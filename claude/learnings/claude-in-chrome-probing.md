@@ -388,9 +388,7 @@ a browser before handing it over still stands. claude-in-chrome simply cannot be
 Serving the directory over `python -m http.server` clears the URL check, and whether that is enough
 comes down to one property of the page: Chrome refuses `file:///` sub-resources inside an `http://`
 document, so a page whose `src` attributes are **absolute** loses every image, while one whose
-`src` attributes are **relative to the served root** renders whole. Which means it is worth writing
-them relative in the first place — the contact-sheet template ships `file:///ABS/PATH/id.png`, and
-substituting a path relative to the sheet is a one-line change that makes the cheap route work:
+`src` attributes are **relative to the served root** renders whole.
 
 ```bash
 ( cd <dir-holding-the-page-and-its-assets> && python3 -m http.server 8731 --bind 127.0.0.1 >/tmp/s.log 2>&1 & )
@@ -399,6 +397,12 @@ substituting a path relative to the sheet is a one-line change that makes the ch
 
 Measured 2026-09-15: a six-frame sheet with relative `src`s served this way rendered identically to
 the real thing, in both themes, with no Playwright involved.
+
+**Better still, leave no sub-resource to block: embed each image as a base64 `data:` URI.** That is
+already the rule for a contact sheet — `skills/documentation/SKILL.md` says never a path — and a
+self-contained page needs no server at all, survives its asset directory being cleared, and cannot
+develop this problem later. The relative-src route above is what to reach for when the page is
+someone else's and rewriting its markup is not on the table.
 
 **To see a `prefers-color-scheme: dark` page on a light-themed machine, re-key the query in a copy.**
 Neither `navigate` nor `resize_window` can emulate the media feature, and the OS theme is not yours to
