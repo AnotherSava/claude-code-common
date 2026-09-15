@@ -57,6 +57,42 @@ Resolve it rather than hardcoding where a project already has a resolver, and pr
 process that failed. It distinguishes MSYS (`MINGW64_NT-…`) from WSL (`Linux … microsoft-standard-WSL2`)
 immediately, and it is available before you know what you are looking for.
 
+## The signature when it is a script path rather than `-c`
+
+Passing a *script* instead of `-c` gives the failure a shape that points at the wrong cause. WSL cannot
+see any Windows path, so every spelling fails identically:
+
+```
+bash "C:\repo\…\link.sh"   -> /bin/bash: C:repo…link.sh: No such file or directory
+bash "C:/repo/…/link.sh"   -> /bin/bash: C:/repo/…/link.sh: No such file or directory
+bash "/c/repo/…/link.sh"   -> /bin/bash: /c/repo/…/link.sh: No such file or directory
+```
+
+The first line is the trap: MSYS argv conversion has mangled the backslashes out, so the message reads
+as a shell-escaping bug and sends you to fix quoting. It is not — the forward-slash and `/c/` forms fail
+just as hard, and `os.path.isfile()` on the same string returns `True` in the calling process. **Two
+spellings failing the same way is the tell**, because a quoting fault would not touch the `/c/` form.
+`/mnt/c/…` is the only path such a shell could have opened.
+
+Measured 2026-09-15: diagnosed as an argv[0] fault in MSYS bash and committed with that explanation in a
+code comment, because the fix — spawning by absolute path — is the same either way and therefore
+appeared to confirm it. `uname -a` was what settled it, after the fact.
+
+## `which` as a resolver is right; `which` as a check is the trap
+
+These read alike and are opposites, which is worth stating because the section above only warns against
+the second:
+
+```python
+subprocess.run([shutil.which("bash"), script])   # correct — the resolved path is what gets spawned
+assert shutil.which("bash"); subprocess.run(["bash", script])   # the trap — asserts Git, runs WSL
+```
+
+`which` searches `PATH`, where Git's bash is; `CreateProcess` searches System32 first, where WSL's is.
+Spawning `which`'s *result* never reaches System32, so the discrepancy cannot arise. Prefer
+`bin\bash.exe` when hardcoding, but on a script that also runs on macOS, `shutil.which("bash")` is the
+portable form and returns a genuine MINGW64 bash here (verified with `uname -a`).
+
 ## Where this does *not* bite
 
 A Windows scheduled task that names an absolute interpreter path is unaffected, and so is anything
