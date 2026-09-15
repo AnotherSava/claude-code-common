@@ -5,8 +5,8 @@ One memo is one file, so a memo can be as long as the idea needs without any of
 it being squeezed onto a checklist line. Open and done are directories, not a
 marker inside a file, so listing the backlog never parses a status:
 
-    <repo>/.claude/memos/<slug>.md        an open memo
-    <repo>/.claude/memos/done/<slug>.md   a memo that has been addressed
+    <repo>/.claude/memos/<slug>.md                  an open memo
+    <repo>/.claude/memos/done/<date>-<slug>.md      one that has been addressed
 
 Each file is a frontmatter block, an `# H1` title, and an optional body. The
 frontmatter carries `created:`, and optionally a `platform:` binding the memo to
@@ -21,8 +21,17 @@ the box that can act on it — absent means either machine, which almost all are
 
     Body prose, as long as it needs to be.
 
-Frontmatter carries the sort key rather than the filename, so a future ordering
-(priority, area) is a new field instead of renaming every file on disk.
+An open memo's filename is a slug and nothing else: frontmatter carries its sort
+key, so a future ordering (priority, area) is a new field rather than a rename of
+every file on disk.
+
+Closing prefixes the close date onto the name, which is the one place that rule
+is deliberately inverted. `done/` is append-only and no command lists it — `list`
+and `show` both resolve against the open backlog — so its only reader is a file
+browser, `ls` or `git status`, and a name is the only thing those sort by. The
+cost is the usual one and is accepted here: a second ordering over done memos
+would mean renaming them all. Nothing reads the date back, so it is stored once,
+in the name, rather than also in a field that could disagree with it.
 
   memos.py add [--title T] [--platform P] "<text>"
                                       write a new open memo; title derived if absent
@@ -32,7 +41,6 @@ Frontmatter carries the sort key rather than the filename, so a future ordering
   memos.py done <n|slug> [<n|slug>…]  move them into done/, resolved before any move
   memos.py reopen <n|slug> […]        move them back out of done/ (n indexes done/)
   memos.py drop <n|slug> […]          delete open memos outright
-  memos.py prune                      delete every done memo
   memos.py count                      "<open> open · <done> done", plus how many of the
                                       open ones this machine's platform cannot act on
 
@@ -59,6 +67,10 @@ if hasattr(sys.stdout, "reconfigure"):
 # of a batch) would otherwise tie, and the tie-break would order them by slug, not capture order.
 TS_FMT = "%Y-%m-%d %H:%M:%S"  # local timezone, 24-hour
 STAMP_LEN = len("2026-09-12 21:51")
+# The close date a memo takes on its way into done/. Date and not a timestamp: the name exists to
+# make a directory listing read in order, and several memos closed in one `done 2 4` share a day
+# anyway — the within-day order is what `_slug`'s `-2` suffix settles, not something to encode.
+DONE_DATE_FMT = "%Y-%m-%d"
 CREATED_RE = re.compile(r"^created:[ \t]*(.+?)[ \t]*$", re.M)
 # A memo may name the platform that can act on it, for the minority whose work simply cannot be
 # done from the other box. Absence means either machine, so an unbound backlog — which is most of
@@ -187,7 +199,15 @@ def open_memos(root: str | None = None) -> list[Memo]:
     return _newest_first([m for m in _load(root) if not m.done])
 
 
-def _slug(title: str, taken: set[str]) -> str:
+def _slug(title: str, taken: set[str], prefix: str = "") -> str:
+    """The filename stem for `title`, unique against `taken`, behind an optional `prefix`.
+
+    The prefix is part of what uniqueness is tested on, never something a caller bolts on
+    afterwards: `taken` holds whole stems, so testing the bare slug against them would find
+    no clash at all and hand back a name `os.replace` then writes over. Two memos with the
+    same title closed on different days do not collide, which is the point of testing the
+    prefixed form rather than deduplicating titles across the whole of done/.
+    """
     plain = unicodedata.normalize("NFKD", title).encode("ascii", "ignore").decode()
     base = ""
     for word in re.findall(r"[a-z0-9]+", plain.lower()):
@@ -201,9 +221,9 @@ def _slug(title: str, taken: set[str]) -> str:
     # case-insensitively, so a case-sensitive test hands back a slug the filesystem
     # then opens onto an existing memo — measured, and it destroyed the file it hit.
     folded = {s.casefold() for s in taken}
-    slug, n = base, 2
+    slug, n = f"{prefix}{base}", 2
     while slug.casefold() in folded:
-        slug, n = f"{base}-{n}", n + 1
+        slug, n = f"{prefix}{base}-{n}", n + 1
     return slug
 
 
@@ -344,14 +364,16 @@ def _select(args: list[str]) -> Memo:
     return _select_all(args)[0]
 
 
-def _move(memo: Memo, directory: str) -> str:
+def _move(memo: Memo, directory: str, prefix: str = "") -> str:
     """Move a memo between open and done, returning the slug it now has.
 
-    The slug is re-derived against the destination, so it can differ from the one the
-    memo arrived with — which is why the caller must print this rather than `memo.slug`.
+    The slug is re-derived from the title against the destination, so it can differ from the
+    one the memo arrived with — which is why the caller must print this rather than
+    `memo.slug`. Re-deriving is also what strips a close-date prefix on the way back out:
+    reopening starts from the title again, so nothing has to recognise or remove the date.
     """
     os.makedirs(directory, exist_ok=True)
-    slug = _slug(memo.title, {m.slug for m in _load() if m.done != memo.done})
+    slug = _slug(memo.title, {m.slug for m in _load() if m.done != memo.done}, prefix)
     os.replace(memo.path, os.path.join(directory, f"{slug}.md"))
     return slug
 
@@ -413,11 +435,14 @@ def cmd_path(args: list[str]) -> None:
 
 def cmd_done(args: list[str]) -> None:
     done_dir = _dirs()[1]
+    # One date for the whole batch, read once: `done 2 4` closes both memos in the same act, and
+    # a per-memo read could straddle midnight and file them under two different days.
+    prefix = f"{datetime.datetime.now().strftime(DONE_DATE_FMT)}-"
     for memo in _select_all(args):
         # Name the undo at the one moment it might be wanted, using the slug the memo has
-        # NOW: a number indexes the open list it has just left, and its slug can change on
-        # the way into done/ when something there already holds it.
-        print(f"done: {memo.title}\nundo: memos.py reopen {_move(memo, done_dir)}")
+        # NOW: a number indexes the open list it has just left, and its slug gains the close
+        # date on the way into done/ — so the name to reopen by is never the one just listed.
+        print(f"done: {memo.title}\nundo: memos.py reopen {_move(memo, done_dir, prefix)}")
     cmd_count([])
 
 
@@ -432,14 +457,6 @@ def cmd_drop(args: list[str]) -> None:
     for memo in _select_all(args):
         os.remove(memo.path)
         print(f"dropped: {memo.title}")
-    cmd_count([])
-
-
-def cmd_prune(args: list[str]) -> None:
-    done = [m for m in _load() if m.done]
-    for memo in done:
-        os.remove(memo.path)
-    print(f"pruned {len(done)} done memo{'' if len(done) == 1 else 's'}")
     cmd_count([])
 
 
@@ -493,8 +510,7 @@ def _refuse_if_format_unadopted() -> None:
 def main() -> None:
     cmd, *rest = (sys.argv[1:] or ["list"])
     handlers = {"add": cmd_add, "list": cmd_list, "show": cmd_show, "path": cmd_path,
-                "done": cmd_done, "reopen": cmd_reopen, "drop": cmd_drop,
-                "prune": cmd_prune, "count": cmd_count}
+                "done": cmd_done, "reopen": cmd_reopen, "drop": cmd_drop, "count": cmd_count}
     handler = handlers.get(cmd)
     if not handler:
         sys.exit(f"usage: memos.py {{{'|'.join(handlers)}}}")

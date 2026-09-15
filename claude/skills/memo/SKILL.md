@@ -24,8 +24,8 @@ A memo is lighter than a GitHub issue: a half-formed thought worth keeping, not 
 One memo is one file, so a memo is as long as the idea needs:
 
 ```
-<Repo root>/.claude/memos/<slug>.md        an open memo
-<Repo root>/.claude/memos/done/<slug>.md   one that has been addressed
+<Repo root>/.claude/memos/<slug>.md                 an open memo
+<Repo root>/.claude/memos/done/<date>-<slug>.md     one that has been addressed
 ```
 
 Open versus done is **which directory the file sits in** — there is no status marker to read or flip. Each file is a frontmatter block carrying `created:` and optionally `platform:`, an `# H1` title, and an optional body:
@@ -41,7 +41,9 @@ platform: windows
 Body prose, as long as it needs to be.
 ```
 
-The `memos.py` helper owns the timestamp, the slug, the title derivation and the rendered listing — you hand-format none of them. Frontmatter carries the sort key rather than the filename, so adding a future ordering (priority, area) is a new field instead of renaming every file.
+The `memos.py` helper owns the timestamp, the slug, the title derivation and the rendered listing — you hand-format none of them. An open memo's frontmatter carries its sort key rather than its filename, so adding a future ordering (priority, area) is a new field instead of renaming every file.
+
+**Closing prefixes the close date onto the name**, and that is the one place the rule above is deliberately inverted. Done memos are never deleted and no command lists them — `list` and `show` both resolve against the open backlog — so their only reader is a file browser, `ls` or `git status`, and a name is the only thing those sort by. The date is stored there and nowhere else, so no field can disagree with it. `reopen` needs no rule to strip the prefix: the slug is re-derived from the title, which is where every name comes from.
 
 **`platform:` is optional and names the box that can act on the memo** — `macos` or `windows`. Its absence means either machine, which is what nearly every memo is, and an unbound memo writes the same bytes it did before the field existed. It **marks and never filters**: a bound memo keeps its place in the listing, keeps its number, and is closed the same way, so nothing can desync. A platform is not a host — the day a second mac exists, `macos` means either of them, and the fix is a separate `host:` field rather than a second meaning for this one.
 
@@ -61,14 +63,14 @@ The `memos.py` helper owns the timestamp, the slug, the title derivation and the
 ### If `$ARGUMENTS` is empty — review the backlog
 
 1. **Detect the terminal width** so the listing fills the screen — the helper's stdout is piped, which hides the real width, so determine it yourself:
-   - **Windows:** use the **PowerShell tool** to evaluate `$Host.UI.RawUI.WindowSize.Width` (the PowerShell tool specifically — `powershell.exe` from Bash reports the wrong console).
+   - **Windows:** use the **PowerShell tool** to evaluate `$Host.UI.RawUI.WindowSize.Width` — that tool specifically, since `powershell.exe` from Bash reports the wrong console. It is not present in every session; when `ToolSearch` surfaces none, the width is simply not detectable here, which is an expected outcome rather than an obstacle to work around. Take the fallback below and move on. Do not reach for `tput cols` from Git Bash instead: measured 2026-09-15, it answered 80 on a wider terminal and `$COLUMNS` was empty — the piped default wearing a plausible number, which is worse than no answer.
    - **macOS/Linux:** run `tput cols` (or read `$COLUMNS`).
 
    Subtract a 2-column gutter, then run `python ~/.claude/skills/memo/memos.py list --width <N>` to render the backlog (drop `--width` if you couldn't determine it — the helper falls back to ~100).
 2. Present that output **verbatim, inside a fenced code block** — it's numbered newest-first and wrapped so each memo's title lines up under its first line, and the code block preserves that alignment. If it shows "(no open memos)", say so and stop.
 3. Two markers appear on a line, and they mean different things. A trailing ` …` means that memo has a body beyond its title — read it with `python ~/.claude/skills/memo/memos.py show <n>`, and don't paste bodies into the listing. A leading `[macos]` or `[windows]` means the work needs that box; the listing still shows and numbers it normally, so the marker is information and never a reason to skip a line.
 4. Offer two paths: address one now (the user gives a number), or leave them. If the user picks one, that begins a new task — do the work, then run `python ~/.claude/skills/memo/memos.py done <n>` once it's genuinely done, which moves the file into `done/`. That prints an `undo:` line; `memos.py reopen <slug>` moves it back if it was closed too early. Closing several at once means naming them in **one** command (`done 2 4`) — a number indexes the listing you just read, and closing one renumbers the rest, so separate calls land on memos you never named. **When the memo they pick is tagged for the other platform**, do whatever part of it is portable here and route the rest to the live session on that box per `~/.claude/memory/peer_messaging.md`, then leave it open unless the portable part was the whole memo.
-5. If addressed memos have accumulated in `done/`, offer to clear them with `python ~/.claude/skills/memo/memos.py prune` in the same breath.
+5. Never offer to clear `done/`. Addressed memos stay there for good, dated and greppable, and there is no command to remove them — a backlog's record of what was decided is the cheapest thing in the repo to keep and the only thing in it that cannot be rebuilt.
 6. If two memos capture the same idea, do the work once and **drop** the redundant one — `python ~/.claude/skills/memo/memos.py drop <n>` — rather than marking both done. A duplicate in `done/` reads like two separate pieces of work in the backlog's history. Drop only on a duplicate the user has confirmed; it deletes the file, and git is the only way back. Name the duplicate by its slug here, not by its number: closing the memo you kept has already renumbered the listing, `done` and `drop` cannot share one command, and this is the step that deletes.
 
 ### Editing a memo

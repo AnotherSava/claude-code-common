@@ -15,6 +15,10 @@ directory entry disagree.
                    generated name reopens a memo that already exists.
   the undo hint    `_move` re-derives the slug against the destination, so the one a memo arrives
                    with is not always the one it ends up under. The hint must name the latter.
+  the close date   Closing prefixes it onto the name and writes it nowhere else, so the name is
+                   the only thing that can be wrong. Uniqueness is tested on the prefixed form,
+                   the `-2` suffix stays behind the date, and reopening drops the prefix by
+                   deriving from the title rather than by recognising a date.
   platform binding An optional `platform:` marks the memo a box cannot act on. It marks and never
                    filters, so a number still indexes what a listing showed; an unbound memo must
                    write the bytes it wrote before the field existed; and a value that reached the
@@ -35,6 +39,7 @@ Exit:   0 all cases behave, 1 at least one does not
 """
 
 import contextlib
+import datetime
 import importlib.util
 import os
 import subprocess
@@ -57,6 +62,10 @@ FAILURES = []
 # module rather than hard-coded, so the same assertions hold on the mac and on the Windows box.
 HERE = memos.THIS_PLATFORM
 OTHER = next(p for p in memos.PLATFORMS if p != HERE)
+
+# The prefix a close writes today, formatted the way the module formats it rather than by a second
+# copy of the pattern — a literal date would pass on the day it was written and never again.
+TODAY = datetime.datetime.now().strftime(memos.DONE_DATE_FMT)
 
 
 def check(name: str, got, want=True) -> None:
@@ -172,14 +181,24 @@ def main() -> int:
 
         # `_move` derives `taken` from the destination only, so this is the case that holds the
         # `.md` extension test in `_load` in place: hide that file and `os.replace` lands on it.
+        # The twin has to carry TODAY's prefix to be a twin at all — a close only ever collides
+        # with something closed the same day, which is why the fixture is built from TODAY rather
+        # than from a literal that would silently stop colliding tomorrow.
         b = Backlog(stack)
-        b.write("Case-Test.MD", "Case test", done=True)
+        b.write(f"{TODAY}-Case-Test.MD", "Case test", done=True)
         b.write("open-one.md", "Case test", body="the open one")
         rc, out, err = b.run("done", "1")
         check("closing onto a mixed-case twin in done/ does not overwrite it",
-              (rc, "PRECIOUS BODY" in b.body("Case-Test.MD", done=True)), (0, True))
-        check("the closed memo took a free slug", b.names(done=True), ["Case-Test.MD", "case-test-2.md"])
-        check("and the undo hint names that slug", out.splitlines()[1].endswith("case-test-2"))
+              (rc, "PRECIOUS BODY" in b.body(f"{TODAY}-Case-Test.MD", done=True)), (0, True))
+        check("the closed memo took a free slug",
+              b.names(done=True), [f"{TODAY}-Case-Test.MD", f"{TODAY}-case-test-2.md"])
+        check("and the undo hint names that slug", out.splitlines()[1].endswith(f"{TODAY}-case-test-2"))
+
+        # The disambiguating suffix goes after the slug, never after the date: a `-2` wedged into
+        # the prefix would sort the second memo away from the day it was closed on, which is the
+        # one thing the prefix exists to get right.
+        check("the date stays at the front of the disambiguated name",
+              [n.startswith(f"{TODAY}-") for n in b.names(done=True)], [True, True])
 
         # --- the selector: exact case, then folded, then substring --------------------------------------
         b = Backlog(stack)
@@ -235,11 +254,29 @@ def main() -> int:
         rc, out, err = b.run("done")
         check("an identifier is required", (rc, "number or slug is required" in err), (1, True))
 
+        # --- the close date rides in the name, and only in the name -------------------------------------
+        b = Backlog(stack)
+        b.fill(2)
+        rc, out, err = b.run("done", "1")
+        check("closing prefixes the close date onto the name",
+              (rc, b.names(done=True)), (0, [f"{TODAY}-memo-2.md"]))
+        check("and writes no date into the file, so nothing can disagree with the name",
+              "closed" in b.body(f"{TODAY}-memo-2.md", done=True), False)
+        check("the undo hint names the prefixed slug, not the one just listed",
+              out.splitlines()[1].endswith(f"{TODAY}-memo-2"))
+        rc, out, err = b.run("reopen", "1")
+        check("reopening drops the prefix, because the slug comes from the title either way",
+              (rc, b.names(done=True), "memo-2.md" in b.names()), (0, [], True))
+
+        # Nothing deletes a done memo. The command that used to is gone rather than neutered, so the
+        # skill step that offered it — the only caller it ever really had — fails loudly rather than
+        # appearing to work. Almost nothing reaches this CLI by hand: the shell wrapper calls `add`
+        # and `list`, and every other subcommand arrives through the skill.
         b = Backlog(stack)
         b.fill(2)
         b.run("done", "1")
-        check("prune empties done/", (b.run("prune")[1].splitlines()[0], b.names(done=True)),
-              ("pruned 1 done memo", []))
+        rc, out, err = b.run("prune")
+        check("there is no prune", (rc, "usage: memos.py" in err, len(b.names(done=True))), (1, True, 1))
 
         b = Backlog(stack)
         b.write("visible.md", "Open one")
