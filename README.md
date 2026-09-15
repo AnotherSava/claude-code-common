@@ -365,7 +365,7 @@ Closes out a section of work. Before anything is committed it re-reads the curre
 
 ### GitHub Status
 
-Cross-machine overview of all your GitHub-owned local clones — branch, behind/ahead counts, uncommitted file/line totals, oldest pending work, open issues, and a description synthesized from the pending changes for each machine that has any. Prints a box table and writes a self-contained HTML report.
+Cross-machine overview of all your GitHub-owned local clones — branch, behind/ahead counts, uncommitted file/line totals, oldest pending work, open issues, how far behind [`/adopt`](#adopt) each clone is, and a description synthesized from the pending changes for each machine that has any. Prints a box table and writes a self-contained HTML report.
 
 **Command:** `/github-status`
 
@@ -375,6 +375,8 @@ Cross-machine overview of all your GitHub-owned local clones — branch, behind/
 - Merges the two on each repo's `OWNER/REPO` origin slug, the only identity that survives a different clone path per machine; the terminal table separates `clean` from `absent`, while the report shows only outstanding work and leaves both as an empty column
 - Fetches every repo's origin in parallel on both machines before reading state, so counts reflect the current remote
 - Auto-pulls clean repos with inbound commits via `git pull --ff-only` on both machines, marks pulled repos with `✓`
+- **Reports each clone's convention gap** in a `CONV` column and in the report card, so a repo behind on [`/adopt`](#adopt) appears even with a clean tree — it imports that skill's own engine rather than re-reading `.claude/conventions.tsv`, since two readers of one format drift the day either gains a column. Per machine, not per repo: the gitignored half of the record never travels and the two dotfiles checkouts are routinely at different commits, so each machine's summary line names the step set its column was measured against
+- Says when it could not measure — a machine whose dotfiles checkout predates `/adopt`, a record that will not parse, one naming a version newer than the step set — rather than leaving an empty column that reads as a fleet with nothing to adopt
 - Auto-hides columns nothing fills — MACHINE disappears on a single-machine run, BRANCH when every clone is on main — and drops DESCRIPTION entirely on a terminal too narrow to hold prose, rather than wrapping every summary into a four-line ribbon
 - Degrades loudly when the peer is unreachable: the SSH error is named once in the summary and the report header, and the table falls back to the single-machine shape rather than quietly dropping half the picture
 - Writes an HTML report to the repo's gitignored `tmp/` — one full-width block per project with the machines side by side in a column each, named once in a sticky header carrying their OS, projects root and scan age, so a column's position is what attributes its contents

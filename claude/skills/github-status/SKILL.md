@@ -2,14 +2,16 @@
 name: github-status
 description: >-
   Cross-machine overview of your GitHub-owned local clones — every repo with
-  pending work (uncommitted changes, unpushed commits, inbound remote commits)
-  or open issues, merged across this machine and its peer, with branch, counts,
-  age of the oldest pending work, and a one-line summary per working machine. Prints a box
+  pending work (uncommitted changes, unpushed commits, inbound remote commits),
+  open issues, or convention versions still to adopt, merged across this machine
+  and its peer, with branch, counts, age of the oldest pending work, how far
+  behind /adopt each clone is, and a one-line summary per working machine. Prints a box
   table and writes a self-contained HTML report. Each run fetches every repo's
   origin on both machines so the counts reflect the current remote.
   TRIGGER when: user asks "/github-status", wants a cross-project overview of
   their repos, "which repos have unpushed commits", "what's new on remotes",
-  "what have I been working on", or "what is uncommitted on the other machine".
+  "what have I been working on", "which repos are behind on conventions", or
+  "what is uncommitted on the other machine".
   DO NOT TRIGGER when: user is asking about a single specific repo (use
   `git status` / `git log` directly).
 allowed-tools: Bash(python ~/.claude/skills/github-status/scripts/repos-status.py:*), Bash(python3 ~/.claude/skills/github-status/scripts/repos-status.py:*), Bash(test -f ~/.claude/skills/github-status/config/config.env:*), Bash(grep -q PEER_SSH ~/.claude/skills/github-status/config/config.env:*), Bash(tput cols:*), PowerShell, AskUserQuestion, Read(~/.claude/skills/github-status/config/config.env), Write(~/.claude/skills/github-status/config/config.env)
@@ -72,18 +74,23 @@ Run `python ~/.claude/skills/github-status/scripts/repos-status.py --width <N>` 
 and Linux; drop `--width` if undetected). It scans both machines concurrently, so it costs the slower
 of the two rather than their sum. Output has three parts:
 
-1. **Machine summary**, one line each: name, OS, projects root, repos discovered, and how long ago it
-   was scanned. A machine that could not be reached prints `NOT REACHED` with the SSH error instead,
-   and drops out of the table entirely — it is named once here rather than under every repo.
-2. **The table**, fixed-width. A repo appears if any machine has pending work or the repo has open
-   issues; everything else is filtered out. Repos are **grouped**: one line per machine under a single
-   PROJECT cell, sorted by AGE ascending (freshest pending work first, oldest at the bottom), with
-   issue-only repos last. Columns appear only when some cell fills them:
+1. **Machine summary**, one line each: name, OS, projects root, repos discovered, the convention step
+   set that machine measured against (`conventions v13 (8f0f4b0)` — its own dotfiles checkout, which
+   is what every CONV cell in its column is relative to), and how long ago it was scanned. A machine
+   that could not be reached prints `NOT REACHED` with the SSH error instead, and drops out of the
+   table entirely — it is named once here rather than under every repo.
+2. **The table**, fixed-width. A repo appears if any machine has pending work, the repo has open
+   issues, or some clone is behind on conventions; everything else is filtered out. Repos are
+   **grouped**: one line per machine under a single PROJECT cell, sorted by AGE ascending (freshest
+   pending work first, oldest at the bottom). Repos with no pending work have no age, so that whole
+   tail is ordered by the widest convention gap instead, furthest behind first. Columns appear only
+   when some cell fills them:
    - **PROJECT** is always present — the clone path relative to the projects root, taken from this
      machine where it has the repo. It doubles as the key you write descriptions against in step 3.
    - **MACHINE** appears only when two machines were reached. The cell carries the machine's state
-     when it has no metrics to show: `chrome clean` (present, nothing pending) and `chrome absent`
-     (no clone there) are different facts, and a blank cell would say both.
+     when it has no metrics to show: `chrome clean` (present, nothing pending anywhere, conventions
+     included) and `chrome absent` (no clone there) are different facts, and a blank cell would say
+     both.
    - **BRANCH** shows only for a machine on something other than `main`/`master`.
    - **UNPUSHED** — commits in `@{upstream}..HEAD`.
    - **REMOTE** — commits in `HEAD..@{upstream}`. A trailing `✓` (e.g. `4 ✓`) means the script
@@ -97,6 +104,12 @@ of the two rather than their sum. Output has three parts:
      file mtime, oldest unpushed commit date), in the compact form `5m` / `3h` / `2d` / `4mo` / `1y`.
      A deletion leaves no mtime behind, so a clone with only deletions falls back to whatever commits
      exist and can show a blank AGE against a filled LOCAL.
+   - **CONV** — convention versions that clone has not decided: the same number `/adopt` and the
+     session-start notice give, read from `.claude/conventions.tsv` against that machine's step set.
+     A `+N` suffix (`3+1`, or `+1` alone) counts machine-scoped steps the repo has decided but that
+     machine has not wired. `?` means the record could not be read — the report says why. Blank means
+     current, exempt, or someone else's repo. This is per machine, not per repo: the gitignored half
+     of the record does not travel, and the two dotfiles checkouts are routinely at different commits.
    - **ISSUES** — open issues (PRs excluded) on the repo's own `origin`, printed once per repo since
      it is a property of the repo rather than of a machine. Whichever machine's `gh` could answer
      supplies it, and a repo the peer alone has but could not answer for is asked again from this
@@ -139,6 +152,9 @@ thing twice and pushes out the part only you can write. Keep out:
 - commit counts ("4 commits behind", "3 ahead") — REMOTE/UNPUSHED and the HTML metrics carry them;
 - a non-default branch — the BRANCH column and the HTML's `on <branch>` carry it;
 - open-issue totals — the ISSUES column and the card's issue chip carry them;
+- the convention gap — the CONV column and the card's `N conventions behind` carry it, and an
+  unadopted step is work nobody has started rather than work in flight, so it is not what a
+  description is for;
 - "not cloned on chrome" — the MACHINE cell says `chrome absent`, and in the HTML that column is
   simply empty;
 - **the machine's own name.** Every description already sits in that machine's column, under its
@@ -147,8 +163,9 @@ thing twice and pushes out the part only you can write. Keep out:
 
 - When a machine has both uncommitted changes and unpushed commits, combine them by theme rather than
   by count: "Mid-flight macOS deploy support, partly committed."
-- Repos with no pending work (issue-only rows) get no description; leave them out of the map. A
-  machine that is clean or absent gets none either — only the ones marked `<analyze below>`.
+- Repos with no pending work get no description — a row in the report on its open issues or its
+  convention gap alone is one of them; leave them out of the map. A machine that is clean or absent
+  gets none either — only the ones marked `<analyze below>`.
 
 Then feed the descriptions back as a JSON object keyed by the **PROJECT cell value**, verbatim. A
 repo working on one machine takes a plain string, which binds to that machine; a repo working on
@@ -242,6 +259,19 @@ paste the detail sections at all.
   report. Override with `--html <path>` / `--state <path>`.
 - **The only GitHub API call is the open-issue count** (`gh issue list --repo OWNER/REPO`), pinned to
   the origin slug so a fork reports its own issues and never its `upstream` parent's.
+- **The convention gap comes from the `/adopt` engine, not from a second reader of the record.**
+  `conventions.py` is imported from the sibling skill by path — the peer runs this script from stdin,
+  where there is no `__file__` to import relatively against — and asked for the same numbers the
+  session-start notice prints. Two readers of one format drift the day either gains a column, and
+  this one would drift silently on the machine nobody is watching. It compares integers and verifies
+  nothing; `conventions.py audit <repo>` is what re-derives a recorded line.
+- **A machine whose engine could not be read says so**, in its summary line and its report column
+  header, instead of leaving an empty CONV column that reads as a fleet with nothing to adopt. The
+  same applies per repo: an unparseable record, or one naming a version newer than that machine's
+  step set, renders `?` and the reason rather than a number.
+- **A repo the conventions do not govern has no cell at all** — a clone of someone else's project, or
+  one carrying an `exempt` line. Nothing is asserted about a repo that was never going to hold a
+  record.
 
 See `references/findings.md` for background on the depth-4 walk, the ownership filter, and the
 explicit-exclusion history.
@@ -251,4 +281,6 @@ explicit-exclusion history.
 - Do NOT push, commit, stash, merge, rebase, or check out anything, on either machine. The only
   mutations are `git fetch` and `git pull --ff-only` on clean repos — both intentional, see above.
 - Do NOT scan paths outside each machine's configured `PROJECTS_ROOT`.
+- Do NOT run `/adopt`, or any step's `apply`, off the back of this report. The CONV column states a
+  gap; closing one is a walk through that repo's own session, with each mutation shown and approved.
 - Do NOT call the GitHub API beyond the open-issue count — everything else is local git state.

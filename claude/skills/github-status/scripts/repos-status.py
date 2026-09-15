@@ -9,6 +9,11 @@ behind, and counting open issues via `gh`. The peer machine is scanned by piping
 the two ends can never run different versions of the scan and nothing has to be
 installed or kept in sync on the far side.
 
+Each clone is also read against the convention steps the `/adopt` skill defines,
+so a repo that is behind on them is reported even when its tree is clean — a
+version gap is outstanding work in that repo, and nothing else in this report
+would ever mention it.
+
 Results merge on the repo's `OWNER/REPO` origin slug — the only identity that
 survives a different clone path on each machine. A machine that has no clone of
 a repo is reported as `absent`, one that has a clean clone as `clean`, and a
@@ -52,6 +57,7 @@ config file before invoking.
 from __future__ import annotations
 
 import html
+import importlib.util
 import json
 import os
 import re
@@ -67,6 +73,7 @@ from concurrent.futures import ThreadPoolExecutor
 from dataclasses import asdict, dataclass, field
 from datetime import datetime
 from pathlib import Path
+from types import ModuleType
 
 EXCLUDED: set[str] = {"notion", "claude-mermaid-fix"}
 
@@ -273,6 +280,108 @@ def open_issue_count(slug: str) -> int | None:
         return None
 
 
+# ── conventions (the /adopt record) ───────────────────────────────────────────
+
+
+@dataclass
+class ConventionState:
+    """How far one clone is from the convention steps, as `/adopt` would read it.
+
+    Per machine rather than per repo, because both halves of the answer are: the
+    step set comes from that machine's own dotfiles checkout, and
+    `.claude/conventions.local.tsv` is gitignored and never travels.
+    """
+
+    behind: int = 0  # steps with no line in either record file — the "N versions behind" number
+    unwired: int = 0  # machine-scoped steps decided in the repo but not wired on that machine
+    through: int = 0  # highest version such that every step at or below it has been decided
+    recorded: bool = True  # whether a record file exists at all; False means /adopt never ran there
+    pending: list[str] = field(default_factory=list)  # "v3 <title>", both kinds, ascending
+    note: str = ""  # why the numbers above cannot be trusted; empty when they can
+
+    @property
+    def total(self) -> int:
+        return self.behind + self.unwired
+
+    @property
+    def anything(self) -> bool:
+        """Whether this clone has something to say. A note counts: an unreadable
+        record is an open question, and a blank cell would read as `current`."""
+        return bool(self.total or self.note)
+
+
+def conventions_module() -> tuple[ModuleType | None, str]:
+    """The /adopt engine from the sibling skill, or None and the reason it is missing.
+
+    Loaded by path rather than by name: the peer runs this script from stdin, where
+    there is no `__file__` to hang a relative import off, and `skill_dir()` already
+    falls back to the conventional install path for exactly that case.
+
+    Reading the record here rather than re-implementing it is the same rule the
+    session-start hook follows — two readers of one format drift the day either
+    gains a column, and this one would drift silently, on a machine nobody is
+    watching.
+    """
+    path = skill_dir().parent / "adopt" / "conventions.py"
+    if not path.is_file():
+        # The state a peer is actually in when this fires: its dotfiles checkout predates the
+        # /adopt skill. Saying so beats a bare path, which reads as a broken install.
+        return None, f"no /adopt engine at {path} — this machine's dotfiles checkout may be behind"
+    name = "ghs_conventions"
+    try:
+        spec = importlib.util.spec_from_file_location(name, path)
+        module = importlib.util.module_from_spec(spec)
+        # Registered before it is executed, not after: a class defined in a module missing from
+        # sys.modules cannot resolve its own namespace, and the engine's NamedTuples are exactly
+        # that. It surfaces as an AttributeError raised inside the standard library, nowhere
+        # near the line that caused it.
+        sys.modules[name] = module
+        spec.loader.exec_module(module)
+        return module, ""
+    except BaseException as exc:  # a half-written engine must not take the whole scan down
+        sys.modules.pop(name, None)
+        return None, f"the /adopt engine could not be loaded ({exc})"
+
+
+def read_conventions(module: ModuleType, steps: list, repo: Path) -> ConventionState | None:
+    """One clone's standing against `steps`, or None where the question does not apply.
+
+    None is returned for a repo that was never going to hold a record — someone
+    else's project, or one carrying an `exempt` line — so the column stays empty
+    there rather than asserting a gap. Every other way of failing to reach a number
+    fills `note` instead, because a blank cell and `current` are the same blank.
+    """
+    root = str(repo)
+    try:
+        if module.is_third_party(root) is not None:
+            return None
+        ledger = module.read_ledger(root)
+        if ledger.error:
+            return ConventionState(note=module.parse_error_message(ledger))
+        if ledger.exempt:
+            return None
+        recorded = module.decided(ledger)
+        highest, latest = (max(recorded) if recorded else 0), steps[-1].version
+        if highest > latest:
+            # This machine's dotfiles checkout is the behind one, so its step set is
+            # older than the record it is reading and every count below would be wrong.
+            return ConventionState(note=f"records v{highest}, above the newest step in this machine's "
+                                        f"dotfiles checkout (v{latest}) — pull the dotfiles repo there")
+        pending, unwired = module.pending_steps(steps, ledger), module.unwired_machine_steps(steps, ledger)
+        # One list, sorted by version, exactly as the session-start notice renders it: the two
+        # kinds interleave by version and an unwired step appended after the rest reads as
+        # out of order.
+        entries = [(s.version, f"v{s.version} {s.title}") for s in pending]
+        entries += [(s.version, f"v{s.version} {s.title} — decided in this repo, not wired here")
+                    for s in unwired]
+        entries.sort()
+        return ConventionState(behind=len(pending), unwired=len(unwired),
+                               through=module.adopted_through(steps, ledger), recorded=bool(ledger.files),
+                               pending=[text for _, text in entries])
+    except BaseException as exc:
+        return ConventionState(note=f"the convention record could not be read ({exc})")
+
+
 # ── per-machine state ─────────────────────────────────────────────────────────
 
 
@@ -292,14 +401,30 @@ class RepoState:
     changes: list[str]  # "XY path" porcelain entries
     commits: list[str]  # "hash subject" for @{upstream}..HEAD
     open_issues: int | None  # via `gh` on that machine; None when it could not answer
+    # None where the repo holds no record and never will — see read_conventions. Defaulted so a
+    # state file written before this field existed still loads under `--report`.
+    conventions: ConventionState | None = None
 
     @property
     def has_work(self) -> bool:
+        """In-flight git work. Deliberately excludes the convention gap: a description
+        is owed for every machine this is true of, and an unadopted step is work nobody
+        has started rather than work half done, so there is nothing to summarize."""
         return bool(self.uncommitted or self.unpushed or self.behind)
+
+    @property
+    def has_conventions_gap(self) -> bool:
+        return bool(self.conventions and self.conventions.anything)
+
+    @property
+    def has_anything(self) -> bool:
+        """Whether this clone has anything outstanding at all — what `clean` denies."""
+        return self.has_work or self.has_conventions_gap
 
     @classmethod
     def from_dict(cls, d: dict) -> "RepoState":
-        return cls(**d)
+        conv = d.pop("conventions", None)
+        return cls(conventions=ConventionState(**conv) if conv else None, **d)
 
 
 @dataclass
@@ -314,6 +439,16 @@ class MachineSnapshot:
     repos: dict[str, RepoState] = field(default_factory=dict)  # keyed by OWNER/REPO
     status: str = "ok"  # "ok" | "unreachable"
     error: str = ""  # what went wrong, when status is not "ok"
+    # The convention step set this machine measured its repos against. Stated next to the
+    # machine rather than next to each repo, because every gap in that machine's column is
+    # relative to it and the two checkouts are routinely at different commits.
+    conv_latest: int = 0  # newest step version in this machine's dotfiles checkout
+    conv_sha: str = ""  # that checkout's short sha
+    # Why no repo here carries a gap; empty only once a scan has measured them. The default is a
+    # sentence rather than "" because `--report` re-reads a state file that may predate this
+    # field, and defaulting to no-error there renders `conventions v0` — a machine that was never
+    # asked, reading exactly like a fleet that is up to date.
+    conv_error: str = "this scan predates the convention check; re-run it"
 
     def to_json(self) -> str:
         d = asdict(self)
@@ -442,11 +577,31 @@ def scan_machine(name: str, projects_root: Path, github_user: str, depth: int) -
             for slug, count in zip(slugs, ex.map(open_issue_count, slugs)):
                 states[slug].open_issues = count
 
+    # Conventions last: it is the only part that reads a second skill, and a failure there
+    # must cost the machine its gap numbers and nothing else.
+    module, conv_error = conventions_module()
+    latest, sha, steps = 0, "", []
+    if module is not None:
+        try:
+            steps = module.load_steps()
+            latest, sha = (steps[-1].version if steps else 0), module.dotfiles_sha()
+        except BaseException as exc:
+            steps, conv_error = [], f"the convention steps could not be read ({exc})"
+        if not steps and not conv_error:
+            # An empty step set would leave every repo measuring as current, which is the one
+            # reading a machine with no steps to measure against must not produce.
+            conv_error = "the /adopt skill on this machine defines no steps"
+    if steps:
+        print(f"[{name}] reading the convention record of {len(states)} repo(s)...", file=sys.stderr)
+        for repo, _, slug in owned:
+            states[slug].conventions = read_conventions(module, steps, repo)
+
     return MachineSnapshot(
         # as_posix so a Windows root reads `D:/projects` in the report, matching
         # how it is written in config.env and how every repo path is rendered.
         name=name, os_label=os_label(), projects_root=projects_root.as_posix(),
         scanned_at=time.time(), scanned_count=len(owned), repos=states,
+        conv_latest=latest, conv_sha=sha, conv_error=conv_error,
     )
 
 
@@ -524,6 +679,15 @@ class RepoRow:
     def has_work(self) -> bool:
         return any(st.has_work for st in self.states.values() if st)
 
+    @property
+    def conventions_gap(self) -> bool:
+        return any(st.has_conventions_gap for st in self.states.values() if st)
+
+    @property
+    def conventions_total(self) -> int:
+        """The widest gap any machine reports, for ordering the ageless block of the table."""
+        return max((st.conventions.total for st in self.states.values() if st and st.conventions), default=0)
+
     def working(self, reached: list[str]) -> list[str]:
         """The reached machines with pending work — the ones a description is owed for."""
         return [m for m in reached if (st := self.states.get(m)) and st.has_work]
@@ -558,11 +722,14 @@ def merge(snapshots: list[MachineSnapshot]) -> list[RepoRow]:
             sort_epoch=max((st.oldest_epoch for st in present), default=0.0), states=states,
         ))
 
-    # Keep repos with something to report: pending work on some machine, or open
-    # issues. Sort by AGE ascending — freshest pending work first, oldest last —
-    # which sorting the epoch descending achieves, since age = now - epoch.
-    rows = [r for r in rows if r.has_work or r.open_issues]
-    rows.sort(key=lambda r: r.sort_epoch, reverse=True)
+    # Keep repos with something to report: pending work on some machine, open issues,
+    # or convention versions still to decide there. Sort by AGE ascending — freshest
+    # pending work first, oldest last — which sorting the epoch descending achieves,
+    # since age = now - epoch. A repo with no pending work has no age at all, so the
+    # whole ageless tail would otherwise sit in discovery order; the widest convention
+    # gap breaks that tie, putting the repos furthest behind at the top of it.
+    rows = [r for r in rows if r.has_work or r.open_issues or r.conventions_gap]
+    rows.sort(key=lambda r: (-r.sort_epoch, -r.conventions_total))
     return rows
 
 
@@ -576,12 +743,13 @@ COLUMNS = [
     ("REMOTE", "remote"),
     ("LOCAL", "local"),
     ("AGE", "age"),
+    ("CONV", "conventions"),
     ("ISSUES", "issues"),
     ("DESCRIPTION", "description"),
 ]
 
 # Column keys whose HEADER renders centered (values stay left-aligned).
-CENTERED_HEADERS = {"unpushed", "remote", "local", "age", "issues"}
+CENTERED_HEADERS = {"unpushed", "remote", "local", "age", "conventions", "issues"}
 
 DEFAULT_BRANCHES = {"main", "master"}
 
@@ -602,12 +770,29 @@ def machine_cell(name: str, state: RepoState | None) -> str:
     once, so each gets a word of its own. A machine that was never reached has
     no row at all — the summary above the table names it once, with the error,
     which beats repeating it under every repo.
+
+    A clone behind on conventions is not clean: its CONV cell is filled, and the
+    two sitting on one line would contradict each other.
     """
     if state is None:
         return f"{name} absent"
-    if not state.has_work:
+    if not state.has_anything:
         return f"{name} clean"
     return name
+
+
+def conventions_cell(state: ConventionState | None) -> str:
+    """The CONV cell: versions behind, with `+N` for steps this machine has not wired.
+
+    `?` where the record could not be read at all — the number is unknown there, and
+    leaving it blank would say `current`, which is the one answer nothing has checked.
+    The report spells out all three in words; this column only has room for the count.
+    """
+    if state is None or not state.anything:
+        return ""
+    if state.note:
+        return "?"
+    return (str(state.behind) if state.behind else "") + (f"+{state.unwired}" if state.unwired else "")
 
 
 def build_groups(rows: list[RepoRow], reached: list[str]) -> list[DisplayGroup]:
@@ -622,6 +807,7 @@ def build_groups(rows: list[RepoRow], reached: list[str]) -> list[DisplayGroup]:
                 "project": row.name if first else "",
                 "machine": machine_cell(machine, state),
                 "branch": "", "unpushed": "", "remote": "", "local": "", "age": "",
+                "conventions": conventions_cell(state.conventions if state else None),
                 "description": row.descriptions.get(machine, ""),
                 "issues": str(row.open_issues) if first and row.open_issues else "",
             }
@@ -736,6 +922,19 @@ def print_table(groups: list[DisplayGroup], cols: list[tuple[str, str]], width: 
               f"The report carries every one in full.")
 
 
+def conventions_summary(snap: MachineSnapshot) -> str:
+    """What every CONV cell in this machine's column was measured against.
+
+    Named once per machine because that is what it belongs to: the step set comes
+    from that machine's own dotfiles checkout, and a checkout behind the other one
+    reports smaller gaps for the same repos. When it could not be read the sentence
+    says so, so an empty column is never mistaken for a fleet that is up to date.
+    """
+    if snap.conv_error:
+        return f"conventions unmeasured — {snap.conv_error}"
+    return f"conventions v{snap.conv_latest} ({snap.conv_sha})"
+
+
 def print_machine_summary(snapshots: list[MachineSnapshot]) -> None:
     now = time.time()
     for snap in snapshots:
@@ -746,7 +945,8 @@ def print_machine_summary(snapshots: list[MachineSnapshot]) -> None:
         # printed seconds after the scan it describes, so it would always say that.
         elapsed = now - snap.scanned_at
         when = f"{compact_age(elapsed)} ago" if elapsed >= 60 else "just now"
-        print(f"{snap.name}: {snap.os_label} · {snap.projects_root} · {snap.scanned_count} repos · scanned {when}")
+        print(f"{snap.name}: {snap.os_label} · {snap.projects_root} · {snap.scanned_count} repos · "
+              f"{conventions_summary(snap)} · scanned {when}")
 
 
 def print_detail(rows: list[RepoRow], multi: bool) -> None:
@@ -830,6 +1030,7 @@ PAGE = """<!doctype html>
             font-family:ui-monospace,SFMono-Regular,Menlo,Consolas,monospace; }}
   .m {{ color:var(--mut); }}
   .m b {{ color:var(--fg); font-weight:600; }}
+  .m.bad {{ color:var(--warn); }}
   .add {{ color:var(--add); font-weight:600; }}
   .del {{ color:var(--del); font-weight:600; }}
   details {{ margin:5px 0 0 8px; }}
@@ -918,6 +1119,32 @@ def metric_html(state: RepoState, now: float) -> str:
         parts.append(f'<span class="m"><b>{state.uncommitted}</b> {noun}{lines}</span>')
     if state.oldest_epoch:
         parts.append(f'<span class="m">{rel_time(state.oldest_epoch)}</span>')
+    parts.append(conventions_metric(state.conventions))
+    return "".join(parts)
+
+
+def conventions_metric(conv: ConventionState | None) -> str:
+    """The conventions part of a machine's metrics row, in words.
+
+    The terminal column has room for a count and the report has room for what it
+    counts, so this is where "13" becomes "13 conventions to decide". `behind` and
+    `undecided` are separated for the same reason the record separates them: a repo
+    that has decided nothing has not fallen behind, it has never been asked.
+    """
+    if conv is None or not conv.anything:
+        return ""
+    if conv.note:
+        return f'<span class="m bad">conventions unknown — {esc(conv.note)}</span>'
+    parts = []
+    if conv.behind and not conv.recorded:
+        parts.append(f'<span class="m" title="no record file — /adopt has never run in this repo">'
+                     f'<b>{conv.behind}</b> conventions undecided</span>')
+    elif conv.behind:
+        parts.append(f'<span class="m" title="adopted through v{conv.through}">'
+                     f'<b>{conv.behind}</b> conventions behind</span>')
+    if conv.unwired:
+        parts.append(f'<span class="m" title="decided in this repo, not wired on this machine">'
+                     f'<b>{conv.unwired}</b> unwired here</span>')
     return "".join(parts)
 
 
@@ -926,7 +1153,7 @@ def machine_row_html(state: RepoState | None, repo_name: str, now: float) -> str
     # all, both leave the column empty — the report exists to show what is
     # outstanding, and neither of them is. The table still separates the two, where
     # a blank cell sits between filled neighbours and would read as either.
-    if state is None or not state.has_work:
+    if state is None or not state.has_anything:
         return ""
     # The clone path only earns a place when it differs from the repo's own name;
     # otherwise it repeats the card's title on every row.
@@ -939,6 +1166,9 @@ def machine_row_html(state: RepoState | None, repo_name: str, now: float) -> str
         out += f'<details><summary>uncommitted files</summary>{listing_html(entries)}</details>'
     if state.commits:
         out += f'<details><summary>unpushed commits</summary>{listing_html(state.commits)}</details>'
+    if state.conventions and state.conventions.pending:
+        out += (f'<details><summary>conventions to adopt</summary>'
+                f'{listing_html(state.conventions.pending)}</details>')
     return out
 
 
@@ -1022,7 +1252,7 @@ def column_head(snap: MachineSnapshot, now: float) -> str:
     return (f'<div><div class="cname">{esc(snap.name)}</div>'
             f'<div class="cmeta">'
             f'{esc(snap.os_label)} · {esc(snap.projects_root)} · {snap.scanned_count} repos · '
-            f'scanned {rel_time(snap.scanned_at)}</div></div>')
+            f'{esc(conventions_summary(snap))} · scanned {rel_time(snap.scanned_at)}</div></div>')
 
 
 def write_html(path: Path, rows: list[RepoRow], snapshots: list[MachineSnapshot], owner: str) -> None:
@@ -1032,16 +1262,17 @@ def write_html(path: Path, rows: list[RepoRow], snapshots: list[MachineSnapshot]
     total = len({slug for s in reached for slug in s.repos})
     title = f"Repo status — {owner}"
     if rows:
-        sub = f"{len(rows)} of {total} repos have pending work or open issues"
+        sub = f"{len(rows)} of {total} repos have pending work, open issues, or conventions to adopt"
         heads = "".join(column_head(s, now) for s in reached)
         body = (f'<main><div class="cols-head" style="grid-template-columns:{track(len(reached))}">'
                 f'{heads}</div>' + "".join(repo_card(r, names, now) for r in rows) + "</main>")
     else:
         scanned = " and ".join(f"{s.scanned_count} on {s.name}" for s in reached) or "none"
         sub = "Nothing pending"
-        body = (f'<p class="none">Every repo is clean, pushed, and has no open issues — '
-                f'{esc(scanned)} scanned. A repo appears here only when it has uncommitted changes, '
-                f'unpushed or inbound commits, or an open issue.</p>')
+        body = (f'<p class="none">Every repo is clean, pushed, current on conventions, and has no open '
+                f'issues — {esc(scanned)} scanned. A repo appears here only when it has uncommitted '
+                f'changes, unpushed or inbound commits, an open issue, or a convention version still '
+                f'to decide.</p>')
     # Reached machines are named by the column headers; only an unreached one still
     # needs a card up here, so its SSH error is stated rather than the machine just
     # missing from a report that otherwise looks complete.
@@ -1228,7 +1459,8 @@ def render(snapshots: list[MachineSnapshot], rows: list[RepoRow], width: int) ->
     groups = build_groups(rows, reached)
     if not groups:
         scanned = ", ".join(f"{s.scanned_count} on {s.name}" for s in snapshots if s.status == "ok") or "none"
-        print(f"Nothing pending — {scanned} repos scanned, all clean, pushed, and without open issues.")
+        print(f"Nothing pending — {scanned} repos scanned, all clean, pushed, current on conventions, "
+              f"and without open issues.")
         return
     print_table(groups, visible_columns(groups, len(reached)), width)
 
