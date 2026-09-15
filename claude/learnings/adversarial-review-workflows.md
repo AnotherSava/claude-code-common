@@ -130,3 +130,28 @@ Two corollaries:
   reproduced in about fifteen lines of Playwright — 223px overlay against a 231px reserved margin, then 131px
   against the same stale 231px. Reproducing it took far less time than the review that found it, and is the
   only thing that turns "three agents think so" into knowing.
+
+## Run the reference implementation against every real instance, not against a fixture
+
+A review panel reading a design finds different defects from one executing it, and the gap is not
+about care. Measured 2026-09-15 on a design for a convention-adoption system: four independent
+designers, then three judges scoring them on fidelity, robustness and lifetime cost, all missed that
+the winning design's central contract was inverted. Two critics told to *run* its reference script
+against the real repositories found it within minutes, independently, and agreed.
+
+The defect is worth stating because its shape recurs. A check was specified to verify that a
+migration had *happened*, and the evidence it read was the pre-migration file — which the migration
+deletes and the commit then removes from `HEAD`. So the four repositories that had done the work
+*and committed it* were the ones it could not verify, and they would have been recorded "does not
+apply". Every repository where the work was done worst still had its evidence lying around and
+passed.
+
+The generalisation: **a check whose evidence is destroyed by the act it verifies cannot tell done
+from never-done**, and it fails precisely on the cases that went best. Reading the design cannot
+surface that, because on paper the check is about the right subject. Only running it against
+instances in several different states shows that the states are indistinguishable.
+
+So budget a stage that executes, and point it at the real population rather than at fixtures the
+same author wrote. Fixtures encode the shapes the author already thought of; a fleet of fifteen
+repositories contains the ones they did not. Give that stage the standing permission to copy real
+data into scratch and mutate the copy, and the standing prohibition on touching the originals.

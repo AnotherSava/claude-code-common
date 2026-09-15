@@ -342,3 +342,42 @@ actually matters — that the merge never touched them:
 ```bash
 git diff --name-only <old-head> <new-head> -- <the unstashed dirty paths>   # empty → untouched
 ```
+
+## Discarding untracked work safely: prove it is a function of what is committed
+
+The sections above are about untracked or stashed work you must **keep**. The inverse case turns up
+whenever a change was made by hand and never committed, and you now want the tested path to make it
+instead: a hand-run migration, a scripted edit, a generated tree. `git checkout` cannot restore what
+it never tracked, so `rm -rf` on that tree is the one genuinely irreversible step in the operation.
+
+It is safe exactly when the tree is a deterministic function of committed state, and that is
+provable rather than arguable. Rebuild it from the commit in a scratch clone and diff:
+
+```bash
+git -C "$repo" show HEAD:path/to/source > "$scratch/path/to/source"
+# …run the same generator/migration against $scratch…
+diff -rq "$scratch/generated" "$repo/generated"     # silence = nothing unique is at risk
+```
+
+Silence means every file is reproducible and no file exists that the rebuild would not produce — so
+nothing was added, edited or removed since the hand run, and the delete costs nothing. Any output at
+all is a reason to stop: a file only in the repo is work done afterwards, a file only in the scratch
+tree means something was deleted afterwards, and a content difference is an edit.
+
+Verified 2026-09-15 across five repos holding an uncommitted format migration. Two of them differed
+by one byte — a `created:` second — because the hand migration had staggered two same-minute
+timestamps to preserve line order while the scripted one wrote both as `:00`. That is the value of
+diffing rather than spot-checking: a one-character difference in one file out of 54 was a real
+ordering rule nobody had written down, and fixing the script to reproduce it turned all five into
+byte-exact matches. Had the diff been skipped, the rule would have been discovered only as a
+mysteriously reordered backlog weeks later.
+
+Then restore the source with a **path-scoped** checkout, never a bare one — the tree is dirty by
+premise and these repos routinely carry unrelated work:
+
+```bash
+git -C "$repo" checkout -- path/to/source && rm -rf "$repo/generated"
+```
+
+Capture `git status --short` before and after and diff the two. The only lines that may disappear
+are the ones you meant to remove; anything else vanishing means the checkout was wider than intended.

@@ -59,16 +59,35 @@ $ git status --short --untracked-files=all
 ?? config/publish.env                                    # visible
 ```
 
-**Read the `-v` output, not the exit code.** A leading `!` on the reported pattern means the file is
-*not* ignored. Without `-v` there is nothing in the result that distinguishes the two outcomes.
-
-The behavioural checks are unambiguous where the exit code is not:
+**It is `-v` that breaks the exit code, and dropping it restores the answer.** Measured 2026-09-15
+on a scratch repo with `config/*.env` and `!config/publish.env`:
 
 ```
-git check-ignore -v <path>                     # inspect the pattern; ! prefix = not ignored
+$ git check-ignore -q config/publish.env ; echo $?     # the negated path
+1                                                       # correct: not ignored
+$ git check-ignore    config/publish.env ; echo $?
+1                                                       # same, bare
+$ git check-ignore -v config/publish.env ; echo $?
+0                                                       # matched a pattern — the wrong answer
+$ git check-ignore -q config/deploy.env   ; echo $?     # genuinely ignored
+0
+```
+
+So the plain or `-q` form decides and `-v` explains, and the two are not interchangeable. The plain
+form also prints only the paths that *are* ignored, which is what makes it safe to feed a whole path
+set on one `--stdin` call and read the output as the answer. Reach for `-v` afterwards, on paths
+already known to be ignored, purely to name the rule behind each — never to decide.
+
+Two behavioural checks remain useful as a cross-check:
+
+```
 git add --dry-run <path>                       # errors on a genuinely ignored path
 git status --short --untracked-files=all       # an ignored path never appears
 ```
+
+A caution on `git check-ignore` generally: it consults the index, so a **tracked** path comes back as
+not ignored whatever the rules say. A repo that already committed a file cannot use this to discover
+that a new rule would have hidden it.
 
 This bit twice in one session. First a test concluded "the negation does not work" from exit 0, while
 `git add` in the same script was succeeding — two contradictory signals, and the exit code was the wrong

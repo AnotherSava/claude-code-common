@@ -81,3 +81,35 @@ center dot so the columns line up visually:
     # → "  ·M file"  (unstaged modify)
     # → "  M· file"  (staged modify)
     # → "  ?? file"  (untracked)
+
+## `--ignored` collapses a directory; `--ignored=matching` expands it, and which you want depends
+
+Asked which files an ignore rule currently hides — before deleting that rule, say — the default
+`--ignored` (traditional mode) answers with the *topmost* ignored directory and nothing inside it.
+Measured 2026-09-15 on a scratch repo whose `.gitignore` is one line, `**/config/deploy.env`, with
+that file the only thing under `web/`:
+
+    $ git status --porcelain --ignored
+    !! web/
+    $ git status --porcelain --ignored=matching
+    !! web/config/deploy.env
+
+Nothing matches `web/` at all — traditional mode collapses a directory whenever *everything inside
+it* is ignored, whether or not the directory itself matched a pattern. A caller that then asks
+`git check-ignore -v web/` which rule hides it gets a directory git attributes to no rule, so a
+guard built this way sees no files and reports that nothing could be exposed.
+
+Matching mode still collapses a directory that **does** match a pattern, and that is the property
+worth keeping: `node_modules/` stays one entry instead of thirty thousand. Both facts together are
+the whole rule, and testing only the second shape makes the two modes look identical:
+
+    # .gitignore holds `web/` — the directory itself matches
+    --ignored            -> !! web/
+    --ignored=matching   -> !! web/            # same; the collapse is correct here
+
+A third combination is worth knowing and is usually not what you want: `--ignored -uall` expands
+*every* ignored file individually, `node_modules/` included. On the largest repo in one fleet the
+matching-mode call returned in 13 ms where the expanded one took 1571 ms.
+
+So: `--ignored=matching` to learn which files a *rule* hides, `--ignored` when a directory-level
+answer is enough, and `-uall` only when you genuinely need every path.
