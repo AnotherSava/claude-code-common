@@ -1,0 +1,19 @@
+# Editor and OS noise
+.idea/
+.DS_Store
+
+# Build output
+node_modules/
+/dist/
+
+# Secrets (.env.example is the committed template)
+.env
+
+# Machine-local project config (keep .claude/memory/ tracked)
+.claude/settings.local.json
+
+# Per-machine deploy paths, written by the deploy skill
+config/deploy.env
+
+# Local convenience scripts (not committed)
+scripts/

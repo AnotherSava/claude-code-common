@@ -22,6 +22,7 @@ claude/untracked-skills.local.txt
 
 # Ignore all skills, whitelist ours
 claude/skills/*
+!claude/skills/adopt/
 !claude/skills/annotate/
 !claude/skills/backup/
 !claude/skills/build/

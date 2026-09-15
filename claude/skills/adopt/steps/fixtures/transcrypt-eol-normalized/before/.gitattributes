@@ -1,0 +1,12 @@
+*.secret.* filter=crypt diff=crypt merge=crypt -text
+
+# The publish config is encrypted by PATH rather than by the *.secret.* naming convention, because its
+# name is read by the publish script: renaming it to publish.secret.env would break the thing it
+# configures. The rule is deliberately this ONE path and not *.env — a host's committed plaintext
+# host.env and its rendered sibling full of secret values share that suffix and need opposite handling.
+config/publish.env filter=crypt diff=crypt merge=crypt
+
+# Reference-model meshes are large binaries — store via Git LFS, scoped to this folder and its
+# upload/ copies, so small STLs tracked elsewhere stay as normal blobs.
+reference-models/models/*.stl filter=lfs diff=lfs merge=lfs -text
+reference-models/models/upload/*.stl filter=lfs diff=lfs merge=lfs -text

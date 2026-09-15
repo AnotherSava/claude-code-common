@@ -1,0 +1,8 @@
+{
+  "name": "atlas-web",
+  "version": "0.3.0",
+  "private": true,
+  "scripts": {
+    "check": "node --test"
+  }
+}

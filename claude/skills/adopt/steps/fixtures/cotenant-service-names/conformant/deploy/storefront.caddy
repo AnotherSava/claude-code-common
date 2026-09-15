@@ -1,0 +1,8 @@
+# Public vhost for the storefront. Copied into the shared proxy's conf.d on the host by publish.
+# Its basename is the project's, because the conf.d is flat and a neighbour's file of the same
+# name would overwrite this one at the next reload, with a config that validates perfectly.
+storefront.example.com {
+	encode zstd gzip
+	# Dialled by container name, which belongs to nobody else on the shared bridge.
+	reverse_proxy storefront-app:3000
+}

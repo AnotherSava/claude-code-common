@@ -1,0 +1,7 @@
+# Build output
+node_modules/
+/dist/
+*.log
+
+# Machine-local settings, which are meant to be ignored
+.claude/settings.local.json

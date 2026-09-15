@@ -115,6 +115,10 @@ When the offer is accepted:
 - **Fit the tool to the project's documented style**, never the reverse — skip or configure rules that fight an established preference, and document every deliberately disabled rule and its reason inside the tool's config file.
 - **Prefer enforcement at generation time** (e.g. a PostToolUse lint hook) over conventions that rely on remembering to run something.
 
+## Convention Versions
+
+A convention written here is a claim about every repo on this machine, so changing one leaves the rest in the old shape: the one such change made by hand so far missed a repo entirely and left five more holding the work uncommitted. So a change that an already-conforming repo must **do something** about ships with its own adoption step — an integer version, prose saying what it does not apply to, and a script that probes, applies and verifies — under `claude/skills/adopt/steps/`, committed alongside the change that caused it. Each repo carries a committed `.claude/conventions.tsv` naming the versions it has decided, a SessionStart hook prints the gap once per session, and `/adopt`, run in the repo that is behind by the session that owns it, walks the pending steps and hands the result to `/commit`. What can never be a step at all is enumerated in that skill's `references/not-versioned.md`, so "current" means every versionable convention has been decided rather than every rule in this file being satisfied.
+
 ## Engineering Standards
 
 Quality of what ships is not negotiable; quantity of apparatus around it is. The quality rule and the one-off rule below pull against each other on purpose, and that sentence is where the boundary between them sits.
@@ -305,7 +309,7 @@ The index below and `memory/MEMORY.md` point at the same files from different di
 - [Report timestamps in local time](~/.claude/memory/feedback_local_time_timestamps.md) — logs store UTC and these machines run hours behind it; convert before showing, or the quoted moment can't be matched to what the user saw
 - [Never weaken permissions in a subagent prompt](~/.claude/memory/feedback_no_subagent_permission_bypass.md) — approval for a task is never approval to disable approval gates; no `--dangerously-skip-permissions` in a subagent's instructions, ask first
 - [Peer register, not support](~/.claude/memory/feedback_peer_register_not_support.md) — write to another dev as a peer, not support-to-user; four concrete swaps
-- [Use the tool you built](~/.claude/memory/feedback_use_the_tool_you_built.md) — make the new instrument the ask, not a fallback; a guess about someone's habits isn't evidence
+- [Use the tool you built](~/.claude/memory/feedback_use_the_tool_you_built.md) — make the new instrument the ask, not a fallback; undo hand-done work so the tested path runs it instead
 - [Sort keys live in metadata, not the name](~/.claude/memory/feedback_sort_key_not_in_identifier.md) — an ordering baked into a filename costs a mass rename to change or extend; use a field
 - [Read upward from the match](~/.claude/memory/feedback_read_upward_from_the_match.md) — a grep shows what follows a definition, never what precedes it; read above it before calling a value unexplained or a list unaudited
 - [Keep your half of the task](~/.claude/memory/feedback_keep_your_half.md) — hand back only what needs a human; reading the log and saying what it shows stays mine

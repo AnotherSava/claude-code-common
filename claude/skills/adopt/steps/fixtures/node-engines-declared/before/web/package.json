@@ -1,0 +1,14 @@
+{
+  "name": "example-web",
+  "version": "0.1.0",
+  "private": true,
+  "license": "MIT",
+  "packageManager": "npm@11.18.0",
+  "scripts": {
+    "dev": "next dev",
+    "build": "next build"
+  },
+  "dependencies": {
+    "next": "15.5.4"
+  }
+}

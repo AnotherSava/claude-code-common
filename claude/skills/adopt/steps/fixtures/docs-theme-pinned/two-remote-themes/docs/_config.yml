@@ -1,0 +1,12 @@
+title: Trip Planner
+description: A planner that turns booking confirmations into an itinerary
+remote_theme: just-the-docs/just-the-docs
+baseurl: /trip-planner
+plugins:
+  - jekyll-remote-theme
+color_scheme: light
+search_enabled: true
+
+# Left behind by a half-finished edit: a duplicate key resolves to the last one, so this
+# is the value Jekyll actually serves and the line above it is dead.
+remote_theme: just-the-docs/just-the-docs@v0.9.0

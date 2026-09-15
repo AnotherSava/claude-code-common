@@ -1,0 +1,10 @@
+# Build output
+node_modules/
+/dist/
+*.log
+
+# Secrets (.env.example is the committed template)
+.env
+
+# Generated data the importer rewrites on every run
+data/cache/

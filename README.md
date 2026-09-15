@@ -474,6 +474,27 @@ Conventions for writing and changing skills — the directory shape, the frontma
 
 ---
 
+### Adopt
+
+Brings one repo into the shape the conventions in this repo currently require. Every convention change an already-conforming repo has to act on ships as a numbered step — prose plus a script that probes, applies and verifies — and `/adopt`, run in the repo that is behind, walks the steps that repo has not decided yet and hands the record to `/commit`.
+
+**Command:** `/adopt`
+
+**Features:**
+- Runs each step's `verify` **before** its `probe`, so a repo already in the target shape records `applied` with nothing mutated — which is what stops the repos that did the work by hand, or on the other machine days ago, being filed as "does not apply"
+- Records four states and nothing else — `applied`, `n/a`, `declined`, and absence, which means not run — in a committed `.claude/conventions.tsv`, with a machine-scoped step's `applied` line copied into a gitignored sibling as well, so a fresh clone reports the symlink it has not made rather than inheriting the other machine's answer
+- Refuses to write `applied` unless it has just run that step's own `verify` and got 0, so a bumped number can never outrun the work it claims
+- Puts a step's question to the user verbatim wherever no file probe can settle it — whether a repo wants a backlog at all, whether a missing LICENSE is deliberate — and never answers it on their behalf
+- Shows `apply --dry-run` and asks before any mutation; a step that fails leaves every source artifact intact and stops the run rather than stepping past it into steps that depended on it
+- Stops on a branch behind its upstream, where a migration's delete merges cleanly against the other machine's append and loses it in silence — but never on a dirty tree, since the record line and the pending change are meant to commit together
+- Closes with an audit that re-runs `verify` for every `applied` line and `probe` for every `n/a` one, printing `NOT COVERED` rather than a pass a retired script can no longer justify
+- Documents the next version's authoring contract in `references/authoring-a-step.md` — the frontmatter, the five mandatory headings, the six-rule idempotence contract, and the `supersedes:` / `retracted:` rules that correct a shipped step without ever editing one a repo has already run
+- Enumerates what can never carry a version at all — agent behaviour, code content, unbounded properties, global settings — in `references/not-versioned.md`, so "current" means every versionable convention has been decided rather than every rule in `CLAUDE.md` being satisfied
+
+**Authoring gate:** `python claude/skills/adopt/conventions.py selftest` — exit 0 every step is sound, 1 otherwise. It exercises each step against its own fixtures: `verify` must *fail* on the `before/` tree and pass on `conformant/` without mutating it, `apply` must be idempotent across a second run, and any extra fixture tree must make `apply` refuse with every source artifact intact. This repo's `.claude/commit-checks.sh` runs it alongside `claude/tests/memos.py` and `claude/tests/ingress-lint.py`, so a step that would edit fifteen other repos cannot be committed here untested.
+
+---
+
 ### Tune Output
 
 Changes how Claude's replies are shaped — adopting, revising or rejecting a response-style rule — and records each pass in a ledger, so the next one starts from what was already measured rather than from scratch.
@@ -583,6 +604,24 @@ A missing link is silent in a way that looks like working software, and each one
 - **It cannot verify `~/.claude/settings.json` or `~/.claude/hooks` when run as a hook**, since it is reached through them — but nothing else runs either when those are broken, so the hook firing at all is what vouches for them. Run it from the repo to check them for real.
 
 Adding a link to the install blocks needs a matching line in the script's `LINKS` list, which is the only other copy of that contract.
+
+---
+
+### Conventions Check
+
+**File:** `claude/hooks/conventions-check.py`
+
+A `SessionStart` hook comparing two integers: the newest convention version in this dotfiles checkout, and the highest one the current repo has recorded. Silent when they agree. When they don't, it prints the gap and offers [`/adopt`](#adopt) — at most five bullets and then `... N more`, because fifteen bullets at every session start is a wall nobody reads.
+
+It runs **no subprocess at all**: the repo root by walking up for a `.git`, `.git/config` as text for the origin owner, the two record files, one `listdir` of the steps directory with a head-read of each frontmatter, and this checkout's `.git/HEAD` for a short sha. Every message names that sha, so "latest" is never an unqualified claim.
+
+- **"Unrecorded" and "v0" are different facts** and get different lines — a repo with no record file is asked to record where it stands, while one at v0 is told how far behind it is.
+- **A record naming a version this checkout does not have** means the dotfiles repo is behind, not the project. It says so and withholds the `/adopt` offer, since adopting against a stale step list records a repo as current against a `latest` that has already moved.
+- **A directory with no `.git` is told once**, and only where a `.claude/` or a `CLAUDE.md` is present, so a scratch directory stays silent while a real project directory stops being outside the system with nothing anywhere saying so.
+- **A record it cannot read at all** — an unparseable line, a permission bit, bytes that are not UTF-8 — names what stopped it and withholds `/adopt`, and so does a step set that will not load; an `exempt` line, or an origin owned by anyone other than the user, is silent.
+- **A machine-scoped step decided in the repo but missing from the gitignored local record** gets its own bullet, marked as not wired on this machine — the committed half travels with a clone and the machine half deliberately does not.
+
+The message is a `systemMessage`, so it reaches the screen and never the transcript; `/adopt` re-derives the gap itself rather than trusting what was pasted into it.
 
 ---
 

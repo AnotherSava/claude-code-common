@@ -238,6 +238,15 @@
             "async": false
           }
         ]
+      },
+      {
+        "hooks": [
+          {
+            "type": "command",
+            "command": "python -S \"$HOME/.claude/hooks/conventions-check.py\"",
+            "async": false
+          }
+        ]
       }
     ]
   },

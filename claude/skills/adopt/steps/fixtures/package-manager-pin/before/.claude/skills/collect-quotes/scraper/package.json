@@ -1,0 +1,10 @@
+{
+  "name": "collect-quotes-scraper",
+  "version": "1.0.0",
+  "private": true,
+  "type": "module",
+  "description": "A helper the skill runs on its own, with its own lockfile.",
+  "dependencies": {
+    "playwright-core": "^1.49.0"
+  }
+}

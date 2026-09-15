@@ -1,0 +1,6 @@
+# misc
+.DS_Store
+*.pem
+
+# Per-machine deploy paths for the web app
+config/deploy.env

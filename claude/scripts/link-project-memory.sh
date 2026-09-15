@@ -35,7 +35,12 @@ if [ -z "$repo_root" ]; then
 fi
 project_id="$(printf '%s' "$repo_root" | sed 's|[^a-zA-Z0-9]|-|g')"
 
-cache_parent="$HOME/.claude/projects/$project_id"
+# `${CLAUDE_CONFIG_DIR:-$HOME/.claude}` is how the rest of this repo resolves the state
+# directory (identity-check.py, the publish script, the tune-output preflight). A machine
+# that relocates it and a script assuming $HOME/.claude disagree silently: the link gets
+# made in a directory the harness never opens, so the machine looks wired and is not.
+claude_dir="${CLAUDE_CONFIG_DIR:-$HOME/.claude}"
+cache_parent="$claude_dir/projects/$project_id"
 cache_mem="$cache_parent/memory"
 repo_mem="$repo_root/.claude/memory"
 

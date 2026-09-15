@@ -1,0 +1,26 @@
+title: Session Dashboard
+description: A live monitor for your Claude Code sessions.
+# Pinned. Without a ref, jekyll-remote-theme rebuilds from the theme's default branch on every
+# build, so a layout these pages depend on can change with nothing committed in this repo. It
+# also decides whether an override under _includes/ or _sass/ still reaches the theme file it
+# shadows. Bump it deliberately, like any other dependency.
+remote_theme: just-the-docs/just-the-docs@v0.11.2  # not the newest tag, and that is not a defect
+baseurl: /session-dashboard
+plugins:
+- jekyll-remote-theme
+color_scheme: light
+search_enabled: true
+heading_anchors: true
+
+# Render ```mermaid code blocks client-side (just-the-docs built-in support).
+mermaid:
+  version: "11.4.1"
+
+# Setting `exclude` replaces Jekyll's defaults rather than adding to them, so the
+# list it ships with is repeated here.
+exclude:
+  - Gemfile
+  - Gemfile.lock
+  - node_modules
+  - vendor/bundle/
+  - plans/

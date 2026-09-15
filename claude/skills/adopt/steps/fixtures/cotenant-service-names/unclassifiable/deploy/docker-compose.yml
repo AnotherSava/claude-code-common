@@ -1,0 +1,19 @@
+# The settings every service here shares are factored into a YAML anchor, and two services take
+# them by reference. Both references are invisible to a line scanner: the anchor can carry a
+# container_name, so a reader that skipped them would assert a shape it never read.
+name: storefront
+
+x-common: &common
+  env_file: [./storefront.env]
+  restart: unless-stopped
+
+services:
+  storefront-app:
+    <<: *common
+    build:
+      context: ../web
+    container_name: storefront-app
+    expose:
+      - "3000"
+
+  storefront-worker: *common
