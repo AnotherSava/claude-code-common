@@ -132,6 +132,19 @@ a gate that already exists to cover a blind spot, which is the opposite of the p
 `~/.claude/memory/feedback_read_only_review_loop.md` warns against — that one adds a new mechanism
 per complaint, this one removes a finding that would otherwise keep coming back.
 
+**Work only another machine can do is a routed ping, not a `memo`.** The backlog is for work
+nobody is going to do yet, not for work this machine cannot do: a memo defers it to whoever next
+reads it, on whichever box they happen to be on, while the machine that can act has a live session
+reachable through the dashboard relay. Offered as a memo and corrected on 2026-09-13 and again on
+2026-09-15, so recommend the ping.
+
+**Then sequence the send, because routing it is only half the decision.** A ping whose action
+depends on this side's work — a commit to pull, a change still uncommitted here — waits for step
+7's push; one the peer can act on immediately goes out in step 6 with the rest of the dispositions.
+Say in the finding which of the two it is, since that is what the user is agreeing to.
+`~/.claude/memory/peer_messaging.md` owns the rest, including why the wait matters; do not restate
+it here.
+
 ```
 **Concerns passed over**
 
