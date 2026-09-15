@@ -108,6 +108,27 @@ positive control costs one line and is the only thing that distinguishes "clean"
 GNU extension, BSD `xargs` on macOS rejects it outright, and the error goes to the same
 suppressed stderr.
 
+**`${PIPESTATUS[0]}` expands to nothing in zsh**, so the one construction that recovers a
+command's exit status from inside a pipeline reports it as blank rather than as a number.
+zsh spells the array `pipestatus`, lower case and 1-indexed, so bash's `${PIPESTATUS[0]}`
+is zsh's `$pipestatus[1]` — and naming bash's array under zsh is not an error, just an
+unset parameter:
+
+```sh
+cmd 2>&1 | tail -3; echo "exit: ${PIPESTATUS[0]}"   # bash: "exit: 2".  zsh: "exit: "
+```
+
+Same shape as the splitting cases above: the line runs, prints something, and the
+something is empty where a number would have been read. Reach for neither spelling —
+redirect to a file, read `$?` on its own line, then print the file:
+
+```sh
+cmd > /tmp/out.txt 2>&1; echo "exit: $?"; tail -3 /tmp/out.txt
+```
+
+Portable to bash, zsh and `sh`, and it keeps the status beside the command that produced
+it rather than behind an array whose name depends on the shell.
+
 **Unquoted `[...]` in a path is a glob, and in zsh it is fatal or silent depending on
 where it lands.** This bites hardest on Next.js dynamic routes, whose directory names
 are literally bracketed:

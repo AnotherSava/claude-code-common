@@ -385,11 +385,34 @@ The case this bites is not probing someone's site but looking at a page you prod
 contact sheet, a rendered report, a throwaway HTML of icon candidates. The instruction to open it in
 a browser before handing it over still stands. claude-in-chrome simply cannot be that browser.
 
-Serving the directory over `python -m http.server` clears the URL check and not much else: Chrome
-refuses `file:///` sub-resources inside an `http://` document, so every absolute local image path in
-the page would have to be rewritten relative to the served tree first.
+Serving the directory over `python -m http.server` clears the URL check, and whether that is enough
+comes down to one property of the page: Chrome refuses `file:///` sub-resources inside an `http://`
+document, so a page whose `src` attributes are **absolute** loses every image, while one whose
+`src` attributes are **relative to the served root** renders whole. Which means it is worth writing
+them relative in the first place — the contact-sheet template ships `file:///ABS/PATH/id.png`, and
+substituting a path relative to the sheet is a one-line change that makes the cheap route work:
 
-Headless Chromium via Playwright is the short path. It opens `file:///` directly, renders at a
+```bash
+( cd <dir-holding-the-page-and-its-assets> && python3 -m http.server 8731 --bind 127.0.0.1 >/tmp/s.log 2>&1 & )
+# navigate to http://127.0.0.1:8731/<page>.html, then kill it: pkill -f "http.server 8731"
+```
+
+Measured 2026-09-15: a six-frame sheet with relative `src`s served this way rendered identically to
+the real thing, in both themes, with no Playwright involved.
+
+**To see a `prefers-color-scheme: dark` page on a light-themed machine, re-key the query in a copy.**
+Neither `navigate` nor `resize_window` can emulate the media feature, and the OS theme is not yours to
+flip. Copy the file and swap the one token:
+
+```python
+open("page-dark.html","w").write(
+    src.replace("@media (prefers-color-scheme: dark)", "@media (prefers-color-scheme: light)", 1))
+```
+
+The dark *declarations* then apply and can be screenshotted. Say which it is when reporting: this
+proves the dark values render, and says nothing about whether the query itself fires.
+
+Headless Chromium via Playwright is the short path when neither of those fits. It opens `file:///` directly, renders at a
 viewport you choose, and can report what actually broke:
 
 ```python

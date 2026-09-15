@@ -17,11 +17,27 @@ No packaging, no vendoring, no submodule:
 ```python
 spec = importlib.util.spec_from_file_location("vhost_lint", os.path.join(landlord, "bin", "vhost-lint.py"))
 module = importlib.util.module_from_spec(spec)
+sys.modules[spec.name] = module          # before exec_module, not after — see below
 spec.loader.exec_module(module)
 return module.lint(path, None, None)
 ```
 
-Three things make this hold up, and each of them is the answer to a way it silently fails:
+**Register it in `sys.modules` before executing it.** Every tutorial omits that line and most modules
+do not need it, which is what makes the failure look unrelated to the loader. A class body that has to
+resolve its own module namespace does need it — `@dataclass` and `typing.NamedTuple` both do — and with
+the module absent from `sys.modules` the lookup returns `None`:
+
+```
+File ".../dataclasses.py", line 814, in _is_type
+    ns = sys.modules.get(cls.__module__).__dict__
+AttributeError: 'NoneType' object has no attribute '__dict__'
+```
+
+The traceback names the standard library and the borrowed module's first dataclass, never the four
+lines that loaded it, so the natural reading is that the other repo's file is broken. Pop the name again
+in the `except` if the load fails, or a half-executed module stays registered under it.
+
+Three more things make this hold up, and each of them is the answer to a way it silently fails:
 
 **Find the repo by env var, then by convention — and validate the file, not the directory.**
 
