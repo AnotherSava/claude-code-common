@@ -10,11 +10,13 @@ fixture manifests and could never return 0 here, so those steps were unrecordabl
 and the gitignore-scope step's `probe` exited 0 on a list where one real finding sat among five
 fixture ones, which is a dry run that reads plausible and gets approved.
 
-The test is identity, not name. Skipping any directory called `fixtures` would also skip a real
-`tests/fixtures/` that a project genuinely maintains, and this hazard belongs to exactly one
-directory on disk. Comparing resolved paths also survives the `~/.claude/skills/` symlink these
-steps are normally invoked through, and it cannot fire inside a scratch copy of a fixture tree —
-there the fixture *is* the repo under test, and every step must read it in full.
+The test is identity, not name, and identity means `samefile` rather than two paths that look
+alike. Skipping any directory called `fixtures` would also skip a real `tests/fixtures/` that a
+project genuinely maintains, and this hazard belongs to exactly one directory on disk. Comparing
+inodes survives the `~/.claude/skills/` symlink these steps are normally invoked through **and**
+the case difference between the spelling that symlink carries and the one `/adopt` passes, which
+the textual version did not; and it cannot fire inside a scratch copy of a fixture tree — there
+the fixture *is* the repo under test, and every step must read it in full.
 """
 
 import os
@@ -24,10 +26,22 @@ FIXTURES_DIR = os.path.join(os.path.dirname(os.path.realpath(__file__)), "fixtur
 
 
 def is_own_fixtures(path: str) -> bool:
-    """Is this directory the adoption steps' own fixture tree, however it was reached."""
+    """Is this directory the adoption steps' own fixture tree, however it was reached.
+
+    `samefile` rather than comparing two `realpath` strings, because `realpath` resolves symlinks
+    and does **not** canonicalise case — `learnings/comparing-paths-symlinks-and-case.md` opens on
+    exactly this. Measured 2026-09-15: `~/.claude/skills` is linked through a lowercase `projects`
+    while `/adopt` passes the repo root spelled `Projects`, so the two sides resolved to strings
+    differing in one character, and every step walking the tree read its own fixtures as findings
+    about this repo. That is a level, not an edge — it was wrong on every run — and it failed in
+    the loudest available direction only because the fixtures are deliberately broken.
+
+    `samefile` needs both paths to exist, which is why a missing directory is False rather than an
+    exception: `prune` and `is_beneath` both hand it parents that may not be there.
+    """
     try:
-        return os.path.realpath(path) == os.path.realpath(FIXTURES_DIR)
-    except OSError:
+        return os.path.samefile(path, FIXTURES_DIR)
+    except (OSError, ValueError):
         return False
 
 

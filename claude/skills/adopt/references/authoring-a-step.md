@@ -256,6 +256,13 @@ flat path list. Do not skip every directory *named* `fixtures`: that also hides 
 symlink and still stays quiet inside a scratch copy, where the fixture is the repo under test and must
 be read in full.
 
+Identity there means `os.path.samefile`, not two `realpath` strings compared. `realpath` resolves
+symlinks and does not canonicalise case, so on this machine the guard answered False on every run —
+the symlink is spelled `projects`, `/adopt` passes `Projects`, and the volume folds the difference —
+and every walking step read its own fixtures as findings about the dotfiles repo anyway, which is the
+state this section was written to prevent. That is the trap
+`learnings/comparing-paths-symlinks-and-case.md` opens on, and the fix is one call.
+
 ## `selftest` — the authoring gate
 
 The gate is `python conventions.py selftest`. Run it before committing a new step, so the step is
