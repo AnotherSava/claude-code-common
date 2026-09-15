@@ -8,10 +8,13 @@ marker inside a file, so listing the backlog never parses a status:
     <repo>/.claude/memos/<slug>.md        an open memo
     <repo>/.claude/memos/done/<slug>.md   a memo that has been addressed
 
-Each file is a `created:` frontmatter block, an `# H1` title, and optional body:
+Each file is a frontmatter block, an `# H1` title, and an optional body. The
+frontmatter carries `created:`, and optionally a `platform:` binding the memo to
+the box that can act on it — absent means either machine, which almost all are:
 
     ---
     created: 2026-09-12 05:17:22
+    platform: windows
     ---
 
     # Improve memos by storing in separate files
@@ -21,7 +24,8 @@ Each file is a `created:` frontmatter block, an `# H1` title, and optional body:
 Frontmatter carries the sort key rather than the filename, so a future ordering
 (priority, area) is a new field instead of renaming every file on disk.
 
-  memos.py add [--title T] "<text>"   write a new open memo; title derived if absent
+  memos.py add [--title T] [--platform P] "<text>"
+                                      write a new open memo; title derived if absent
   memos.py list [--width N]           numbered, newest-first, wrapped + aligned titles
   memos.py show <n|slug>              one memo in full, title and body
   memos.py path <n|slug>              its absolute path, for editing it directly
@@ -29,7 +33,8 @@ Frontmatter carries the sort key rather than the filename, so a future ordering
   memos.py reopen <n|slug> […]        move them back out of done/ (n indexes done/)
   memos.py drop <n|slug> […]          delete open memos outright
   memos.py prune                      delete every done memo
-  memos.py count                      "<open> open · <done> done"
+  memos.py count                      "<open> open · <done> done", plus how many of the
+                                      open ones this machine's platform cannot act on
 
 The root is the git toplevel, else the current directory. `memos-surface.py`
 imports `open_memos()` from here rather than re-implementing the parse.
@@ -55,6 +60,20 @@ if hasattr(sys.stdout, "reconfigure"):
 TS_FMT = "%Y-%m-%d %H:%M:%S"  # local timezone, 24-hour
 STAMP_LEN = len("2026-09-12 21:51")
 CREATED_RE = re.compile(r"^created:[ \t]*(.+?)[ \t]*$", re.M)
+# A memo may name the platform that can act on it, for the minority whose work simply cannot be
+# done from the other box. Absence means either machine, so an unbound backlog — which is most of
+# it — writes and renders byte-identical to before. `os_label()` in the github-status skill maps
+# the same two boxes and is deliberately not shared: that one returns a display label for a report
+# ("macOS"), this one a stored token that goes in a committed file, and its module is far too heavy
+# to import from the hook path `memos-surface.py` runs on.
+#
+# A platform names a platform, not a box: the day a second mac exists, `macos` means either of
+# them. That is over-broad and visible in the listing rather than silently wrong, and the fix is
+# one entry here plus a separate `host:` field — which stays free precisely because this key is
+# named for what it holds.
+PLATFORMS = ("macos", "windows")
+THIS_PLATFORM = {"darwin": "macos", "win32": "windows"}.get(sys.platform, sys.platform)
+PLATFORM_RE = re.compile(r"^platform:[ \t]*(.+?)[ \t]*$", re.M)
 TITLE_MAX = 90
 # A title ends at the first spaced en/em dash, or where a sentence closes and a new one opens.
 # The lookbehind requires a word character before the period so `hosts/<host>/.env — X` and
@@ -71,11 +90,22 @@ class Memo(NamedTuple):
     title: str
     body: str
     done: bool
+    platform: str
 
     @property
     def stamp(self) -> str:
         """The capture time as shown to a reader — seconds are for sorting only."""
         return self.created[:STAMP_LEN]
+
+    @property
+    def tag(self) -> str:
+        """The marker a listing puts in front of the title, empty for an unbound memo."""
+        return f"[{self.platform}] " if self.platform else ""
+
+    @property
+    def elsewhere(self) -> bool:
+        """Bound to a platform that is not the one running — the work cannot finish here."""
+        return bool(self.platform) and self.platform != THIS_PLATFORM
 
 
 @functools.lru_cache(maxsize=1)
@@ -99,19 +129,32 @@ def _dirs(root: str | None = None) -> tuple[str, str]:
     return base, os.path.join(base, "done")
 
 
+def _field(block: str, pattern: re.Pattern) -> str:
+    """One frontmatter value, or `""` when the key is absent. Keys are read individually rather
+    than through a general parser, so an unrecognised one stays on disk and out of the model."""
+    match = pattern.search(block)
+    return match.group(1) if match else ""
+
+
 def _parse(path: str, done: bool) -> Memo:
     with open(path, encoding="utf-8") as fh:
         raw = fh.read()
-    created, rest = "", raw
+    created, platform, rest = "", "", raw
     if raw.startswith("---\n"):
         end = raw.find("\n---\n", 3)
         if end != -1:
-            match = CREATED_RE.search(raw[4:end])
-            created, rest = (match.group(1) if match else ""), raw[end + 5:]
+            block, rest = raw[4:end], raw[end + 5:]
+            created = _field(block, CREATED_RE)
+            # Folded on the way in, so a hand-edited `platform: Windows` reads as the same binding
+            # `add` would have written. An unknown value is kept verbatim rather than dropped: it
+            # renders in every listing, which is how a typo gets noticed instead of silently
+            # meaning "either machine".
+            platform = _field(block, PLATFORM_RE).casefold()
     lines = rest.lstrip("\n").splitlines()
     head = lines[0] if lines else ""
     title = head[2:].strip() if head.startswith("# ") else head.strip()
-    return Memo(path, os.path.splitext(os.path.basename(path))[0], created, title, "\n".join(lines[1:]).strip("\n"), done)
+    body = "\n".join(lines[1:]).strip("\n")
+    return Memo(path, os.path.splitext(os.path.basename(path))[0], created, title, body, done, platform)
 
 
 def _load(root: str | None = None) -> list[Memo]:
@@ -186,7 +229,7 @@ def _split_title(text: str) -> tuple[str, str]:
     return " ".join(text[:cut if cut > 0 else TITLE_MAX].split()) + "…", text
 
 
-def _write_memo(slug: str, created: str, title: str, body: str) -> str:
+def _write_memo(slug: str, created: str, title: str, body: str, platform: str = "") -> str:
     """Write one memo file into the open backlog — a memo is only ever created open."""
     memo_dir, _ = _dirs()
     os.makedirs(memo_dir, exist_ok=True)
@@ -198,7 +241,12 @@ def _write_memo(slug: str, created: str, title: str, body: str) -> str:
     # sharing these repos never see a whole-file line-ending diff.
     try:
         with open(path, "x", encoding="utf-8", newline="\n") as fh:
-            fh.write(f"---\ncreated: {created}\n---\n\n# {title}\n")
+            # The platform line is written only when set, so an unbound memo is byte-identical to
+            # one written before this field existed.
+            fh.write(f"---\ncreated: {created}\n")
+            if platform:
+                fh.write(f"platform: {platform}\n")
+            fh.write(f"---\n\n# {title}\n")
             if body:
                 fh.write(f"\n{body}\n")
     except FileExistsError:
@@ -206,26 +254,40 @@ def _write_memo(slug: str, created: str, title: str, body: str) -> str:
     return path
 
 
-def add(text: str, title: str | None = None) -> Memo:
+def add(text: str, title: str | None = None, platform: str = "") -> Memo:
     """Create one open memo — the single writer, shared by the CLI and by anything importing this."""
     body = text.strip()
     if not title:
         title, body = _split_title(text)
     if not title:
         sys.exit("memo text required")
+    # Validated here rather than in `cmd_add` because this is the single writer: an importer gets
+    # the same refusal, and a mistyped token never reaches a file every reader would then render
+    # verbatim for months. Refusing before `_write_memo` leaves nothing behind to clean up.
+    platform = platform.casefold()
+    if platform and platform not in PLATFORMS:
+        sys.exit(f"unknown platform {platform!r} — one of: {', '.join(PLATFORMS)}")
     slug = _slug(title, {m.slug for m in _load()})
     created = datetime.datetime.now().strftime(TS_FMT)
-    return Memo(_write_memo(slug, created, title, body), slug, created, title, body, False)
+    return Memo(_write_memo(slug, created, title, body, platform), slug, created, title, body, False, platform)
 
 
 def _take_flag(args: list[str], name: str) -> str | None:
-    """Remove `--name value` from args in place and return the value."""
-    if name not in args:
-        return None
-    i = args.index(name)
-    value = args[i + 1] if i + 1 < len(args) else None
-    del args[i:i + 2]
-    return value
+    """Remove a leading `--name value` pair from args in place and return the value.
+
+    Only the opening run of `--flag value` pairs is searched. Scanning the whole list took the
+    flag word out of a memo's own prose along with the word after it — `memo use --title to name
+    a thing` lost two words, silently — and every flag added widened that. Callers put their
+    flags first, which both shell wrappers and every `add` call site in the skills already do.
+    """
+    i = 0
+    while i + 1 < len(args) and args[i].startswith("--"):
+        if args[i] == name:
+            value = args[i + 1]
+            del args[i:i + 2]
+            return value
+        i += 2
+    return None
 
 
 def _resolve(key: str, memos: list[Memo], noun: str) -> Memo:
@@ -296,12 +358,13 @@ def _move(memo: Memo, directory: str) -> str:
 
 def cmd_add(args: list[str]) -> None:
     title = _take_flag(args, "--title")
+    platform = _take_flag(args, "--platform") or ""
     # Joined but never `.split()` — collapsing whitespace here once turned a memo quoting
     # `tr -d '\n'` into `tr -d ' '`, silently (see learnings/unicode-escapes-in-tool-input.md).
-    memo = add(" ".join(args), title=title)
-    # Echo the stored title: it is the one part that gets normalised, so this is the last
+    memo = add(" ".join(args), title=title, platform=platform)
+    # Echo the stored title and tag: they are the parts that get normalised, so this is the last
     # moment a mangled shell fragment or escape is still visible.
-    print(f"{memo.title}\n{os.path.relpath(memo.path, _root())}")
+    print(f"{memo.tag}{memo.title}\n{os.path.relpath(memo.path, _root())}")
     cmd_count([])
 
 
@@ -329,14 +392,17 @@ def cmd_list(args: list[str]) -> None:
         # `…` means "there is more to read than this line", and `show` prints it. A title that
         # had to be elided already ends in one, so don't append a second and make both meaningless.
         label = memo.title if not memo.body or memo.title.endswith("…") else f"{memo.title} …"
+        # The tag heads the label rather than the prefix, so the stamp column stays flush and the
+        # indent arithmetic below is untouched. A leading bracketed token also looks nothing like
+        # the trailing ` …` that already means "more to read" — two markers, two shapes.
         # subsequent_indent matches the prefix's character width, so continuation lines
         # line up under the title on the first line (textwrap counts the em-dash as 1).
-        print(textwrap.fill(label, width=width, initial_indent=prefix, subsequent_indent=" " * len(prefix)))
+        print(textwrap.fill(f"{memo.tag}{label}", width=width, initial_indent=prefix, subsequent_indent=" " * len(prefix)))
 
 
 def cmd_show(args: list[str]) -> None:
     memo = _select(args)
-    print(f"{memo.stamp} — {memo.title}")
+    print(f"{memo.stamp} — {memo.tag}{memo.title}")
     if memo.body:
         print(f"\n{memo.body}")
 
@@ -379,7 +445,12 @@ def cmd_prune(args: list[str]) -> None:
 
 def cmd_count(args: list[str]) -> None:
     memos = _load()
-    print(f"{sum(1 for m in memos if not m.done)} open · {sum(1 for m in memos if m.done)} done")
+    # A subset of the open count, not a filter of it — nothing anywhere hides a memo bound
+    # elsewhere. It is said here because `count` is printed alone as the /memo skill's Context
+    # line and after every mutating command, where no listing is on screen to carry the tags.
+    elsewhere = sum(1 for m in memos if not m.done and m.elsewhere)
+    note = f" ({elsewhere} not for {THIS_PLATFORM})" if elsewhere else ""
+    print(f"{sum(1 for m in memos if not m.done)} open · {sum(1 for m in memos if m.done)} done{note}")
 
 
 def _refuse_if_format_unadopted() -> None:

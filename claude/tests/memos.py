@@ -15,6 +15,10 @@ directory entry disagree.
                    generated name reopens a memo that already exists.
   the undo hint    `_move` re-derives the slug against the destination, so the one a memo arrives
                    with is not always the one it ends up under. The hint must name the latter.
+  platform binding An optional `platform:` marks the memo a box cannot act on. It marks and never
+                   filters, so a number still indexes what a listing showed; an unbound memo must
+                   write the bytes it wrote before the field existed; and a value that reached the
+                   file by hand renders rather than being read as "either machine".
 
 The extension case is the one a regression would reach first: `_move` builds its `taken` set from
 the destination directory alone, which is only correct while `_load` can see every file in there.
@@ -49,6 +53,11 @@ _spec.loader.exec_module(memos)
 
 FAILURES = []
 
+# What a memo must name to be actionable here, and the one it must name not to be. Read off the
+# module rather than hard-coded, so the same assertions hold on the mac and on the Windows box.
+HERE = memos.THIS_PLATFORM
+OTHER = next(p for p in memos.PLATFORMS if p != HERE)
+
 
 def check(name: str, got, want=True) -> None:
     if got != want:
@@ -75,11 +84,17 @@ class Backlog:
                      "1\tmemos-directory\tapplied\t2026-09-01\tfixture, already in the target shape\n")
 
     def write(self, name: str, title: str, created: str = "2026-09-01 10:00:00", done: bool = False,
-              body: str = "PRECIOUS BODY") -> None:
-        """Place a memo file directly, so its stamp — and so the listing order — is chosen, not raced."""
+              body: str = "PRECIOUS BODY", platform: str = "") -> None:
+        """Place a memo file directly, so its stamp — and so the listing order — is chosen, not raced.
+
+        The `platform` argument emits the extra frontmatter line only when set, so every case that
+        predates the field still writes the exact bytes it did before — which is what makes those
+        cases a regression guard rather than a rewrite.
+        """
         path = os.path.join(self.done_dir if done else self.open_dir, name)
+        binding = f"platform: {platform}\n" if platform else ""
         with open(path, "w", encoding="utf-8", newline="\n") as fh:
-            fh.write(f"---\ncreated: {created}\n---\n\n# {title}\n\n{body}\n")
+            fh.write(f"---\ncreated: {created}\n{binding}---\n\n# {title}\n\n{body}\n")
 
     def fill(self, count: int, prefix: str = "Memo") -> None:
         """`count` memos, newest first when listed — number n is `<prefix> n`."""
@@ -233,6 +248,75 @@ def main() -> int:
         check("open_memos returns only the open half, newest first",
               [m.title for m in memos.open_memos(b.root)],
               ["Open two, uppercase extension", "Open one"])
+
+        # --- platform binding: a marker on the minority, and a filter on nothing ------------------------
+        # Every assertion below is written against `memos.THIS_PLATFORM` rather than a literal, so
+        # the suite means the same thing on the mac and on the Windows box.
+        check("this machine's platform is one memos.py names, so the cases below mean what they say",
+              HERE in memos.PLATFORMS)
+
+        b = Backlog(stack)
+        b.run("add", "--title", "Unbound", "no binding here")
+        check("an unbound memo writes the frontmatter it always did",
+              b.body("unbound.md").startswith("---\ncreated: "))
+        check("and carries no platform line at all", "platform:" not in b.body("unbound.md"))
+        check("and the count says nothing about platforms", b.run("count")[1], "1 open · 0 done")
+        check("and the listing shows a bare title", " — Unbound" in b.run("list")[1])
+
+        b = Backlog(stack)
+        rc, out, err = b.run("add", "--platform", OTHER, "--title", "Bound", "needs the other box")
+        check("add writes the binding it was given", (rc, f"platform: {OTHER}\n" in b.body("bound.md")), (0, True))
+        check("and echoes the stored tag beside the title", out.splitlines()[0], f"[{OTHER}] Bound")
+        check("show marks it", f"[{OTHER}] Bound" in b.run("show", "1")[1])
+        check("list marks it after the stamp, not before", f" — [{OTHER}] Bound" in b.run("list")[1])
+        check("count names how many this box cannot act on",
+              b.run("count")[1], f"1 open · 0 done (1 not for {HERE})")
+
+        b = Backlog(stack)
+        b.run("add", "--platform", OTHER.upper(), "--title", "Folded", "x")
+        check("a value is folded on the way in", f"platform: {OTHER}\n" in b.body("folded.md"))
+
+        b = Backlog(stack)
+        rc, out, err = b.run("add", "--platform", "freebsd", "--title", "Unknown", "x")
+        check("an unknown platform is refused", (rc, "unknown platform" in err), (1, True))
+        check("and nothing is written", b.names(), [])
+
+        # A value that reached the file by hand is rendered, never silently treated as unbound —
+        # a typo has to be visible somewhere, and the listing is where it gets read.
+        b = Backlog(stack)
+        b.write("typo.md", "Hand-edited", platform="windwos")
+        check("an unrecognised value on disk still renders", "[windwos] Hand-edited" in b.run("list")[1])
+        check("and counts against this box", f"(1 not for {HERE})" in b.run("count")[1])
+
+        b = Backlog(stack)
+        b.write("bound-one.md", "Bound one", platform=OTHER)
+        b.run("done", "1")
+        b.run("reopen", "1")
+        check("the binding survives a close and a reopen",
+              f"platform: {OTHER}\n" in b.body("bound-one.md"))
+
+        # Nothing filters, so nothing can desync: the number a listing shows is the number `done`
+        # resolves, whatever the tags say.
+        b = Backlog(stack)
+        b.write("plain-a.md", "Plain A", created="2026-09-01 10:00:00")
+        b.write("tagged.md", "Tagged", created="2026-09-02 10:00:00", platform=OTHER)
+        b.write("plain-b.md", "Plain B", created="2026-09-03 10:00:00")
+        check("a bound memo is listed in place, not hidden", len(b.run("list")[1].splitlines()), 3)
+        b.run("done", "2")
+        check("and a number still indexes what was shown", b.titles(done=True), ["Tagged"])
+
+        b = Backlog(stack)
+        b.write("here.md", "Actionable here", platform=HERE)
+        check("a memo bound to this box is not counted as elsewhere",
+              b.run("count")[1], "1 open · 0 done")
+        check("open_memos carries the binding through, which the status-bar hook reads",
+              [(m.platform, m.elsewhere) for m in memos.open_memos(b.root)], [(HERE, False)])
+
+        # --- a flag word inside a memo's own prose is not a flag ----------------------------------------
+        b = Backlog(stack)
+        b.run("add", "use", "--title", "to", "name", "a", "memo")
+        check("a flag after the text is left in the memo",
+              b.titles(), ["use --title to name a memo"])
 
     if FAILURES:
         print(f"memos tests: {len(FAILURES)} case(s) failed\n")

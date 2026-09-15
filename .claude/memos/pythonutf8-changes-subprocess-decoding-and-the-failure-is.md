@@ -1,5 +1,6 @@
 ---
 created: 2026-09-13 11:21:32
+platform: windows
 ---
 
 # PYTHONUTF8 changes subprocess decoding, and the failure is invisible

@@ -1,5 +1,6 @@
 ---
 created: 2026-09-13 04:41:44
+platform: windows
 ---
 
 # Share the three macOS-only capture guards with Windows, and require parity

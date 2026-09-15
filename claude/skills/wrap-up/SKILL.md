@@ -138,6 +138,11 @@ reads it, on whichever box they happen to be on, while the machine that can act 
 reachable through the dashboard relay. Offered as a memo and corrected on 2026-09-13 and again on
 2026-09-15, so recommend the ping.
 
+**A `--platform` tag does not soften that.** The flag exists for a memo that was going into the
+backlog anyway and happens to need one box — not as a way to park work a live session over there
+could take now. Route when there is someone to route to; tag when there is not, and the memo was
+already the right home.
+
 **Then sequence the send, because routing it is only half the decision.** A ping whose action
 depends on this side's work — a commit to pull, a change still uncommitted here — waits for step
 7's push; one the peer can act on immediately goes out in step 6 with the rest of the dispositions.
@@ -169,7 +174,8 @@ Then stop and wait. This is a gate: nothing is committed until the list is dispo
   commit in step 7. If the answer settles a decision without changing any code, leave recording
   it to `/reflect`, which step 7 runs anyway.
 - **memo** writes one file per item:
-  `python ~/.claude/skills/memo/memos.py add --title "<short title>" "<the detail>"`.
+  `python ~/.claude/skills/memo/memos.py add --title "<short title>" "<the detail>"`, adding
+  `--platform macos|windows` only when the detail itself names the box the work needs.
   Write each one to stand on its own, naming the thing and the concrete next step. The session
   it came from is about to be cleared, so a memo that only gestures at the conversation
   ("fix the thing we discussed") will be unreadable in three weeks. Title it as a sentence that

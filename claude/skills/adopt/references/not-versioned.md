@@ -41,7 +41,11 @@ session that followed one and a session that broke it, so there is nothing for a
 - **Best-practice adoption is an offer** — made once per project, and recorded in project memory when
   declined.
 - **Memo capture etiquette** — offer rather than impose, never record silently, never start the idea,
-  surface at session start, task completion and commit.
+  surface at session start, task completion and commit, and tag `platform:` only when the memo's own
+  body says the work needs that box rather than because of where it was captured. The *format* is
+  versioned (v1 `memos-directory`, which is why widening it is not a convention sitting in neither
+  place), but nothing on disk distinguishes a session that judged that call well from one that did
+  not — an untagged memo and a memo that should have been tagged are the same file.
 - **Excluding `node_modules/`** from every file and content search.
 - **Consulting the official Anthropic plugin and skill repositories** before reinventing one.
 - **The preamble's authoring rules** — ask clarifying questions before implementing, never add

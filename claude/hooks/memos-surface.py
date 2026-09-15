@@ -20,7 +20,9 @@ Three modes, selected by argv[1]:
   "on-prompt"    UserPromptSubmit hook. Clears the state (the bar reminder is
       done once the user acts). If the message is just a number N — or
       "memo N" / "start N" / "do N" / "pick N" — injects context telling the
-      assistant to start memo N, bound to that very prompt.
+      assistant to start memo N, bound to that very prompt. A memo carrying a
+      `platform:` this machine is not gets an extra clause: do the portable
+      part here and route the rest to the live session on that box.
 
 State lives per-session (keyed by session_id) in the system temp dir. Only
 session-start reads the backlog, and it imports `memos.py` to do it rather
@@ -82,7 +84,12 @@ def _open_memos(payload: dict) -> list[dict]:
     # them swallowed: a backlog that fails to render is a missing reminder, never a failed hook.
     try:
         import memos
-        return [{"slug": m.slug, "title": m.title} for m in memos.open_memos(_repo_root(base))]
+        # The `tag` and `elsewhere` fields are resolved once, here, and stored. Deciding which platform this
+        # is belongs on the session-start path, which already forks git and imports this module —
+        # the status line re-runs every couple of seconds and must read one small file and nothing
+        # else (see skills/hooks/references/performance.md).
+        return [{"slug": m.slug, "title": m.title, "tag": m.tag, "elsewhere": m.elsewhere}
+                for m in memos.open_memos(_repo_root(base))]
     except Exception:
         return []
 
@@ -126,9 +133,18 @@ def statusline(payload: dict) -> None:
         return
     rows = [f"Memos ({len(memos)}) - pick one or start fresh:"]
     for i, memo in enumerate(memos[:MAX_SHOWN], 1):
-        rows.append(f" {i}. {memo.get('title', '')[:90]}")
+        # Truncate the title first, then prepend the tag — the other order spends the budget on
+        # the marker and can cut the very thing the marker is about.
+        rows.append(f" {i}. {memo.get('tag', '')}{memo.get('title', '')[:90]}")
     if len(memos) > MAX_SHOWN:
-        rows.append(f" +{len(memos) - MAX_SHOWN} more - /memo")
+        # Count only what is behind the `+N`. The rows above carry their own tags and are already
+        # on screen, so including them here would be the duplicate signal to avoid — and without
+        # this the bar is the one surface where a binding never shows at all, since the backlog is
+        # newest-first and a bound memo is usually not among the newest three.
+        hidden = memos[MAX_SHOWN:]
+        elsewhere = sum(1 for m in hidden if m.get("elsewhere"))
+        note = f" ({elsewhere} not for this machine)" if elsewhere else ""
+        rows.append(f" +{len(hidden)} more{note} - /memo")
     print("\n".join(rows))
 
 
@@ -144,12 +160,27 @@ def on_prompt(payload: dict) -> None:
     if not 1 <= n <= len(memos):
         return
     memo = memos[n - 1]
+    # No numeric fallback. This state was written at session start, while `memos.py show <n>` and
+    # `done <n>` resolve a number against the live listing at command time — so any add or close
+    # since then makes the bar's number name a different memo, and `done` would move the wrong
+    # file. A slug is stable; without one there is nothing safe to inject.
+    slug = memo.get("slug")
+    if not slug:
+        return
     context = (
         f'The user selected memo #{n} from the status-bar backlog: "{memo.get("title", "")}". Read it in '
-        f'full with `python ~/.claude/skills/memo/memos.py show {memo.get("slug", n)}` — the title is only '
+        f'full with `python ~/.claude/skills/memo/memos.py show {slug}` — the title is only '
         "its first line — then start working on it now as a fresh task. Once it's genuinely done, run "
-        f'`python ~/.claude/skills/memo/memos.py done {memo.get("slug", n)}` to move it into done/.'
+        f'`python ~/.claude/skills/memo/memos.py done {slug}` to move it into done/.'
     )
+    if memo.get("elsewhere"):
+        context += (
+            " This memo is tagged for the other platform, so the work it names cannot be finished on this "
+            "machine. Do whatever part of it is portable here, then route the rest to the live session on "
+            "that box as described in `~/.claude/memory/peer_messaging.md` — leaving it in the backlog just "
+            "defers it to whoever next reads it, on whichever machine they happen to be on. Close it only "
+            "if the portable part was the whole memo."
+        )
     print(json.dumps({
         "hookSpecificOutput": {"hookEventName": "UserPromptSubmit", "additionalContext": context},
     }))
