@@ -144,6 +144,7 @@
 - [A fixture must exceed the cap](feedback_fixture_must_exceed_the_cap.md) {always} — sized below a threshold it never reaches the branch and still reports success; count the caps before picking the size
 - [User GitHub account](user_github_account.md) {always} — handle is `AnotherSava`; use to filter "my repos" vs third-party clones
 - [Where supplied screenshots land](user_screenshot_location.md) {always} — "see the screenshot" with nothing attached means the newest PNG in `~/Desktop`, or `~/CropStage` on Windows; go look first
+- [Memos go through the wrapper and the skill](user_memo_access_paths.md) — `memo` calls only `add`/`list`, everything else comes via `/memo`; `memos.py` is never typed by hand, so weight wrapper and SKILL.md over CLI ergonomics
 - [Always report images with a contact sheet](feedback_image_report_always.md) {always} — reporting anything about screenshots means building the HTML sheet and linking it; prose and transcript images are not substitutes
 - [Post-iteration cleanup audit](feedback_post_iteration_cleanup.md) {always} — before committing after a debug/optimize session, remove changes from disproven theories; don't leave cruft
 - [Verify before justifying legacy behavior](feedback_verify_before_justifying.md) {always} — if explaining why old code/docs exist (especially defending keeping it), check the source before speculating; defensive guesses preserve cruft
