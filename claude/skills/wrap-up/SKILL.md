@@ -25,7 +25,7 @@ neither will a context that has been compacted. The transcript on disk still hol
 ## Context
 - Repo root: !`git rev-parse --show-toplevel 2>/dev/null || pwd`
 - Uncommitted changes: !`git status --short`
-- Pending memos: !`python ~/.claude/skills/memo/memos.py list --width 120 2>/dev/null || echo "(none)"`
+- Pending memos: !`python ~/.claude/skills/memo/memos.py list --width 120 2>&1 || echo "(the backlog could not be read — the line above says why; it is NOT an empty backlog)"`
 - Session digest: !`python ~/.claude/skills/wrap-up/scripts/session_scan.py`
 
 ## Working directory
