@@ -419,3 +419,42 @@ but it collapses and trims exactly as `normal` does; only `pre`/`pre-wrap` prese
 Corollary for reviews: a comment justifying a change by a rendering effect is worth one measurement before it
 is believed. This one shipped into a code comment, a test and a committed doc before anyone checked, and all
 three had to be reverted — the change was inert, so the only thing it did was assert something false.
+
+## Reserving a stable width without a magic number — stack the ghosts in one grid cell
+
+A value that changes length moves everything after it. The usual fix is a `min-width` in px, which is a number
+nothing checks against the string it is meant to hold, and which is wrong on the other platform because the
+same CSS resolves a different font there.
+
+Stack the candidates in a single grid cell instead and hide all but one. The cell sizes to the widest child,
+so the reservation *is* the string:
+
+```css
+.measured { display: inline-grid; }
+.measured > * { grid-area: 1 / 1; }   /* every child in the same cell */
+.ghost { visibility: hidden; }        /* reserves width, takes no clicks, out of the a11y tree */
+```
+
+```html
+<span class="measured">
+  <span class="ghost">Week average:</span>
+  <span class="ghost">This week:</span>
+  <span>This week:</span>
+</span>
+```
+
+Two uses, and the second is the one worth knowing:
+
+- **A closed set of strings** — a label with two or three variants. Ghost *all* of them and nothing has to know
+  which is longest, a judgement that silently rots when a fourth is added or the font changes.
+- **An open set** — a formatted number. Ghost the widest string the formatter can produce (`168h`, `999M`), and
+  pair it with `font-variant-numeric: tabular-nums`, or the ghost is only accidentally representative: in Segoe
+  UI a `1` is 6px against 9px for a `4`, so a hidden `168h` is *narrower* than a real `144h` and the reservation
+  fails on exactly the data it was meant to hold. A value that outgrows its ghost still renders in full — the
+  cell grows — so the failure mode is the un-reserved behaviour, not clipping.
+
+`visibility: hidden` rather than `opacity: 0`, which still paints, or `position: absolute`, which removes the
+child from the sizing it exists to do.
+
+Measured against the alternative on one header: pinning three values by px needed four numbers derived from a
+font-metrics pass, and every one of them was a Windows number with no macOS equivalent.

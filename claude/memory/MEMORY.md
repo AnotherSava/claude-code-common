@@ -137,4 +137,5 @@
 - [Message a sibling agent](peer_messaging.md) — `ListAgents` + `SendMessage` reach other projects' live sessions and need no approval to send; a message starts a real turn there, so the bar is high
 - [Sweep the old wording](feedback_sweep_the_old_wording.md) — retiring a rule: grep the old behaviour's words, not the new rule's, then check the lists that encode it
 - [Guard on the version, not the artifact](feedback_guard_on_version_not_artifact.md) — a tool reading a format defined elsewhere checks the adopted version, not whether the old artifact is still there
+- [Lead with the rule, not the value](feedback_lead_with_the_rule.md) — a request naming a value, answered with a rule: say the rule in the FIRST sentence or the number reads as hardcoded
 - [Read upward from the match](feedback_read_upward_from_the_match.md) — a grep shows what follows a definition, never what precedes it; read above before calling a value unexplained

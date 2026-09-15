@@ -359,3 +359,25 @@ pub fn get_config(app: AppHandle) -> Config {
 ```
 
 The frontend gets a default config on the first call, then receives the real config via the `config_updated` event once setup finishes and the config watcher fires. If your type doesn't implement `Default`, return `Option<T>` and handle `None` in the frontend.
+
+## A configured `minWidth`/`minHeight` constrains the user, not `set_size`
+
+Distinct from the OS floor above, which clamps everything. The `minWidth`/`minHeight` declared on a window in
+`tauri.conf.json` reach Win32 as `WM_GETMINMAXINFO`'s `ptMinTrackSize`, and that message governs **user-driven
+sizing** — a drag on an edge, a maximize. A programmatic `set_size` goes straight past it, and the window ends
+up smaller than its own stated minimum.
+
+That is useful rather than a bug: it is how a layout's real break width gets measured without touching the
+mouse. Drive the window down through the minimum from code, capture at each step, and find the first width
+where nothing is clipped — then set the minimum from that.
+
+Read the constraint back to confirm it was applied at all; nothing else surfaces it.
+
+```powershell
+# WM_GETMINMAXINFO = 0x0024; fills ptMinTrackSize with the enforced minimum, in PHYSICAL px
+[void][MM]::SendMessage($hwnd, 0x0024, [IntPtr]::Zero, [ref]$mmi)
+$mmi.ptMinTrackSize   # 1522 x 716 == 1000 x 440 logical at 150% DPI
+```
+
+Divide by the window's DPI scale before comparing against the logical numbers in `tauri.conf.json`, and make
+the probe per-monitor DPI aware (`SetProcessDpiAwarenessContext(-4)`) or every geometry it reads is virtualized.

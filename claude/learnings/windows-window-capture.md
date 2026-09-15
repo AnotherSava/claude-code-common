@@ -239,3 +239,27 @@ Two related notes for driving a menu this way:
 - A synthetic right-click on a tray icon opens the menu only *sometimes*. Poll-after-one-click never
   succeeds when the click did nothing; **re-click** in a loop (up to ~6 attempts, ~900 ms apart) and
   poll after each.
+
+## A window hanging off a display comes back opaque black, at full size
+
+A window-surface capture (`PrintWindow`, and anything built on it) reads what the compositor rendered, which is
+why it can shoot a window that is occluded or behind another. What it cannot do is render the part that is off
+the edge of a display: that returns **flat black at full alpha**, and the bitmap is still the full window size.
+So the file looks complete, the dimensions are right, and a fifth of the picture is missing.
+
+Measured: a 1520pt-wide window at x=3989 on a 1440-wide portrait monitor produced a 1522px frame whose last
+239px were a black band where the right-hand gutter and two controls should have been. Nothing objected — not
+the capture, not the PNG save, not a figure-manifest check that counts files rather than looking at them.
+
+Two things follow for any capture script:
+
+- **Place the window on a display that can hold it before sizing it.** A window remembers where it was last, so
+  this cannot be left to luck — and the failure is invisible on the machine where it happens to be on the big
+  monitor that day.
+- **Assert on the result.** Sample a column just inside the far edge over the vertical middle; an opaque
+  `0,0,0` run there is unrendered surface, because window furniture is essentially never pure black (a dark
+  theme's own background is nearer `#1c1c1e`). It costs a few milliseconds and is the only thing standing
+  between a silently truncated frame and a committed one.
+
+macOS does not share the trap: `screencapture -l<id>` reads the window's backing store and returns the full
+width whatever is on screen.
