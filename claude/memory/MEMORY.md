@@ -139,3 +139,6 @@
 - [Guard on the version, not the artifact](feedback_guard_on_version_not_artifact.md) — a tool reading a format defined elsewhere checks the adopted version, not whether the old artifact is still there
 - [Lead with the rule, not the value](feedback_lead_with_the_rule.md) — a request naming a value, answered with a rule: say the rule in the FIRST sentence or the number reads as hardcoded
 - [Read upward from the match](feedback_read_upward_from_the_match.md) — a grep shows what follows a definition, never what precedes it; read above before calling a value unexplained
+- [Mark the container, not every item](feedback_mark_the_container_not_every_item.md) — a scope marker says where the work must happen, not that every item inside is bound
+- [Show the artifact with the ask](feedback_show_the_artifact_with_the_ask.md) — a choice between artifacts gets the passage that decides each, not your one-line reading of them
+- [A fixture must exceed the cap](feedback_fixture_must_exceed_the_cap.md) — sized below a threshold it never reaches the branch and still passes; count the caps before picking the size
