@@ -93,6 +93,21 @@ arriving as one argument. Pass flags as real positional arguments (`probe --lib 
 with `"$@"`), and treat a row whose exit code is not one the tool documents as a broken
 probe rather than a finding.
 
+**With `grep` the same bug produces a clean result rather than an error**, which is the
+worst place for it to land: a security or confidentiality scan. `grep -rl pattern $FILES`
+in zsh hands grep one argument — every path concatenated — so grep reports `No such file
+or directory` on **stderr** and matches nothing. Suppress stderr, as a scan looping over
+many patterns naturally does, and the whole run prints a confident sequence of zeroes.
+Measured 2026-09-15: three consecutive passes over 170 files reported no findings while
+reading nothing, and a `2>/dev/null` on the same line hid the only evidence.
+
+The general defence is not a better pattern. **Grep for a string you have already
+confirmed is present, and require a non-zero count before believing any absence** — a
+positive control costs one line and is the only thing that distinguishes "clean" from
+"never read a byte". `xargs -a <file>` is the same trap wearing a different hat: it is a
+GNU extension, BSD `xargs` on macOS rejects it outright, and the error goes to the same
+suppressed stderr.
+
 **Unquoted `[...]` in a path is a glob, and in zsh it is fatal or silent depending on
 where it lands.** This bites hardest on Next.js dynamic routes, whose directory names
 are literally bracketed:

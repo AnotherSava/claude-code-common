@@ -317,6 +317,7 @@ The index below and `memory/MEMORY.md` point at the same files from different di
 - [Fix the class, not the instance](~/.claude/memory/feedback_fix_the_class_not_the_instance.md) — a defect in one member of an already-enumerated set is a defect in the set; find the list and check all of it
 - [Message a sibling agent](~/.claude/memory/peer_messaging.md) — `ListAgents` + `SendMessage` reach the other projects' live sessions and need no approval to send; a message starts a real turn there, so never send one to chat, confirm or thank. **An empty `ListAgents` does NOT mean unreachable** — it is local-only by design, and cross-machine goes through the dashboard relay.
 - [Sweep the old wording](~/.claude/memory/feedback_sweep_the_old_wording.md) — retiring a rule: grep the old behaviour's words, not the new rule's, then check the lists and gate enumerations that encode it with no words at all
+- [Guard on the version, not the artifact](~/.claude/memory/feedback_guard_on_version_not_artifact.md) — a tool reading a format defined elsewhere checks the adopted version; sniffing the old artifact rots at the next migration
 
 ## Memos
 
