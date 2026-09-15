@@ -1,5 +1,30 @@
 # Pulling onto a dirty tree, and judging an old stash
 
+## Read the procedure out of the remote, because a behind checkout's docs are behind too
+
+The rule to consult `~/.claude/learnings/` before diagnosing anything assumes the file you reach is
+current. That directory is a symlink into the dotfiles repo, so a stale checkout of *that* repo makes
+every learning on the machine stale at once — and the failure is silent, because a missing file and a
+subject nobody has written up are the same absence. A file that does not exist locally yet is exactly
+the one a behind-and-dirty tree needs.
+
+A fetch is enough to read it; no merge required:
+
+```bash
+git fetch -q
+git show @{upstream}:claude/learnings/<topic>.md
+git diff --name-status HEAD @{upstream} -- claude/learnings   # what else moved or arrived
+```
+
+Measured 2026-09-15: a checkout 21 commits behind had no local copy of this file at all, while
+upstream's copy already held the path-scoped-stash recipe the situation called for. Reading it first
+turned the pull into following a procedure rather than deriving one.
+
+Whoever is behind cannot read this section locally either, so it only helps from the second time
+onward — which is why the habit has to generalize past this file: **when a tree is behind, its
+documentation is behind by the same commits.** Any doc consulted while catching up — a runbook, a
+README, a migration note — is read from `@{upstream}`, not from the working tree.
+
 ## Fast-forwarding with uncommitted work in the way
 
 Git refuses to fast-forward over a locally-modified file that the incoming commits also
