@@ -73,8 +73,22 @@ scope: repo           # or: machine
 script: node-engines-declared.py    # optional; omit for judgement-only
 supersedes: 3         # optional; this step corrects step 3, which was wrong
 retracted: 9          # optional; step 9 reverses this convention
+affects: memo         # optional; tools whose stored data this reshapes, comma-separated
 ---
 ```
+
+**`affects:` is how a tool refuses to read a format the repo has not adopted.** Name the tool whose
+stored data the step changes, and that tool can ask `conventions.behind_for(root, "<tool>")` for the
+one number it needs: is this repo at or above the newest version reshaping me? v1 declares
+`affects: memo`, and `memos.py` exits rather than list an empty backlog in a repo whose thirty-three
+items are still in the file v1 replaces, or write a new memo beside it.
+
+Declare it whenever a step moves, renames or re-shapes something another script reads — and do not
+declare it for a step that only adds a file nothing yet consumes. The alternative a tool reaches for
+first is sniffing the old artifact ("does `memos.md` still exist?"); that answers for one migration
+and has to be rewritten for the next, while a version comparison keeps working when the format moves
+again. The cost is real and worth naming: a tool guarded this way refuses in a conformant repo that
+simply has no record yet, which is the intended reading — unrecorded is not the same fact as fine.
 
 A `scope: repo` step records one line, into the committed `.claude/conventions.tsv`. A `scope: machine`
 step splits: an `applied` line goes into both that file, which travels and says the repo decided this,

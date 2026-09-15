@@ -71,6 +71,7 @@ STEP_TIMEOUT = 120
 
 FIELD_RE = re.compile(r"^([A-Za-z_][A-Za-z0-9_-]*):[ \t]*(.*?)[ \t]*$")
 DATE_RE = re.compile(r"^\d{4}-\d{2}-\d{2}$")
+TOOL_RE = re.compile(r"^[a-z0-9-]+$")
 # ` #` opens a trailing comment, as it does in the YAML this block is written to look like —
 # `references/authoring-a-step.md` documents the frontmatter with exactly such comments, and a
 # reader that kept them would turn `version: 7   # allocated max+1` into a step with no version.
@@ -104,6 +105,7 @@ class Step(NamedTuple):
     declared_script: str      # the frontmatter value, "" when absent — selftest asserts it exists
     retracted: int | None
     supersedes: int | None
+    affects: tuple[str, ...]  # tools whose stored data this step reshapes — see `behind_for`
 
 
 class Record(NamedTuple):
@@ -183,8 +185,12 @@ def _step_from(path: str) -> Step:
         raise StepError(f"{name} carries both retracted: and supersedes:; a reversal and a correction are different things")
     declared = data.get("script", "")
     candidate = os.path.join(STEPS_DIR, declared or f"{slug}.py")
+    affects = tuple(t.strip() for t in data.get("affects", "").split(",") if t.strip())
+    for tool in affects:
+        if not TOOL_RE.match(tool):
+            raise StepError(f"{name} declares affects: {tool!r}; a tool name is lowercase letters, digits and dashes")
     return Step(version, slug, title, scope, path, candidate if os.path.isfile(candidate) else None,
-                declared, retracted, supersedes)
+                declared, retracted, supersedes, affects)
 
 
 def load_steps() -> list[Step]:
@@ -342,6 +348,41 @@ def adopted_through(steps: list[Step], ledger: Ledger) -> int:
             break
         through = step.version
     return through
+
+
+def behind_for(root: str, tool: str) -> tuple[int, int, str] | None:
+    """`(adopted_through, required, title)` when this repo has not adopted the newest step
+    reshaping `tool`'s stored data, else None.
+
+    A tool that reads a format this repo's conventions define cannot trust that format until the
+    repo has adopted the step that last changed it. Asking "does the old artifact still exist?"
+    is the wrong question — it answers for one migration and has to be rewritten for the next —
+    so a step declares `affects:` instead and the tool asks for a number.
+
+    Real case: v1 turns `.claude/memos.md` into `.claude/memos/`, and `memos.py` reads only the
+    new layout. In a repo that has not adopted v1, `list` reports an empty backlog while
+    thirty-three items sit in the old file, and `add` writes a memo into a directory beside it,
+    producing the half-migrated state v1 then refuses to resolve on its own.
+
+    None means "go ahead", and it is returned for a repo this system does not govern — no `.git`,
+    a third-party origin, an `exempt` line — because a tool must not refuse to work in a
+    directory that was never going to hold a record. Anything that stops this from reaching an
+    answer raises instead, so a caller can tell a pass from a question never put.
+    """
+    if not is_repo(root) or is_third_party(root) is not None:
+        return None
+    steps = load_steps()
+    wanted = [s for s in steps if tool in s.affects and s.retracted is None]
+    if not wanted:
+        return None
+    ledger = read_ledger(root)
+    if ledger.error or ledger.exempt:
+        return None
+    required = max(s.version for s in wanted)
+    through = adopted_through(steps, ledger)
+    if through >= required:
+        return None
+    return through, required, next(s.title for s in wanted if s.version == required)
 
 
 def pending_steps(steps: list[Step], ledger: Ledger) -> list[Step]:

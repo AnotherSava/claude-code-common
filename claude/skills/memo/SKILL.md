@@ -42,6 +42,8 @@ Body prose, as long as it needs to be.
 
 The `memos.py` helper owns the timestamp, the slug, the title derivation and the rendered listing — you hand-format none of them. Frontmatter carries the sort key rather than the filename, so adding a future ordering (priority, area) is a new field instead of renaming every file.
 
+**Every command here refuses in a repo that has not adopted this layout**, naming the version and pointing at `/adopt`. That layout is a convention the dotfiles repo defines and versions, so a repo below the newest version affecting `memo` is one where every command would be wrong in both directions: a listing reports an empty backlog while the old file holds items, and an `add` writes a memo beside it and leaves the migration half done. Run `/adopt` in that repo and re-run the command — in a repo already in the right shape it records the version in seconds and changes nothing. A refusal is never something to work around by writing the file by hand.
+
 ## Process
 
 ### If `$ARGUMENTS` is non-empty — record a memo

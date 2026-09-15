@@ -3,6 +3,7 @@ version: 1
 slug: memos-directory
 title: memos.md becomes a memos/ directory
 scope: repo
+affects: memo
 ---
 
 # memos.md becomes a memos/ directory
