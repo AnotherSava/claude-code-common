@@ -5,9 +5,6 @@ __pycache__/
 # Root-anchored so it only matches the repo root, never a committed tmp/ deeper in the tree.
 /tmp/
 
-# Machine-local project config (keep .claude/memory/ tracked)
-.claude/settings.local.json
-
 # Per-host infrastructure inventories. THIS REPO IS PUBLIC. A manifest names every hostname on a box, the
 # exact string each site emits to prove the right app is answering, and which routes are deliberately hidden
 # and why — no credentials, which is what makes it easy to publish by accident. Nothing is meant to live here:
