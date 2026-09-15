@@ -103,7 +103,7 @@ into every repo, and the ones that are checkable already belong to `check-instal
 - **The contents of the global excludes file itself**, located through
   `git config --global core.excludesfile` — a step compares project gitignores against it and never edits
   it.
-- **Global memory lives in `~/.claude/memory/`** with a matching index entry in `CLAUDE.md`, whose link
-  path differs from the one in `memory/MEMORY.md`.
+- **Global memory lives in `~/.claude/memory/`**, indexed once in `memory/MEMORY.md`. `CLAUDE.md`'s list
+  is generated from the entries marked `{always}` there and is not edited by hand.
 - **Doppler holds ad-hoc secrets** — all ten project slots are taken, so a new app gets a config in an
   existing shard rather than a project of its own.

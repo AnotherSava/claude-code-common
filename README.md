@@ -835,12 +835,18 @@ Like the `python` symlink above, this lives outside the repo and is not restored
 
 ## Memory
 
-Two complementary stores hold accumulated cross-session knowledge, both surfaced
-to the harness for auto-recall:
+Two complementary stores hold accumulated cross-session knowledge, and they reach
+a session by different routes:
 
 - **Global memory** (`claude/memory/`, deployed to `~/.claude/memory/` via
   symlink) — cross-project preferences, feedback, and references meant to apply
-  everywhere.
+  everywhere. `claude/memory/MEMORY.md` indexes every one of them and is the only
+  global index edited by hand; nothing loads it on its own. An entry marked
+  `{always}` there is also rendered into `CLAUDE.md` by
+  `claude/scripts/render-memory-index.py`, and CLAUDE.md *is* injected into every
+  session — so the marker is what decides whether a memory fires unprompted or
+  merely stays findable. A commit check re-renders the block and fails on any
+  difference, which is what keeps the two from drifting apart as they once did.
 - **Project memory** — facts specific to a single repo. Claude Code writes these
   to a machine-local cache (`~/.claude/projects/<path-encoded>/memory/`) that is
   **not** version controlled, so the knowledge is invisible from other machines

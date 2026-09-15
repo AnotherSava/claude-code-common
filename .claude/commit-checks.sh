@@ -55,6 +55,13 @@ run "memos.py" python3 claude/tests/memos.py
 # site serving a neighbour's application with every conventional check green.
 run "ingress-lint.py" python3 claude/tests/ingress-lint.py
 
+# The global memory index. `claude/memory/MEMORY.md` is authored; CLAUDE.md's list is generated from
+# it, and CLAUDE.md is injected into every session on both machines. Hand-maintaining the two is what
+# this replaced: they had drifted to 68 entries against 141, sharing 16, and nothing said so. The
+# check also asserts coverage both ways, because a memory indexed nowhere is one nothing can surface
+# and an entry whose file is gone is a link to nothing — neither shows up in `git status`.
+run "memory index" python3 claude/scripts/render-memory-index.py --check
+
 # Reported, never fatal. A skill git is ignoring is a real problem — the only copy stays on the
 # machine that made it — but it is a state of the repo rather than a defect in the change set, and
 # blocking an unrelated commit on it would train the gate away.

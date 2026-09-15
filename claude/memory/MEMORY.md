@@ -1,16 +1,16 @@
-- [Follow skill instructions exactly](feedback_follow_skill_instructions.md) — never abbreviate or skip steps in skills, even when output feels verbose
+- [Follow skill instructions exactly](feedback_follow_skill_instructions.md) {always} — never abbreviate or skip steps in skills, even when output feels verbose
 - [Depersonalize memory content](feedback_depersonalize_memory.md) — frame saved memory as preferences/behaviors, not personal traits about the user (body + slug)
 - [Chart neighbour contrast](feedback_chart_neighbour_contrast.md) — categorical charts: adjacent-segment contrast beats even hue spreading; colour by sorted position, not fixed per-category hue
 - [Default cursor on non-interactive text](feedback_default_cursor_noninteractive.md) — brand wordmarks/labels use cursor:default (not I-beam/pointer); don't make decorative wordmarks clickable unless asked
-- [Fix failing skills](feedback_fix_skills.md) — fix the skill definition instead of working around failures manually
+- [Fix failing skills](feedback_fix_skills.md) {always} — fix the skill definition instead of working around failures manually
 - [Reproduce tool failures early](feedback_reproduce_tool_failures_early.md) — when an external tool keeps failing through code-side fixes, inspect the real artifact + run the real command instead of theorizing
 - [Find a signal before proposing a fix](feedback_verify_gui_via_repro.md) — can't observe it? read the log or build a repro; never deploy-and-ask
 - [No unprompted skill edits](feedback_no_unprompted_skill_edits.md) — don't rewrite a working skill's guidance unasked; fixing applies when a skill fails during use
 - [Codify conventions as single rules](feedback_codify_conventions_as_single_rules.md) — one unambiguous rule, no "or Y is also fine" escape hatch; sweep artifacts across repos, ship a detection command
-- [Glob safety for numeric filenames](feedback_glob_safety_windows.md) — `hex_4*.png` matches hex_40, hex_400, AND hex_441; use explicit ranges
+- [Glob safety for numeric filenames](feedback_glob_safety_windows.md) {always} — `hex_4*.png` matches hex_40, hex_400, AND hex_441; use explicit ranges
 - [GitHub identity](user_github.md) — login is `AnotherSava`; distinct from git author `Oleg Savelyev`
-- [Prefer loud errors to silent fallback](feedback_loud_errors.md) — surface failures in UI + log; never silently degrade; show status on the active view, prefer truthful "retrying" over a timeout that fakes a terminal result
-- [No defensive fallbacks](feedback_no_defensive_fallbacks.md) — never substitute a plausible value for one you don't have; a gap in the logic keeps the wider answer or throws, and an unobservable guess still becomes a lie once something reads it
+- [Prefer loud errors to silent fallback](feedback_loud_errors.md) {always} — surface failures in UI + log; never silently degrade; show status on the active view, prefer truthful "retrying" over a timeout that fakes a terminal result
+- [No defensive fallbacks](feedback_no_defensive_fallbacks.md) {always} — never substitute a plausible value for one you don't have; a gap in the logic keeps the wider answer or throws, and an unobservable guess still becomes a lie once something reads it
 - [Eliminate the bug class, don't patch paths](feedback_eliminate_bug_class.md) — a bug recurring after a targeted patch means wrong altitude; remove the structural cause (e.g. push→pull) not the trigger path
 - [Fix the code, don't tell the user to rearrange their files](feedback_fix_the_code_not_the_layout.md) — a real layout that defeats a feature is a defect in it, not a caveat plus a manual workaround
 - [Pre-push hook rejects unsigned + Claude trailers](reference_push_hook.md) — resign ancestors with `git rebase --exec` before first push
@@ -39,9 +39,9 @@
 - [CSS variant classes, not base-class overrides](feedback_css_variant_classes_not_overrides.md) — base class holds layout-agnostic styles; each view declares its own variant class with grid/flex shape
 - [No scratch paths in committed code](feedback_no_scratch_paths_in_committed_code.md) — committed docs/comments must not reference gitignored `tmp/`, `scratch/`, etc.; promote the file or rewrite the prose
 - [Verify log timing before transcript-based detection](feedback_verify_log_timing.md) — empirically check writer flush behavior; "unresolved X" probes fail silently if the writer buffers
-- [No bluffing external UIs or local internals](feedback_no_bluffing_external_uis.md) — investigate (WebSearch or Bash/Read) before answering; don't guess at dashboards, hook timing, file contents
-- [Honor concrete example](feedback_honor_concrete_example.md) — implement the user's literal example; ask before substituting a more general rule
-- [Discuss before rewriting deliberate behavior](feedback_discuss_before_rewriting_design.md) — don't rewrite considered design off a single offhand comment; propose, preview, confirm first
+- [No bluffing external UIs or local internals](feedback_no_bluffing_external_uis.md) {always} — investigate (WebSearch or Bash/Read) before answering; don't guess at dashboards, hook timing, file contents
+- [Honor concrete example](feedback_honor_concrete_example.md) {always} — implement the user's literal example; ask before substituting a more general rule
+- [Discuss before rewriting deliberate behavior](feedback_discuss_before_rewriting_design.md) {always} — don't rewrite considered design off a single offhand comment; propose, preview, confirm first
 - [Resolve symlinks before editing](feedback_resolve_symlinks_before_editing.md) — Write/Edit fail on symlinks; `readlink` first for anything under `~/.claude/`
 - [Match visuals by tracing, not memory](feedback_match_visual_by_tracing.md) — reproduce an icon/logo/reference by pixel-overlay tracing + iteration; see [[icon-tracing-pixel-overlay]] learning
 - [Don't cache cheap derivations](feedback_no_cache_cheap_derivations.md) — use plain @property for cheap derived values; reserve @cached_property for genuinely expensive computation
@@ -52,13 +52,13 @@
 - [Stash-pop sides flipped](feedback_stash_pop_conflict_sides.md) — `--ours` = post-pull tree, `--theirs` = stash; checkout from a named ref when unsure
 - [Migrate, don't degrade persistence](feedback_migrate_dont_degrade_persistence.md) — fix stale persisted data with a one-time cleanup; don't switch compute-once/first-write-wins into recompute-every-time
 - [Fold by visual volume, not line count](feedback_fold_by_visual_volume.md) — budget folds by lines AND chars; expand control on its own line
-- [No unsolicited past-data fixes](feedback_no_unsolicited_data_fixes.md) — fix going-forward code only; don't proactively migrate/correct stale stored data unless asked or after asking
+- [No unsolicited past-data fixes](feedback_no_unsolicited_data_fixes.md) {always} — fix the going-forward code only; don't proactively migrate/correct stale stored data unless asked or after asking
 - [Verify the symptom, not a proxy](feedback_verify_symptom_not_proxy.md) — confirm the symptom changed under the user's reported conditions (e.g. reboot), not a proxy signal or convenient test scenario
 - [Explicit keywords over positional defaults in APIs](feedback_api_explicit_over_positional.md) — context-dependent params are named keywords; make invalid chains fail by type; drop create() when chain ends are statically known
 - [Place metadata by content ownership](feedback_place_metadata_by_content.md) — product-describing files live next to the artifact they describe (cws-publish.json by manifest.json), not in .claude/
 - [Probe before declaring infeasible](feedback_probe_before_infeasible.md) — verify a data-driven feature is impossible by inspecting the runtime/library/data before asserting the gap or proposing a lesser workaround
 - [Response/writing style](feedback_response_style.md) — collection: authored text stays plain & factual; no sycophancy, don't echo the request back
-- [Overused phrases](feedback_overused_phrases.md) — live blocklist of verbal tics (starting with "landed"); list lives in CLAUDE.md, grows as new ones surface
+- [Overused phrases](feedback_overused_phrases.md) {always} — live blocklist of verbal tics; the list itself is CLAUDE.md's **Overused Phrases** section, and grows as new ones surface
 - [Ask before touching local servers](feedback_ask_before_touching_servers.md) — announce when starting a dev server for verification; ask before stopping one you didn't clearly start this turn (the user may have their own)
 - [Perceptible state changes](feedback_perceptible_state_changes.md) — a hover/state change called "barely noticeable" needs a distinct shade token-swap, not a nudged brightness/opacity filter; verify visually
 - [Offer visual options](feedback_offer_visual_options.md) — for visual/UI design choices, render multiple labeled options at real target sizes on a representative bg and let the user pick
@@ -68,8 +68,8 @@
 - [Compact interval format](feedback_compact_interval_format.md) — elapsed time as largest unit only ("5m"/"3h"/"12d"), min "1m", no seconds, unbounded days; full spec + code
 - [Overlay legibility on artwork](feedback_overlay_legibility_on_art.md) — affordance over posters/photos: flat dark scrim + solid mark, not a spotlight gradient + translucent mark
 - [Confirm state ≠ completion glyph](feedback_confirm_state_not_completion_glyph.md) — a two-step confirm's armed state is a labeled CTA ("＋ Add" pill), not a ✓ that reads as already-done
-- [Never blind-splice a file region](feedback_no_blind_splice.md) — read what lies between the anchors first; marker/index splices silently delete unrelated code with no error at edit time
-- [Find the override first](feedback_check_overrides_first.md) — an ignored global setting is usually cancelled locally; remove it, don't stack a copy
+- [Never blind-splice a file region](feedback_no_blind_splice.md) {always} — read what lies between the anchors first; marker/index splices silently delete unrelated code with no error at edit time
+- [Find the override before stacking a setting](feedback_check_overrides_first.md) {always} — a global setting that looks ignored is usually cancelled by a local rule; remove that rule instead of adding a redundant copy
 - [Specific, not categorical](feedback_specific_not_categorical.md) — a generated description must describe the item; a category statement repeats down the list or restates the name
 - [Fetch when history confuses](feedback_fetch_when_history_confuses.md) — local refs look exhaustive but exclude unfetched remote commits; `git fetch` before theorising about missing work
 - [Terminal width detection](reference_terminal_width_detection.md) — real width only via the PowerShell tool's `$Host.UI.RawUI.WindowSize.Width`; subtract ~2 for the TUI gutter
@@ -86,12 +86,12 @@
 - [Check the network exists](feedback_check_the_network_exists.md) — a feature needing other users is worthless at launch; ask what it does with one user
 - [Rename the control, do not invert it](feedback_rename_dont_invert.md) — when a mechanism can only express one direction, name the control for what it does; no inverted wiring behind a label
 - [No manufactured distinctions](feedback_no_manufactured_distinctions.md) — don't invent a state, filter option or button the source doesn't require; fold optional actions into the routine one
-- [Validate edits to self-gating files](feedback_validate_self_gating_edits.md) — blocking hooks/git hooks/rc files: edit a temp copy, run the configured commands, then copy over; valid syntax ≠ working command
+- [Validate edits to self-gating files](feedback_validate_self_gating_edits.md) {always} — blocking hooks/git hooks/rc files: edit a temp copy, run the configured commands, then copy over; valid syntax ≠ working command
 - [spctl --assess blocks on a password dialog](macos_spctl_assess_blocks.md) — macOS 26 prompts via Touch ID and hangs subagents; use codesign/xattr instead, and ban prompt-raising commands by name
 - [Compare downsides to current state](feedback_compare_to_current_state.md) — judge a change against what ships today, not an ideal baseline; separate regressions from unchanged and improved
 - [Guard the input, not the output](feedback_guard_the_input_not_the_output.md) — a check after a transformation can't see what was missing before it; delete a guard to prove it does anything
 - [Re-read the whole procedure](feedback_reread_the_whole_procedure.md) — one moved file falsifies several steps; step-N's output is often step-M's baseline, so patching the flagged line alone breaks the comparison
-- [State an enforcement's reach](feedback_state_the_enforcement_reach.md) — never conclude more broadly than the check you cite delivers; name what it cannot see, since that boundary is permanent
+- [State an enforcement's reach](feedback_state_the_enforcement_reach.md) {always} — never conclude more broadly than the check you cite delivers; name what it cannot see, since that boundary is permanent
 - [Rehearsals must not mimic the real signal](feedback_rehearsal_must_not_mimic.md) — a test must be unmistakable in the part read first (subject line), and must not consume the real alert's rate limit
 - [Name with a metaphor in a shared namespace](feedback_name_with_metaphor.md) — a vivid name is safer than a category word; nobody accidentally picks a metaphor, and `ingress` is already Docker Swarm's
 - [Local deploys come with a URL](feedback_local_deploy_give_url.md) — reporting a site runs locally without its address isn't a report; give scheme+host+port+path, link the page that matters, and say whether it's still up
@@ -105,11 +105,11 @@
 - [Ask where the key must travel](feedback_encryption_key_travel.md) — encryption that sends a broad decryption key somewhere worse than the data is a net loss; trace every reader first
 - [Uncommitted is not delivered](feedback_uncommitted_is_not_delivered.md) — check `HEAD` and the upstream ref, not the file; a symlinked tool reaches other machines only when pushed
 - [A sanitised value is not evidence](feedback_sanitised_value_is_not_evidence.md) — clamping for one consumer blinds the guard reading the same variable; give the detector its own
-- [Surface the gap, don't fill it](feedback_surface_the_gap_dont_fill_it.md) — never auto-fill a field a human must vouch for; leave it null, mark it, fill by hand
+- [Surface the gap, don't fill it](feedback_surface_the_gap_dont_fill_it.md) {always} — never auto-fill a field a human must vouch for; leave it null, mark it, fill by hand
 - [A glyph, not capitals](feedback_glyph_not_caps.md) — caps inside grey text still read grey; use an icon carrying its own colour — but recolour an element already there before adding one
 - [Status colour vs the page](feedback_status_colour_vs_page.md) — a tinted badge passes ink contrast and is still invisible; measure the fill against the page too (1.09:1), fill it solid with inverting ink
 - [Re-read the lead after appending](feedback_reread_the_lead_after_appending.md) — an appended correction is true while the opening sentence it sits under has silently gone false
-- [Verify at the layer the user sees](feedback_verify_at_the_user_visible_layer.md) — your write succeeding at every layer you own is not the outcome; read the value at the last consumer before saying it works
+- [Verify at the layer the user sees](feedback_verify_at_the_user_visible_layer.md) {always} — your write succeeding at every layer you own is not the outcome; read the value at the last consumer before saying it works
 - [Assert the syntax, not the spelling](feedback_assert_the_syntax_not_the_spelling.md) — an absence check must match a directive; the file's own warning against the thing contains the word
 - [Don't re-check a known answer](feedback_dont_recheck_known_answers.md) — cite the earlier probe's result with its scope; re-run only if something changed that could change it
 - [ASCII paths, ordering in the manifest](feedback_ascii_repo_paths.md) — transliterate committed/served paths, keep the heading in its own script; no numeric filename prefixes
@@ -125,20 +125,73 @@
 - [Derive, don't mirror](feedback_derive_dont_mirror.md) — before fixing when stored state is committed or synced, ask whether it's derivable and whether anything reads it
 - [Config field fits its family](feedback_config_field_fits_its_family.md) — copy the siblings' placement and on/off idiom; split a default by build channel, since yours is a stranger's surprise
 - [Icon-scale colour separation](feedback_icon_colour_separation.md) — adjacent steps of a small scale separate on hue not shade, away from the opposite pole; render candidates at final size
-- [Scratch lives in the project's tmp/](feedback_scratch_lives_in_project_tmp.md) — file tools can't read $TEMP back, so previews and contact sheets go in the repo's gitignored tmp/
+- [Scratch lives in the project's tmp/](feedback_scratch_lives_in_project_tmp.md) {always} — file tools can't read $TEMP back, so previews and contact sheets go in the repo's gitignored tmp/
 - [Audit existing instances](feedback_audit_existing_instances.md) — a skill's rules reach a repo only on scaffolding day; re-check an older one, and verify the deploy not the source
 - [Read-only review, then delete](feedback_read_only_review_loop.md) — collect findings with no edits; answer them by removing something, not by adding a gate
 - [Telegram has no send confirmation](telegram_no_send_confirmation.md) — bots cannot read their own sent messages; duplicate-on-timeout is mitigable, never eliminable
 - [5h resets_at jitters +/-1min](usage_five_hour_resets_at_jitter.md) — never use it as a reset signal; detect a reset by a percentage drop
-- [Peer register, not support](feedback_peer_register_not_support.md) — write to another dev as a peer, not support-to-user; four concrete swaps
-- [Use the tool you built](feedback_use_the_tool_you_built.md) — make the new instrument the ask, not a fallback; undo hand-done work so the tested path runs it instead
-- [Sort keys live in metadata, not the name](feedback_sort_key_not_in_identifier.md) — an ordering baked into a filename costs a mass rename to change or extend; use a field
-- [Keep your half of the task](feedback_keep_your_half.md) — hand back only what needs a human; reading the log and saying what it shows stays mine
-- [Message a sibling agent](peer_messaging.md) — `ListAgents` + `SendMessage` reach other projects' live sessions and need no approval to send; a message starts a real turn there, so the bar is high
-- [Sweep the old wording](feedback_sweep_the_old_wording.md) — retiring a rule: grep the old behaviour's words, not the new rule's, then check the lists that encode it
-- [Guard on the version, not the artifact](feedback_guard_on_version_not_artifact.md) — a tool reading a format defined elsewhere checks the adopted version, not whether the old artifact is still there
-- [Lead with the rule, not the value](feedback_lead_with_the_rule.md) — a request naming a value, answered with a rule: say the rule in the FIRST sentence or the number reads as hardcoded
-- [Read upward from the match](feedback_read_upward_from_the_match.md) — a grep shows what follows a definition, never what precedes it; read above before calling a value unexplained
-- [Mark the container, not every item](feedback_mark_the_container_not_every_item.md) — a scope marker says where the work must happen, not that every item inside is bound
-- [Show the artifact with the ask](feedback_show_the_artifact_with_the_ask.md) — a choice between artifacts gets the passage that decides each, not your one-line reading of them
-- [A fixture must exceed the cap](feedback_fixture_must_exceed_the_cap.md) — sized below a threshold it never reaches the branch and still passes; count the caps before picking the size
+- [Peer register, not support](feedback_peer_register_not_support.md) {always} — write to another dev as a peer, not support-to-user; four concrete swaps
+- [Use the tool you built](feedback_use_the_tool_you_built.md) {always} — make the new instrument the ask, not a fallback; undo hand-done work so the tested path runs it instead
+- [Sort keys live in metadata, not the name](feedback_sort_key_not_in_identifier.md) {always} — an ordering baked into a filename costs a mass rename to change or extend; use a field
+- [Keep your half of the task](feedback_keep_your_half.md) {always} — hand back only what needs a human; reading the log and saying what it shows stays mine
+- [Message a sibling agent](peer_messaging.md) {always} — `ListAgents` + `SendMessage` reach the other projects' live sessions and need no approval to send; a message starts a real turn there, so never send one to chat, confirm or thank. An empty `ListAgents` means local-only, not unreachable — cross-machine goes through the dashboard relay.
+- [Sweep the old wording](feedback_sweep_the_old_wording.md) {always} — retiring a rule: grep the old behaviour's words, not the new rule's, then check the lists and gate enumerations that encode it with no words at all
+- [Guard on the version, not the artifact](feedback_guard_on_version_not_artifact.md) {always} — a tool reading a format defined elsewhere checks the adopted version, not whether the old artifact is still there; sniffing it rots at the next migration
+- [Lead with the rule, not the value](feedback_lead_with_the_rule.md) {always} — a request naming a value, answered with a rule: say the rule in the FIRST sentence or the number reads as hardcoded
+- [Read upward from the match](feedback_read_upward_from_the_match.md) {always} — a grep shows what follows a definition, never what precedes it; read above it before calling a value unexplained or a list unaudited
+- [Mark the container, not every item](feedback_mark_the_container_not_every_item.md) {always} — a scope marker says where the work must happen, not that every item inside is bound; don't withhold it because one part is portable
+- [Show the artifact with the ask](feedback_show_the_artifact_with_the_ask.md) {always} — a choice between specific artifacts gets the passage that decides each, not only your one-line reading of them
+- [A fixture must exceed the cap](feedback_fixture_must_exceed_the_cap.md) {always} — sized below a threshold it never reaches the branch and still reports success; count the caps before picking the size
+- [User GitHub account](user_github_account.md) {always} — handle is `AnotherSava`; use to filter "my repos" vs third-party clones
+- [Where supplied screenshots land](user_screenshot_location.md) {always} — "see the screenshot" with nothing attached means the newest PNG in `~/Desktop`, or `~/CropStage` on Windows; go look first
+- [Always report images with a contact sheet](feedback_image_report_always.md) {always} — reporting anything about screenshots means building the HTML sheet and linking it; prose and transcript images are not substitutes
+- [Post-iteration cleanup audit](feedback_post_iteration_cleanup.md) {always} — before committing after a debug/optimize session, remove changes from disproven theories; don't leave cruft
+- [Verify before justifying legacy behavior](feedback_verify_before_justifying.md) {always} — if explaining why old code/docs exist (especially defending keeping it), check the source before speculating; defensive guesses preserve cruft
+- [Captured the lesson, drop the code](feedback_research_to_production_cleanup.md) {always} — when research code transitions to production, delete helpers whose rationale lives in docs; the memory that replaces a retired tool keeps the claim, not the apparatus
+- [No permanent surface for one-time tasks](feedback_no_permanent_logic_for_one_time.md) {always} — do one-offs (backfills, migrations, seeding) as throwaways and delete; don't add a flag/helper/export to production — or a menu item/button to the UI — for a single run, and don't justify it with "single source"/"future use"
+- [Stay silent on user `!` commands](feedback_silent_on_bash_input.md) {always} — a bare `!`/bash-input result is the user's own action; return control immediately, no analysis or "looks good" filler, unless they ask
+- [Fix bugs at the source, not in callers](feedback_fix_at_source.md) {always} — if a bug lives in code I can modify (including vendored copies), fix it at the source instead of working around or suppressing it (gitignore, filtering, silencing)
+- [Generalize global skills, don't fork project-local](feedback_generalize_global_skills.md) {always} — name collisions load the wrong SKILL body; but a skill whose domain IS one project belongs in its repo
+- [Check for a live sibling session](feedback_check_live_sibling_session.md) {always} — an instruction that doesn't fit this repo likely belongs to another live session; grep widget.jsonl + git status there before editing its files; siblings also overwrite the shared clipboard
+- [Native dialogs render plain text — no clickable links](feedback_native_dialogs_no_links.md) {always} — `tauri-plugin-dialog`/MessageBox/NSAlert can't embed `<a>`; build a custom Tauri webview window for About-style content with links
+- [About dialogs describe WHAT, not HOW](feedback_about_what_not_how.md) {always} — About copy stays declarative ("Each session keeps a history"), not action-prescriptive ("Double-click to open")
+- [Run the script, not the skill](feedback_deploy_script_not_skill.md) {always} — once configured, run `bash scripts/<verb>.sh` directly for deploy/build/cleanup/publish; Skill is for first-time setup; a new shell fn needs a restart
+- [Use Doppler for secrets](feedback_doppler_secrets.md) {always} — **invoke `/doppler` before planning where a secret lives or writing any `doppler` command.** All 10 project slots are taken: a new app gets a config in an existing shard (`prd_<app>`), never its own project. Command-time landmines (quoting, `--silent`, root-vs-branch) are injected by the doppler-guard hook when they apply.
+- [Text-control affordances](feedback_no_underline_links.md) {always} — strip resting underlines; shape carries meaning (link=hover-underline for WCAG 1.4.1, toggle=chevron, action=`+`, all icon/soft-fill-pill not underline)
+- [Private references](refs-private.secret.md) {always} — encrypted (transcrypt); coordinates for ad-hoc third-party credentials Claude uses — read it when a task needs one (decrypted locally; opaque without the key)
+- [Grep must survive markdown emphasis](feedback_grep_markdown_emphasis.md) {always} — `grep "Node 22"` misses `Node **22 LTS**`; sweep with a separator-tolerant pattern and search concepts, not just the phrase
+- [Check a destination is not published](feedback_check_destination_visibility.md) {always} — before moving anything into a shared/dotfiles repo, check `gh repo view --json isPrivate` AND `git check-ignore`; untracked is not ignored
+- [Rotate, don't abandon](feedback_rotate_dont_abandon.md) {always} — a leaked credential makes one value worthless, not the access; propose replacing it, say what survives, verify the old one is dead
+- ["Not run" must not look like "passed"](feedback_not_run_is_not_pass.md) {always} — a check that can't tell success from never-ran turns an open problem into a closed-looking one; probe the precondition, assert the artifact, print NOT COVERED
+- [Sampling a level misses an edge](feedback_sample_level_miss_edge.md) {always} — polling "is it in state X" can't catch "did X happen"; a shorter interval narrows the blind window and never closes it — get an event, or state the limit
+- [Startup is not a poll](feedback_startup_is_not_a_poll.md) {always} — a startup-only concern gets bounded retry-until-*answered*, not a timer; count the recurrence before defending it, and check what the "cheap" gate calls
+- [Reversible edit, not backup-and-restore](feedback_reversible_over_backup.md) {always} — temp file mutations for a check: self-inverse sed; backups collide on basename and zsh `$var` in a for-list silently no-ops
+- [A settled design means build it](feedback_settled_design_means_build_it.md) {always} — don't record the decision and resume the in-flight commit; pause the workflow, build it, then commit
+- [Write the procedure to find the missing artifact](feedback_write_the_procedure.md) {always} — review asks "is this right", a runbook asks "does this exist"; run the commands a doc quotes rather than predicting their output
+- [No guessed facts](feedback_no_guessed_facts.md) {always} — don't state a guessed URL/path/endpoint or capability claim as known, or widen a supplied fact when paraphrasing; verify or flag it
+- [Dedupe before you compare](feedback_dedupe_before_you_compare.md) {always} — a paginated source's record count isn't a count of distinct things; reduce both sides to sets on the identity key before comparing or reporting
+- [Read the evidence you have](feedback_read_the_evidence_you_have.md) {always} — a root cause is read, not constructed; print the output you captured and read the log the failing thing wrote before theorising
+- [Windows should never flash](feedback_no_flashing_windows.md) {always} — no console window on the user's desktop, ever; `pythonw` + `CREATE_NO_WINDOW`, and beware the `cmd.exe` fix that undoes it
+- [Docs belong in git, data in the backup](feedback_docs_belong_in_git.md) {always} — a file "protected by nothing" is usually mis-tiered; move it, don't widen the backup to reach it
+- [No invented rationale](feedback_no_invented_rationale.md) {always} — asked to add a rule, record the rule and its replacement; don't supply a "why" you guessed
+- [Check the limit is real](feedback_check_the_limit_is_real.md) {always} — check it isn't already handled: evidence the system holds, a general rule whose premise fails here, or work a later step already owns
+- [Live values = read the system](feedback_live_values_source_of_truth.md) {always} — rates/prices/config/deployed-state change without a commit; read the live source (DB/live page/doppler), never cite a doc snapshot as current
+- [Machine coordinates](machines-private.secret.md) {always} — encrypted (transcrypt); Tailscale tailnet names/IPs for the user's machines, plus the SSH login for the Windows desktop — use these to make any project reach one machine from another, never `*.local` or LAN IPs; platform mechanics in `learnings/windows-openssh-over-tailscale.md`
+- [A marker must be distinct](feedback_marker_must_be_distinct.md) {always} — a mark means something only by being unlike the others; reusing the nav marker for a notice made both meaningless
+- [Warnings lead with the instruction](feedback_warning_leads_with_instruction.md) {always} — what to do first, why second, and the reason must be one the reader couldn't supply themselves
+- [Fix the part, not the whole](feedback_fix_the_part_not_the_whole.md) {always} — an objection to one sentence is not licence to delete the construct around it
+- [Complexity may be self-imposed](feedback_complexity_may_be_self_imposed.md) {always} — check a constraint is real before designing around it; judge a subagent's design against what the user actually asked for
+- [Minimal UI chrome](feedback_minimal_ui_chrome.md) {always} — no duplicate state signals, no field help text, no card blurbs; icon over text button; state in a badge, never a placeholder
+- [Redrawn icons keep the original's identity](feedback_redrawn_icons_keep_identity.md) {always} — keep the frame/facets that identify a host's component; drop only what smudges at icon size, and go bigger before going plainer
+- [Empty state names the filter](feedback_empty_state_names_the_filter.md) {always} — say what the filter hid, never that nothing happened; "show everything" is one click away and disproves it
+- [Desktop first, phone later](feedback_desktop_first_then_phone.md) {always} — no breakpoint tuning while the look is still moving; phone gets its own pass
+- [Deploy and publish are separate verbs](feedback_deploy_publish_separate_verbs.md) {always} — `deploy` runs it here, `publish` ships it out; own script each, never `deploy publish`
+- [No per-prompt hooks](feedback_no_per_prompt_hooks.md) {always} — never a hook on every prompt (worse if blocking); use an observable guideline or an on-demand check
+- [Fields earn their place, both ways](feedback_extend_schema_not_freetext.md) {always} — data that doesn't fit gets a new field, priced honestly, not stuffed in a comment; a field no step reads yet doesn't get one
+- [Compound label hierarchy](feedback_compound_label_hierarchy.md) {always} — a label made of several kinds of information gets a colour+weight per part, never one uniform run; a separator inside a part sits tighter than the gaps between parts
+- [Relative timestamps](feedback_relative_timestamps.md) {always} — "3h ago" visible, exact stamp on hover; port `formatInterval` from the What's Next repo, don't reinvent it
+- [Report timestamps in local time](feedback_local_time_timestamps.md) {always} — logs store UTC and these machines run hours behind it; convert before showing, or the quoted moment can't be matched to what the user saw
+- [Never weaken permissions in a subagent prompt](feedback_no_subagent_permission_bypass.md) {always} — approval for a task is never approval to disable approval gates; no `--dangerously-skip-permissions` in a subagent's instructions, ask first
+- [Route the output, don't ask for a paste](feedback_route_output_not_paste.md) {always} — a command only they can run gets `2>&1 | tee tmp/<name>.log`; I read it, clipboard is the fallback
+- [Fix the class, not the instance](feedback_fix_the_class_not_the_instance.md) {always} — a defect in one member of an already-enumerated set is a defect in the set; find the list and check all of it
+- [Don't open a sentence with code-formatted text](feedback_no_code_at_sentence_start.md) — in prose, lead with a real word; don't start a sentence or line with backtick-wrapped code when prose follows

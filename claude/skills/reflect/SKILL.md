@@ -92,7 +92,7 @@ Extract durable knowledge from the current conversation and persist it to long-t
 
    Apply one test — **would I want this while working in a different repo tomorrow?**
    - **No** → keep it project-scoped.
-   - **Yes, all of it** → make it **global**: `~/.claude/memory/<name>.md`, indexed in `~/.claude/memory/MEMORY.md`.
+   - **Yes, all of it** → make it **global**: `~/.claude/memory/<name>.md`, indexed in `~/.claude/memory/MEMORY.md` (the only global index authored by hand — see step 7 for the `{always}` marker and the re-render).
    - **Yes, part of it** → **split it.** The transferable rule goes global, keeping the project detail only as a one-line illustration; whatever is genuinely repo-specific stays project-local and links to the global file with `[[name]]`. Never write the same text to both — duplicated rules drift and eventually contradict each other.
 
    Reclassify to global when the finding:
@@ -117,6 +117,7 @@ Extract durable knowledge from the current conversation and persist it to long-t
 
 7. **Save the items** (auto-saved research findings and any approved gated items). For each:
    - Memory files: write with proper frontmatter (name, description, type), then add/update the index entry in the relevant MEMORY.md
+   - A **global** memory is indexed only in `~/.claude/memory/MEMORY.md` — never also in `CLAUDE.md`, whose list is generated from it. Decide one thing while writing the line: append ` {always}` after the link when the memory has to fire *unprompted*, because only marked entries reach CLAUDE.md and CLAUDE.md is the only one of the two a session loads. Unmarked is the default and still leaves it findable. Then run `python3 ~/.claude/scripts/render-memory-index.py` and include the CLAUDE.md change in the same commit; `.claude/commit-checks.sh` fails on a stale block
    - Learning files: write directly to `~/.claude/learnings/<topic>.md` as long-form markdown. No frontmatter. No index update (the flat directory uses filenames as the index).
    - CLAUDE.md updates: edit the relevant section in place
    - Skill updates: edit the target `SKILL.md` in place. Keep edits minimal and consistent with the surrounding style; don't rewrite sections that aren't affected by the finding.
