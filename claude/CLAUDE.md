@@ -333,6 +333,7 @@ Cross-project preferences and feedback. Memory files live in `~/.claude/memory/`
 - [Never weaken permissions in a subagent prompt](~/.claude/memory/feedback_no_subagent_permission_bypass.md) — approval for a task is never approval to disable approval gates; no `--dangerously-skip-permissions` in a subagent's instructions, ask first
 - [Route the output, don't ask for a paste](~/.claude/memory/feedback_route_output_not_paste.md) — a command only they can run gets `2>&1 | tee tmp/<name>.log`; I read it, clipboard is the fallback
 - [Fix the class, not the instance](~/.claude/memory/feedback_fix_the_class_not_the_instance.md) — a defect in one member of an already-enumerated set is a defect in the set; find the list and check all of it
+- [A subagent calls the real function](~/.claude/memory/feedback_subagent_calls_the_real_function.md) — never restate production logic in a prompt; the reimplementation drops a filter and returns a confident wrong number with a method section attached
 <!-- END generated -->
 
 ## Memos
