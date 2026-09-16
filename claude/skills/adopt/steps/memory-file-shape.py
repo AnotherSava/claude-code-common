@@ -179,6 +179,10 @@ def look(root: str) -> Look:
     files: list[str] = []
     no_frontmatter: list[str] = []
     unreadable: list[str] = []
+    # walk-unfiltered: this walks `.claude/memory/` and never the repo, and v2 gitignore-unhides-committed
+    # asserts that exact path is not ignored — its note enumerates it among the five required paths. Steps
+    # walk ascending one at a time, so by the time this runs that is an ordering guarantee rather than a
+    # likelihood, and there is no hidden file here for a git filter to find.
     for parent, dirs, names in os.walk(base):
         dirs[:] = sorted(d for d in dirs if d != ".git")
         for name in sorted(names):

@@ -40,7 +40,11 @@ nothing about the key.
 No manifest in this repo declares `engines.node`. That is positive evidence: every project
 manifest was read and none carries a range, so there is nothing for npm to enforce and an
 `.npmrc` written here would enforce nothing. A repo with no manifest at all reaches the same
-answer by the same reading.
+answer by the same reading. A manifest git hides is not one of them — a vendored wheel under a
+gitignored `venv/` ships its own `engines.node`, and an `.npmrc` written beside it would sit in
+a tree the next rebuild deletes. A git that will not answer which paths it hides is a third
+outcome and not an empty skip set: the step prints what it could not establish and exits 3
+without writing.
 
 A repo where every declaring manifest already has the flag beside it is the other reason. Verify
 sees that first and records it without touching anything.

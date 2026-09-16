@@ -7,9 +7,9 @@
 4	memory-cache-symlink	applied	2026-09-15	this machine's memory cache for this repo is a link to .claude/memory/, asserted with samefile rather than a path string, so a copy standing in for the link would have failed it
 5	memory-file-shape	applied	2026-09-15	2 memory file(s) under .claude/memory/, each opening with ---, and 2 link(s) in MEMORY.md, each naming a file beside it
 6	transcrypt-eol-normalized	applied	2026-09-15	asserted: 1 filter=crypt rule(s) in .gitattributes, each carrying text=auto eol=lf and each resolving to it with the global attributes file suppressed
-7	node-engines-declared	n/a	2026-09-15	no package.json outside node_modules/ and the other build and dependency trees this step never descends into — there is no Node project here to declare a range for
+7	node-engines-declared	n/a	2026-09-15	no package.json outside node_modules/, the other build and dependency trees this step never descends into, and the paths git hides — there is no Node project here to declare a range for
 8	engine-strict	n/a	2026-09-15	no package.json here declares engines.node (0 project manifest(s) read), so there is no range for npm to enforce and .npmrc has nothing to make strict
-9	package-manager-pin	n/a	2026-09-15	no package.json outside node_modules/ and the other build and dependency trees this step never descends into — there is no Node project here whose manager could drift
+9	package-manager-pin	n/a	2026-09-15	no package.json outside node_modules/, the other build and dependency trees this step never descends into, and the paths git hides — there is no Node project here whose manager could drift
 10	license-file-present	applied	2026-09-15	a license is present; which license it is, and whether it suits this repo's visibility, is the half this step leaves to a human
 11	docs-theme-pinned	n/a	2026-09-15	no docs/_config.yml in this repo, so it publishes no Jekyll site and there is no theme line to pin; this step never creates one
 12	cotenant-service-names	n/a	2026-09-15	no compose file, no .caddy vhost and no config/publish.env: this repo deploys nothing to the shared box today, so it claims no name in a namespace another project writes to

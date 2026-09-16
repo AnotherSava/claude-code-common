@@ -39,14 +39,17 @@ this runs under `python -S`, and the record is read with `str.split("\t")` on
 both machines.
 """
 
+import ast
 import datetime
 import hashlib
+import io
 import os
 import re
 import shutil
 import subprocess
 import sys
 import tempfile
+import tokenize
 from typing import NamedTuple
 
 SKILL_DIR = os.path.dirname(os.path.realpath(__file__))
@@ -964,6 +967,93 @@ def _missing_headings(prose: str, wanted: tuple[str, ...] = HEADINGS) -> list[st
     return [heading for heading in wanted if heading not in present]
 
 
+WALK_WAIVER = "walk-unfiltered:"
+# Every way a step has to enumerate files. Named rather than inferred, and deliberately wider than
+# what the tree uses today: the first draft matched `os.walk` alone, and `license-file-present.py`
+# enumerated manifests with `listdir` in plain sight of a gate reporting nothing about it.
+ENUMERATORS = frozenset({"walk", "glob", "iglob", "rglob", "iterdir", "scandir", "listdir"})
+FILTER_CALL = "ignored_untracked"
+
+
+def _calls_named(tree: ast.AST, names: frozenset[str] | set[str]) -> bool:
+    """Is any of `names` called here, as `<obj>.name(...)` or as a bare `name(...)`.
+
+    Both forms, because `from os import walk` and `from _gitignore import ignored_untracked` are
+    ordinary and this directory already uses the second shape (`from _gitignore import Rule`). An
+    earlier version tested `ast.Attribute` only, which made a correctly written step fail the gate
+    and a tree-walking one pass it.
+
+    `ast.walk` is excluded by its receiver: it is not a filesystem enumerator, and a step that
+    parses Python would otherwise be asked to filter a traversal of syntax nodes.
+    """
+    for node in ast.walk(tree):
+        if not isinstance(node, ast.Call):
+            continue
+        if isinstance(node.func, ast.Attribute) and node.func.attr in names:
+            if isinstance(node.func.value, ast.Name) and node.func.value.id == "ast":
+                continue
+            return True
+        if isinstance(node.func, ast.Name) and node.func.id in names:
+            return True
+    return False
+
+
+def _waiver_in_comments(source: str) -> bool:
+    """Is the waiver marker in a real comment, rather than anywhere in the file's text.
+
+    A substring test over the whole source was the first version and it is worse than no check: a
+    module docstring explaining *why* the filter matters quotes the marker, and the gate then prints
+    `ok` for a module it never checked — an affirmative wrong answer rather than a silence.
+    """
+    try:
+        for token in tokenize.generate_tokens(io.StringIO(source).readline):
+            if token.type == tokenize.COMMENT and WALK_WAIVER in token.string:
+                return True
+    except (tokenize.TokenError, IndentationError, SyntaxError):
+        return False
+    return False
+
+
+def _check_walks_ask_git(results: list[bool]) -> None:
+    """Every module under steps/ that walks the tree either asks git what it hides, or says why not.
+
+    A name rule cannot see a scratch clone, and the global convention puts scratch in a gitignored
+    `tmp/`, so a walk that filters on directory names alone eventually reads a file no clone has.
+    Two repos in the fleet were measured one approved dry run from writing an `.npmrc` inside a
+    virtualenv on exactly that shape.
+
+    Parsed with `ast` rather than grepped, because `_own_fixtures.py` names `os.walk` in a docstring
+    and a text match would demand a filter of the one module whose whole job is the other hazard.
+
+    The waiver is a comment holding `walk-unfiltered:` and the reason, and it exists because the
+    honest exemption is real: a walk scoped to a fixed subtree the repo must commit has nothing to
+    filter. It is a comment rather than a naming convention deliberately — an earlier draft keyed on
+    the walk's argument being spelled `root`, which any rename defeats silently, and a waiver is
+    greppable and makes its author write down why.
+
+    **What this proves is that the call is present, not that its result was used.** A module could
+    call the filter and discard what it returns and still pass here. The assertion is a floor under
+    the next author, not a substitute for reading the diff.
+    """
+    for name in sorted(n for n in os.listdir(STEPS_DIR) if n.endswith(".py")):
+        path = os.path.join(STEPS_DIR, name)
+        try:
+            with open(path, encoding="utf-8") as handle:
+                source = handle.read()
+            tree = ast.parse(source, filename=name)
+        except (OSError, UnicodeDecodeError, SyntaxError) as exc:
+            _check(results, False, f"{name} parses, so its walks can be checked", f"{type(exc).__name__}: {exc}")
+            continue
+        if not _calls_named(tree, ENUMERATORS):
+            continue
+        asks = _calls_named(tree, {FILTER_CALL})
+        _check(results, asks or _waiver_in_comments(source),
+               f"{name} enumerates files and asks git what it hides (or waives it with {WALK_WAIVER})",
+               f"neither a {FILTER_CALL} call nor a {WALK_WAIVER} comment is present — an enumeration "
+               f"filtering on directory names alone reads scratch clones and vendored trees as this "
+               f"repo's own files")
+
+
 def cmd_selftest() -> int:
     """The authoring gate: what has to hold before the fleet runs any of this.
 
@@ -982,6 +1072,7 @@ def cmd_selftest() -> int:
     _check(results, bool(steps), f"the steps directory holds at least one step (found {len(steps)})")
     _check(results, versions == list(range(1, len(versions) + 1)),
            f"versions are unique and contiguous from 1 (found {versions})")
+    _check_walks_ask_git(results)
     for step in steps:
         if step.declared_script:
             _check(results, step.script is not None, f"v{step.version} declares script: {step.declared_script}, and it exists")

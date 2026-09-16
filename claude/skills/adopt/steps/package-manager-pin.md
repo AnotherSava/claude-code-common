@@ -49,9 +49,13 @@ concrete number reaches the user on screen rather than as an abstract question.
 
 ## Does not apply when
 
-The tree holds no `package.json` at all outside the generated directories. That is positive
-evidence read off a walk of the whole repo: there is no Node project here whose manager could
-drift.
+The tree holds no `package.json` a person maintains — none outside the generated directories,
+and none that git does not hide. That is positive evidence read off a walk of the whole repo:
+there is no Node project here whose manager could drift. Hiding matters twice for this step,
+because an ignored manifest is not only a place a pin could be written but a place one could be
+*copied from*: a repo whose tracked manifest lacks a pin must not take its version from a
+scratch clone. A git that will not answer which paths it hides is a third outcome and not an
+empty skip set: the step prints what it could not establish and exits 3 without writing.
 
 A repo where every manifest already carries a pin in the `npm@x.y.z` form is the other reason,
 and verify sees it first.

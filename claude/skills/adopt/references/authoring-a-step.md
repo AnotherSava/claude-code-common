@@ -263,6 +263,61 @@ and every walking step read its own fixtures as findings about the dotfiles repo
 state this section was written to prevent. That is the trap
 `learnings/comparing-paths-symlinks-and-case.md` opens on, and the fix is one call.
 
+### And it must ask git what it hides
+
+`_own_fixtures` answers one hazard by identity. The other is that a name rule cannot see a scratch
+clone: the global convention puts scratch in a gitignored `tmp/`, so a `package.json` or a compose
+file inside one is a designed and recurring condition rather than an accident. Measured 2026-09-15 —
+two repos in the fleet had their only manifest inside a gitignored `venv/`, and v8's probe exited 0
+on both, so an approved walk would have written an `.npmrc` into a virtualenv the next rebuild
+deletes and recorded `applied` on evidence no clone can reproduce.
+
+Call `_gitignore.ignored_untracked(root, paths)`. Three things it gets right that are each easy to
+get wrong, with the measurements in `learnings/gitignore-anchoring-and-scope.md`:
+
+- **The plain, index-consulting form**, so a manifest force-added inside an ignored directory still
+  counts as one somebody maintains. Its sibling `ignored()` passes `--no-index` and asks about the
+  *rules* — right for v2 and v3, wrong here.
+- **Only a hide the repo carries.** `.git/info/exclude` is per-clone and the global excludes file is
+  per-machine, and a path hidden by either returns exit 0 indistinguishably from one hidden by a
+  committed `.gitignore`. Without that filter the walk answers about a *checkout* rather than a
+  commit, so two machines derive different sets from one tree and a step recorded on the first can
+  fail on the second.
+- **The root is the work tree's own top level**, asserted before anything is asked. `check-ignore`
+  run anywhere *under* a repo answers happily using that ancestor's rules, so a scratch copy inside a
+  checkout that hides `tmp/` reports every file in it as hidden and the filter silently empties.
+
+**Any exit outside `{0, 1}` means the question was never answered — stop, never proceed on the
+unfiltered list.** Raise it out of the walk and catch it per command. `verify` owes **2**, the shape
+having gone unobserved rather than observed and found wrong. `probe` owes **2** as well, printing the
+question: a probe exiting 3 is a §4 stop, so it would end the whole walk and leave a repo git cannot
+answer about with no route to `n/a` or `declined` for that version *or any after it* — measured on a
+repo whose submodule held a `package.json`, where `check-ignore` aborts the batch with 128. `apply`
+owes 3. Catch it rather than letting `_dispatch` turn it into a traceback, since `audit` records a
+step against the first line of its output — and have `apply` ask the question *before* it writes
+anything, so its catch can tell "nothing was written" from "this arose mid-run".
+
+`selftest` holds this: any module under `steps/` that enumerates files must call `ignored_untracked`
+or carry a comment containing `walk-unfiltered:` and the reason. Three details, each of which was
+wrong in a first draft and is worth not rediscovering:
+
+- **Match every enumerator, not `os.walk`.** `listdir`, `glob`, `rglob`, `scandir` and `iterdir`
+  enumerate just as well, and `license-file-present.py` had been listing manifests with `listdir` in
+  plain sight of a gate that reported nothing about it.
+- **Match both call forms.** `from os import walk` and `from _gitignore import ignored_untracked` are
+  ordinary, and an attribute-only test fails a correctly written step while passing a walking one.
+  `ast.walk` is excluded by its receiver — it traverses syntax, not a filesystem.
+- **The waiver must be a real comment**, found by `tokenize`. A substring test over the source is
+  worse than no check: a docstring explaining why the filter matters quotes the marker, and the gate
+  then prints `ok` for a module it never checked.
+
+The waivers in the tree are worth reading before writing one — they are not boilerplate.
+`memory-cache-symlink.py` lists a directory outside every repo; `memos-done-dated.py` reads a fixed
+path v2 has already asserted is not ignored; `memos-directory.py` reads that path one step *before*
+v2 does and says so; and `license-file-present.py` waives a defect it names rather than a case that
+does not apply. **What the assertion proves is that the call is present, not that its result was
+used** — a floor under the next author, not a substitute for reading the diff.
+
 ## `selftest` — the authoring gate
 
 The gate is `python conventions.py selftest`. Run it before committing a new step, so the step is

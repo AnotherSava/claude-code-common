@@ -83,6 +83,99 @@ def ignored(root: str, paths: tuple[str, ...] | list[str]) -> set[str] | None:
     return {name for name in done.stdout.split("\0") if name}
 
 
+def ignored_untracked(root: str, paths: tuple[str, ...] | list[str]) -> tuple[set[str], str]:
+    """Which of these paths git hides *and* nobody has committed, or the reason it would not say.
+
+    The plain form without `--no-index`, and that one omission is the whole difference from
+    `ignored` above. That function asks about the rules, which is the right question for v2 and
+    v3 — a repo that once force-added a file it excludes must not report "no deviation" while the
+    rule still hides every new file beside it. Asked about a *file*, the same question answers
+    "the rules match this path" and says nothing about whether anyone maintains it. Measured here
+    on a scratch repo: with `/scratch/` ignored and `scratch/package.json` committed through
+    `git add -f`, `--no-index` exits 0 and the plain form exits 1, and staging the file alone is
+    enough to flip the plain form while `--no-index` never moves.
+
+    So the plain form is exactly the predicate "git hides this and nobody has claimed it": it
+    consults the index first and reports a tracked path as not ignored whatever the rules say.
+    Being in the index settles it — someone committed the file, it arrives on a fresh clone, and
+    a change to it is a diff a human reviews.
+
+    The reason comes back beside the set rather than as the `None` its sibling returns, because
+    this caller has to *report* why it could not look. One path inside a submodule aborts the
+    whole batch with exit 128 after printing part of its answer, so the partial stdout must never
+    be read as the answer: `git check-ignore` declining to speak for a path another repo owns is
+    more useful than a confident wrong one, and the caller prints git's own sentence and stops.
+
+    `root` is asserted to be the work tree's own top level first, because `check-ignore` run
+    anywhere *under* a repo answers quite happily using that ancestor's rules — so "a repo
+    answered" is not "the repo I meant answered". A scratch copy of a fixture placed inside a
+    checkout that hides `tmp/` would have every file in it reported as hidden, and a caller
+    filtering on that would silently come back empty while looking like it had looked. Compared
+    with `samefile` rather than as strings, for the case `_own_fixtures` opens on.
+
+    And only a hide the *repo* carries is reported, which is the difference between an answer
+    about a commit and an answer about a checkout. `.git/info/exclude` is per-clone and the global
+    excludes file is per-machine; a path hidden by either returns exit 0 exactly like one hidden
+    by a committed `.gitignore`, so without this two machines derive different sets from one tree
+    and a step recorded on the first can fail on the second. Note which direction that fails in:
+    v2 and v3 assert paths are *not* ignored, so a machine-local rule makes them fail loudly,
+    while a caller narrowing a set the way this one does would lose entries in silence.
+
+    Carried one source further than `source_is_in_repo` goes: that helper answers "is this file in
+    the working tree", which is what v2 and v3 want, while a `.gitignore` written and never
+    committed is in the working tree and in no clone. So the cited source must also be tracked.
+    """
+    if not paths:
+        return set(), ""
+    top = git(root, "rev-parse", "--show-toplevel")
+    if top is None or top.returncode != 0 or not top.stdout.strip():
+        return set(), f"{root} is not the top of a git work tree git will speak about"
+    try:
+        same = os.path.samefile(top.stdout.strip(), root)
+    except (OSError, ValueError):
+        same = False
+    if not same:
+        return set(), (f"git answers for {top.stdout.strip()} rather than {root}, so the rules it applied "
+                       f"are another repository's")
+    done = git(root, "check-ignore", "-z", "--stdin", stdin="\0".join(paths) + "\0")
+    if done is None:
+        return set(), "git could not be run at all, so which paths it hides was never established"
+    if done.returncode not in (0, 1):
+        detail = (done.stderr or done.stdout or "").strip().splitlines()
+        return set(), (f"git check-ignore exited {done.returncode} rather than answering"
+                       f"{' — ' + detail[0] if detail else ''}")
+    hidden = {name for name in done.stdout.split("\0") if name}
+    if not hidden:
+        return set(), ""
+    # Only a rule the repo carries counts. `.git/info/exclude` is per-clone and the global excludes
+    # file is per-machine, and neither travels — so a hide from either makes this answer a property
+    # of the checkout rather than of the commit, and two machines compute different sets for one
+    # tree. Measured: all three sources return exit 0 from the form above, indistinguishably.
+    # `source_is_in_repo` below is exactly this distinction and already existed for v2 and v3.
+    rules = rules_for(root, sorted(hidden))
+    if rules is None:
+        return set(), ("git would not name the rule behind each hidden path, so which of them a clone "
+                       "hides too was never established")
+    unattributed = sorted(name for name in hidden if name not in rules)
+    if unattributed:
+        return set(), (f"git hid {len(unattributed)} path(s) and then named no rule for them "
+                       f"({', '.join(unattributed[:3])}), so whether the repo or this machine hides them is unknown")
+    in_repo = {name for name in hidden if source_is_in_repo(root, rules[name].source)}
+    if not in_repo:
+        return set(), ""
+    # In the repo is not yet in the commit. `source_is_in_repo` tests that the file is on disk here,
+    # which is the right question for v2 and v3 and one source short of the right question for this
+    # one: a `.gitignore` written but never committed hides paths on this machine and on no clone, so
+    # honouring it puts the checkout back into an answer that is supposed to be about the tree.
+    sources = sorted({rules[name].source for name in in_repo})
+    listed = git(root, "ls-files", "-z", "--", *sources)
+    if listed is None or listed.returncode != 0:
+        return set(), ("git would not say which of the ignore files it cited are tracked, so whether a clone "
+                       "hides these paths too was never established")
+    tracked = {name for name in listed.stdout.split("\0") if name}
+    return {name for name in in_repo if rules[name].source in tracked}, ""
+
+
 def rules_for(root: str, paths: tuple[str, ...] | list[str]) -> dict[str, Rule] | None:
     """The winning rule behind each path, for paths already known to be ignored.
 

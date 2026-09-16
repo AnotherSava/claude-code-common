@@ -198,6 +198,11 @@ def written_memos(root: str) -> dict[str, str]:
     out: dict[str, str] = {}
     base = os.path.join(root, ".claude", "memos")
     for directory in (base, os.path.join(base, "done")):
+        # walk-unfiltered: a fixed path this step is itself creating, not a search of the tree, so
+        # there is no scratch clone for a filter to find. Note the one gap honestly: v5 and v14 rest
+        # on v2 having already asserted `.claude/memos/` is not ignored, and v1 runs *before* v2, so
+        # here that guarantee is one step away rather than behind us. A repo hiding `.claude/memos/`
+        # would have this migration write files nothing commits — and v2 reports it on the next step.
         try:
             names = sorted(os.listdir(directory))
         except OSError:

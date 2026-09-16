@@ -205,6 +205,12 @@ def manifests(root: str) -> list[str]:
     is what dependency scanners read, and it is the half of the change most easily forgotten,
     but which value is right depends on the license the user has not chosen yet.
     """
+    # walk-unfiltered: and unlike the other waivers in this directory, this one marks a known defect
+    # rather than a case the filter does not apply to. A gitignored manifest one level down — a
+    # scratch clone, a build tree — is reported here as though it were this project's, so the advice
+    # about dependency scanners names a file no clone receives. It is report-only: `cmd_verify` never
+    # reads this list and `cmd_apply` writes nothing, so no recorded line depends on it, which is why
+    # it is waived and memo'd rather than fixed inside a change set about something else.
     places = ["."] + [name for name in listdir(root)
                       if not name.startswith(".") and name != "node_modules"
                       and os.path.isdir(os.path.join(root, name))]

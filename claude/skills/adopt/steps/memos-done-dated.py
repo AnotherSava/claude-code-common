@@ -62,6 +62,9 @@ def _entries(root: str) -> list[str]:
     `Case-Test.MD` and `case-test.md` to one file, so a case-sensitive test hides a file from
     this step while the filesystem still hands it to `os.replace`.
     """
+    # walk-unfiltered: a fixed path under `.claude/memos/` rather than a search of the tree, and by
+    # the time v14 runs v2 has asserted that path is not ignored — steps walk ascending, so that is
+    # an ordering guarantee rather than a likelihood.
     try:
         names = os.listdir(_done_dir(root))
     except OSError:

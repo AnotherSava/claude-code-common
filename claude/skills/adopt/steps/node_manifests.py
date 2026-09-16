@@ -8,22 +8,35 @@ step that wrote a pin into one of those would be writing into a tree the next bu
 replaces. Worse, the three steps disagreeing about the set is a repo that passes v7 and
 then has v8 assert against manifests v7 never looked at.
 
-So the set is derived once, here, by walking the tree and never descending into a
-directory a build tool owns. Everything a caller gets back is repo-relative with forward
-slashes, so a path reads and records the same on both machines.
+So the set is derived once, here, by two filters a caller never chooses between. The walk
+never descends into a directory a build tool owns, and what survives it is then narrowed to
+what git does not hide — a name rule cannot see a scratch clone, and the global convention
+puts scratch in a gitignored `tmp/`, so a manifest inside one is a designed and recurring
+condition rather than an accident. Everything a caller gets back is repo-relative with
+forward slashes, so a path reads and records the same on both machines.
 
 **This module is frozen surface, exactly as the step scripts that import it are, from the
-moment the first repo records a line for v7, v8 or v9.** A change to what `manifests`
-returns after that retroactively changes what those steps asserted wherever an `applied`
-line already stands, which is the thing `references/authoring-a-step.md` forbids: a shipped
-step is corrected by a new step carrying `supersedes:`, never by an edit. Read a bug found
-after that point as a reason to write the next step, not to edit this one.
+moment the first repo records an `applied` line for v7, v8 or v9.** The condition is not
+this file's to set, and it is worth reading it somewhere it cannot be rewritten to suit a
+change somebody wants to make: `SKILL.md` gives the ban its reason — a shipped step "is
+corrected by a new step carrying `supersedes:`, **because a repo already past that version
+will never re-run it**". Past it is what does the work. An `n/a` line records the step
+finding nothing to do, and a strictly smaller set still finds nothing, so narrowing cannot
+retroactively change what such a repo asserted; an `applied` line is the one that can.
+
+The git narrowing and `venv` below were added on 2026-09-15 under exactly that reading,
+measured rather than assumed: of the user's 36 GitHub repositories exactly one carried a
+committed `.claude/conventions.tsv` at all, holding v7, v8 and v9 as `n/a`, so no `applied`
+line for these versions existed anywhere to falsify. Read the next bug found here as a
+reason to write the next step rather than to edit this one — that measurement was the last
+moment this route was open, and it is not re-openable by repeating it.
 """
 
 import json
 import os
 from typing import NamedTuple
 
+import _gitignore
 import _own_fixtures
 
 # Directories a build tool, a package manager or a language toolchain owns. A package.json
@@ -32,9 +45,16 @@ import _own_fixtures
 # (`web/.next/standalone/package.json` is the case that named this list); the rest are the
 # same shape from the other toolchains these repos use, listed so a repo that gains one
 # later does not quietly start reporting a build artefact as a project.
+#
+# `.venv` and `venv` are both here because both are ordinary spellings and only the first was
+# listed at first: two Python repos in the fleet were measured reading
+# `venv/Lib/site-packages/playwright/driver/package/package.json` as a project of theirs, which
+# declares `engines.node`, so v8's probe exited 0 in each and an approved walk would have written
+# an `.npmrc` inside a virtualenv the next rebuild deletes.
 GENERATED = (".angular", ".cache", ".git", ".next", ".nuxt", ".output", ".parcel-cache",
              ".pnpm-store", ".svelte-kit", ".turbo", ".venv", ".vercel", ".yarn", "bower_components",
-             "build", "coverage", "dist", "node_modules", "out", "storybook-static", "target", "vendor")
+             "build", "coverage", "dist", "node_modules", "out", "storybook-static", "target", "vendor",
+             "venv")
 
 
 class Manifest(NamedTuple):
@@ -44,15 +64,41 @@ class Manifest(NamedTuple):
     error: str      # why it could not be read at all; a step reports this and stops
 
 
+class GitRefused(Exception):
+    """Git would not say which paths it hides, so which manifests are a project's is unknown.
+
+    Raised rather than swallowed, and never softened into an empty skip set: "git hides none of
+    these" and "git would not answer" are different facts, and a walk that returned the unfiltered
+    set on the second would let a step write `engines.node` into a vendored dependency and then
+    record an `applied` line claiming the convention was decided here.
+
+    **It propagates out of `manifests` and `read_all`, and every importing step must catch it at
+    its own command boundary** — deliberately not folded into `Manifest.error`, which means "this
+    file could not be read" and answers 3 everywhere. The codes differ by command: `verify` owes
+    2, the shape having gone unobserved rather than observed and found wrong; `probe` owes 2 as
+    well, printing the question, because a probe exiting 3 ends the whole `/adopt` walk and leaves
+    the repo no route to `n/a` at all; `apply` owes 3. A step that omits the catch gets
+    `_dispatch`'s traceback and exit 3, which `audit` records as FAILED against a shape nobody
+    looked at.
+    """
+
+
 def manifests(root: str) -> list[str]:
-    """Every package.json in `root` that a person maintains, repo-relative and sorted."""
+    """Every package.json in `root` that a person maintains, repo-relative and sorted.
+
+    Raises `GitRefused` when the second filter could not be applied — see that exception.
+    """
     found: list[str] = []
     for base, dirs, files in os.walk(root):
         kept = sorted(name for name in dirs if name not in GENERATED)
         dirs[:] = _own_fixtures.prune(base, kept)
         if "package.json" in files:
             found.append(os.path.relpath(os.path.join(base, "package.json"), root).replace(os.sep, "/"))
-    return sorted(found)
+    hidden, refusal = _gitignore.ignored_untracked(root, found)
+    if refusal:
+        raise GitRefused(f"{refusal}, so which of the {len(found)} package.json file(s) here are a project's "
+                         f"could not be established")
+    return sorted(rel for rel in found if rel not in hidden)
 
 
 def read(root: str, rel: str) -> Manifest:
@@ -78,7 +124,15 @@ def read(root: str, rel: str) -> Manifest:
 
 
 def read_all(root: str) -> list[Manifest]:
-    """Every project manifest, read. A caller checks `error` before trusting `data`."""
+    """Every project manifest, read. A caller checks `error` before trusting `data`.
+
+    A `GitRefused` from the walk propagates rather than arriving as a `Manifest.error`, and that
+    is deliberate: `error` means "this file could not be read", which a step answers with exit 3
+    in every command, while "git would not say which files are a project's" is a different fact
+    and `verify` owes it exit 2 — the shape was never observed, not observed and found wrong.
+    Collapsing the two would have `verify` assert a repo is out of shape on no evidence. Each step
+    catches it at its own command boundary, where which command is running is known.
+    """
     return [read(root, rel) for rel in manifests(root)]
 
 

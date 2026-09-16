@@ -39,9 +39,13 @@ rest of the fleet already uses.
 
 ## Does not apply when
 
-The tree holds no `package.json` at all outside the generated directories above. That is
-positive evidence read off a walk of the whole repo rather than off one path's absence: there
-is no Node project here, so there is no range to declare.
+The tree holds no `package.json` a person maintains — none outside the generated directories
+above, and none that git does not hide. That is positive evidence read off a walk of the whole
+repo rather than off one path's absence: there is no Node project here, so there is no range to
+declare. A manifest git hides is nobody's to edit, and the global convention puts scratch in a
+gitignored `tmp/`, so a clone sitting in one is a designed condition rather than an accident.
+A git that will not answer which paths it hides is a third outcome and not an empty skip set:
+the step prints what it could not establish and exits 3 without writing.
 
 Every manifest already declaring `engines.node`, with an `.nvmrc` beside it that the range
 admits, is the other reason. Verify sees that first and records the repo as in the target shape

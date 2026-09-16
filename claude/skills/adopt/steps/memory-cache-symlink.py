@@ -130,6 +130,9 @@ def sibling_spellings(cache: Cache) -> list[str]:
     own two cache directories. Wiring the one the harness is not reading would leave the machine
     looking wired while every session still wrote outside the repo, so a variant is named.
     """
+    # walk-unfiltered: everything this step lists is the machine-local Claude cache under the home
+    # directory, outside every repo. There is no work tree to ask, and `check-ignore` there would
+    # answer 128 or, worse, answer for whatever repo happens to be an ancestor.
     try:
         names = sorted(os.listdir(cache.projects))
     except OSError:

@@ -256,6 +256,14 @@ def find_files(root: str) -> tuple[list[str], list[str]]:
     rule below has nothing to say about it.
     """
     composes, vhosts = [], []
+    # walk-unfiltered: and it must stay that way. The three Node steps narrow their walk to what git
+    # does not hide, because a hidden `package.json` is a scratch clone nobody maintains. The same
+    # reasoning inverts here: a `compose.override.yml` or a vhost kept out of git *because it carries
+    # host paths* is still the file the box brings up, so its service keys are live on the shared
+    # bridge. Narrowing this walk was tried and reverted — it turned probe's question into a silent
+    # `verify` pass on exactly the generic-name collision that cost a commercial site 41 hours. The
+    # fixture hazard the git filter exists for does not arise here either: `_own_fixtures.prune`
+    # below already answers it, by identity rather than by name.
     for base, dirs, files in os.walk(root):
         # This skill's own steps ship compose specimens, one written to be unparseable on purpose, and
         # a check that reports its own test data as findings teaches a reader to skip it. Skipped by

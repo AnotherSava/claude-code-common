@@ -115,16 +115,17 @@ def chosen(findings: list[Finding]) -> Choice:
                           f"this repo and re-run.")
 
 
-def cmd_probe(root: str) -> int:
+def _probe(root: str) -> int:
     findings, unreadable = survey(root)
     if unreadable:
         print("\n".join(unreadable))
         return 3
     if not findings:
         # CD4's own example of positive evidence: the whole tree was walked and holds no manifest
-        # outside the generated trees, so there is no toolchain here to pin.
-        print(f"no package.json outside node_modules/ and the other build and dependency trees this "
-              f"step never descends into — there is no Node project here whose manager could drift")
+        # outside the generated trees or the paths git hides, so there is no toolchain here to pin.
+        print(f"no package.json outside node_modules/, the other build and dependency trees this step "
+              f"never descends into, and the paths git hides — there is no Node project here whose "
+              f"manager could drift")
         return 1
     blocked = [f for f in findings if f.state in ("other-manager", "malformed")]
     if blocked:
@@ -152,7 +153,7 @@ def cmd_probe(root: str) -> int:
     return 0
 
 
-def cmd_apply(root: str, dry_run: bool) -> int:
+def _apply(root: str, dry_run: bool) -> int:
     findings, unreadable = survey(root)
     if unreadable:
         print("\n".join(unreadable))
@@ -227,7 +228,7 @@ def cmd_apply(root: str, dry_run: bool) -> int:
     return 0
 
 
-def cmd_verify(root: str) -> int:
+def _verify(root: str) -> int:
     findings, unreadable = survey(root)
     if unreadable:
         print("\n".join(unreadable))
@@ -245,6 +246,51 @@ def cmd_verify(root: str) -> int:
     print(f"all {len(findings)} project package.json file(s) pin npm in the npm@x.y.z form "
           f"({', '.join(source_pins(findings))})")
     return 0
+
+# The three entry points, each turning a refusal from the shared walk into the sentence saying what
+# was never established. Caught per command because the right code differs, and `probe` is the one
+# that matters: a probe exiting 3 ends the whole /adopt walk (SKILL.md §4), which would leave a repo
+# git cannot answer about with no route to `n/a` or `declined` for this version or any after it.
+# Exit 2 with the question restores the route the walk had before the filter existed. `verify` owes
+# 2 as well — the shape went unobserved rather than observed and found wrong — and `apply` owes 3.
+# `_dispatch` would also exit 3 but print a traceback, and `audit` records a step against the first
+# line of its output.
+
+def cmd_verify(root: str) -> int:
+    try:
+        return _verify(root)
+    except nm.GitRefused as exc:
+        print(exc)
+        return 2
+
+
+def cmd_probe(root: str) -> int:
+    try:
+        return _probe(root)
+    except nm.GitRefused as exc:
+        print(f"{exc}.")
+        print("Resolve what git could not answer and re-run, or record n/a or declined with that reason. "
+              "This is a question rather than an error on purpose: a probe exiting 3 would stop the walk "
+              "here and leave this repo unable to record this version or any after it.")
+        return 2
+
+
+def cmd_apply(root: str, dry_run: bool) -> int:
+    # Asked before anything is written, so the two refusals can be told apart. Without it the catch
+    # below cannot know whether the tree was touched, and idempotence rule 2 — every source artifact
+    # survives every failure — is a claim `apply` has to be able to make honestly.
+    try:
+        nm.manifests(root)
+    except nm.GitRefused as exc:
+        print(f"{exc}. Nothing was written.")
+        return 3
+    try:
+        return _apply(root, dry_run)
+    except nm.GitRefused as exc:
+        print(f"{exc} — and git answered that same question a moment ago, so this arose mid-run and the "
+              f"tree may hold files this command created. Re-run apply once git can answer: it reaches "
+              f"the same end state from a half-finished run as from a clean one.")
+        return 3
 
 
 if __name__ == "__main__":

@@ -97,3 +97,49 @@ backwards means rejecting the right design for a measurement error.
 
 Also worth auditing: any instruction of the form "`git check-ignore` must exit 0" written near a `!`
 pattern is probably asserting the opposite of what it intends.
+
+## `--no-index` asks a different question, and which one you want depends on the job
+
+The index-consulting behaviour above is a limitation only when you are asking about the *rules*. Asked
+about a *file*, it is the whole point, and `--no-index` is the opt-out. Measured 2026-09-15 on a
+throwaway repo with `/scratch/` ignored, `scratch/package.json` committed through `git add -f`, and
+`scratch/other/package.json` left untracked:
+
+```
+PATH                          plain    --no-index   tracked?
+scratch/package.json          rc=1     rc=0         yes
+scratch/other/package.json    rc=0     rc=0         no
+```
+
+Staging alone is enough to flip the plain form — `git add -f` without a commit already gives rc=1, and
+`git rm --cached` puts it back to rc=0 — while `--no-index` never moves at any index state. So:
+
+- **Plain form = "git hides this AND nobody has claimed it."** Use it to decide whether a file is one a
+  person maintains. Being in the index settles that on its own: someone committed it, it arrives on a
+  fresh clone, and a change to it is a diff somebody reviews. Whether a rule also matches is irrelevant.
+- **`--no-index` = "do the rules match this path."** Use it to audit the rules themselves — "does this
+  repo's `.gitignore` deviate from the global one", "would this rule hide new files beside the one that
+  was force-added". A repo that once force-added a file it excludes must not report "no deviation".
+
+Picking the wrong one is silent in the direction that matters: filtering a file list with `--no-index`
+drops every path committed inside an ignored directory, which is exactly the file a human chose
+deliberately.
+
+### Three ways the batched form declines to answer
+
+`git check-ignore -z --stdin` is one fork for any number of paths, and all three of these exit **128**:
+
+- **A path inside a submodule** — `fatal: Pathspec 'sub/package.json' is in submodule 'sub'`. In a batch
+  it aborts the whole run *after emitting partial stdout*, so the bytes already printed look like a
+  complete answer. Read the exit status, never the output alone.
+- **Outside any work tree**, and **a path outside the repo** — the same fatal shape.
+
+Worse than any of them: a directory *under* an existing repo answers rc=0 quite happily, using that
+ancestor's rules. So "a repo answered" is not "the repo I meant answered" — assert
+`git rev-parse --show-toplevel` equals the root you intended, compared with `os.path.samefile` rather
+than as strings. A scratch tree placed inside a repo whose `.gitignore` hides `tmp/` will otherwise
+report every file in it as ignored, and the filter silently empties.
+
+Treat any exit outside `{0, 1}` as "the question was never answered" and stop. It is a different fact
+from "nothing is ignored", and a caller that collapses the two proceeds on an unfiltered list while
+believing it filtered.

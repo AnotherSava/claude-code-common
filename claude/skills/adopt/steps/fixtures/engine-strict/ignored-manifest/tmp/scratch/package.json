@@ -1,0 +1,8 @@
+{
+  "name": "scratch",
+  "version": "0.0.0",
+  "private": true,
+  "engines": {
+    "node": ">=24 <25"
+  }
+}
