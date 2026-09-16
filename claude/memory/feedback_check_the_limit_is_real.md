@@ -54,6 +54,14 @@ subject as the obstacle. Both times the correction was the user asking nothing m
 need that?" — which is the question to ask yourself before writing a limitation down, because once
 it is in a memo it stops being re-examined.
 
+Reading primary source is where this bites hardest, because a correct read feels like the end of the
+check. On 2026-09-16 three claims in one session came from reading Chromium correctly and then inferring
+which branch applied: a redirect that only happens logged out, reported as "this star is required"; a
+shortcut-cleanup path matching on exact URL equality, reported as "deleting the history takes the
+shortcuts with it" when zero of 703 URLs matched; and a deletable-row rule stated without noticing the
+row in front of me was bookmark-backed. Each time, one read of the user's own profile settled it in
+seconds. Source gives you the rule; only the system tells you which branch ran.
+
 ## A third shape: already owned by a later step
 
 **Check whether something you are about to hand the user is already owned by a step that runs

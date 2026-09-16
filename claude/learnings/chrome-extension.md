@@ -572,3 +572,45 @@ If your own restyle turns a host element into a scrollport — pinning a column 
 | `alarms` | `chrome.alarms.create()` / `onAlarm` (periodic SW wakeups) |
 | `webNavigation` | `chrome.webNavigation.onCompleted` / `onCommitted` / `onHistoryStateUpdated` — per-**frame** navigation events (the only way to react to a sub-frame/iframe finishing load; `tabs.onUpdated` fires for the top frame only). Same "Read your browsing history" warning as `tabs`, so adding it alongside `tabs` is free UX-wise. |
 | `host_permissions` | Persistent `executeScript` on matching tabs without user gesture |
+| `history` | `chrome.history.search()` / `deleteUrl()`. Requestable as an **optional** permission — see below |
+
+## Optional permissions, and why a granted host pattern stops matching
+
+Verified 2026-09-16 against Chrome 152 (`refs/branch-heads/7977`).
+
+**A manifest key only exists once the extension is reloaded.** Adding `optional_permissions` and calling
+`chrome.permissions.request()` without reloading fails with *"Only permissions specified in the manifest may
+be requested."* The request validates against the manifest Chrome currently holds, not the file on disk — so
+reload before concluding the key is wrong or unsupported.
+
+**One request, one dialog.** `PermissionsRequestFunction::Run` builds a single `PermissionSet` from every
+origin in the call and shows one prompt, so six sites cost one click. The call has to be reached from a user
+gesture with no `await` in front of it, or Chrome rejects it outright.
+
+**Chrome normalizes what it stores, so never reconcile held origins against your own strings.** Request
+`https://github.com/` and `permissions.getAll()` returns `https://github.com/*`. Code that compares "what I
+hold" against "what my config asks for" by string equality therefore reads every root-only grant as unused —
+and revoking on that basis strips the permission the instant it is given, while `request()` still resolves
+`true`, which makes it look like the grant failed. Compare by coverage instead (`permissions.contains`, or
+test each held pattern against a URL some rule wants). Granting needs a user gesture and revoking does not,
+so revocation is the half that cannot be undone without asking again — bias it toward doing nothing.
+
+`history` is allowed as an optional permission: its entry is `{APIPermissionID::kHistory, "history",
+APIPermissionInfo::kFlagRequiresManagementUIWarning}`, with no `kFlagCannotBeOptional`. The ones that cannot
+be optional include `debugger`, `mdns`, `tts`, `ttsEngine`, `wallpaper`, `fontSettings`,
+`fileBrowserHandler`, `homepage`, `searchProvider`, `startupPages` and the `*Private` APIs.
+
+## Automated testing: branded Chrome will not load your extension
+
+Since Chrome 137 the branded build ignores the flags, logging `--disable-extensions-except is not allowed in
+Google Chrome, ignoring` and running without the extension — so a headless run against the installed
+`chrome.exe` silently tests nothing and reports success. Use Chrome for Testing instead
+(`npx @puppeteer/browsers install chrome@stable`), which still honours `--load-extension`.
+
+Two more that each cost a debugging round:
+
+- **A dynamically registered content script is not in place for the first navigation of a browser session**,
+  and `persistAcrossSessions: true` does not close the gap. In a test, open a holding page that redirects
+  after a few seconds; in production it means a restored tab or startup page keeps its own state.
+- **An unpacked extension records no manifest copy in the profile's `Secure Preferences`**, so reading that
+  back is not a way to check what Chrome actually loaded.
