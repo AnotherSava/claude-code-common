@@ -1,6 +1,0 @@
-config/publish.env filter=crypt diff=crypt merge=crypt
-
-# A pattern carrying a space, quoted the way git requires. Git reads it; this step cannot turn it
-# into a path it can check, and a filter=crypt rule it cannot check must not be skipped past while
-# the readable rule above it is quietly fixed.
-"docs/rate card.secret.md" filter=crypt diff=crypt merge=crypt -text

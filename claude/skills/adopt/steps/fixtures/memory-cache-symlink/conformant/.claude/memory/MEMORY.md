@@ -1,2 +1,0 @@
-- [feedback_no_silent_retries.md](feedback_no_silent_retries.md) — A retry that logs nothing reads as a first attempt
-- [project_deploy_target.md](project_deploy_target.md) — Deploys go to the staging host first, always

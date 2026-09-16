@@ -83,14 +83,14 @@ class Backlog:
         self.done_dir = os.path.join(self.open_dir, "done")
         os.makedirs(self.done_dir)
         # `memos.py` refuses to touch a backlog in a repo that has not adopted the convention
-        # defining this layout, so the fixture records it — the same line `/adopt` would write.
-        # Seeded here rather than bypassed with a flag: a test-only escape hatch in the helper
-        # would be production surface existing solely for tests, and it would also stop this
-        # suite from exercising the guard's happy path at all.
-        with open(os.path.join(self.root, ".claude", "conventions.tsv"), "w",
+        # version defining this layout, so the fixture records it — the same file `/adopt` would
+        # write. Seeded here rather than bypassed with a flag: a test-only escape hatch in the
+        # helper would be production surface existing solely for tests, and it would also stop
+        # this suite from exercising the guard's happy path at all. v1 is the version that
+        # declares `affects: memo`; a higher number would claim migrations this tree never ran.
+        with open(os.path.join(self.root, ".claude", "conventions"), "w",
                   encoding="utf-8", newline="\n") as fh:
-            fh.write("# version\tslug\tstate\tdate\tnote\n"
-                     "1\tmemos-directory\tapplied\t2026-09-01\tfixture, already in the target shape\n")
+            fh.write("# Convention version this repo has adopted.\n1\n")
 
     def write(self, name: str, title: str, created: str = "2026-09-01 10:00:00", done: bool = False,
               body: str = "PRECIOUS BODY", platform: str = "") -> None:

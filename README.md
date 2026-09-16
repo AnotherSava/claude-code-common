@@ -378,8 +378,8 @@ Cross-machine overview of all your GitHub-owned local clones — branch, behind/
 - Merges the two on each repo's `OWNER/REPO` origin slug, the only identity that survives a different clone path per machine; the terminal table separates `clean` from `absent`, while the report shows only outstanding work and leaves both as an empty column
 - Fetches every repo's origin in parallel on both machines before reading state, so counts reflect the current remote
 - Auto-pulls clean repos with inbound commits via `git pull --ff-only` on both machines, marks pulled repos with `✓`
-- **Reports each clone's convention gap** in a `CONV` column and in the report card, so a repo behind on [`/adopt`](#adopt) appears even with a clean tree — it imports that skill's own engine rather than re-reading `.claude/conventions.tsv`, since two readers of one format drift the day either gains a column. Per machine, not per repo: the gitignored half of the record never travels and the two dotfiles checkouts are routinely at different commits, so each machine's summary line names the step set its column was measured against
-- Says when it could not measure — a machine whose dotfiles checkout predates `/adopt`, a record that will not parse, one naming a version newer than the step set — rather than leaving an empty column that reads as a fleet with nothing to adopt
+- **Reports each clone's convention gap** in a `CONV` column and in the report card, so a repo behind on [`/adopt`](#adopt) appears even with a clean tree — it imports the conventions engine rather than re-reading `.claude/conventions`, since two readers of one format drift the day either changes shape. Per machine, not per repo: the gitignored half of the record never travels and the two dotfiles checkouts are routinely at different commits, so each machine's summary line names the version set its column was measured against
+- Says when it could not measure — a machine whose dotfiles checkout predates `/adopt`, a record that will not parse, one naming a version newer than the version set — rather than leaving an empty column that reads as a fleet with nothing to adopt
 - Auto-hides columns nothing fills — MACHINE disappears on a single-machine run, BRANCH when every clone is on main — and drops DESCRIPTION entirely on a terminal too narrow to hold prose, rather than wrapping every summary into a four-line ribbon
 - Degrades loudly when the peer is unreachable: the SSH error is named once in the summary and the report header, and the table falls back to the single-machine shape rather than quietly dropping half the picture
 - Writes an HTML report to the repo's gitignored `tmp/` — one full-width block per project with the machines side by side in a column each, named once in a sticky header carrying their OS, projects root and scan age, so a column's position is what attributes its contents
@@ -482,23 +482,26 @@ Conventions for writing and changing skills — the directory shape, the frontma
 
 ### Adopt
 
-Brings one repo into the shape the conventions in this repo currently require. Every convention change an already-conforming repo has to act on ships as a numbered step — prose plus a script that probes, applies and verifies — and `/adopt`, run in the repo that is behind, walks the steps that repo has not decided yet and hands the record to `/commit`.
+Brings one repo into the shape the conventions in this repo currently require. Each change an already-conforming repo has to act on ships as a numbered **version** — one folder of prose under `claude/conventions/versions/`, written as instructions an agent follows — and `/adopt`, run in the repo that is behind, walks the versions that repo has not adopted yet and hands the record to `/commit`. What a version hands over for good is a **rule**, run from then on by the checker in that repo's commit gate.
 
 **Command:** `/adopt`
 
 **Features:**
-- Runs each step's `verify` **before** its `probe`, so a repo already in the target shape records `applied` with nothing mutated — which is what stops the repos that did the work by hand, or on the other machine days ago, being filed as "does not apply"
-- Records four states and nothing else — `applied`, `n/a`, `declined`, and absence, which means not run — in a committed `.claude/conventions.tsv`, with a machine-scoped step's `applied` line copied into a gitignored sibling as well, so a fresh clone reports the symlink it has not made rather than inheriting the other machine's answer
-- Refuses to write `applied` unless it has just run that step's own `verify` and got 0, so a bumped number can never outrun the work it claims
-- Puts a step's question to the user verbatim wherever no file probe can settle it — whether a repo wants a backlog at all, whether a missing LICENSE is deliberate — and never answers it on their behalf
-- Shows `apply --dry-run` and asks before any mutation; a step that fails leaves every source artifact intact and stops the run rather than stepping past it into steps that depended on it
-- Stops on a branch behind its upstream, where a migration's delete merges cleanly against the other machine's append and loses it in silence — but never on a dirty tree, since the record line and the pending change are meant to commit together
-- Closes with an audit that re-runs `verify` for every `applied` line and `probe` for every `n/a` one, printing `NOT COVERED` rather than a pass a retired script can no longer justify
-- Documents the next version's authoring contract in `references/authoring-a-step.md` — the frontmatter, the five mandatory headings, the six-rule idempotence contract, and the `supersedes:` / `retracted:` rules that correct a shipped step without ever editing one a repo has already run
-- Lets a step declare `affects: <tool>` for the data it reshapes, so that tool can refuse to read a format this repo has not adopted — [`/memo`](#memo) is the first, asking the version rather than looking for the file the migration replaces
-- Enumerates what can never carry a version at all — agent behaviour, code content, unbounded properties, global settings — in `references/not-versioned.md`, so "current" means every versionable convention has been decided rather than every rule in `CLAUDE.md` being satisfied
+- Keeps a repo's whole convention state as **one integer** in a committed `.claude/conventions` — a version is a migration, so it ran here or it did not, and the number says how far. A machine-scoped version writes a gitignored sibling as well, so a fresh clone reports the symlink it has not made rather than inheriting the other machine's answer
+- Advances that number by exactly one per version, through a command that refuses to lower it, to skip, or to name a version this dotfiles checkout does not have — a walk cannot leave the record claiming a migration nobody read
+- Reads each version's prose in full and performs the migration itself; a version carries a script only where the work is mechanical and tedious, and every mutation is shown before it happens and applied only on a yes
+- Settles "does this apply here" on the positive evidence the version names, so "nothing found" can never be read off "nothing looked at" — and a version that does not apply is still decided, with the number advancing and nothing mutated
+- Puts a version's question to the user verbatim wherever no file can settle it — whether a repo wants a backlog at all, whether a missing LICENSE is deliberate — and never answers it on their behalf
+- Stops on a branch behind its upstream, where a migration's delete merges cleanly against the other machine's append and loses it in silence — but never on a dirty tree, since the record and the pending change are meant to commit together
+- Hands every continuing property to `claude/conventions/check.py`, which runs the rules the repo's number entitles it to on every commit, reports a rule that *could not look* as `UNMEASURED` rather than as a pass, and is the reason there is nothing here to re-sample by hand
+- Lets a version declare `affects: <tool>` for the data it reshapes, so that tool can refuse to read a format this repo has not adopted — [`/memo`](#memo) is the first, asking the version rather than looking for the file the migration replaces
+- Enumerates what can never carry a version at all — agent behaviour, code content, unbounded properties, global settings — in `claude/conventions/not-versioned.md`, so "current" means every versionable convention has been decided rather than every rule in `CLAUDE.md` being satisfied
 
-**Authoring gate:** `python claude/skills/adopt/conventions.py selftest` — exit 0 every step is sound, 1 otherwise. It exercises each step against its own fixtures: `verify` must *fail* on the `before/` tree and pass on `conformant/` without mutating it, `apply` must be idempotent across a second run, and any extra fixture tree must make `apply` refuse with every source artifact intact. This repo's `.claude/commit-checks.sh` runs it alongside `claude/tests/memos.py` and `claude/tests/ingress-lint.py`, so a step that would edit fifteen other repos cannot be committed here untested.
+**Full guide:** [Convention versions](docs/convention-versions.md) — the system end to end for a human reader: what a version is, what the record holds, how the notice → `/adopt` → `/commit` loop runs, where the checker takes over, what "current" does and does not mean, and what to do when a record will not parse or conflicts on a pull.
+
+**Authoring a version:** `claude/conventions/authoring.md` — the contract for adding one: the narrow test for when a version is owed at all, which half of a change is a migration and which is a continuing rule, the folder's four mandatory sections, the rule signature, and the two things every rule has to get right.
+
+**Authoring gate:** `python claude/conventions/tests.py` — exit 0 the version set and its rules are sound, 1 otherwise. It asserts that every version folder parses and the numbers run contiguously, that all four mandatory sections are present, that versions and rules name each other in both directions, and that each rule comes back clean on a conforming tree, non-empty on a violating one and *raising* on a tree where git cannot answer — each built in a temp directory by the test itself, so no broken fixture tree is committed. This repo's `.claude/commit-checks.sh` runs it alongside `claude/conventions/check.py`, `claude/tests/memos.py` and `claude/tests/ingress-lint.py`, so a version that would edit fifteen other repos cannot be committed here untested.
 
 ---
 
@@ -602,7 +605,7 @@ Stays silent when there's nothing open. Needs no environment variable. See the [
 
 **File:** `claude/hooks/check-install.py`
 
-A `SessionStart` hook verifying every symlink and git setting the [install blocks](#global-installation) create — eleven links plus `core.hooksPath`, `core.excludesFile` and `core.attributesFile`. Silent unless something is broken; it also runs by hand as `python ~/.claude/hooks/check-install.py`, where it prints a pass/fail line per check.
+A `SessionStart` hook verifying every symlink and git setting the [install blocks](#global-installation) create — each link in those blocks plus `core.hooksPath`, `core.excludesFile` and `core.attributesFile`. Silent unless something is broken; it also runs by hand as `python ~/.claude/hooks/check-install.py`, where it prints a pass/fail line per check.
 
 A missing link is silent in a way that looks like working software, and each one fails differently: no `output-styles` link leaves `outputStyle` in `settings.json` resolving to nothing, so response-style rules apply on one machine and not the other; no `memory` link sends saved memories outside the repo; no `learnings` link makes every lookup come back empty as though nothing had been written down. None of it shows in git, because the links are machine-local while the settings depending on them are committed and identical everywhere.
 
@@ -620,15 +623,15 @@ Adding a link to the install blocks needs a matching line in the script's `LINKS
 
 A `SessionStart` hook comparing two integers: the newest convention version in this dotfiles checkout, and the highest one the current repo has recorded. Silent when they agree. When they don't, it prints the gap and offers [`/adopt`](#adopt) — at most five bullets and then `... N more`, because fifteen bullets at every session start is a wall nobody reads.
 
-It runs **no subprocess at all**: the repo root by walking up for a `.git`, `.git/config` as text for the origin owner, the two record files, one `listdir` of the steps directory with a head-read of each frontmatter, and this checkout's `.git/HEAD` for a short sha. Every message names that sha, so "latest" is never an unqualified claim.
+It runs **no subprocess at all**: the repo root by walking up for a `.git`, `.git/config` as text for the origin owner, the two record files, one `listdir` of the versions directory with a head-read of each README's frontmatter, and this checkout's `.git/HEAD` for a short sha. Every message that claims a "latest" version names that sha, so that claim is never unqualified — the diagnostic messages, which name no version, carry no sha. It verifies nothing: whether the repo still *holds* the shape its number claims is the checker's question, asked at every commit rather than at every session start.
 
 - **"Unrecorded" and "v0" are different facts** and get different lines — a repo with no record file is asked to record where it stands, while one at v0 is told how far behind it is.
-- **A record naming a version this checkout does not have** means the dotfiles repo is behind, not the project. It says so and withholds the `/adopt` offer, since adopting against a stale step list records a repo as current against a `latest` that has already moved.
+- **A record naming a version this checkout does not have** means the dotfiles repo is behind, not the project. It says so and withholds the `/adopt` offer, since adopting against a stale version set records a repo as current against a `latest` that has already moved.
 - **A directory with no `.git` is told once**, and only where a `.claude/` or a `CLAUDE.md` is present, so a scratch directory stays silent while a real project directory stops being outside the system with nothing anywhere saying so.
-- **A record it cannot read at all** — an unparseable line, a permission bit, bytes that are not UTF-8 — names what stopped it and withholds `/adopt`, and so does a step set that will not load; an `exempt` line, or an origin owned by anyone other than the user, is silent.
-- **A machine-scoped step decided in the repo but missing from the gitignored local record** gets its own bullet, marked as not wired on this machine — the committed half travels with a clone and the machine half deliberately does not.
+- **A record it cannot read at all** — a content line that is neither a number nor an `exempt` reason, a permission bit, bytes that are not UTF-8 — names what stopped it and withholds `/adopt`, and so does a version set that will not load; an `exempt` record, or an origin owned by anyone other than the user, is silent.
+- **A machine-scoped version adopted in the repo but not wired on this machine** gets its own bullet, derived from the two integers — the committed half travels with a clone and the machine half deliberately does not.
 
-The message is a `systemMessage`, so it reaches the screen and never the transcript; `/adopt` re-derives the gap itself rather than trusting what was pasted into it.
+The message is a `systemMessage`, so it reaches the screen and never the transcript; `/adopt` re-derives the gap itself rather than trusting what was pasted into it. What each message means, and what to do about it, is in [Convention versions](docs/convention-versions.md).
 
 ---
 
@@ -756,6 +759,7 @@ New-Item -ItemType SymbolicLink -Path "$env:USERPROFILE\.claude\learnings" -Targ
 New-Item -ItemType SymbolicLink -Path "$env:USERPROFILE\.claude\memory" -Target "$PWD\claude\memory"
 New-Item -ItemType SymbolicLink -Path "$env:USERPROFILE\.claude\scripts" -Target "$PWD\claude\scripts"
 New-Item -ItemType SymbolicLink -Path "$env:USERPROFILE\.claude\output-styles" -Target "$PWD\claude\output-styles"
+New-Item -ItemType SymbolicLink -Path "$env:USERPROFILE\.claude\conventions" -Target "$PWD\claude\conventions"
 New-Item -ItemType SymbolicLink -Path "$env:USERPROFILE\.git-hooks" -Target "$PWD\git\hooks"
 New-Item -ItemType SymbolicLink -Path "$env:USERPROFILE\.gitignore" -Target "$PWD\git\gitignore"
 New-Item -ItemType SymbolicLink -Path "$env:USERPROFILE\.gitattributes" -Target "$PWD\git\gitattributes"
@@ -778,6 +782,7 @@ ln -s "$(pwd)/claude/learnings" ~/.claude/learnings
 ln -s "$(pwd)/claude/memory" ~/.claude/memory
 ln -s "$(pwd)/claude/scripts" ~/.claude/scripts
 ln -s "$(pwd)/claude/output-styles" ~/.claude/output-styles
+ln -s "$(pwd)/claude/conventions" ~/.claude/conventions
 ln -s "$(pwd)/git/hooks" ~/.git-hooks
 ln -s "$(pwd)/git/gitignore" ~/.gitignore
 ln -s "$(pwd)/git/gitattributes" ~/.gitattributes

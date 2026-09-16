@@ -4,7 +4,8 @@
 #
 # What makes a defect here expensive is reach rather than severity: everything under `claude/` is
 # symlinked into `~/.claude/` on both machines, so a broken hook fires at every session start
-# everywhere, and a broken adoption step runs against fifteen other repos and edits their files.
+# everywhere, and a broken convention reaches fifteen other repos — its migration editing their
+# files, its rule standing in front of their commits.
 # Three suites already existed to catch exactly that and nothing ran any of them.
 #
 # Deliberately absent: a linter. There is no lint config in this repo and adopting one is its own
@@ -21,8 +22,8 @@ cd "$ROOT" || exit 2
 
 status=0
 
-# Buffer each suite and print its detail only when it fails. The authoring gate alone prints 227
-# assertion lines, and a wall of `ok` at every commit is how a gate stops being read — but a silent
+# Buffer each suite and print its detail only when it fails. The authoring gate alone prints a line
+# per assertion, and a wall of `ok` at every commit is how a gate stops being read — but a silent
 # pass is the other failure, so the tally line always shows.
 run() {
   local label="$1" out
@@ -38,12 +39,19 @@ run() {
   rm -f "$out"
 }
 
-# The authoring gate for the convention steps. It is the only one of the three whose failure would
-# reach other people's repositories: a step that ships with a `verify` passing vacuously, an `apply`
-# that is not idempotent, or a parser that skips a line it cannot classify gets run by `/adopt` in
-# fifteen repos and edits their files. It exercises every step against its own fixtures, which is
-# why it is worth the seconds it takes.
-run "Convention steps — authoring gate" python3 claude/skills/adopt/conventions.py selftest
+# The authoring gate for the conventions. Its failure is the one here that reaches other people's
+# repositories: a version whose README is missing a section `/adopt` walks in fifteen repos, a rule
+# named by no version or a version naming a rule with no file, and above all a rule that returns a
+# clean list for a tree it should have refused — each of those ships from here into every repo's
+# commit gate. Every rule is exercised against a conforming and a violating tree the test builds
+# itself, which is why it is worth the seconds it takes.
+run "Conventions — authoring gate" python3 claude/conventions/tests.py
+
+# The checker every repo's commit gate runs, pointed at this one. A repo that authors the rules is
+# also a repo they apply to, and exempting it would be the one place a rule could ship that its own
+# author's tree fails. Which rules run here is read off this repo's adopted number, exactly as it is
+# anywhere else.
+run "Conventions — this repo" python3 claude/conventions/check.py .
 
 # Two silent data-loss bugs shipped in memos.py within a day of each other, both exiting 0 with a
 # plausible line. That suite pins the cases where a string comparison and a directory entry

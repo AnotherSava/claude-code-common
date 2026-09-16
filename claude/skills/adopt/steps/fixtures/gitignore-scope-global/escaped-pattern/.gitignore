@@ -1,5 +1,0 @@
-# Editor and OS noise
-.DS_Store
-
-# A build directory whose name really does end in a space
-build\ /

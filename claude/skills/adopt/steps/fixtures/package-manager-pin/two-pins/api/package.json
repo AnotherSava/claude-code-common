@@ -1,9 +1,0 @@
-{
-  "name": "example-api",
-  "version": "0.1.0",
-  "private": true,
-  "packageManager": "npm@11.18.0",
-  "scripts": {
-    "start": "node index.js"
-  }
-}

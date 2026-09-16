@@ -1,8 +1,0 @@
-{
-  "name": "ledger-web",
-  "version": "1.2.0",
-  "license": "MIT",
-  "scripts": {
-    "check": "node --test"
-  }
-}

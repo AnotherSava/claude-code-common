@@ -74,8 +74,8 @@ Run `python ~/.claude/skills/github-status/scripts/repos-status.py --width <N>` 
 and Linux; drop `--width` if undetected). It scans both machines concurrently, so it costs the slower
 of the two rather than their sum. Output has three parts:
 
-1. **Machine summary**, one line each: name, OS, projects root, repos discovered, the convention step
-   set that machine measured against (`conventions v13 (8f0f4b0)` — its own dotfiles checkout, which
+1. **Machine summary**, one line each: name, OS, projects root, repos discovered, the convention
+   version set that machine measured against (`conventions v13 (8f0f4b0)` — its own dotfiles checkout, which
    is what every CONV cell in its column is relative to), and how long ago it was scanned. A machine
    that could not be reached prints `NOT REACHED` with the SSH error instead, and drops out of the
    table entirely — it is named once here rather than under every repo.
@@ -104,9 +104,9 @@ of the two rather than their sum. Output has three parts:
      file mtime, oldest unpushed commit date), in the compact form `5m` / `3h` / `2d` / `4mo` / `1y`.
      A deletion leaves no mtime behind, so a clone with only deletions falls back to whatever commits
      exist and can show a blank AGE against a filled LOCAL.
-   - **CONV** — convention versions that clone has not decided: the same number `/adopt` and the
-     session-start notice give, read from `.claude/conventions.tsv` against that machine's step set.
-     A `+N` suffix (`3+1`, or `+1` alone) counts machine-scoped steps the repo has decided but that
+   - **CONV** — convention versions that clone has not adopted: the same number `/adopt` and the
+     session-start notice give, read from `.claude/conventions` against that machine's version set.
+     A `+N` suffix (`3+1`, or `+1` alone) counts machine-scoped versions the repo has adopted but that
      machine has not wired. `?` means the record could not be read — the report says why. Blank means
      current, exempt, or someone else's repo. This is per machine, not per repo: the gitignored half
      of the record does not travel, and the two dotfiles checkouts are routinely at different commits.

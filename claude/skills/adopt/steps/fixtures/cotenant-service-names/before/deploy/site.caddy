@@ -1,5 +1,0 @@
-# Public vhost for the storefront. Copied into the shared proxy's conf.d on the host by publish.
-storefront.example.com {
-	encode zstd gzip
-	reverse_proxy app:3000
-}

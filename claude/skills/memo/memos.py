@@ -474,35 +474,39 @@ def _refuse_if_format_unadopted() -> None:
     """Stop before touching a backlog whose format this repo has not adopted yet.
 
     This layout is defined by a convention in the dotfiles repo, and every command here reads it
-    as though it were already true. In a repo still on the format a convention step replaces,
+    as though it were already true. In a repo still on the format a convention version replaces,
     that is wrong in both directions: `list` and `count` report an empty backlog while the old
     file holds items, and `add` writes a memo beside it, producing the half-migrated state the
-    step then refuses to resolve on its own. Measured against a copy of one repo's real backlog:
-    one `memo` call put eleven items on the wrong side of a migration that had not happened.
+    migration then refuses to resolve on its own. Measured against a copy of one repo's real
+    backlog: one `memo` call put eleven items on the wrong side of a migration that had not
+    happened.
 
-    The question asked is the version, not the artifact — `has this repo adopted the newest step
-    affecting memo?` rather than `does memos.md still exist?`. The second answers for one
+    The question asked is the version, not the artifact — `has this repo adopted the newest
+    version affecting memo?` rather than `does memos.md still exist?`. The second answers for one
     migration and has to be rewritten for the next; the first keeps working when the format moves
-    again, because the next step declares `affects: memo` and this check needs no edit.
+    again, because the next version declares `affects: memo` and this check needs no edit.
 
-    It never blocks on its own failure. An adopt skill that is missing, moved or unreadable makes
-    the answer unknown, not bad, and a backlog helper that refuses to run because a sibling skill
-    is broken is worse than one that writes a memo in a repo that turned out to be behind — so
-    that path says so on stderr and continues. Being behind is also already reported once per
+    It never blocks on its own failure. A conventions engine that is missing, moved or unreadable
+    makes the answer unknown, not bad, and a backlog helper that refuses to run because a sibling
+    tool is broken is worse than one that writes a memo in a repo that turned out to be behind —
+    so that path says so on stderr and continues. Being behind is also already reported once per
     session by `conventions-check.py`, which is the surface that catches the read side: this
     refusal covers the command line, and that notice covers the status bar.
     """
-    sys.path.insert(0, os.path.join(os.path.dirname(os.path.dirname(os.path.realpath(__file__))), "adopt"))
+    # Through realpath, because this file is reached as a symlink under ~/.claude and the engine
+    # it needs sits in the dotfiles checkout the link points into, not beside the link.
+    dotfiles = os.path.dirname(os.path.dirname(os.path.dirname(os.path.realpath(__file__))))
+    sys.path.insert(0, os.path.join(dotfiles, "conventions"))
     try:
-        import conventions
-        behind = conventions.behind_for(_root(), "memo")
+        import engine
+        behind = engine.behind_for(_root(), "memo")
     except BaseException as exc:
         print(f"note: could not check whether this repo has adopted the memo format ({exc})", file=sys.stderr)
         return
     if behind is None:
         return
-    through, required, title = behind
-    sys.exit(f"This repo has not adopted the memo backlog format: it is at v{through}, and v{required} "
+    adopted, required, title = behind
+    sys.exit(f"This repo has not adopted the memo backlog format: it is at v{adopted}, and v{required} "
              f"({title}) is what defines the layout every command here reads.\n"
              f"Run /adopt first — writing a memo now would leave the backlog half migrated.")
 

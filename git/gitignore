@@ -39,11 +39,12 @@ scripts/cb.sh
 
 # The machine-side half of a repo's convention record, written by /adopt. Ignored rather than
 # committed because a fresh clone has genuinely not made the symlink or written the per-machine
-# wrapper a `scope: machine` step asserts — it has to read as pending there instead of inheriting
-# the other machine's answer. Root-anchored by its mid-string slash, so it hides one file per repo
-# root and never a step's fixture tree carrying the same name deeper down. The repo-scoped half,
-# .claude/conventions.tsv, is committed and travels with the repo.
-.claude/conventions.local.tsv
+# wrapper a `scope: machine` version asserts — it has to read as pending there instead of inheriting
+# the other machine's answer. Root-anchored by its mid-string slash, so it hides the record at the
+# repo root and never a `.claude/` directory nested deeper in the tree. The repo-scoped half,
+# .claude/conventions, is committed and travels with the repo — and is not matched by this line,
+# which names one exact file.
+.claude/conventions.local
 
 **/.claude/settings.local.json
 **/.claude/scheduled_tasks.lock
