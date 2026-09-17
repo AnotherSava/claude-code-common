@@ -358,6 +358,35 @@ Both halves succeed individually, which makes it read as the writer having faile
 reader looking elsewhere. Translate with `pwd -W` (or `cygpath -w`) before handing a path across, or
 keep scratch files inside the project on an explicit path.
 
+## Spawning `bash` from a Windows program gets WSL's bash, not Git Bash
+
+A Python (or any Windows-native) process launching the bare name resolves it through `CreateProcess`,
+which searches the system directory **before** `PATH` — and `C:\Windows\System32\bash.exe` is the WSL
+launcher. Git Bash is further down `PATH` and never gets a look in. Measured 2026-09-16:
+
+```python
+subprocess.run(["bash", "D:/repo/script.sh"])
+# /bin/bash: D:/repo/script.sh: No such file or directory
+```
+
+The same path opens fine from a Git Bash prompt, which is what makes this read as a broken checkout or
+a mangled path rather than as the wrong interpreter. It is WSL: that bash has no `D:` at all — the
+drive is mounted at `/mnt/d` — so every Windows-style path it is handed is genuinely missing, and the
+error names `/bin/bash` either way.
+
+Resolve the interpreter explicitly instead of trusting the name:
+
+```python
+shell = os.environ.get("SHELL") or ""                      # "C:\\Program Files\\Git\\bin\\bash.exe"
+if not os.path.basename(shell).casefold().startswith("bash") or not os.path.isfile(shell):
+    shell = shutil.which("bash") or ""                     # searches PATH in order, so Git's copy wins
+subprocess.run([shell, script.replace("\\", "/"), arg.replace("\\", "/")])
+```
+
+`shutil.which` searches `PATH` in order rather than `CreateProcess`'s order, and `SHELL` names the
+bash that launched the session when there was one. Forward-slash every path argument as well: a
+backslash is an escape to bash, so `D:\repo\script.sh` arrives as `D:reposcript.sh`.
+
 ## A heredoc and a pipe both claim stdin — and the loser gets echoed in the error
 
 Feeding a value to an interpreter on stdin while the *script* also arrives on stdin. Measured 2026-08-31,
