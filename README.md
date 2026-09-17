@@ -420,7 +420,7 @@ Opens any file in Plannotator's browser annotation UI, not just the markdown and
 
 ### Update Plannotator Plugin
 
-Force-updates the plannotator plugin by clearing stale caches and reinstalling.
+Force-updates the plannotator plugin by clearing stale caches and reinstalling. The plugin only — the `plannotator` CLI has its own installer, and neither path moves the other.
 
 **Command:** `/plannotator-update`
 
@@ -428,6 +428,8 @@ Force-updates the plannotator plugin by clearing stale caches and reinstalling.
 - Removes the marketplace cache (stale git clone that prevents updates)
 - Removes the plugin cache
 - Guides through reinstallation after restart
+- Repairs the install registry, which the reinstall does not: deleting the cache leaves `installed_plugins.json` naming a version and a path that no longer exist, so `/plugin install` reports "already installed" and writes nothing
+- Says what it does not cover, so a current plugin is not mistaken for a current CLI
 
 ---
 
