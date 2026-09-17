@@ -18,11 +18,43 @@ Commands that can legitimately fail with no sensible fallback (e.g. `gh pr view`
 
 Context commands run in a subprocess that may differ from the normal Bash tool environment. Observed issues:
 
-- `@{upstream}` (git upstream ref) — failed to resolve in context, worked fine in Bash tool. Likely caused by curly braces being interpreted differently in the evaluator's shell.
+- `@{upstream}` (git upstream ref) — failed to resolve in context, worked fine in Bash tool. Originally read as curly braces being interpreted differently in the evaluator's shell; the ref alone is in fact fine, and the hazard is narrower — see *A revision range is deferred, the bare ref is not* below.
 - `--format="%h %ai %s"` — nested double quotes inside the context pattern caused parsing issues.
 - `2>/dev/null` — stderr redirection may not work as expected (the evaluator may parse the command string before passing to shell).
+- A backslash in an interpolated argument is eaten, and the resulting path looks plausible. Measured 2026-09-17: `/plannotator-annotate docs\convention-versions.md` reached the CLI through the skill's `!` line as `docsconvention-versions.md` and failed with `File not found`. The evaluator runs the command through a POSIX shell, so a Windows-style path typed as a slash-command argument loses its separators — and the error names a file nobody asked for rather than a quoting problem. Re-run with forward slashes; a skill taking a path argument cannot assume the user typed one.
 
 **Workaround**: Keep context commands simple. Avoid nested quotes, special shell syntax, and redirections. Use `--oneline` instead of `--format="..."`. For complex commands, use a helper script.
+
+## A revision range is deferred, the bare ref is not — and deferral is not a failure
+
+The blanket reading of `@{upstream}` as unusable is too wide. Measured 2026-09-17 on the `pull` skill,
+whose Context section held seven `!` lines: five preprocessed normally and two were handed back. The
+split does not follow the ref, it follows the **revision range**.
+
+Preprocessed, `@{upstream}` present as a bare argument:
+
+```
+!`git rev-parse --abbrev-ref @{upstream} 2>/dev/null || echo NO-UPSTREAM`     → origin/main
+!`git diff --name-status HEAD @{upstream} 2>/dev/null || echo NONE`           → the file list
+```
+
+Deferred, the same ref inside a two- or three-dot range:
+
+```
+!`git rev-list --left-right --count @{upstream}...HEAD 2>/dev/null || echo NO-UPSTREAM`
+!`git log --oneline -n 40 HEAD..@{upstream} 2>/dev/null || echo NONE`
+```
+
+The consequence is milder than the fatal exit described at the top of this file, and different in kind:
+nothing fails. The loader prefixes the skill with `[Run these 2 commands first, exactly as written, and
+use their output where each is named below.]` and replaces each value with `[output of command N, …]`,
+so the skill still runs correctly at the cost of one extra round trip. Distinguish the two when
+diagnosing — a deferred line renders a bracketed instruction, a failing line stops the skill loading.
+
+Two data points a side is a clean split but a small sample, so treat "range" as the best-supported rule
+rather than a proven one. Either way the remedy is the same and does not depend on the cause: a command
+carrying a remote revision range belongs in a process step, named there so later steps can cite it, as
+`pull` step 1 does.
 
 ## Fallback chains work
 
@@ -75,6 +107,9 @@ complex command behind the gate.
 - `git log --oneline -N` (no remote ranges)
 - `git log main..HEAD --oneline` (local branch range)
 - `git rev-parse --abbrev-ref HEAD`
+- `git rev-parse --abbrev-ref @{upstream} || echo <fallback>` (the ref as a bare argument)
+- `git diff --name-status HEAD @{upstream} || echo <fallback>` (two revisions as separate arguments)
+- `git fetch -q || echo <fallback>`
 - `git branch --sort=-committerdate`
 - `ls -t <dir> | head -N`
 - `grep -c "pattern" file || echo 0`
@@ -84,7 +119,7 @@ complex command behind the gate.
 ## Commands that fail or are unreliable in context
 
 - `gh pr view` — fails when no PR exists (non-zero exit)
-- `git log @{upstream}..HEAD` — curly braces may cause issues
+- `git log HEAD..@{upstream}`, `git rev-list @{upstream}...HEAD` — any remote revision range; deferred to a manual run rather than preprocessed
 - Commands with `--format="%h %ai %s"` — nested quotes parsed incorrectly
 - Any command that can legitimately return non-zero
 

@@ -109,6 +109,24 @@ Unwinds selected unpushed commits back into the working tree so they can be re-c
 
 ---
 
+### Pull
+
+Brings the branch up to date with its upstream when the working tree is dirty — the normal case in repos worked from two machines and several concurrent sessions. The counterpart to `/commit`, which stops at a remote that has moved ahead.
+
+**Command:** `/pull`
+
+**Features:**
+- Fetches and classifies the divergence first, stopping on an untracked branch, a failed fetch, or a branch already current
+- Intersects the locally-changed files with the incoming ones, and stashes nothing at all when they are disjoint — git's refusal to fast-forward is per-path
+- Scopes the stash to exactly the overlapping paths when they do intersect, so files another session is mid-edit in never leave the disk
+- Restores with `git stash pop --index`, preserving the staged/unstaged split that a plain pop silently flattens
+- Verifies against the stash commit as a baseline, then checks the two failure modes that produce no conflict at all: one document asserting the same thing twice, and an incoming file duplicating one already in the tree
+- Reads its procedure from `@{upstream}` when the repo being pulled is this one, since a behind checkout's documentation is behind by the same commits
+- Proposes a rebase on a diverged branch rather than running one, and will not commit or push
+- Runs only when you type it — `disable-model-invocation: true` stops Claude starting it, even when asked directly
+
+---
+
 ### Update Documentation
 
 Scans project documentation for stale references and fixes them.
