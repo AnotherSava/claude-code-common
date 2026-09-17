@@ -47,6 +47,8 @@ in the name, rather than also in a field that could disagree with it.
 The root is the git toplevel, else the current directory. `memos-surface.py`
 imports `open_memos()` from here rather than re-implementing the parse.
 """
+from __future__ import annotations
+
 import datetime
 import functools
 import os

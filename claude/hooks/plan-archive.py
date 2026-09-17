@@ -32,6 +32,8 @@ a failed archive is logged and ignored so the hook cannot disrupt Claude Code.
 See ~/.claude/learnings/claude-code-integration.md for the classification
 rationale (done vs awaiting, the ?-heuristic, notification_type values).
 """
+from __future__ import annotations
+
 import json
 import re
 import shutil

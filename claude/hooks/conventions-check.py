@@ -32,6 +32,8 @@ origin belongs to someone else, and a repo carrying an `exempt` line. Everything
 sentence, including the states where this hook cannot tell.
 """
 
+from __future__ import annotations
+
 import json
 import os
 import sys

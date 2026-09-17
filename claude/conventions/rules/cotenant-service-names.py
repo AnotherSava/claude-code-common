@@ -32,6 +32,8 @@ fussiness: `<<: *common` can supply a `container_name` this line scanner cannot 
 that skipped it would report a shape it never read.
 """
 
+from __future__ import annotations
+
 import importlib.util
 import os
 import re

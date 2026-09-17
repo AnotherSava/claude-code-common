@@ -59,11 +59,18 @@ run "Conventions — this repo" python3 claude/conventions/check.py .
 run "memos.py" python3 claude/tests/memos.py
 
 # The install blocks in README.md against check-install.py's lists. Measured 2026-09-16: the
-# `~/.claude/conventions` link was in both blocks and in neither list, so it was missing on this
-# machine and the session-start check called the install clean — every documented conventions
-# command failed there while nothing anywhere said why. Three copies of one contract, paired by
-# hand until this ran.
+# `~/.claude/conventions` link was in both blocks and in neither list, so it existed on neither
+# machine and the session-start check called the install clean on both — every documented
+# conventions command failed while nothing anywhere said why. Three copies of one contract, paired
+# by hand until this ran.
 run "install links" python3 claude/tests/install-links.py
+
+# Every .py here against the oldest interpreter a caller can hand it. macOS ships 3.9 as
+# /usr/bin/python3, and a non-interactive ssh resolves to it rather than to the Homebrew 3.14 the
+# same machine uses interactively — so nine `tuple[...] | None` annotations under
+# claude/conventions/ left the engine unimportable over there: fifteen repos reported as having
+# nothing to adopt, no repo's gate able to run, every one of those files correct on 3.10 and up.
+run "python baseline" python3 claude/tests/python-baseline.py
 
 # The co-tenancy linter three project repos call from this one copy. A regression here is silent in
 # the worst way the fleet knows: the arrangement it guards already cost 41 hours of a commercial

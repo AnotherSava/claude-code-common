@@ -32,6 +32,8 @@ A rule that could not look must never read as a rule that passed: the runner tur
 into an unmeasured line and a non-zero exit, while a filtered-to-nothing set would pass silently.
 """
 
+from __future__ import annotations
+
 import os
 import subprocess
 from typing import NamedTuple

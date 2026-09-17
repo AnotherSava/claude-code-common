@@ -22,6 +22,8 @@ differently on the other machine — which is exactly the shape this rule exists
 than let a repo carry silently.
 """
 
+from __future__ import annotations
+
 import _git
 
 # Every path the conventions require committed. Directories carry a trailing slash so git is told

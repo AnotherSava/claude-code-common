@@ -23,6 +23,8 @@ Usage:  python claude/tests/ingress-lint.py
 Exit:   0 all cases behave, 1 at least one does not
 """
 
+from __future__ import annotations
+
 import importlib.util
 import os
 import sys

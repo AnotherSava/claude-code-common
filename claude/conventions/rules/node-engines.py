@@ -17,6 +17,8 @@ Which manifests count is `_node`'s question, not this one's: a package.json insi
 inside a path git hides is not a manifest anybody maintains.
 """
 
+from __future__ import annotations
+
 import re
 
 import _node

@@ -33,6 +33,8 @@ Exit:   0 clean, 1 violations found, 2 nothing to check
         as NOT CHECKED, and exit 0 then reads "no violations in what ran", never "clean".
 """
 
+from __future__ import annotations
+
 import importlib.util
 import os
 import re

@@ -19,6 +19,8 @@ Usage:
 Exit: 0 ok, 1 API or argument error, 2 the API key could not be read
 """
 
+from __future__ import annotations
+
 import argparse
 import json
 import os

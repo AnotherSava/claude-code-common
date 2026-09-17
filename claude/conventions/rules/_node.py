@@ -25,6 +25,8 @@ raises, so the runner records the rule as unmeasured instead of letting a rule c
 manifest with nothing wrong.
 """
 
+from __future__ import annotations
+
 import json
 import os
 from typing import NamedTuple

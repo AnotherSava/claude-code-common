@@ -34,6 +34,8 @@ produces on Windows, which every textual check reports as healthy.
 See learnings/comparing-paths-symlinks-and-case.md.
 """
 
+from __future__ import annotations
+
 import os
 import subprocess
 import sys

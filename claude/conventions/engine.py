@@ -34,6 +34,8 @@ No YAML and no third-party imports: PyYAML is not in the standard library, and t
 hook imports this module under `python -S`.
 """
 
+from __future__ import annotations
+
 import os
 import re
 import sys

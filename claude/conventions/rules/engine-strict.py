@@ -19,6 +19,8 @@ this rule unmeasured. Absence is the other case entirely and is an answer: no fi
 manifest means nothing enforces the range, which is a finding.
 """
 
+from __future__ import annotations
+
 import re
 
 import _node

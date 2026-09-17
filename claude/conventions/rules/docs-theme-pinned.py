@@ -21,6 +21,8 @@ written. Naming them is what stops a clean run claiming the whole convention was
 the pin was.
 """
 
+from __future__ import annotations
+
 import os
 import re
 from typing import NamedTuple
