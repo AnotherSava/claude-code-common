@@ -70,7 +70,7 @@ import textwrap
 import time
 from collections.abc import Iterable
 from concurrent.futures import ThreadPoolExecutor
-from dataclasses import asdict, dataclass, field
+from dataclasses import asdict, dataclass, field, fields
 from datetime import datetime
 from pathlib import Path
 from types import ModuleType
@@ -287,27 +287,22 @@ def open_issue_count(slug: str) -> int | None:
 class ConventionState:
     """How far one clone is from the convention versions, as `/adopt` would read it.
 
-    Per machine rather than per repo, because both halves of the answer are: the
-    version set comes from that machine's own dotfiles checkout, and
-    `.claude/conventions.local` is gitignored and never travels.
+    Per machine rather than per repo, even though the record itself is one committed
+    file that travels with the clone: what it is measured against is that machine's
+    own dotfiles checkout, and the two checkouts are routinely at different commits.
     """
 
     behind: int = 0  # versions above the repo's own number — the "N versions behind" count
-    unwired: int = 0  # machine-scoped versions adopted in the repo but not wired on that machine
     adopted: int = 0  # the committed record: the highest version this repo has adopted
     recorded: bool = True  # whether a record file exists at all; False means /adopt never ran there
-    pending: list[str] = field(default_factory=list)  # "v3 <title>", both kinds, ascending
+    pending: list[str] = field(default_factory=list)  # "v3 <title>", ascending
     note: str = ""  # why the numbers above cannot be trusted; empty when they can
-
-    @property
-    def total(self) -> int:
-        return self.behind + self.unwired
 
     @property
     def anything(self) -> bool:
         """Whether this clone has something to say. A note counts: an unreadable
         record is an open question, and a blank cell would read as `current`."""
-        return bool(self.total or self.note)
+        return bool(self.behind or self.note)
 
 
 def conventions_module() -> tuple[ModuleType | None, str]:
@@ -351,10 +346,9 @@ def read_conventions(module: ModuleType, versions: list, repo: Path) -> Conventi
     there rather than asserting a gap. Every other way of failing to reach a number
     fills `note` instead, because a blank cell and `current` are the same blank.
 
-    The two counts come from the engine's own `pending` and `unwired` rather than
-    from arithmetic on the integer here: how far an adopted number reaches, and
-    which machine-scoped versions it leaves unwired, are the engine's rules, and a
-    second copy of them in a report nobody is watching would drift silently.
+    The count comes from the engine's own `pending` rather than from arithmetic on the
+    integer here: how far an adopted number reaches is the engine's rule, and a second
+    copy of it in a report nobody is watching would drift silently.
     """
     root = str(repo)
     try:
@@ -368,25 +362,40 @@ def read_conventions(module: ModuleType, versions: list, repo: Path) -> Conventi
         newest = versions[-1].number
         if record.number > newest:
             # This machine's dotfiles checkout is the behind one, so its version set is
-            # older than the record it is reading and every count below would be wrong.
+            # older than the record it is reading and the count below would be wrong.
             return ConventionState(note=f"records v{record.number}, above the newest version in this "
                                         f"machine's dotfiles checkout (v{newest}) — pull the dotfiles "
                                         f"repo there")
-        pending, unwired = module.pending(root), module.unwired(root)
-        # One list, sorted by version, exactly as the session-start notice renders it: the two
-        # kinds interleave by version and an unwired version appended after the rest reads as
-        # out of order.
-        entries = [(v.number, f"v{v.number} {v.title}") for v in pending]
-        entries += [(v.number, f"v{v.number} {v.title} — adopted in this repo, not wired here")
-                    for v in unwired]
-        entries.sort()
-        return ConventionState(behind=len(pending), unwired=len(unwired), adopted=record.number,
-                               recorded=record.present, pending=[text for _, text in entries])
+        # Ascending, as the engine hands them over and as the session-start notice renders them:
+        # the list is read as the order /adopt will walk, and a version out of place reads as one
+        # that can be taken on ahead of the rest.
+        waiting = module.pending(root)
+        return ConventionState(behind=len(waiting), adopted=record.number, recorded=record.present,
+                               pending=[f"v{v.number} {v.title}" for v in waiting])
     except BaseException as exc:
         return ConventionState(note=f"the convention record could not be read ({exc})")
 
 
 # ── per-machine state ─────────────────────────────────────────────────────────
+
+
+_WARNED_RETIRED: set[str] = set()
+
+
+def _warn_retired(names: list[str]) -> None:
+    """Say once per run that a stored field is no longer read, however many repos carry it.
+
+    Once, because the fact is about the payload rather than about a repo: every repo in a state
+    file written by an older script carries the same retired key, and a line each buries the table
+    under twenty identical warnings. Both readers of that shape reach here — `--report` loading this
+    machine's state file, and a peer still running the older script over SSH.
+    """
+    fresh = sorted(set(names) - _WARNED_RETIRED)
+    if not fresh:
+        return
+    _WARNED_RETIRED.update(fresh)
+    print(f"WARNING: stored state carries {', '.join(fresh)}, which this version no longer reads. "
+          f"Re-run the scan rather than trusting a number that came from it.", file=sys.stderr)
 
 
 @dataclass
@@ -427,8 +436,21 @@ class RepoState:
 
     @classmethod
     def from_dict(cls, d: dict) -> "RepoState":
+        """Rebuild one clone's state, tolerating a state file written against an older shape.
+
+        A key this dataclass no longer has is dropped and named rather than raising: `unwired` was
+        written into every serialized ConventionState until machine-scoped versions were retired, so
+        a state file from before that change would otherwise abort `--report` with a TypeError far
+        from its cause. Named, because a silently dropped field is a number quietly reading 0.
+        """
         conv = d.pop("conventions", None)
-        return cls(conventions=ConventionState(**conv) if conv else None, **d)
+        state = None
+        if conv:
+            known = {f.name for f in fields(ConventionState)}
+            dropped = sorted(set(conv) - known)
+            _warn_retired(dropped)
+            state = ConventionState(**{k: v for k, v in conv.items() if k in known})
+        return cls(conventions=state, **d)
 
 
 @dataclass
@@ -688,9 +710,9 @@ class RepoRow:
         return any(st.has_conventions_gap for st in self.states.values() if st)
 
     @property
-    def conventions_total(self) -> int:
+    def conventions_behind(self) -> int:
         """The widest gap any machine reports, for ordering the ageless block of the table."""
-        return max((st.conventions.total for st in self.states.values() if st and st.conventions), default=0)
+        return max((st.conventions.behind for st in self.states.values() if st and st.conventions), default=0)
 
     def working(self, reached: list[str]) -> list[str]:
         """The reached machines with pending work — the ones a description is owed for."""
@@ -733,7 +755,7 @@ def merge(snapshots: list[MachineSnapshot]) -> list[RepoRow]:
     # whole ageless tail would otherwise sit in discovery order; the widest convention
     # gap breaks that tie, putting the repos furthest behind at the top of it.
     rows = [r for r in rows if r.has_work or r.open_issues or r.conventions_gap]
-    rows.sort(key=lambda r: (-r.sort_epoch, -r.conventions_total))
+    rows.sort(key=lambda r: (-r.sort_epoch, -r.conventions_behind))
     return rows
 
 
@@ -786,17 +808,15 @@ def machine_cell(name: str, state: RepoState | None) -> str:
 
 
 def conventions_cell(state: ConventionState | None) -> str:
-    """The CONV cell: versions behind, with `+N` for versions this machine has not wired.
+    """The CONV cell: how many versions this clone has still to adopt.
 
     `?` where the record could not be read at all — the number is unknown there, and
     leaving it blank would say `current`, which is the one answer nothing has checked.
-    The report spells out all three in words; this column only has room for the count.
+    The report spells both out in words; this column only has room for the count.
     """
     if state is None or not state.anything:
         return ""
-    if state.note:
-        return "?"
-    return (str(state.behind) if state.behind else "") + (f"+{state.unwired}" if state.unwired else "")
+    return "?" if state.note else str(state.behind)
 
 
 def build_groups(rows: list[RepoRow], reached: list[str]) -> list[DisplayGroup]:
@@ -1139,17 +1159,11 @@ def conventions_metric(conv: ConventionState | None) -> str:
         return ""
     if conv.note:
         return f'<span class="m bad">conventions unknown — {esc(conv.note)}</span>'
-    parts = []
-    if conv.behind and not conv.recorded:
-        parts.append(f'<span class="m" title="no record file — /adopt has never run in this repo">'
-                     f'<b>{conv.behind}</b> conventions unadopted</span>')
-    elif conv.behind:
-        parts.append(f'<span class="m" title="this repo is at v{conv.adopted}">'
-                     f'<b>{conv.behind}</b> conventions behind</span>')
-    if conv.unwired:
-        parts.append(f'<span class="m" title="adopted in this repo, not wired on this machine">'
-                     f'<b>{conv.unwired}</b> unwired here</span>')
-    return "".join(parts)
+    if not conv.recorded:
+        return (f'<span class="m" title="no record file — /adopt has never run in this repo">'
+                f'<b>{conv.behind}</b> conventions unadopted</span>')
+    return (f'<span class="m" title="this repo is at v{conv.adopted}">'
+            f'<b>{conv.behind}</b> conventions behind</span>')
 
 
 def machine_row_html(state: RepoState | None, repo_name: str, now: float) -> str:

@@ -37,14 +37,15 @@ scripts/cb.sh
 
 .env
 
-# The machine-side half of a repo's convention record, written by /adopt. Ignored rather than
-# committed because a fresh clone has genuinely not made the symlink or written the per-machine
-# wrapper a `scope: machine` version asserts — it has to read as pending there instead of inheriting
-# the other machine's answer. Root-anchored by its mid-string slash, so it hides the record at the
-# repo root and never a `.claude/` directory nested deeper in the tree. The repo-scoped half,
-# .claude/conventions, is committed and travels with the repo — and is not matched by this line,
-# which names one exact file.
-.claude/conventions.local
-
+# Every `.claude/` pattern in this file names one exact machine-local file, and that is deliberate.
+# The convention record /adopt writes, .claude/conventions, sits in the same directory and is committed:
+# one integer saying how far the version sequence has run in that repo, travelling with the clone
+# instead of reading as pending on whichever machine opened it next. It used to have a machine-side
+# sibling ignored from here, .claude/conventions.local; that half is gone, and a repo's whole convention
+# state is now the one committed file. So nothing here may widen to reach it: a `.claude/conventions*`
+# would hide a file the repo is meant to commit, and `git add` would say nothing. The
+# gitignore-unhides-committed rule asks `git check-ignore` about that path at every commit and counts a
+# hide from this file, so a widened pattern is refused here rather than found on the other machine as a
+# record that was never written.
 **/.claude/settings.local.json
 **/.claude/scheduled_tasks.lock

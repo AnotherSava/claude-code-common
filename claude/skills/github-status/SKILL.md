@@ -106,10 +106,10 @@ of the two rather than their sum. Output has three parts:
      exist and can show a blank AGE against a filled LOCAL.
    - **CONV** — convention versions that clone has not adopted: the same number `/adopt` and the
      session-start notice give, read from `.claude/conventions` against that machine's version set.
-     A `+N` suffix (`3+1`, or `+1` alone) counts machine-scoped versions the repo has adopted but that
-     machine has not wired. `?` means the record could not be read — the report says why. Blank means
-     current, exempt, or someone else's repo. This is per machine, not per repo: the gitignored half
-     of the record does not travel, and the two dotfiles checkouts are routinely at different commits.
+     `?` means the record could not be read — the report says why. Blank means current, exempt, or
+     someone else's repo. This is per machine, not per repo even though the record itself travels:
+     the number is measured against that machine's own dotfiles checkout, and the two checkouts are
+     routinely at different commits, so the same repo is behind by different amounts on each.
    - **ISSUES** — open issues (PRs excluded) on the repo's own `origin`, printed once per repo since
      it is a property of the repo rather than of a machine. Whichever machine's `gh` could answer
      supplies it, and a repo the peer alone has but could not answer for is asked again from this
@@ -260,15 +260,16 @@ paste the detail sections at all.
 - **The only GitHub API call is the open-issue count** (`gh issue list --repo OWNER/REPO`), pinned to
   the origin slug so a fork reports its own issues and never its `upstream` parent's.
 - **The convention gap comes from the `/adopt` engine, not from a second reader of the record.**
-  `conventions.py` is imported from the sibling skill by path — the peer runs this script from stdin,
-  where there is no `__file__` to import relatively against — and asked for the same numbers the
-  session-start notice prints. Two readers of one format drift the day either gains a column, and
-  this one would drift silently on the machine nobody is watching. It compares integers and verifies
-  nothing; `conventions.py audit <repo>` is what re-derives a recorded line.
+  The dotfiles checkout's `claude/conventions/engine.py` is imported by path — the peer runs this
+  script from stdin, where there is no `__file__` to import relatively against — and asked for the
+  same numbers the session-start notice prints. Two readers of one format drift the day either gains
+  a column, and this one would drift silently on the machine nobody is watching. It compares
+  integers and verifies nothing: whether a repo still *holds* what it adopted is
+  `claude/conventions/check.py`, which that repo's own commit gate runs.
 - **A machine whose engine could not be read says so**, in its summary line and its report column
   header, instead of leaving an empty CONV column that reads as a fleet with nothing to adopt. The
   same applies per repo: an unparseable record, or one naming a version newer than that machine's
-  step set, renders `?` and the reason rather than a number.
+  version set, renders `?` and the reason rather than a number.
 - **A repo the conventions do not govern has no cell at all** — a clone of someone else's project, or
   one carrying an `exempt` line. Nothing is asserted about a repo that was never going to hold a
   record.

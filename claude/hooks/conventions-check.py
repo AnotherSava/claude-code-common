@@ -16,11 +16,12 @@ it once per session catches it reliably, unlike the state checks warned about in
 
 It compares two integers and asserts nothing: the record says how far this repo's migrations have
 run, which is a claim about the moment `/adopt` wrote it. What has to hold *continuously* is not
-this hook's to sample at all — it belongs to `check.py`, which every repo's commit gate runs.
-Running the rules here would cost an order of magnitude more than the whole hook budget, and grows
-with each rule added.
+this hook's to sample at all — it belongs to `check.py`, which every repo's commit gate runs, and
+whose universal rules run there whatever the repo's number, an exempt repo included. Running the
+rules here would cost an order of magnitude more than the whole hook budget, and grows with each
+rule added.
 
-No subprocess at all, deliberately. It reads the two record files, one `listdir` of the versions
+No subprocess at all, deliberately. It reads the one record file, one `listdir` of the versions
 directory with a head-read of each frontmatter block, and this checkout's `.git/HEAD` for the short
 sha — so the cost is the interpreter start plus about a dozen small reads. Record parsing and
 version loading come from `engine.py` rather than being re-implemented here: two readers of one
@@ -35,7 +36,7 @@ import json
 import os
 import sys
 
-# The versions and both record formats live in `claude/conventions/`; reach it the way
+# The versions and the record format live in `claude/conventions/`; reach it the way
 # `memos-surface.py` reaches `memos.py`. `abspath` rather than `realpath` so this works whether the
 # hook was invoked through ~/.claude/hooks or straight out of the checkout.
 sys.path.insert(0, os.path.join(os.path.dirname(os.path.abspath(__file__)), "..", "conventions"))
@@ -83,24 +84,15 @@ def _repo_root(start: str) -> str | None:
         current = parent
 
 
-def _render(pending: list, unwired: list, adopted: int, latest: int, sha: str) -> str:
+def _render(pending: list, adopted: int, latest: int, sha: str) -> str:
     """The gap as the user reads it: the numbers, at most five bullets, and the one command."""
-    if pending:
-        count = f"{len(pending)} version{'' if len(pending) == 1 else 's'} behind"
-        head = f"Conventions in this repo are {count} (at v{adopted}, latest is v{latest}, dotfiles at {sha})."
-    else:
-        count = f"{len(unwired)} machine-side version{'' if len(unwired) == 1 else 's'}"
-        head = (f"Conventions in this repo are current (v{latest}, dotfiles at {sha}), "
-                f"but {count} decided here {'is' if len(unwired) == 1 else 'are'} not wired on this machine.")
-    # One list, sorted by version before it is truncated: an unwired machine version appended after
-    # the `... N more` line reads as out of order, and it is the line most likely to be cut.
-    lines = [(version.number, f"  - v{version.number:<3} {version.title}") for version in pending]
-    lines += [(version.number, f"  - v{version.number:<3} {version.title} — decided in this repo, not wired on this machine")
-              for version in unwired]
-    lines.sort()
-    bullets = [text for _, text in lines[:MAX_BULLETS]]
-    if len(lines) > MAX_BULLETS:
-        bullets.append(f"  - ... {len(lines) - MAX_BULLETS} more")
+    count = f"{len(pending)} version{'' if len(pending) == 1 else 's'} behind"
+    head = f"Conventions in this repo are {count} (at v{adopted}, latest is v{latest}, dotfiles at {sha})."
+    # Ascending already — `load_versions` orders the set and `_pending` only filters it — so no sort
+    # here, and the five that survive the truncation are the five `/adopt` walks first.
+    bullets = [f"  - v{version.number:<3} {version.title}" for version in pending[:MAX_BULLETS]]
+    if len(pending) > MAX_BULLETS:
+        bullets.append(f"  - ... {len(pending) - MAX_BULLETS} more")
     return "\n".join([head, *bullets, "Run /adopt to catch up."])
 
 
@@ -159,14 +151,13 @@ def main() -> int:
              f"Pull the dotfiles repo before running /adopt.")
         return 0
 
-    # The underscore forms take the pair this hook has already read; `pending(root)` and
-    # `unwired(root)` would re-open both record files and re-read every version's frontmatter once
-    # more each. Which versions are outstanding is still decided in the engine either way — this
-    # hook asks the question, it does not answer it.
+    # The underscore form takes the pair this hook has already read; `pending(root)` would re-open
+    # the record file and re-read every version's frontmatter once more. Which versions are
+    # outstanding is still decided in the engine either way — this hook asks the question, it does
+    # not answer it.
     pending = engine._pending(versions, record)
-    unwired = engine._unwired(versions, record)
-    if pending or unwired:
-        _say(_render(pending, unwired, record.number, latest, sha))
+    if pending:
+        _say(_render(pending, record.number, latest, sha))
     return 0
 
 

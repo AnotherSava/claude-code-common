@@ -15,6 +15,10 @@ name and the number agree, and every README carries the four mandatory sections 
 wiring between the two halves: a name in a `rules:` field with no file behind it, and a rule file no
 version names, are each a rule nobody runs.
 
+The same wiring read the other way for `universal/`, whose rules no version gates: a name declared
+in both places is one filename being two rules, and a universal rule with no `FIX` leaves a repo
+that meets it already failing with nothing to do about it.
+
 **Every rule against a tree built here.** A conforming tree and a violating one per rule, each built
 in a temp directory by the test itself and removed afterwards — `git init` where the rule asks git
 what it hides. Committed fixture trees are deliberately absent: a tree that is deliberately broken
@@ -52,6 +56,10 @@ import check  # noqa: E402 — needs the sys.path line above
 import engine  # noqa: E402 — likewise
 
 RULES_DIR = os.path.join(HERE, "rules")
+UNIVERSAL_DIR = os.path.join(HERE, "universal")
+# The script a universal rule recommends, in this checkout rather than through `~/.claude`: the gate
+# has to exercise the copy being committed, not whatever the machine currently has installed.
+LINK_SCRIPT = os.path.join(os.path.dirname(HERE), "scripts", "link-project-memory.sh")
 # The four mandatory `##` sections of a version README, in the order they are written in.
 SECTIONS = ("What changed", "Migrating an existing repo", "When it does not apply", "Continuing rule")
 GIT_TIMEOUT = 60
@@ -359,6 +367,25 @@ def rule_wiring(gate: Gate, versions: list[engine.Version]) -> None:
             "the checker derives the same rule-to-version mapping from the same frontmatter",
             f"the checker reads {introduced}, the version set says {named}")
 
+    # The other directory's wiring is the mirror image: a universal rule is entitled to run by being
+    # there, so what has to hold is that no version claims to introduce one — a name in both places
+    # would run twice in an adopted repo and once everywhere else, under one filename.
+    try:
+        universal = set(check.universal_names())
+    except OSError as exc:
+        gate.ok(False, "the universal rules directory lists", str(exc))
+        return
+    for name in sorted(universal & set(named)):
+        gate.ok(False, f"{name} is a universal rule and no version introduces it",
+                f"v{named[name]} declares it under `rules:` as well, so one filename is two rules")
+    for name in sorted(universal & files):
+        gate.ok(False, f"{name} sits in one rules directory", "a file of that name is in both, and "
+                "which one an import resolves to is decided by the path order rather than by anyone")
+    for name in sorted(universal):
+        gate.ok(bool(check.fix_of(name)), f"universal/{name}.py names the command that fixes what it finds",
+                "a universal rule is gated by nothing, so a repo meets it already failing and with no "
+                "version README to read; FIX is the whole of what it is told to do")
+
 
 # ---------------------------------------------------------------- the rules
 
@@ -421,6 +448,147 @@ def tree_answerable(case: Case, outside_repo: bool) -> bool:
     return outside_repo or case.unanswerable.repo
 
 
+# ---------------------------------------------------------------- the universal rules
+
+
+def bash_path() -> str:
+    """The bash this session actually uses, as a full path. "" when there is none.
+
+    Never the bare name `bash`: Windows resolves a bare command against System32 before PATH, and
+    System32 holds WSL's `bash.exe`. That one starts, reads `D:/repo/...` as a path it has no
+    volume for, and reports the script missing — a failure that looks like a broken checkout rather
+    than like the wrong interpreter. `SHELL` names the Git Bash that launched this run; `which`
+    searches PATH in order, which is the same answer from the other direction.
+    """
+    shell = os.environ.get("SHELL") or ""
+    if os.path.basename(shell).casefold().startswith("bash") and os.path.isfile(shell):
+        return shell
+    return shutil.which("bash") or ""
+
+
+def run_link_script(root: str) -> tuple[int, str]:
+    """Run the fix `memory-cache-linked` recommends. -> (exit code, its output), or (-1, why not).
+
+    Bash rather than a Python reimplementation, and this checkout's script rather than the installed
+    one: the point of the round trip below is that two independent derivations of the cache
+    directory's name — a `sed` in the script and a regex in the rule — agree. A test that computed
+    the name with the rule's own helper would agree with it by construction, including when both are
+    wrong.
+    """
+    shell = bash_path()
+    if not shell:
+        return -1, "no bash on PATH, so the script this rule recommends could not be run"
+    # Forward slashes on both arguments: bash reads a backslash as an escape, so a Windows path
+    # handed over literally arrives as `D:reposcript.sh` and the script is reported missing.
+    try:
+        done = subprocess.run([shell, LINK_SCRIPT.replace("\\", "/"), root.replace("\\", "/")],
+                              capture_output=True, encoding="utf-8", errors="replace", timeout=GIT_TIMEOUT)
+    except (OSError, ValueError, subprocess.SubprocessError) as exc:
+        return -1, f"bash could not run {os.path.basename(LINK_SCRIPT)} ({exc})"
+    return done.returncode, (done.stdout or "") + (done.stderr or "")
+
+
+def linked_path(output: str) -> str:
+    """The cache directory the script says it linked, read out of its own report.
+
+    Taken from the script's stdout rather than derived here for the same reason the script is run at
+    all — every path in this case has to come from somewhere other than the rule being tested.
+    """
+    for line in output.splitlines():
+        head, sep, rest = line.partition(":")
+        if sep and head.strip() in ("linked", "already linked"):
+            return rest.split("->")[0].strip()
+    return ""
+
+
+def unlink_dir(path: str) -> None:
+    """Remove a link to a directory, whichever kind this platform made of it."""
+    try:
+        os.unlink(path)
+    except OSError:
+        os.rmdir(path)
+
+
+def memory_cache_linked(gate: Gate, base: str, outside_repo: bool) -> None:
+    """The rule finds every state of the cache, and the command it recommends repairs the broken one."""
+    rule = "memory-cache-linked"
+    empty, failure = build(base, "cache-no-memory", Tree({"README.md": "a repo\n"}))
+    if failure:
+        gate.ok(False, f"{rule}: a repo with no .claude/memory/ is built", failure)
+    else:
+        try:
+            gate.ok(not check.run(rule, empty), f"{rule} returns [] for a repo with no .claude/memory/",
+                    "a repo that keeps no project memory has nothing for the cache to point at")
+        except Exception as exc:
+            gate.ok(False, f"{rule} answers for a repo with no .claude/memory/", f"{type(exc).__name__}: {exc}")
+
+    root, failure = build(base, "cache-unlinked", Tree({".claude/memory/MEMORY.md": "# Memory index\n"}))
+    if failure:
+        gate.ok(False, f"{rule}: a repo that keeps memory is built", failure)
+        return
+    before = {"CLAUDE_CONFIG_DIR": os.environ.get("CLAUDE_CONFIG_DIR")}
+    os.environ["CLAUDE_CONFIG_DIR"] = os.path.join(base, "claude-config")
+    try:
+        gate.ok(bool(check.run(rule, root)), f"{rule} reports a repo whose memory cache is not linked here",
+                "returned [], so every machine that has never opened the repo reads as wired")
+        code, output = run_link_script(root)
+        if code != 0:
+            gate.not_covered(f"{rule}: the fix it recommends repairs what it found",
+                             output.strip().splitlines()[-1] if output.strip() else f"the script exited {code}")
+        else:
+            cache = linked_path(output)
+            gate.ok(not check.run(rule, root), f"{rule} holds once the script it recommends has run",
+                    f"still reported after linking:\n{output.strip()}")
+            if not cache or not os.path.isdir(cache):
+                gate.not_covered(f"{rule} reports a cache that is a real directory rather than a link",
+                                 "the script named no cache directory in its output")
+            else:
+                unlink_dir(cache)
+                os.makedirs(cache, exist_ok=True)
+                gate.ok(bool(check.run(rule, root)), f"{rule} reports a cache that is a real directory rather "
+                        f"than a link", "returned [], and a copy is what Git Bash `ln -s` leaves behind")
+    except Exception as exc:
+        gate.ok(False, f"{rule} answers through the link round trip", f"{type(exc).__name__}: {exc}")
+    finally:
+        restore_env(before)
+
+    if not outside_repo:
+        gate.not_covered(f"{rule} raises rather than passing when git will not name the work tree",
+                         "this run's temp directory sits inside a git work tree, so a tree built there "
+                         "is answered by that checkout")
+        return
+    loose, failure = build(base, "cache-no-repo", Tree({".claude/memory/MEMORY.md": "# Memory index\n"}, repo=False))
+    if failure:
+        gate.ok(False, f"{rule}: a tree outside any work tree is built", failure)
+        return
+    try:
+        found = check.run(rule, loose)
+    except Exception:
+        gate.ok(True, f"{rule} raises rather than passing when git will not name the work tree")
+        return
+    gate.ok(False, f"{rule} raises rather than passing when git will not name the work tree",
+            f"returned {found!r} instead, and the checker prints an empty list as a rule that held")
+
+
+def universal_behaviour(gate: Gate, base: str, outside_repo: bool) -> None:
+    """Every universal rule against a tree built here, and a named gap for any without one."""
+    print("\nuniversal rules")
+    try:
+        names = check.universal_names()
+    except OSError as exc:
+        gate.ok(False, "the universal rules directory lists", str(exc))
+        return
+    for name in names:
+        if name != "memory-cache-linked":
+            gate.not_covered(f"{name} is exercised against a tree",
+                             "no case in this file builds a tree for it, so nothing here has run it")
+    if "memory-cache-linked" in names:
+        memory_cache_linked(gate, base, outside_repo)
+    else:
+        gate.not_covered("memory-cache-linked is exercised against a tree",
+                         "this checkout holds no universal rule of that name")
+
+
 # ---------------------------------------------------------------- the record
 
 
@@ -470,20 +638,6 @@ def record_round_trip(gate: Gate, base: str, versions: list[engine.Version]) -> 
     gate.ok(bool(refuses(root, 1)), "it refuses to write v1 again")
     gate.ok(not refuses(root, 2) and engine.adopted(root) == 2, "it writes v2")
     gate.ok(bool(refuses(root, 1)), "and then refuses to lower the number back to v1")
-
-    machine = next((version for version in versions if version.scope == "machine"), None)
-    if machine is None:
-        gate.not_covered("a machine-scoped version writes the local record too",
-                         "no version in this checkout declares scope: machine")
-    else:
-        walked, failure = build(base, "record-machine", Tree({"README.md": "a repo\n"}))
-        refused = "" if failure else walk_to(walked, machine.number)
-        local = os.path.join(walked, ".claude", "conventions.local")
-        gate.ok(not failure and not refused and os.path.isfile(local),
-                f"walking to v{machine.number} ({machine.slug}, scope machine) writes the local record too",
-                failure or refused or f"{local} was not written")
-        gate.ok(engine.read_record(walked).local == machine.number,
-                f"and the local record reads v{machine.number}")
 
     exempt, failure = build(base, "record-exempt", Tree(
         {".claude/conventions": "# a comment\nexempt a clone of someone else's project\n"}))
@@ -583,6 +737,7 @@ def main() -> int:
         version_shape(gate, versions)
         rule_wiring(gate, versions)
         rule_behaviour(gate, base, outside_repo)
+        universal_behaviour(gate, base, outside_repo)
         record_round_trip(gate, base, versions)
         behind_for_cases(gate, base, versions)
     finally:

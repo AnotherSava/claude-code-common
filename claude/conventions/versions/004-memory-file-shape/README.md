@@ -1,6 +1,5 @@
 ---
 title: Memory files carry frontmatter and bare links
-scope: repo
 rules: memory-file-shape
 ---
 

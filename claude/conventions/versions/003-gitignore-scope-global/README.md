@@ -1,6 +1,5 @@
 ---
 title: Project .gitignore drops global-file lines
-scope: repo
 rules: gitignore-scope-global
 ---
 

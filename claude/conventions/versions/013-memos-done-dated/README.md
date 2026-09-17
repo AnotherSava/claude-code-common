@@ -1,6 +1,5 @@
 ---
 title: Addressed memos carry their close date at the front of the name
-scope: repo
 ---
 
 ## What changed

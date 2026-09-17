@@ -1,6 +1,5 @@
 ---
 title: Transcrypt paths normalize line endings
-scope: repo
 rules: transcrypt-eol
 ---
 

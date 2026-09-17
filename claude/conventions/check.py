@@ -8,10 +8,18 @@ and the repo's record says how far — while a rule is a property that has to ho
 which is why it lives here rather than inside a version folder: a version is frozen the moment a
 repo runs it, and a check improves for every repo at once.
 
-Which rules run is read off the repo's adopted integer, never off the tree: a rule introduced by
-v12 does not run in a repo at v11, so a repo takes on stricter checking by adopting and never
-because someone edited a shared file. The mapping from a rule to the version that introduced it is
-derived from the version folders' `rules:` frontmatter, so nothing states it twice.
+Which versioned rules run is read off the repo's adopted integer, never off the tree: a rule
+introduced by v11 does not run in a repo at v10, so a repo takes on stricter checking by adopting
+and never because someone edited a shared file. The mapping from a rule to the version that
+introduced it is derived from the version folders' `rules:` frontmatter, so nothing states it twice.
+
+Beside them, `universal/` holds the rules no version gates. They run in every repo whatever its
+number, and each names the command that repairs what it found — `FIX` in the module, printed under
+the finding. What belongs there is a property no migration can settle for good because it is not
+about the repo alone: the memory-cache link is per-machine, so a second machine has genuinely not
+done it and no number could be true of both. The price is the one the versioned half exists to
+avoid — a universal rule added here reaches every repo the moment it is committed — so it is the
+smaller class on purpose, and a property a repo can adopt belongs in a version.
 
 A rule that cannot establish its answer — git refusing, a file that will not read — raises, and
 that arrives here as **unmeasured**: the rule is named, the exception with it, and the exit code is
@@ -35,11 +43,16 @@ sys.dont_write_bytecode = True
 
 HERE = os.path.dirname(os.path.realpath(__file__))
 RULES_DIR = os.path.join(HERE, "rules")
+# Rules that no version gates: they run in every repo, whatever its number, and each one names the
+# command that fixes what it found. A directory rather than a flag inside the files, so which kind a
+# rule is cannot be misread and the authoring gate can assert each directory's own wiring.
+UNIVERSAL_DIR = os.path.join(HERE, "universal")
 # The engine owns the version set and the record. A rule sits beside its siblings and imports the
-# shared helpers by bare name, so the rules directory goes on the path too — appended rather than
+# shared helpers by bare name, so both rule directories go on the path too — appended rather than
 # inserted, so a rule file can never shadow a standard-library module for anything above it.
 sys.path.insert(0, HERE)
 sys.path.append(RULES_DIR)
+sys.path.append(UNIVERSAL_DIR)
 
 import engine  # noqa: E402 — needs the sys.path line above
 
@@ -64,6 +77,26 @@ def rule_versions() -> dict[str, int]:
         for name in entry.rules:
             introduced[name] = min(introduced.get(name, entry.number), entry.number)
     return introduced
+
+
+def universal_names() -> list[str]:
+    """Every universal rule, by module name, sorted.
+
+    Read off the directory rather than declared anywhere: a universal rule is gated by nothing, so
+    there is no list for its name to be missing from, and a file dropped in here that no list knew
+    about would otherwise never run.
+    """
+    try:
+        entries = os.listdir(UNIVERSAL_DIR)
+    except OSError as exc:
+        raise OSError(f"the universal rules directory would not list ({exc}), so which rules run in "
+                      f"every repo was never established") from exc
+    return sorted(name[:-3] for name in entries if name.endswith(".py") and not name.startswith("_"))
+
+
+def fix_of(name: str) -> str:
+    """The command a rule recommends, or "" when it names none. The module is already imported."""
+    return getattr(importlib.import_module(name), "FIX", "") or ""
 
 
 def run(name: str, root: str) -> list[str]:
@@ -106,29 +139,40 @@ def main() -> int:
               f"apply here was never established")
         return 2
 
-    # An exempt repo counts as zero adopted versions, which is the right answer to "which rules
-    # apply" and the wrong sentence to print: it has not adopted v0, it adopts nothing. The reason
-    # is asked for here so the header says which of the two this is.
+    try:
+        universal = universal_names()
+    except OSError as exc:
+        print(f"{exc}")
+        return 2
+
+    # An exempt repo counts as zero adopted versions, which is the right answer to "which versioned
+    # rules apply" and the wrong sentence to print: it has not adopted v0, it adopts nothing. The
+    # reason is asked for here so the header says which of the two this is. The universal rules run
+    # in it regardless — they are gated by nothing, which is what exempting a repo cannot change.
     exempt = engine.read_record(root).exempt
-    applicable = sorted((number, name) for name, number in introduced.items() if number <= adopted)
+    taken_on = [(f"v{number}", name) for number, name
+                in sorted((number, name) for name, number in introduced.items() if number <= adopted)]
+    applicable = taken_on + [("universal", name) for name in universal]
     stands = f"exempt ({exempt})" if exempt else f"adopted v{adopted}"
     print(f"conventions check: {root}")
-    print(f"{stands}, dotfiles at {engine.dotfiles_sha()} — {len(applicable)} rule(s) taken on")
+    print(f"{stands}, dotfiles at {engine.dotfiles_sha()} — {len(taken_on)} rule(s) taken on, "
+          f"{len(universal)} universal")
     if not applicable:
         # Said rather than left to the silence, so "checked and clean" and "checked nothing" cannot
         # be read off the same empty output.
-        print("nothing was checked: no version this repo has adopted introduces a continuing rule")
+        print("nothing was checked: no version this repo has adopted introduces a continuing rule, "
+              "and this checkout holds no universal rules")
         return 0
 
     violated: list[str] = []
     unmeasured: list[str] = []
     violations = 0
-    for number, name in applicable:
+    for label, name in applicable:
         try:
             found = run(name, root)
         except Exception as exc:
             unmeasured.append(name)
-            print(f"\n{name} (v{number}) — UNMEASURED: {type(exc).__name__}: {exc}")
+            print(f"\n{name} ({label}) — UNMEASURED: {type(exc).__name__}: {exc}")
             # The traceback and not only the sentence: a rule that refused says why in its message,
             # while a rule with a bug says it here and nowhere else. Unchained, because a helper
             # that wraps a failure quotes the original in its own message — printing the cause's
@@ -138,9 +182,15 @@ def main() -> int:
         if found:
             violated.append(name)
             violations += len(found)
-            print(f"\n{name} (v{number})")
+            print(f"\n{name} ({label})")
             for line in found:
                 print(f"  {line}")
+            # The command, under the finding it repairs rather than in a summary at the end: a gate
+            # is read where it stopped, and a fix quoted anywhere else is one more thing to go and
+            # look for. Rules that name none print nothing here.
+            fix = fix_of(name)
+            if fix:
+                print(f"  fix: {fix}")
 
     tally: list[str] = []
     if violations:

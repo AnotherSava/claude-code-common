@@ -1,6 +1,5 @@
 ---
 title: The Node engines range is declared
-scope: repo
 rules: node-engines
 ---
 

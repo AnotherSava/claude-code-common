@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
 """The convention engine: the versions on one side, a repo's one-integer record on the other.
 
-    python engine.py versions                  every version: number, title, scope, rules
+    python engine.py versions                  every version: number, title, rules
     python engine.py status <repo-root>        where this repo stands
     python engine.py adopt <repo-root> <n>     write the record
 
@@ -20,9 +20,11 @@ number entitles it to, on every commit, which is the only place a standing prope
 asserted without someone remembering to ask.
 
 A version's number and its slug come from its folder name and are stored nowhere else, so the
-two can never disagree. A migration sequence is also the one ordering in these repos that is
-never renumbered — v7 means the same migration in every repo that ran it — which is why the
-number sits in the name here and in metadata everywhere else.
+two can never disagree. The sequence has been renumbered exactly once, when the memory-cache
+migration stopped being a version at all and became a universal rule: every number above it
+moved down one, and the records naming them were rewritten by hand. Treat that as the cost of
+retiring a version rather than as a routine — a number in a commit message or a transcript older
+than that change points at a different migration.
 
 Exit codes, shared with the checker: 0 ok · 1 a rule was violated or a walk found work · 2 the
 tool refuses and a human has to fix something. Nothing in this file returns 1: being behind is
@@ -44,8 +46,6 @@ VERSIONS_DIR = os.path.join(HERE, "versions")
 REPO = os.path.dirname(os.path.dirname(HERE))
 
 RECORD_REL = ".claude/conventions"
-LOCAL_REL = ".claude/conventions.local"
-SCOPES = ("repo", "machine")
 # Whose repos adopt these conventions. A clone of someone else's project is exempt with no opt-out
 # file anywhere — see `~/.claude/memory/user_github_account.md`. A fork of these dotfiles has to
 # change this name, and three things go quiet if it does not: the session-start notice says nothing
@@ -56,20 +56,17 @@ OWNER = "AnotherSava"
 FOLDER_RE = re.compile(r"^(\d{3})-([a-z0-9]+(?:-[a-z0-9]+)*)$")
 FIELD_RE = re.compile(r"^([A-Za-z_][A-Za-z0-9_-]*):[ \t]*(.*?)[ \t]*$")
 # ` #` opens a trailing comment, as it does in the YAML this block is written to look like — a
-# reader that kept them would turn `scope: repo   # repo | machine` into a scope nothing matches.
+# reader that kept them would turn `rules: node-engines   # optional` into a rule name with no file.
 COMMENT_RE = re.compile(r"[ \t]+#.*$")
 NAME_RE = re.compile(r"^[a-z0-9-]+$")
 ORIGIN_URL_RE = re.compile(r"[:/]([^/:]+)/[^/]+?(?:\.git)?/?$")
 # Everything a version's frontmatter may declare. Anything else is refused rather than ignored: a
 # `version:` or `script:` left behind by a port would otherwise sit there reading as authoritative
 # while the folder name and the folder's contents quietly decided both.
-FIELDS = ("title", "scope", "affects", "rules")
+FIELDS = ("title", "affects", "rules")
 
 RECORD_HEADER = ("# Convention version this repo has adopted, from the claude dotfiles repo.",
                  "# Written by /adopt. See claude/conventions/ in that repo.")
-LOCAL_HEADER = ("# Highest machine-scoped convention version wired for this repo ON THIS MACHINE.",
-                "# Gitignored on purpose: a fresh clone has genuinely not done the machine-side work,",
-                "# so it must read as pending there rather than inherit the other machine's answer.")
 
 
 class VersionError(Exception):
@@ -94,7 +91,6 @@ class Version(NamedTuple):
     number: int
     slug: str
     title: str
-    scope: str                # repo | machine ; machine asserts something outside the repo
     affects: tuple[str, ...]  # tools whose stored data this reshapes — see `behind_for`
     rules: tuple[str, ...]    # continuous rules this version hands to the checker
     folder: str
@@ -104,12 +100,9 @@ class Version(NamedTuple):
 
 class Record(NamedTuple):
     number: int         # the committed record's integer; 0 when there is no file
-    local: int          # the machine-scoped integer wired on this machine; 0 when there is no file
-    present: bool       # whether the committed file exists — "never asked" is not "at 0"
-    local_present: bool
+    present: bool       # whether the file exists — "never asked" is not "at 0"
     exempt: str         # the reason, when a record line reads `exempt <reason>`
-    exempt_from: str    # which of the two files carried it — one travels, one does not
-    error: str          # the full sentence to print when a file will not parse
+    error: str          # the full sentence to print when the file will not parse
 
 
 # ---------------------------------------------------------------- the versions
@@ -120,8 +113,8 @@ def _frontmatter(handle: TextIO, label: str) -> dict[str, str]:
 
     Only the head is read, so the session-start hook pays for a few hundred bytes per version
     rather than the whole of its prose. A line inside the block that is neither blank, a comment,
-    nor a `key: value` pair aborts instead of being skipped: a mistyped `scope : repo` that parses
-    to nothing would otherwise drop the version out of the set with no message anywhere.
+    nor a `key: value` pair aborts instead of being skipped: a mistyped `rules : node-engines` that
+    parses to nothing would otherwise drop a rule out of the set with no message anywhere.
     """
     if handle.readline().strip() != "---":
         raise VersionError(f"{label} does not open with a --- frontmatter block")
@@ -173,13 +166,11 @@ def _version_from(name: str) -> Version:
         raise VersionError(f"{label} frontmatter declares {', '.join(unknown)}; a version carries only "
                            f"{', '.join(FIELDS)}, because its number and slug come from the folder name and "
                            f"its migration script from the folder's contents")
-    title, scope = data.get("title", ""), data.get("scope", "")
+    title = data.get("title", "")
     if not title:
         raise VersionError(f"{label} declares no title")
-    if scope not in SCOPES:
-        raise VersionError(f"{label} declares scope: {scope!r}; it must be one of {', '.join(SCOPES)}")
     script = os.path.join(folder, "apply.py")
-    return Version(int(match.group(1)), match.group(2), title, scope, _names(data, "affects", label, "tool name"),
+    return Version(int(match.group(1)), match.group(2), title, _names(data, "affects", label, "tool name"),
                    _names(data, "rules", label, "rule name"), folder, readme, script if os.path.isfile(script) else "")
 
 
@@ -286,11 +277,8 @@ def _read_one(path: str) -> tuple[int, bool, str, str]:
 
 
 def read_record(root: str) -> Record:
-    """Both record files for `root`, read once. The only reader of either file."""
-    number, present, exempt, error = _read_one(os.path.join(root, *RECORD_REL.split("/")))
-    local, local_present, local_exempt, local_error = _read_one(os.path.join(root, *LOCAL_REL.split("/")))
-    exempt_from = RECORD_REL if exempt else (LOCAL_REL if local_exempt else "")
-    return Record(number, local, present, local_present, exempt or local_exempt, exempt_from, error or local_error)
+    """The record file for `root`, read once. The only reader of it anywhere."""
+    return Record(*_read_one(os.path.join(root, *RECORD_REL.split("/"))))
 
 
 def parse_error_message(record: Record) -> str:
@@ -316,33 +304,12 @@ def _pending(versions: list[Version], record: Record) -> list[Version]:
     return [] if record.exempt else [version for version in versions if version.number > record.number]
 
 
-def _unwired(versions: list[Version], record: Record) -> list[Version]:
-    """Machine-scoped versions this repo has adopted that this machine has not wired.
-
-    The committed record travels and the local one does not, so a repo can arrive already carrying
-    a decision whose machine half — a symlink, a per-machine wrapper — does not exist here. That is
-    pending work on this machine and nowhere else, which is why it renders as its own line rather
-    than as part of the version gap.
-    """
-    if record.exempt:
-        return []
-    return [v for v in versions if v.scope == "machine" and record.local < v.number <= record.number]
-
-
 def pending(root: str) -> list[Version]:
     """Every version this repo has yet to adopt, ascending. Empty for an exempt repo."""
     record = read_record(root)
     if record.error:
         raise RecordError(parse_error_message(record))
     return _pending(load_versions(), record)
-
-
-def unwired(root: str) -> list[Version]:
-    """Every machine-scoped version adopted here but not wired on this machine, ascending."""
-    record = read_record(root)
-    if record.error:
-        raise RecordError(parse_error_message(record))
-    return _unwired(load_versions(), record)
 
 
 def behind_for(root: str, tool: str) -> tuple[int, int, str] | None:
@@ -378,8 +345,8 @@ def behind_for(root: str, tool: str) -> tuple[int, int, str] | None:
     return record.number, required, next(v.title for v in wanted if v.number == required)
 
 
-def _write_number(path: str, number: int, header: tuple[str, ...]) -> str:
-    """Write one record file: the comments it already carries, or the header, then the integer.
+def _write_number(path: str, number: int) -> str:
+    """Write the record file: the comments it already carries, or the header, then the integer.
 
     The comments are kept rather than regenerated because they are the file's own statement of
     what its one line means, and a repo that has annotated them should not lose that to a bump.
@@ -393,7 +360,7 @@ def _write_number(path: str, number: int, header: tuple[str, ...]) -> str:
         comments = []
     os.makedirs(os.path.dirname(path), exist_ok=True)
     with open(path, "w", encoding="utf-8", newline="\n") as handle:
-        handle.write("\n".join([*(comments or header), str(number)]) + "\n")
+        handle.write("\n".join([*(comments or RECORD_HEADER), str(number)]) + "\n")
     return path
 
 
@@ -403,8 +370,7 @@ def write_record(root: str, number: int) -> list[str]:
     The number only ever moves forward, one at a time, and never past the newest version in this
     checkout. One at a time is what keeps the record from claiming a migration nobody read: a walk
     that jumps to the newest number would leave every version under it recorded as run on the
-    strength of nothing. A machine-scoped version writes both files, because the repo's decision
-    and this machine having actually wired it are different facts with different lifetimes.
+    strength of nothing.
     """
     versions = load_versions()
     if not is_repo(root):
@@ -418,7 +384,7 @@ def write_record(root: str, number: int) -> list[str]:
     if record.error:
         raise RecordError(parse_error_message(record))
     if record.exempt:
-        raise RecordError(f"this repo is exempt — {record.exempt} (from {record.exempt_from}). Nothing is recorded here.")
+        raise RecordError(f"this repo is exempt — {record.exempt}. Nothing is recorded here.")
     newest = versions[-1].number if versions else 0
     if number > newest:
         raise RecordError(f"v{number} is above the newest version in this dotfiles checkout (v{newest}): pull the "
@@ -429,10 +395,7 @@ def write_record(root: str, number: int) -> list[str]:
     if number != record.number + 1:
         raise RecordError(f"refusing to skip from v{record.number} to v{number}: a walk advances one version at a "
                           f"time, so every number in between is one somebody read")
-    version = next(v for v in versions if v.number == number)
-    written = [_write_number(os.path.join(root, *RECORD_REL.split("/")), number, RECORD_HEADER)]
-    if version.scope == "machine":
-        written.append(_write_number(os.path.join(root, *LOCAL_REL.split("/")), number, LOCAL_HEADER))
+    written = [_write_number(os.path.join(root, *RECORD_REL.split("/")), number)]
     return [os.path.relpath(path, root).replace(os.sep, "/") for path in written]
 
 
@@ -520,7 +483,7 @@ def _versions_or_refuse() -> tuple[list[Version], int]:
 
 def _listing(version: Version) -> str:
     rules = f"  [rules: {', '.join(version.rules)}]" if version.rules else ""
-    return f"  v{version.number:<3} {version.slug:<28} {version.scope:<8} {version.title}{rules}"
+    return f"  v{version.number:<3} {version.slug:<28} {version.title}{rules}"
 
 
 def cmd_versions() -> int:
@@ -556,7 +519,7 @@ def cmd_status(root: str) -> int:
         print(parse_error_message(record))
         return 2
     if record.exempt:
-        print(f"exempt — {record.exempt} (from {record.exempt_from})")
+        print(f"exempt — {record.exempt}")
         return 0
     if not record.present:
         print("no record file: this repo has never been asked where it stands")
@@ -568,12 +531,10 @@ def cmd_status(root: str) -> int:
         # reads as current, and the walk runs against a version list older than the record.
         print(f"this record names v{record.number}, above the newest version in this dotfiles checkout "
               f"(v{newest}): pull the dotfiles repo before adopting anything here")
-    waiting, machine_side = _pending(versions, record), _unwired(versions, record)
+    waiting = _pending(versions, record)
     print(f"{len(waiting)} version(s) pending")
     for version in waiting:
         print(_listing(version))
-    for version in machine_side:
-        print(f"  v{version.number:<3} {version.slug:<28} {version.scope:<8} adopted in this repo, not wired on this machine")
     return 0
 
 

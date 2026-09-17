@@ -25,9 +25,10 @@ than let a repo carry silently.
 import _git
 
 # Every path the conventions require committed. Directories carry a trailing slash so git is told
-# what kind of thing it is being asked about; the two file paths are the ones a rule most often
-# catches by accident, since each sits beside a sibling that genuinely is machine-local —
-# `.claude/conventions.local` beside the record, `config/deploy.env` beside the publish config.
+# what kind of thing it is being asked about; the accident caught most often is a rule reaching one
+# of these files through a machine-local sibling beside it. The global excludes hide
+# `config/deploy.env`, and the committed, transcrypt-encrypted `config/publish.env` sits in the same
+# directory — a pattern widened to cover the first covers the second too, silently.
 REQUIRED = (".claude/settings.json", ".claude/memory/", ".claude/memos/",
             ".claude/conventions", "config/publish.env")
 

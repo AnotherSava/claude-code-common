@@ -1,6 +1,5 @@
 ---
 title: The commit gate runs the conventions checker
-scope: repo
 ---
 
 # The commit gate runs the conventions checker

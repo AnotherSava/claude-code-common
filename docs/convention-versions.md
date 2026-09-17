@@ -6,7 +6,7 @@ A convention change splits in two, and the halves are kept apart on purpose. Wha
 
 A repo's state is one integer: the highest version it has adopted. A session-start notice prints the gap, `/adopt` walks it, `/commit` commits the result, and the checker keeps the rules holding from then on.
 
-This page describes that system end to end — the version, the record, the checker, and what "current" does and does not mean. The agent-facing procedure lives elsewhere; the last section names the file for every piece.
+This page describes that system end to end — the version, the record, the checker and the two kinds of rule it runs, and what "current" does and does not mean. The agent-facing procedure lives elsewhere; the last section names the file for every piece.
 
 ## The loop
 
@@ -18,11 +18,13 @@ This page describes that system end to end — the version, the record, the chec
 
 Nothing in that loop runs unattended, and nothing reaches across repos. A repo found behind is reported; closing the gap is a walk through that repo's own session.
 
-The continuing half has no loop. A version that introduces a rule hands it to the checker, and from the moment that version is adopted the repo's own commit gate runs it — so the property is asserted at every commit rather than sampled whenever somebody remembers to go and look.
+The continuing half has no loop. A version that introduces a rule hands it to the checker, and from the moment that version is adopted the repo's own commit gate runs it — so the property is asserted at every commit rather than sampled whenever somebody remembers to go and look. A second, smaller class of rule is gated by no version at all and runs in every repo the moment it is committed here; the checker's section below says what belongs there and what it costs.
 
 ## What a version is
 
-A monotonic integer, one per migration, carried by the folder that holds it — `claude/conventions/versions/NNN-slug/`, the number zero-padded to three digits. That name is the identity, and the number is stored nowhere else, so the two can never disagree. A migration sequence is the one ordering in these repos that is never renumbered — v7 means the same migration in every repo that ever ran it — which is why the number sits in a filename here and in metadata everywhere else.
+A monotonic integer, one per migration, carried by the folder that holds it — `claude/conventions/versions/NNN-slug/`, the number zero-padded to three digits. That name is the identity, and the number is stored nowhere else, so the two can never disagree. A migration sequence is the one ordering in these repos that sits in a filename rather than in a field, because the number is what a repo's record names and what someone reads back months later: it identifies a migration rather than sorting one.
+
+**The sequence was renumbered once, on 2026-09-16**, when the memory-cache migration stopped being a version at all and became the first universal rule. Every number above it moved down one — what were v5 through v15 are now v4 through v14 — and every record naming one of them was rewritten by hand, since nothing can tell a record reading v9 back when it meant `package-manager-pin` from one reading v9 now that it means `license-file-present`. A number written down before that date therefore names a migration that carries the number one below it today — old v9 is this set's v8 — so a commit message, a memo or a transcript older than the change has to be read against the sequence it was written in. Treat that as the price of retiring a version, not as something the sequence does — the numbers are stable in every other respect, and the alternative, a hole in the sequence, is refused by the loader that derives `latest` from it.
 
 A version is warranted on one narrow test: **a repo already conforming to the previous version must now do something.** Doing something is either performing a migration or taking on a rule it was not being checked against before. A rewording qualifies as neither. A new continuous rule does qualify even when no repo currently violates it, because a rule runs only where the adopted number is at or above the version that introduced it — shipped without a version of its own, it would be enforced nowhere.
 
@@ -31,11 +33,12 @@ Each version folder holds a `README.md` opening with frontmatter:
 ```yaml
 ---
 title: The Node engines range is declared
-scope: repo          # repo | machine ; machine means it asserts something outside the repo
 affects: memo        # optional, comma-separated: tools whose stored data this reshapes
 rules: node-engines  # optional, comma-separated: continuing rules this version introduces
 ---
 ```
+
+Those three are the whole of it, and a fourth key is refused rather than ignored: a field left behind by a port would otherwise sit there reading as authoritative while the folder name and the folder's contents quietly decided everything.
 
 Then four mandatory sections, in this order, and nothing else at that level:
 
@@ -56,7 +59,7 @@ To see the live set:
 python ~/.claude/conventions/engine.py versions
 ```
 
-which prints one line per version with its number, slug, scope, title and the rules it introduces. What they cover, in groups: the `.claude/` plumbing every project carries (the memo backlog, the memory cache and its file shape), what a project `.gitignore` may and may not hide, line-ending normalization for encrypted paths, the Node toolchain chain (declare an engines range, enforce it, pin the package manager), a LICENSE at the root, a pinned docs theme, service naming on the shared host, a commit gate that runs what the deploy runs, and that gate calling the checker so the continuing rules run at all.
+which prints one line per version with its number, slug, title and the rules it introduces. What they cover, in groups: the `.claude/` plumbing every project carries (the memo backlog and the shape of the memory files), what a project `.gitignore` may and may not hide, line-ending normalization for encrypted paths, the Node toolchain chain (declare an engines range, enforce it, pin the package manager), a LICENSE at the root, a pinned docs theme, service naming on the shared host, a commit gate that runs what the deploy runs, and that gate calling the checker so the continuing rules run at all.
 
 ## Why a version is a migration and a continuing rule is not
 
@@ -70,14 +73,7 @@ It also settles what the record does not have to hold. A per-repo state saying "
 
 ## The record
 
-Two files, both under a repo's `.claude/`, both a comment block and exactly one line of content.
-
-| File | Committed | Holds |
-|---|---|---|
-| `.claude/conventions` | yes | the highest version this repo has adopted |
-| `.claude/conventions.local` | no, gitignored | the highest machine-scoped version wired on this machine |
-
-The committed one, in full:
+One file, `.claude/conventions` under the repo's own `.claude/`, committed: a comment block and exactly one line of content, holding the highest version this repo has adopted. In full:
 
 ```
 # Convention version this repo has adopted, from the claude dotfiles repo.
@@ -89,7 +85,7 @@ The content line is a non-negative integer, or the word `exempt` and a reason. A
 
 **A repo with no file at all is at 0 and has never been asked**, which is a different fact from being at 0, and the notice words the two differently. Nothing is ever assumed decided by omission.
 
-One command writes either file:
+One command writes it, and it is the only thing that does:
 
 ```
 python ~/.claude/conventions/engine.py adopt "<repo root>" <n>
@@ -97,11 +93,11 @@ python ~/.claude/conventions/engine.py adopt "<repo root>" <n>
 
 It refuses to lower the number, refuses a number above the newest version in this dotfiles checkout, and refuses to skip — the new number must be the current one plus one. Advancing one at a time is what keeps the record from claiming a migration nobody read: a walk that jumped straight to the newest number would leave every version under it recorded as run on the strength of nothing.
 
-### The machine half
+### One file, not two
 
-One version in the set asserts something outside the repo — that the machine-local memory cache is a link into the committed `.claude/memory/`. No repo can carry a per-machine symlink, so a version declaring `scope: machine` is written to both files, and the two numbers say different things: the committed one is the repo's decision and travels, the local one is this machine having wired it and deliberately does not.
+A second record used to sit beside it: `.claude/conventions.local`, gitignored, holding the highest *machine-scoped* version wired on this machine. One version in the set needed it — the one asserting that the machine-local memory cache is a link into the committed `.claude/memory/` — because no repo can carry a per-machine symlink, so a version declaring `scope: machine` was written to both files and the two numbers said different things.
 
-A fresh clone therefore holds the first without the second, and reports the version as adopted in the repo but not wired on this machine — rather than inheriting an answer that was never true of it. The local file is hidden by the *global* excludes file this repo ships as `git/gitignore`, not by any project `.gitignore`, so no repo has to remember to ignore it.
+That half is gone, and with it the `scope:` field, the second file, and every function that read one. The reason is that what it recorded was never a migration. A migration ran or it did not, and the answer never expires; the link is per-machine, so a second machine holds the repo with the work genuinely not done, and it can break years after any adoption — a cleared cache, a moved checkout, a Git Bash `ln -s` that made a copy. No single number could be true of that, which is exactly what the machine record kept trying to be. It is a universal rule now, re-derived at every commit rather than remembered once, and a repo's whole convention state is one integer in one tracked file that a clone carries intact.
 
 ## The checker
 
@@ -111,23 +107,23 @@ What a repo's `.claude/commit-checks.sh` runs:
 python ~/.claude/conventions/check.py "<repo root>"
 ```
 
-It reads the repo's adopted integer and runs every rule that a version at or below that number introduced. A rule introduced by v12 does not run in a repo at v11. The mapping from a rule to the version that introduced it is derived from the versions' `rules:` frontmatter, so nothing states it twice; a rule file no version names, and a named rule with no file, both fail the tests below.
+It reads the repo's adopted integer and runs every rule that a version at or below that number introduced, plus every universal rule, which no number gates. A rule introduced by v11 does not run in a repo at v10. The mapping from a rule to the version that introduced it is derived from the versions' `rules:` frontmatter, so nothing states it twice; a rule file no version names, and a named rule with no file, both fail the tests below.
 
-Each rule is one file under `claude/conventions/rules/`, exposing a single function that takes the repo root and returns one human-readable line per violation — an empty list meaning the rule holds. Rules detect and never mutate.
+Each rule is one file — under `claude/conventions/rules/` when a version introduces it, under `claude/conventions/universal/` when nothing does — exposing a single function that takes the repo root and returns one human-readable line per violation, an empty list meaning the rule holds. Rules detect and never mutate.
 
 A clean run says what it checked rather than leaving it to the silence:
 
 ```
 conventions check: <repo root>
-adopted v14, dotfiles at c1f80e0 — 9 rule(s) taken on
+adopted v14, dotfiles at bd4bd9b — 9 rule(s) taken on, 1 universal
 
-all 9 rule(s) held: gitignore-unhides-committed, gitignore-scope-global, memory-file-shape, …
+all 10 rule(s) held: gitignore-unhides-committed, gitignore-scope-global, memory-file-shape, …
 ```
 
-A failing one prints a heading per rule with its violations under it, then a tally. Three details decide whether that output can be trusted:
+The two counts in that header are kept apart because they are answers to different questions: what this repo took on by adopting, and what runs here whatever it adopted. A failing run prints a heading per rule — `<name> (v7)` or `<name> (universal)` — with its violations under it, the rule's `fix:` line under those when it names one, then a tally. Three details decide whether that output can be trusted:
 
 - **A rule that cannot establish its answer raises rather than returning nothing.** Git refusing, a file that will not read, a bug in the rule itself: it is reported as **UNMEASURED**, named, with its traceback, and the run exits non-zero. A rule that could not look must never read as a rule that passed.
-- **A repo that has adopted no version carrying a rule says so** — "nothing was checked" rather than a clean bill, so "checked and clean" and "checked nothing" cannot be read off the same empty output.
+- **A run that checked nothing says so** — "nothing was checked" rather than a clean bill, so "checked and clean" and "checked nothing" cannot be read off the same empty output. It takes both halves being empty: a repo that has adopted no rule-bearing version still runs every universal rule, and only a checkout holding none of those reaches that sentence.
 - **Exit codes are the same three the engine uses:** `0` everything held · `1` a rule was violated or went unmeasured · `2` the tool refuses and a human has to fix something — a bad invocation, an unreadable record, a version set that will not load.
 
 Two things every rule has to get right, both paid for once already and both in the shared helper beside them. It has to **ask git what it hides**, because a `package.json` inside a gitignored `venv/` or a scratch `tmp/` is not a manifest anyone maintains — consulting the index as well, so a force-added file inside an ignored directory still counts. And any git exit that is neither "ignored" nor "not ignored" means the question went unanswered, so the rule raises and the run reports it unmeasured instead of treating silence as a pass.
@@ -138,7 +134,17 @@ The rules and the version set have their own tests, which are what a change to e
 python claude/conventions/tests.py
 ```
 
-They assert that every version folder parses and the numbers are contiguous, that all four mandatory sections are present, that rules and versions name each other in both directions, that each rule comes back empty on a conforming tree and non-empty on a violating one — built in a temp directory by the test itself — that each rule raises rather than passing when git cannot answer, and that the record refuses to be lowered, skipped or pushed above the newest version.
+They assert that every version folder parses and the numbers are contiguous, that all four mandatory sections are present, that versioned rules and versions name each other in both directions, and that the universal ones are wired the mirror image of that: no version claims to introduce one, no filename sits in both directories, and each names a `FIX`. Then they run every rule against a tree built in a temp directory by the test itself — empty on a conforming tree, non-empty on a violating one, and for the memory-cache rule the round trip runs the very script its `FIX` names and checks the finding goes away, so two independent derivations of the cache directory's name have to agree rather than one agreeing with itself. Each rule raises rather than passing when git cannot answer, and the record refuses to be lowered, skipped or pushed above the newest version.
+
+### The universal rules
+
+A rule under `claude/conventions/universal/` is gated by nothing. It runs in every repo whatever its number — one at v0, one exempt from the sequence entirely — from the moment it is committed here, and it fails a commit gate exactly as a versioned rule does: the same heading, the same tally, the same exit code 1. The label under which it reports is the only difference a reader sees — `(universal)` where a versioned rule carries the number that introduced it.
+
+Two things follow from having no version behind it. There is no README a repo was ever walked through, so each universal rule names its own remedy: a module-level `FIX` constant holding the command that repairs what it found, printed under the finding rather than in a summary further down. And there is no frontmatter its filename has to appear in — the directory *is* the list, read at every run, so a file dropped in there runs rather than sitting inert waiting to be named somewhere.
+
+That reach is why this is the smaller class on purpose. A universal rule arrives in every repo on the machine with no adoption in between, which is the thing the numbered half exists to prevent, so **a property a repo can adopt belongs in a version.** What belongs here is a property no migration could settle for good, because it is not about the repo alone.
+
+One rule meets that test today. The `memory-cache-linked` rule asserts that this machine's Claude memory cache for the repo is a link into the repo's committed `.claude/memory/`, and recommends `bash ~/.claude/scripts/link-project-memory.sh`. It was a version until 2026-09-16, and it stopped being one for the reason the second record file stopped existing: the link is per-machine, a second machine holds the repo with it not made, and a cleared cache or a Git Bash `ln -s` that quietly made a copy breaks it long after any adoption. A repo with no `.claude/memory/` holds vacuously — the convention points the cache at a committed directory, and with none there is nothing to point at — which is evidence read off the repo rather than an absence inferred from the machine. Nothing here ever creates one: whether a repo keeps project memory at all is not a machine's question.
 
 ## The session-start notice
 
@@ -147,17 +153,17 @@ A `SessionStart` hook compares two integers: the newest version in this dotfiles
 What it prints, when it prints:
 
 ```
-Conventions in this repo are 8 versions behind (at v6, latest is v14, dotfiles at c1f80e0).
-  - v7   The Node engines range is declared
-  - v8   The engines range is enforced, not advisory
-  - v9   The npm version is pinned in package.json
-  - v10  A LICENSE file sits at the repo root
-  - v11  The docs theme is pinned to a tag
+Conventions in this repo are 8 versions behind (at v6, latest is v14, dotfiles at bd4bd9b).
+  - v7   The engines range is enforced, not advisory
+  - v8   The npm version is pinned in package.json
+  - v9   A LICENSE file sits at the repo root
+  - v10  The docs theme is pinned to a tag
+  - v11  Compose services carry the project's name
   - ... 3 more
 Run /adopt to catch up.
 ```
 
-Five bullets and a count, because fifteen bullets at every session start is a wall nobody reads. Other things it can say, each for its own condition: that this repo has no record at all and should record where it stands; that the repo is current but a machine-scoped version is not wired here; that the repo records a version newer than this checkout has, so the *dotfiles* need pulling (the `/adopt` offer is withheld rather than qualified); that the record could not be parsed and `/adopt` will not run until it is fixed; that the version set itself could not be read; or that conventions cannot be recorded here because this is not a git repo.
+Five bullets and a count, because a line per pending version at every session start is a wall nobody reads. Other things it can say, each for its own condition: that this repo has no record at all and should record where it stands; that the repo records a version newer than this checkout has, so the *dotfiles* need pulling (the `/adopt` offer is withheld rather than qualified); that the record could not be parsed and `/adopt` will not run until it is fixed; that the version set itself could not be read; or that conventions cannot be recorded here because this is not a git repo.
 
 Two details worth knowing:
 
@@ -177,7 +183,7 @@ For each version the shape is fixed:
 3. **Otherwise the migration is performed** as the README instructs, and every mutation is shown before it happens and applied only on a yes.
 4. **A question the README puts to a human goes to you verbatim.** Some conventions contain a clause no file can answer — whether a repo wants a backlog at all, whether a missing LICENSE is deliberate — and the agent does not answer those on your behalf.
 5. **What the README says to check afterwards is checked**, and where the version introduces a rule, the checker is the thing that confirms it.
-6. **The record advances by one**, through the adopt command, which is the only writer of either file.
+6. **The record advances by one**, through the adopt command, which is the only writer of that file.
 
 Then the next version. The number moving one at a time is what makes an interrupted walk safe: the record is rewritten after each version, so a run that stops partway loses nothing and the next `/adopt` resumes at the first pending version.
 
@@ -204,13 +210,13 @@ python ~/.claude/conventions/engine.py status "<repo root>"
 
 ```
 repo: <repo root>
-latest v15 (dotfiles at c1f80e0)
-this repo: v11
+latest v14 (dotfiles at bd4bd9b)
+this repo: v10
 4 version(s) pending
-  v12  cotenant-service-names       repo     Compose services carry the project's name  [rules: cotenant-service-names]
-  v13  commit-checks                repo     A commit gate runs what the deploy runs
-  v14  memos-done-dated             repo     Addressed memos carry their close date at the front of the name
-  v15  gate-runs-the-checker        repo     The commit gate runs the conventions checker
+  v11  cotenant-service-names       Compose services carry the project's name  [rules: cotenant-service-names]
+  v12  commit-checks                A commit gate runs what the deploy runs
+  v13  memos-done-dated             Addressed memos carry their close date at the front of the name
+  v14  gate-runs-the-checker        The commit gate runs the conventions checker
 ```
 
 The path argument is any repo, so this inventories another checkout without opening a session in it. It exits 0 when it can answer — being behind is the normal answer, not a failure — and 2 when it refuses: not a git repo, an origin owned by someone else, a record it cannot parse.
@@ -228,7 +234,7 @@ The difference is deliberate and it is written down. Four kinds of convention ca
 - **Agent behaviour** — how the assistant works, not how a repo is arranged. Nothing on disk differs between a session that followed the rule and one that broke it.
 - **Code content** — properties of the source rather than of the repo's shape. A linter or a review enforces these line by line; a migration cannot, because the target shape includes every line not yet written.
 - **An unbounded property** — true of an open, growing set, so one pass proves nothing about the next commit. This is the one boundary the checker moved: an unbounded property that a rule *can* re-derive belongs to the checker, which asserts it at every commit, and only what no rule can express stays out of the system entirely.
-- **Global, not per-repo** — one fact about this machine or this checkout. Recording it per repo would be one answer copied everywhere, and the checkable ones already belong to `check-install.py`.
+- **Global, not per-repo** — one fact about this machine or this checkout. Recording it per repo would be one answer copied everywhere, and the checkable ones already belong to `check-install.py`. A fact about this machine's relationship to *one* repo is a different thing again, and that is what a universal rule is for.
 
 A convention in neither that file nor the version set is a gap to close, not a silence to read past. Without that boundary written down, a current record would read as a clean bill of health for the entire guidelines file.
 
@@ -237,15 +243,15 @@ A convention in neither that file nor the version set is a gap to close, not a s
 Three ways a repo records nothing, and they are not interchangeable:
 
 - **Someone else's project.** Ownership is read from the origin URL and compared against one hardcoded account name. A clone of a third-party repo adopts nothing and the notice stays silent there. A repo with no origin at all is *not* third-party and does adopt.
-- **Exempt.** A repo that must never adopt carries `exempt` and a reason on the content line, in place of a number. The reason is mandatory; a bare `exempt` is a parse error. This is the one content line written by hand rather than by the adopt command, and an exemption placed in the gitignored local file silences that repo on one machine only.
+- **Exempt.** A repo that must never adopt carries `exempt` and a reason on the content line, in place of a number. The reason is mandatory; a bare `exempt` is a parse error. This is the one content line written by hand rather than by the adopt command, and it travels with the repo like any other — an exemption is the repo's, not one machine's.
 - **Not a git repo.** Nothing can be recorded, and the notice says so where a `.claude/` directory or a `CLAUDE.md` is present. A scratch directory with neither stays quiet.
 
-An exempt repo runs no rules either, and the checker says which of the two silences it is printing — exempt with its reason, or a repo that has adopted nothing.
+An exempt repo runs no *versioned* rules, and the checker's header says which of the two it is reporting — exempt with its reason, or a repo that has adopted nothing. The universal rules still run there, which is the part an exemption cannot reach: it is a statement about the sequence, and those are gated by no number in it.
 
 ## Changing your mind
 
 - **There is no state for a refusal.** Declining a migration leaves the repo at the version below it and the notice keeps saying so, which is the intended pressure: a convention several repos refuse is a convention that is wrong, or one whose "When it does not apply" section is missing a condition. Both of those are fixed in the version set, where the fix reaches every repo, rather than recorded once per repo.
-- **Undoing an adoption is a revert, not an `unapply`.** No version defines an inverse. Since the record and the migration commit together, reverting the walk's commit undoes both — for repo-scoped versions. A machine-scoped one needs the number in `.claude/conventions.local` lowered by hand as well, since a gitignored file survives every revert and the engine refuses to lower a number on its own.
+- **Undoing an adoption is a revert, not an `unapply`.** No version defines an inverse. Since the record and the migration commit together, reverting the walk's commit undoes both, the record included: it is one tracked file, so nothing survives the revert still claiming a number the tree no longer earns. The revert is the mechanism because the engine refuses to lower a number on its own.
 - **Reversing a convention outright is a later version**, whose README says what it reverses and why. The number advances either way: a shipped version is never edited to change its behaviour, because a repo already past it will never re-run it, and a repo that never got to the original simply runs the pair back to back.
 - **Loosening a rule is an edit to the rule**, not a version — a repo being asked for less does not have to decide anything. Tightening one is a version, for the same reason in reverse.
 
@@ -262,7 +268,7 @@ An exempt repo runs no rules either, and the checker says which of the two silen
 Three things the system needs. Only the second announces itself — `check-install.py` fails the `~/.gitignore` link and the `core.excludesFile` setting at every session start, and `/adopt` repeats its FAIL lines — while the other two are silent:
 
 1. **Change the owner.** The account name that decides "my repo" versus "someone else's clone" is a constant in `claude/conventions/engine.py`. Leave it as shipped and every repo you own reads as third-party: the notice is silent, `status` says it adopts nothing, the adopt command refuses, and every tool that asks whether a repo is behind is waved through — indistinguishable from being current.
-2. **Install the global excludes file.** The machine-local record is hidden by `git/gitignore` symlinked as the global excludes file, and by nothing else. Skip that half of the install and the local record shows up as an untracked file in every repo, ready to be committed by accident — at which point the other machine inherits a claim that it wired a symlink it never made. The [Global Installation](../README.md#global-installation) section of the README has the commands.
+2. **Install the global excludes file.** The `gitignore-scope-global` rule compares every committed `.gitignore` against it, located through `git config --global core.excludesfile` rather than assumed to be `~/.gitignore`. Skip that half of the install and there is no second side to compare against, so the rule raises rather than reporting a repo full of duplicates as clean — which means every commit in every repo that has adopted it reports UNMEASURED until the setting is there. The [Global Installation](../README.md#global-installation) section of the README has the commands.
 3. **Have Python 3.10 or newer on PATH.** The engine is standard library only, with nothing to install, but it uses syntax 3.9 rejects at import — and the session-start notice swallows that failure into silence rather than a traceback.
 
 ## Where each piece lives
@@ -273,10 +279,11 @@ Three things the system needs. Only the second announces itself — `check-insta
 | The versions | [`claude/conventions/versions/`](../claude/conventions/versions/) |
 | The engine — the version set, the record, status | [`claude/conventions/engine.py`](../claude/conventions/engine.py) |
 | The checker a commit gate runs | [`claude/conventions/check.py`](../claude/conventions/check.py) |
-| The continuing rules | [`claude/conventions/rules/`](../claude/conventions/rules/) |
+| The continuing rules a version introduces | [`claude/conventions/rules/`](../claude/conventions/rules/) |
+| The universal rules, gated by no version | [`claude/conventions/universal/`](../claude/conventions/universal/) |
 | The tests a change to either has to pass | [`claude/conventions/tests.py`](../claude/conventions/tests.py) |
 | The contract for writing a new version or rule | [`claude/conventions/authoring.md`](../claude/conventions/authoring.md) |
 | The walk procedure | [`claude/skills/adopt/SKILL.md`](../claude/skills/adopt/SKILL.md) |
 | What can never carry a version | [`claude/conventions/not-versioned.md`](../claude/conventions/not-versioned.md) |
 | The session-start notice | [`claude/hooks/conventions-check.py`](../claude/hooks/conventions-check.py) |
-| A repo's own record | `<repo>/.claude/conventions`, and `.claude/conventions.local` beside it |
+| A repo's own record | `<repo>/.claude/conventions` |

@@ -14,7 +14,8 @@ copied from the global one fails here.
 A repo with no `.claude/memory/` holds vacuously, and so does one whose directory is empty. That is
 the right answer for a check a commit gate runs — there is no file here whose shape this governs,
 and refusing instead would fail the gate of every repo that keeps no project memory. Whether the
-directory *should* exist is the memory-cache-symlink convention's question, not this one's.
+directory that does exist is *reachable* — the machine's memory cache being a link into it — is the
+`memory-cache-linked` universal rule's question, not this one's.
 
 What cannot be read raises rather than passing: a memory file that will not open as text, an index
 that will not, a directory that will not list. A transcrypt-encrypted memory in a locked repo reads

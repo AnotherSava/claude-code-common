@@ -1,6 +1,5 @@
 ---
 title: The docs theme is pinned to a tag
-scope: repo
 rules: docs-theme-pinned
 ---
 

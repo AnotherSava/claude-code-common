@@ -1,6 +1,5 @@
 ---
 title: A LICENSE file sits at the repo root
-scope: repo
 ---
 
 ## What changed

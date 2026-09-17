@@ -1,6 +1,5 @@
 ---
 title: Compose services carry the project's name
-scope: repo
 rules: cotenant-service-names
 ---
 

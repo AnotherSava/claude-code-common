@@ -62,9 +62,12 @@ Three things it deliberately does not say:
   no-op, and the number advances just the same. There is no `n/a` and no `declined`: an exception to a
   convention belongs *in* the convention, written into that section and re-evaluated in every repo, not
   remembered per repo as a line nobody re-reads.
-- **That a machine-scoped version is wired on this machine.** That is the gitignored
-  `.claude/conventions.local`, which does not travel, so a fresh clone reports the symlink it has not
-  made rather than inheriting the other machine's answer.
+- **That the rules it brought in are the only ones running here.** The number decides the versioned rules
+  and nothing else: one introduced by v7 starts running when the number reaches 7. Beside them,
+  `~/.claude/conventions/universal/` holds the rules no version gates — they run in every repo whatever
+  its number, an exempt one included, and they fail the commit gate exactly as a versioned rule does.
+  That directory is the smaller half on purpose, because a rule added to it reaches every repo the moment
+  it is committed, with no adoption in between; a property a repo can adopt belongs in a version instead.
 
 A repo that must never adopt carries `exempt <reason>` on that content line instead of a number.
 
@@ -102,24 +105,21 @@ setting — is enumerated in `~/.claude/conventions/not-versioned.md`. Read it w
 
 ## 1. Read the gap
 
-Take the pending versions from **Conventions status** in Context — number, slug, scope, title, and the
-rules each introduces.
+Take the pending versions from **Conventions status** in Context — number, slug, title, and the rules
+each introduces.
 
-- An `exempt` line stops the run here. Report the reason it records and which of the two files it came
-  from — the local one is gitignored, so an exemption there silences this repo on one machine only and
-  travels nowhere.
+- An `exempt` line stops the run here. Report the reason it records. The exemption is from the versions
+  and from nothing else: the universal rules are gated by no number, so they run in that repo too and its
+  commit gate can still fail on one — say that, rather than leaving `exempt` to read as nothing being
+  checked here.
 - Nothing pending: say the repo is current and name the version it is current *through*. Then run
   `python ~/.claude/conventions/check.py "<repo root>"` anyway and report what it says, because current
-  is a statement about migrations and the checker is the one that can still find something broken.
+  is a statement about migrations and the checker is the one that can still find something broken,
+  including a universal rule that being current never covered.
 - **A record naming a version above this checkout's newest one** — status prints this as its own line —
   means the dotfiles repo here is behind the machine that wrote the record. Stop and propose pulling it.
   This is a different condition from §0's dotfiles gate, which compares the checkout with its own
   upstream and stays clean whenever the other machine pushed the repo but not the dotfiles.
-- **A machine-scoped version adopted here but not wired on this machine** prints as its own line too. Do
-  the machine-side work its README describes and report it — then raise it with the user rather than
-  hand-editing `.claude/conventions.local`, because the engine advances that file only alongside the
-  committed number, and a hand-written local number would claim every machine-scoped version below it
-  was wired here as well.
 
 ## 2. Walk the pending versions, one at a time, ascending
 
@@ -166,11 +166,22 @@ The engine enforces the order anyway: `adopt` takes only the current number plus
 
 6. **Run the checker:** `python ~/.claude/conventions/check.py "<repo root>"`. Exit 0 is done; exit 1 —
    a violation or a rule that could not be measured — is a §3 stop. It runs *after* the number moves
-   because it runs the rules introduced at or below the adopted version, so the rule this version brings
-   in is unmeasurable until the record names it. That order is safe in the direction that matters: the
-   number only ever claims the migration ran, and this repo's commit gate re-runs the same checker, so a
-   half-done migration cannot reach a commit. Report which rules ran — a version whose
-   `## Continuing rule` says `None` adds nothing to that list, and the list is how you can tell.
+   because it runs the versioned rules introduced at or below the adopted version, so the rule this
+   version brings in is unmeasurable until the record names it. That order is safe in the direction that
+   matters: the number only ever claims the migration ran, and this repo's commit gate re-runs the same
+   checker, so a half-done migration cannot reach a commit. Report which rules ran — the header counts
+   them as `X rule(s) taken on, Y universal` and every finding is labelled `<name> (v7)` or
+   `<name> (universal)`, so a version whose `## Continuing rule` says `None` adds nothing to the first
+   count, and that count is how you can tell.
+
+A finding labelled `(universal)` is not this walk's doing. Those rules are gated by no version, so that
+one was failing here before `/adopt` was typed, and adopting nothing would have left it failing just the
+same. It still exits 1 like any other, and the repo's commit gate refuses for the same reason, so it is a
+§3 stop all the same — say which of the two kinds stopped the run, since a versioned rule says the
+migration you just performed is incomplete and a universal one says nothing about it. Report the `fix:`
+line printed under the finding verbatim: the rule names the command that repairs what it found, and that
+command can reach outside the repo's tree — this machine's project-memory cache link is the case that
+exists today — so running it is the user's decision rather than a step of the walk.
 
 ## 3. The first failure stops the run
 
@@ -195,18 +206,18 @@ runs `.claude/commit-checks.sh`, the confidentiality scan and the memo and issue
 commits directly.
 
 Two things to say once the walk is over. If this repo's `.claude/commit-checks.sh` does not run
-`check.py`, the rules this walk just took on were measured by the walk and by nothing since — say so
-rather than leaving "adopted" to read as "checked from here on". And if the record file conflicts on a
-later pull, both machines walked from the same base: keep the higher number, whose migrations are all
-present in the merged tree.
+`check.py`, the rules this walk just took on were measured by the walk and by nothing since, and the
+universal rules with them — say so rather than leaving "adopted" to read as "checked from here on". And
+if the record file conflicts on a later pull, both machines walked from the same base: keep the higher
+number, whose migrations are all present in the merged tree.
 
 ## There is no audit step
 
 Re-checking is only meaningful for a property that has to keep holding, and such a property must not be
 sampled by a command someone has to remember to run. That half is the commit gate's: `check.py` measures
-every rule the repo's number entitles it to, on every commit, and reports a rule it could not measure as
-unmeasured rather than as a pass. Nothing re-derives a migration afterwards, because a migration is not a
-standing claim — it ran, and the number says how far.
+every rule the repo's number entitles it to and every universal rule beside them, on every commit, and
+reports a rule it could not measure as unmeasured rather than as a pass. Nothing re-derives a migration
+afterwards, because a migration is not a standing claim — it ran, and the number says how far.
 
 ## Out of scope
 
@@ -217,9 +228,10 @@ standing claim — it ran, and the number says how far.
 - Do not edit a shipped version's README or its `apply.py` to make this repo pass. A version folder is
   shared by repos that run it at different times, so editing one gives two repos different behaviour
   under one number; a convention that is wrong is corrected by a later version. A fix to how a *rule*
-  detects something is different — that belongs in `rules/`, where it applies everywhere at once.
-- Do not hand-write, or lower, either record file. The engine's `adopt` is the only writer, and one
-  version at a time is what keeps the number from claiming a migration nobody read.
+  detects something is different — that belongs in the rule file, under `rules/` or `universal/`, where
+  it applies everywhere at once.
+- Do not hand-write, or lower, the record file. The engine's `adopt` is the only writer, and one version
+  at a time is what keeps the number from claiming a migration nobody read.
 - Do not create the artifact a version's `## When it does not apply` says is absent — an empty
   `.claude/memos/`, a guessed `LICENSE`, an invented `engines.node`. The no-op is the version working
   correctly.

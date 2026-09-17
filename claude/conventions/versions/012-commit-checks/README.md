@@ -1,6 +1,5 @@
 ---
 title: A commit gate runs what the deploy runs
-scope: repo
 ---
 
 ## What changed

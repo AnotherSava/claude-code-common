@@ -1,6 +1,5 @@
 ---
 title: The engines range is enforced, not advisory
-scope: repo
 rules: engine-strict
 ---
 

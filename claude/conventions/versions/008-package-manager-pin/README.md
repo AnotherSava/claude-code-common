@@ -1,6 +1,5 @@
 ---
 title: The npm version is pinned in package.json
-scope: repo
 rules: package-manager-pin
 ---
 

@@ -1,6 +1,5 @@
 ---
 title: Project .gitignore stops hiding committed files
-scope: repo
 rules: gitignore-unhides-committed
 ---
 

@@ -1,6 +1,5 @@
 ---
 title: memos.md becomes a memos/ directory
-scope: repo
 affects: memo
 ---
 

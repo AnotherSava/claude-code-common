@@ -6,12 +6,19 @@ convention in that file which can never carry a version, and the reason. Without
 clean bill of health for the whole guidelines file, which is
 `~/.claude/memory/feedback_not_run_is_not_pass.md` at fleet scale.
 
-Four reasons, and a convention belongs here for exactly one of them. Every other convention in that file
+Five reasons, and a convention belongs here for exactly one of them. Every other convention in that file
 has a version under `claude/conventions/versions/`, where what changed, how to migrate and when it does
 not apply are written down — so a convention in neither place is a gap to close, not a silence to read
 past. A convention that has to keep holding after its migration hands the checker a named rule, and it is
 `check.py` re-running that rule on every commit which says it still holds; the version's number only ever
 says the migration ran.
+
+Being in this file says no number can hold the convention; it does not say nothing measures it.
+**Per-machine, measured on every commit** is the section where something does — a rule under
+`claude/conventions/universal/`, gated by no version, failing the commit gate in every repo the moment the
+property breaks. Everywhere else here, enforcement is by reading: no rule can express the property, so
+nothing reports on it and a commit passes either way. Those are the two cases to keep apart when a
+convention is not in the version set.
 
 ## Agent behaviour
 
@@ -99,8 +106,10 @@ has one today, so each is enforced by reading rather than by measurement.
 
 ## Global, not per-repo
 
-One fact about this machine or this dotfiles checkout. Recording it per repo would be one answer copied
-into every repo, and the ones that are checkable already belong to `check-install.py`.
+One fact about this machine or this dotfiles checkout, the same answer whichever repo is open. Recording
+it per repo would be one answer copied into every repo, and the ones that are checkable already belong to
+`check-install.py`, which walks its fixed list of links and git settings once per session. A fact that is
+per-machine *and* per-repo is none of these, and it has a home of its own below.
 
 - **`core.hooksPath` points at `~/.git-hooks`.**
 - **Everything under `~/.claude/` is a symlink from this dotfiles repo and never a copy** — already
@@ -112,3 +121,27 @@ into every repo, and the ones that are checkable already belong to `check-instal
   is generated from the entries marked `{always}` there and is not edited by hand.
 - **Doppler holds ad-hoc secrets** — all ten project slots are taken, so a new app gets a config in an
   existing shard rather than a project of its own.
+
+## Per-machine, measured on every commit
+
+One fact about how *this* machine is wired for *one* repo, which no number could ever be true of. The
+record is committed, so both checkouts read the same integer while only one machine has done the work,
+and what was done breaks long after any adoption — a cleared cache, a moved checkout, a Git Bash `ln -s`
+that made a copy. A version here would be asserting per-machine state out of a file every machine shares,
+which is what the second, gitignored record file attempted and why it is gone with the machine scope that
+needed it.
+
+So these hand the checker a rule under `claude/conventions/universal/` rather than a version. No version
+gates one: it runs in every repo whatever its number, an exempt repo included, it fails the commit gate
+exactly as a versioned rule does, and it names in its `FIX` the command that repairs what it found. The
+class is small on purpose — a universal rule reaches every repo the moment it is committed, with no
+adoption in between — so a property a repo can *adopt* belongs in a version, and only what adoption
+cannot settle belongs here.
+
+- **This machine's memory cache for the repo is a link into the committed `.claude/memory/`** —
+  `universal/memory-cache-linked.py`, which recommends `bash ~/.claude/scripts/link-project-memory.sh`.
+  It was v4 until it was retired, and retiring it is the sequence's one renumbering: a second machine
+  arrives at a repo with the work genuinely not done, so the number read as adopted where nothing was
+  wired. A repo that commits no `.claude/memory/` holds vacuously, and that is positive evidence read off
+  the repo rather than an absence inferred from this machine — the convention points the cache at a
+  committed directory, and with no such directory there is nothing to point at.
