@@ -8,9 +8,9 @@ that matters — an install block is read once per machine, years apart, while t
 never looks at what it was not told about.
 
 Measured, 2026-09-16: `~/.claude/conventions` had been in both install blocks and in no list, so it
-was missing on the Windows machine and nothing said so. Every documented `check.py` and `engine.py`
-command failed there, the commit gate of any repo that adopted the version requiring it would have
-failed too, and `check-install.py` reported a clean install throughout.
+existed on neither machine and nothing said so. Every documented `check.py` and `engine.py` command
+failed on both, the commit gate of any repo that adopted the version requiring it would have failed
+too, and `check-install.py` reported a clean install throughout.
 
 What is asserted, all of it both ways:
 

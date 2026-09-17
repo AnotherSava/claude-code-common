@@ -167,6 +167,7 @@
 - ["Not run" must not look like "passed"](feedback_not_run_is_not_pass.md) {always} — a check that can't tell success from never-ran turns an open problem into a closed-looking one; probe the precondition, assert the artifact, print NOT COVERED
 - [Sampling a level misses an edge](feedback_sample_level_miss_edge.md) {always} — polling "is it in state X" can't catch "did X happen"; a shorter interval narrows the blind window and never closes it — get an event, or state the limit
 - [Startup is not a poll](feedback_startup_is_not_a_poll.md) {always} — a startup-only concern gets bounded retry-until-*answered*, not a timer; count the recurrence before defending it, and check what the "cheap" gate calls
+- [Check where it is consumed](feedback_check_where_it_is_consumed.md) {always} — a session-start assertion is blind for the whole session; put a precondition check on the action that needs it
 - [Reversible edit, not backup-and-restore](feedback_reversible_over_backup.md) {always} — temp file mutations for a check: self-inverse sed; backups collide on basename and zsh `$var` in a for-list silently no-ops
 - [A settled design means build it](feedback_settled_design_means_build_it.md) {always} — don't record the decision and resume the in-flight commit; pause the workflow, build it, then commit
 - [Write the procedure to find the missing artifact](feedback_write_the_procedure.md) {always} — review asks "is this right", a runbook asks "does this exist"; run the commands a doc quotes rather than predicting their output

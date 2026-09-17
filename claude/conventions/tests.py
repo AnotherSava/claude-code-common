@@ -26,16 +26,24 @@ has to be excluded from every other check in this repo by name, and the exclusio
 stale. Both halves are needed. A rule that returns `[]` for everything passes the conforming tree,
 and a rule that flags everything passes the violating one.
 
-**That a rule which could not look raises.** Each rule is also pointed at a tree where its question
-has no answer — outside a work tree for the ones that ask git, holding a file that will not read for
-the ones that do not — and it has to raise there rather than return an empty list. That empty list
-is what the checker would print as a pass.
+A rule whose subject is the machine rather than the repo is driven through the environment instead,
+by the same reasoning: `install-links-present` reads `~/…`, so a redirected home is a machine with
+nothing installed, reached by the path a real one is reached by. The tree it is handed is a scratch
+repo it does not look at.
+
+**That a rule which could not look raises.** Each rule is also pointed at the state where its
+question has no answer — outside a work tree for the ones that ask git, a file that is there and
+will not read for the ones that do not, a cleared `PATH` for the one that shells out — and it has to
+raise there rather than return an empty list. That empty list is what the checker would print as a
+pass.
 
 An assertion this run could not reach prints as NOT COVERED and is counted nowhere: a gate that
 cannot tell "checked and clean" from "never ran" turns an open problem into a closed-looking one.
 
 Exit codes: 0 every assertion held · 1 one failed, or the version set would not load.
 """
+
+from __future__ import annotations
 
 import os
 import shutil
@@ -570,23 +578,88 @@ def memory_cache_linked(gate: Gate, base: str, outside_repo: bool) -> None:
             f"returned {found!r} instead, and the checker prints an empty list as a rule that held")
 
 
-def universal_behaviour(gate: Gate, base: str, outside_repo: bool) -> None:
-    """Every universal rule against a tree built here, and a named gap for any without one."""
+def install_links_present(gate: Gate, base: str, machine_git: dict[str, str | None]) -> None:
+    """The rule reads this machine, reports a home holding none of the links, and refuses without git.
+
+    Driven through the environment rather than through a tree, because the question is about the
+    machine: `expanduser` is what resolves every `~/…` the install contract lists, so a redirected
+    home is a machine with nothing installed, reached by the same path a real one is.
+
+    `machine_git` is what the environment held before `sandbox_git` redirected it. The sandbox is
+    what every other rule here needs and the one thing this rule must not see: with the global config
+    pointed at a file this run wrote, `core.hooksPath` is genuinely unset, and the rule would be
+    asserted against a machine that exists only for the length of the test.
+    """
+    rule = "install-links-present"
+    root, failure = build(base, "install-links", Tree({"README.md": "a repo\n"}))
+    if failure:
+        gate.ok(False, f"{rule}: a scratch repo is built", failure)
+        return
+    sandboxed = {name: os.environ.get(name) for name in machine_git}
+    restore_env(machine_git)
+    try:
+        found = check.run(rule, root)
+    except Exception as exc:
+        gate.ok(False, f"{rule} answers on this machine", f"{type(exc).__name__}: {exc}")
+        return
+    finally:
+        restore_env(sandboxed)
+    gate.ok(not found, f"{rule} returns [] on a machine whose install is complete",
+            "reported:\n" + "\n".join(found) + "\nThis one is about the machine rather than the change "
+            "set: `python claude/hooks/check-install.py` prints the same list with the repair.")
+
+    before = {"HOME": os.environ.get("HOME"), "USERPROFILE": os.environ.get("USERPROFILE")}
+    # Both names, because expanduser reads a different one per platform: HOME on posix, USERPROFILE
+    # on Windows. Setting one would leave the other platform's run testing nothing.
+    empty = os.path.join(base, "no-install")
+    os.makedirs(empty, exist_ok=True)
+    os.environ["HOME"] = empty
+    os.environ["USERPROFILE"] = empty
+    try:
+        gate.ok(bool(check.run(rule, root)), f"{rule} reports a machine holding none of the links",
+                "returned [], so a home with nothing installed in it reads as wired")
+    except Exception as exc:
+        gate.ok(False, f"{rule} answers for a home with none of the links", f"{type(exc).__name__}: {exc}")
+    finally:
+        restore_env(before)
+
+    before_path = {"PATH": os.environ.get("PATH")}
+    os.environ["PATH"] = ""
+    try:
+        found = check.run(rule, root)
+    except Exception:
+        found = None
+        gate.ok(True, f"{rule} raises rather than passing when git cannot be run")
+    finally:
+        restore_env(before_path)
+    if found is not None:
+        gate.not_covered(f"{rule} raises rather than passing when git cannot be run",
+                         "git ran with PATH cleared, so this machine resolves it by some other route "
+                         "and the unanswerable case was never reached")
+
+
+def universal_behaviour(gate: Gate, base: str, outside_repo: bool,
+                        machine_git: dict[str, str | None]) -> None:
+    """Every universal rule exercised here, and a named gap for any without a case of its own."""
     print("\nuniversal rules")
     try:
         names = check.universal_names()
     except OSError as exc:
         gate.ok(False, "the universal rules directory lists", str(exc))
         return
+    # Each universal rule and the function that drives it. A rule in one and not the other is named
+    # rather than skipped, both ways round: an unexercised rule and a case for a rule this checkout
+    # does not hold are different gaps, and neither may read as a rule that was run.
+    exercised = {"memory-cache-linked": lambda: memory_cache_linked(gate, base, outside_repo),
+                 "install-links-present": lambda: install_links_present(gate, base, machine_git)}
     for name in names:
-        if name != "memory-cache-linked":
-            gate.not_covered(f"{name} is exercised against a tree",
-                             "no case in this file builds a tree for it, so nothing here has run it")
-    if "memory-cache-linked" in names:
-        memory_cache_linked(gate, base, outside_repo)
-    else:
-        gate.not_covered("memory-cache-linked is exercised against a tree",
-                         "this checkout holds no universal rule of that name")
+        if name not in exercised:
+            gate.not_covered(f"{name} is exercised", "no case in this file runs it, so nothing here has")
+    for name, exercise in exercised.items():
+        if name in names:
+            exercise()
+        else:
+            gate.not_covered(f"{name} is exercised", "this checkout holds no universal rule of that name")
 
 
 # ---------------------------------------------------------------- the record
@@ -737,7 +810,7 @@ def main() -> int:
         version_shape(gate, versions)
         rule_wiring(gate, versions)
         rule_behaviour(gate, base, outside_repo)
-        universal_behaviour(gate, base, outside_repo)
+        universal_behaviour(gate, base, outside_repo, before)
         record_round_trip(gate, base, versions)
         behind_for_cases(gate, base, versions)
     finally:

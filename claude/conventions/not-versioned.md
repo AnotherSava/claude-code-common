@@ -145,3 +145,11 @@ cannot settle belongs here.
   wired. A repo that commits no `.claude/memory/` holds vacuously, and that is positive evidence read off
   the repo rather than an absence inferred from this machine — the convention points the cache at a
   committed directory, and with no such directory there is nothing to point at.
+
+- **Every symlink and git setting the install blocks create is in place on this machine** —
+  `universal/install-links-present.py`, which names the platform's install block in the README as the
+  repair and reads `check-install.py`'s own lists rather than restating them. No number could settle it:
+  a fresh machine has none of the links, and one added upstream arrives in a `git pull` that no
+  adoption follows. It is asked at commit because v14 made a repo's gate dial
+  `~/.claude/conventions/check.py`, so the gate reads one of these links to run at all, while the
+  session-start check that used to be the only assertion had already run by then.
