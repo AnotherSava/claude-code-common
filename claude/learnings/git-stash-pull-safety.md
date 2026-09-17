@@ -69,6 +69,28 @@ Verified 2026-09-11: seven dirty files against twenty-eight incoming, two of the
 only those two fast-forwarded cleanly, both popped back as a clean 3-way merge, and the other five were
 never touched.
 
+**A dirty file that is *generated* from another one should be discarded, not stashed.** Where the
+overlap includes a file some script rebuilds from a source also in the tree — a rendered index block, a
+lockfile, a compiled manifest — stashing it puts a machine-written file into a three-way merge for no
+reason, and both sides will have appended to it at once. Throw it away, stash only the source, and
+regenerate after the fast-forward:
+
+```bash
+git checkout -- <generated-path>                       # regenerable; nothing is lost
+git stash push -m "pre-pull local work" -- <source-path>
+git merge --ff-only @{upstream}
+git stash pop --index
+<the generator>                                        # rebuild from the merged source
+```
+
+Verified 2026-09-17: both dirty files overlapped the incoming commits, and one was a CLAUDE.md block
+rendered from the other by a script the commit gate re-runs. Discarding it cut the conflict surface in
+half and made the result correct by construction rather than by merge — the two index entries had been
+inserted at different anchors, so the source popped clean and one render reproduced a block no hand
+resolution had to touch. Confirm the discard is safe the way the last section of this file does: the
+generated file is a deterministic function of committed state, so a gate that re-renders and fails on
+any difference is already the proof.
+
 **`--index` is the part that's easy to miss.** A plain `git stash pop` restores everything
 as *unstaged*, silently flattening the staged/unstaged split. That destroys real
 information whenever the index held something deliberate — a staged file deletion, or a
