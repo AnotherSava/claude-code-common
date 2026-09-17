@@ -49,6 +49,7 @@ LINKS: list[tuple[str, str]] = [
     ("~/.claude/memory", "claude/memory"),
     ("~/.claude/scripts", "claude/scripts"),
     ("~/.claude/output-styles", "claude/output-styles"),
+    ("~/.claude/conventions", "claude/conventions"),
     ("~/.git-hooks", "git/hooks"),
     ("~/.gitignore", "git/gitignore"),
     ("~/.gitattributes", "git/gitattributes"),

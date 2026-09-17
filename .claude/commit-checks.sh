@@ -4,7 +4,7 @@
 #
 # What makes a defect here expensive is reach rather than severity: everything under `claude/` is
 # symlinked into `~/.claude/` on both machines, so a broken hook fires at every session start
-# everywhere, and a broken convention reaches fifteen other repos — its migration editing their
+# everywhere, and a broken convention reaches every other repo on the machine — its migration editing their
 # files, its rule standing in front of their commits.
 # Three suites already existed to catch exactly that and nothing ran any of them.
 #
@@ -40,7 +40,7 @@ run() {
 }
 
 # The authoring gate for the conventions. Its failure is the one here that reaches other people's
-# repositories: a version whose README is missing a section `/adopt` walks in fifteen repos, a rule
+# repositories: a version whose README is missing a section is one `/adopt` walks everywhere, a rule
 # named by no version or a version naming a rule with no file, and above all a rule that returns a
 # clean list for a tree it should have refused — each of those ships from here into every repo's
 # commit gate. Every rule is exercised against a conforming and a violating tree the test builds
@@ -57,6 +57,13 @@ run "Conventions — this repo" python3 claude/conventions/check.py .
 # plausible line. That suite pins the cases where a string comparison and a directory entry
 # disagree, which is the class neither bug announced.
 run "memos.py" python3 claude/tests/memos.py
+
+# The install blocks in README.md against check-install.py's lists. Measured 2026-09-16: the
+# `~/.claude/conventions` link was in both blocks and in neither list, so it was missing on this
+# machine and the session-start check called the install clean — every documented conventions
+# command failed there while nothing anywhere said why. Three copies of one contract, paired by
+# hand until this ran.
+run "install links" python3 claude/tests/install-links.py
 
 # The co-tenancy linter three project repos call from this one copy. A regression here is silent in
 # the worst way the fleet knows: the arrangement it guards already cost 41 hours of a commercial
