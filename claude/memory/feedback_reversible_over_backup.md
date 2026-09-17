@@ -18,6 +18,8 @@ Two failures in one session, both while inverting `#[cfg(target_os = ...)]` gate
 - Prefer an edit that is its own inverse: `sed -i '' 's/macos/linux/g' …` then `sed -i '' 's/linux/macos/g' …`. No temp state, nothing to collide, nothing left behind if the turn dies mid-way.
 - If you must copy, never flatten paths into one directory — two files can share a basename, and in a repo with a `mod.rs`/adapter layout they routinely do.
 - Assert the **end state** rather than the restore command's exit code: `cmp` the files that should differ, count the markers that should be gone, re-run the test suite. The restore succeeding says nothing about what it restored.
+- For a **tracked** file, that assertion is `git diff --quiet <path>` and nothing else. On 2026-09-16, proving a new checker fails, a script deleted a line from README's install block and one from `check-install.py`'s `LINKS`, then "restored" both by replacing an empty string — which inserts at position 0 rather than putting the line back. The script reported success and `git diff` found the two deletions still sitting there.
+- Better still, do not touch the real file: a parser or predicate can be imported and called on synthetic input in-process, which proves the same refusal with nothing to restore.
 - Under zsh, `$var` in a `for` list is one word. Use an explicit list or `${=var}`.
 
 Related: [[feedback_not_run_is_not_pass]], [[feedback_post_iteration_cleanup]].
