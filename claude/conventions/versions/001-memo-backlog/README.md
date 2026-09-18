@@ -89,6 +89,48 @@ than once, and the close that matters is the one whose result is on disk now. As
 detection: the move into `done/` *is* the addition this reads, and `-M` would resolve it back to the
 open path and answer with the capture date instead.
 
+**Group the files by the commit that added them before trusting any of those dates.** A repo that
+moved its backlog to one file per memo in a single commit put every file into `done/` at once, so
+that commit's date is what the reading above returns for all of them, and for most of them it is a
+date nothing decided. A close names the work it finished; a migration names the move.
+
+```
+git log --diff-filter=A --format='%h %ad %s' --date=format:%Y-%m-%d -- .claude/memos/done/ | sort -u
+```
+
+Measured 2026-09-18: in tauri-dashboard one commit, `chore(memos): move the backlog to one file per
+memo`, had added 19 of the 21 files then in `done/`. In this repo `feat(memo): store one memo per
+file` added all three then there, and in transcripts both files of two.
+
+Where the migration is the adding commit, the close is recorded in the file that migration deleted.
+The retired checklist carried one line per item, and the commit that put `[x]` on that line is the
+close:
+
+```
+git log -S"[x] <created stamp>" --diff-filter=AM --format='%ad %h %s' --date=format:%Y-%m-%d -- .claude/memos.md | head -1
+```
+
+Take the stamp from the memo's own `created:` field, down to the minute and in the spelling the old
+line used, since that string sits beside `[x]` only once the item is closed. Keep additions as well
+as modifications: a checklist can be *created* with an item already marked, and a filter of
+modifications alone reports that item undatable while the commit carrying its date sits in the log
+it excluded. Dropping deletions is what leaves the migration itself out. Read the subject before
+taking the date — `chore(memos): mark the sync watermark gap done` beside a memo about sync
+watermarks confirms it, and a subject naming unrelated work means the pickaxe caught a line this
+memo does not own.
+
+**Where the pickaxe finds no `[x]` at all, read what the migration commit did before falling back to
+a slug.** A memo asking for the restructuring is closed by performing it, so the migration's date is
+its real close and the grouping above has already found it. In this repo `improve memos by storing
+in separate files` was never marked in the checklist: `feat(memo): store one memo per file` deleted
+its line and wrote the file into `done/` in the same commit, which is both the migration and the
+work the memo named.
+
+Where no commit answers — the repo kept no checklist, or the item predates it — name the file by its
+slug alone. That is the position this version takes for Path A's `[x]` items and it holds for the
+same reason: every date available is wrong, and a name ordered by when the backlog was restructured
+says something false about when the work was decided.
+
 Then `git mv` each file to that date plus `-` plus its existing name, and check the bytes are
 identical at the new name and gone from the old one.
 
@@ -100,9 +142,10 @@ identical at the new name and gone from the old one.
 - Read the resulting titles. A one-line checklist item becomes a one-line memo with no body, and
   several are usually worth expanding while the context is still there.
 - **Whether each recovered date is the right one.** The rename asserts that a name opens with a real
-  date and that the bytes survived; it cannot know whether the commit that added a file to `done/`
-  is the moment the work was actually finished. A memo closed in one session and committed a week
-  later carries the commit's date, and only a person can say that matters.
+  date and that the bytes survived. Grouping by adding commit catches the case where a migration
+  supplied the date; it says nothing about the lag between finishing a memo and committing its
+  close, so a memo closed in one session and committed a week later still carries the commit's date,
+  and only a person can say that matters.
 - **A memo whose own slug begins with a date.** A title like "2026 09 15 was the day the job
   stopped" derives a slug opening with `2026-09-15-`, which reads as already dated and is left
   alone. It is rare and harmless — the name still sorts — but the date is the title's, not the
