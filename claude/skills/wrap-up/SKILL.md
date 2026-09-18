@@ -102,7 +102,7 @@ handled. Drop a candidate when:
 - it is already in **Pending memos**
 - the approach changed underneath it, so the question no longer means anything
 - a later step of this skill already owns it: `/commit` runs the remote sync check, `/reflect`,
-  `/clean-code`, `/documentation` and the confidentiality scan, so none of those is ever a
+  `/clean-code`, `/docs-relevance` and the confidentiality scan, so none of those is ever a
   finding here, however live it looks in the transcript
 - an earlier `/wrap-up` in this same session already disposed of it
 
@@ -189,7 +189,7 @@ Report what you did in one short line per item, then continue to step 7 in the s
 ### 7. Commit
 
 Run `/commit`. It owns the rest: the remote sync check, `/reflect` for durable knowledge,
-`/clean-code`, `/documentation`, the confidentiality scan, the commit plan, the push, and the
+`/clean-code`, `/docs-relevance`, the confidentiality scan, the commit plan, the push, and the
 closing memo list. Honor its gates, and do not duplicate its work here. In particular, leave
 the remote alone: syncing a branch whose tree is dirty has a specific safe order that `/commit`
 step 1 already encodes, and doing it early here would only get it wrong differently.

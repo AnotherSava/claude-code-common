@@ -32,7 +32,7 @@ Read `~/.claude/skills/shared/bash-rules.md` for bash command constraints.
 
 ## CRITICAL CONSTRAINT
 
-**The ONLY direct file changes this skill may make are through `/reflect`, `/clean-code`, and `/documentation`.** Never move, rename, or delete source files. Never restructure code beyond what those skills do. (Exception: untracked junk artifacts like `*.stackdump` may be discarded — see step 1.)
+**The ONLY direct file changes this skill may make are through `/reflect`, `/clean-code`, and `/docs-relevance`.** Never move, rename, or delete source files. Never restructure code beyond what those skills do. (Exception: untracked junk artifacts like `*.stackdump` may be discarded — see step 1.)
 
 ## Process:
 
@@ -61,7 +61,7 @@ Read `~/.claude/skills/shared/bash-rules.md` for bash command constraints.
 3. **Clean code:** Run `/clean-code` to remove debug prints, dead code, duplication, and optimize imports. **If `/clean-code` reports nothing to clean up, immediately proceed to step 4 in the same response — do not stop, do not ask for confirmation.** Only pause if `/clean-code` proposes substantive changes that need user approval.
 
 4. **Update stale documentation — do this BEFORE planning commits:**
-   Run `/documentation` to scan and fix stale references in README, docs, CLAUDE.md, and source comments. All documentation fixes become part of the commit(s) — do not commit code with outdated docs. **If `/documentation` reports nothing to fix, immediately proceed to step 5 in the same response — do not stop, do not ask for confirmation.** Only pause if `/documentation` proposes edits that need user approval.
+   Run `/docs-relevance` to scan and fix stale references in README, docs, CLAUDE.md, and source comments. All documentation fixes become part of the commit(s) — do not commit code with outdated docs. **If `/docs-relevance` reports nothing to fix, immediately proceed to step 5 in the same response — do not stop, do not ask for confirmation.** Only pause if `/docs-relevance` proposes edits that need user approval.
 
 5. **Confidentiality check:**
    - **Prove the scan reads the files before believing any "none" it prints.** Every check here answers with silence when it is clean, which is the same thing it prints when it read nothing at all — and this is the one step where a vacuous pass ships the thing it existed to stop. So each run includes a **positive control**: grep the same file set for a string you have already confirmed is in it, and require a non-zero count before reporting any finding or any absence. Measured 2026-09-15: three consecutive passes reported "no findings" across 170 files while grep was reading one nonexistent path, and the run that caught it was the one with a control. Two constructions caused it and both are silent on this machine — `xargs -a` is a GNU extension that BSD `xargs` rejects, and **zsh does not word-split an unquoted variable**, so a `$FILES` holding many paths arrives as one. Pass paths literally or iterate; never redirect the scan's stderr to `/dev/null`, which is what hid both errors.

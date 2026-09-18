@@ -399,7 +399,7 @@ Measured 2026-09-15: a six-frame sheet with relative `src`s served this way rend
 the real thing, in both themes, with no Playwright involved.
 
 **Better still, leave no sub-resource to block: embed each image as a base64 `data:` URI.** That is
-already the rule for a contact sheet — `skills/documentation/SKILL.md` says never a path — and a
+already the rule for a contact sheet — `skills/docs-relevance/SKILL.md` says never a path — and a
 self-contained page needs no server at all, survives its asset directory being cleared, and cannot
 develop this problem later. The relative-src route above is what to reach for when the page is
 someone else's and rewriting its markup is not on the table.

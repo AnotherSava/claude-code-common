@@ -86,7 +86,7 @@ Analyzes changes and generates atomic Conventional Commit messages.
 
 **Features:**
 - Reviews staged and unstaged changes, groups them into atomic commits
-- Delegates to `/reflect`, `/clean-code`, and `/documentation` before planning commits
+- Delegates to `/reflect`, `/clean-code`, and `/docs-relevance` before planning commits
 - Drafts commit messages in imperative mood with type prefixes
 - Presents a full plan for approval before executing any commits
 - GPG-signs all commits, never adds AI attribution
@@ -127,11 +127,11 @@ Brings the branch up to date with its upstream when the working tree is dirty �
 
 ---
 
-### Update Documentation
+### Docs Relevance
 
 Scans project documentation for stale references and fixes them.
 
-**Command:** `/documentation`
+**Command:** `/docs-relevance`
 
 **Features:**
 - Checks README, `docs/pages/`, CLAUDE.md, and source comments against current code
@@ -144,6 +144,21 @@ Scans project documentation for stale references and fixes them.
 - Names the shots that do not exist: sweeps pages for sections doing a picture's work in prose, proposes the two or three strongest, and captures none of them without an explicit yes
 - Regenerates dimensioned-draft drawings when the model they document changed
 - Suggests new documentation files or reorganization when beneficial
+
+---
+
+### Docs Style
+
+Governs how a document is written, where [Docs Relevance](#docs-relevance) governs whether it is still true. Invoked before drafting or rewriting long-form prose — a docs page, a README section, a learnings file, a convention version README.
+
+**Command:** `/docs-style`
+
+**Features:**
+- Opens on why the thing exists rather than on what it is, since a definition-first first paragraph would survive unchanged in a glossary
+- Cuts the sentences that defend the text around them, the commonest source of removable words in a draft that already reads well
+- Names the actor instead of leaving a procedure in the passive, and refuses a header a reader cannot predict the content of
+- Carries the before/after pairs in `references/style-guide.md`, every one of them text that shipped and was then replaced
+- Names what it will not do: never cut a warning, prerequisite or edge case to make a page shorter, and never rewrite a quote
 
 ---
 
@@ -514,11 +529,11 @@ Brings one repo into the shape the conventions in this repo currently require. E
 - Puts a version's question to the user verbatim wherever no file can settle it — whether a repo wants a backlog at all, whether a missing LICENSE is deliberate — and never answers it on their behalf
 - Stops on a branch behind its upstream, where a migration's delete merges cleanly against the other machine's append and loses it in silence — but never on a dirty tree, since the record and the pending change are meant to commit together
 - Hands every continuing property a version defines to `claude/conventions/check.py`, which runs the rules the repo's number entitles it to on every commit, reports a rule that *could not look* as `UNMEASURED` rather than as a pass, and is the reason there is nothing here to re-sample by hand
-- Keeps a second, ungated class of rule in `claude/conventions/universal/` for the properties no number could ever be true of — the memory-cache link is per-machine, so a fresh clone has genuinely not made it and a cleared cache breaks it years after any adoption, and the install links are the same shape one step closer to home, since v14 told every repo to dial `~/.claude/conventions/check.py` and the gate therefore reads one of those links to run at all. These run in every repo whatever its number, fail the commit gate exactly as a versioned rule does, and each names the command that repairs what it found, since a repo meeting one for the first time has no version prose to read. Reaching every repo the moment it is committed is the price, so anything a repo can adopt stays a version
-- Lets a version declare `affects: <tool>` for the data it reshapes, so that tool can refuse to read a format this repo has not adopted — [`/memo`](#memo) is the first, asking the version rather than looking for the file the migration replaces
+- Keeps a second, ungated class of rule in `claude/conventions/universal/` for the properties no number could ever be true of — the memory-cache link is per-machine, so a fresh clone has genuinely not made it and a cleared cache breaks it years after any adoption, and the install links are the same shape one step closer to home, since v9 tells every repo to dial `~/.claude/conventions/check.py` and the gate therefore reads one of those links to run at all. These run in every repo whose gate calls the checker, whatever its number, fail that gate exactly as a versioned rule does, and each names the command that repairs what it found, since a repo meeting one for the first time has no version prose to read. Reaching every such repo with no adoption in between is the price, so anything a repo can adopt stays a version
+- Lets a tool gate itself on the adopted number — it names the version it needs as a constant beside the code that reads the format, so a repo that has not migrated is refused rather than silently read with the wrong parser
 - Enumerates what can never carry a version at all — agent behaviour, code content, unbounded properties, global settings — in `claude/conventions/not-versioned.md`, so "current" means every versionable convention has been decided rather than every rule in `CLAUDE.md` being satisfied
 
-**Full guide:** [Convention versions](docs/convention-versions.md) — the system end to end for a human reader: what a version is, what the record holds, how the notice → `/adopt` → `/commit` loop runs, where the checker takes over, what "current" does and does not mean, and what to do when a record will not parse or conflicts on a pull.
+**Full guide:** [Conventions](docs/convention-versions.md) — how the system works: what a version is, what the record holds, how the notice → `/adopt` → `/commit` loop runs, and where the checker takes over. [What the conventions require](docs/convention-requirements.md) is the companion list — the set as it stands, one line per version, and which of them keep being re-checked.
 
 **Authoring a version:** `claude/conventions/authoring.md` — the contract for adding one: the narrow test for when a version is owed at all, which half of a change is a migration and which is a continuing rule, the folder's four mandatory sections, the rule signature, and the two things every rule has to get right.
 
@@ -651,7 +666,7 @@ It runs **no subprocess at all**: the repo root by walking up for a `.git`, `.gi
 - **A directory with no `.git` is told once**, and only where a `.claude/` or a `CLAUDE.md` is present, so a scratch directory stays silent while a real project directory stops being outside the system with nothing anywhere saying so.
 - **A record it cannot read at all** — a content line that is neither a number nor an `exempt` reason, a permission bit, bytes that are not UTF-8 — names what stopped it and withholds `/adopt`, and so does a version set that will not load; an `exempt` record, or an origin owned by anyone other than the user, is silent.
 
-The message is a `systemMessage`, so it reaches the screen and never the transcript; `/adopt` re-derives the gap itself rather than trusting what was pasted into it. What each message means, and what to do about it, is in [Convention versions](docs/convention-versions.md).
+The message is a `systemMessage`, so it reaches the screen and never the transcript; `/adopt` re-derives the gap itself rather than trusting what was pasted into it. The notice's shape and what its silence means are in [Conventions](docs/convention-versions.md).
 
 ---
 
@@ -852,7 +867,7 @@ Every invocation also passes `-S`, which skips `site` — the single largest sli
 The `documentation` skill takes screenshots through a small helper rather than through the agent's own binary. macOS grants Screen Recording to a *binary*, and the agent's is version-named, so granting it there would both go stale on every update and hand whole-display access to every session forever. A purpose-built bundle at a fixed path is granted once and scoped to the one job. Build it once per machine:
 
 ```bash
-bash claude/skills/documentation/scripts/build-docshot.sh
+bash claude/skills/docs-relevance/scripts/build-docshot.sh
 ```
 
 That installs `DocShot.app` into `~/Applications`. Grant it Screen Recording the first time it asks — a denial is silent rather than loud, since window ids, owners and bounds all still populate while every window *title* comes back empty, so use the helper's `--check` probe to confirm the grant is live instead of discovering it as a black PNG. The grant is pinned to the bundle's ad-hoc signature, so the script refuses to clobber an existing install unless passed `--force`; rebuilding resets the grant.

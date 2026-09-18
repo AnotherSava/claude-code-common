@@ -7,7 +7,7 @@ description: >-
   TRIGGER when: the user wants replies formatted or worded differently, brings a response-style idea from
   another project or repo to evaluate, asks why a style rule exists or is missing, or says an existing style
   rule is not working.
-  DO NOT TRIGGER when: the subject is prose inside a document or README (that is `documentation`), commit
+  DO NOT TRIGGER when: the subject is prose inside a document or README (that is `docs-style`), commit
   message wording (`shared/commit-message-rules.md`), a single one-off reply the user just wants rewritten, or
   a subagent's prompt.
 allowed-tools: Read, Write, Edit, Glob, Grep, AskUserQuestion, Bash(bash ~/.claude/skills/tune-output/scripts/preflight.sh:*), Bash(bash ~/.claude/skills/tune-output/scripts/ab-run.sh:*), Bash(python ~/.claude/skills/tune-output/scripts/ab-sheet.py:*), Bash(git check-ignore:*), Bash(git status:*), Bash(gh repo view:*)
@@ -116,7 +116,7 @@ by a later commit. This applies to the style file, the ledger, and the commit me
 ## Out of scope
 
 - Do NOT change commit message format — that is `shared/commit-message-rules.md`.
-- Do NOT restyle prose inside documents, READMEs or generated docs — that is `documentation`.
+- Do NOT restyle prose inside documents, READMEs or generated docs — that is `docs-style`.
 - Do NOT tune subagent or workflow prompts; this skill governs replies to the user.
 - Do NOT install a third-party plugin, marketplace entry or hook to carry an output rule. Everything here is
   reachable with a file and a settings key; `references/mechanisms.md` records why the hook route is worse.

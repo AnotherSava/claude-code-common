@@ -8,8 +8,8 @@ metadata:
 Any time a reply reports on images or screenshots — what changed, what is stale, what was captured,
 cropped, keyed or bordered, or what a comparison shows — **build the HTML contact sheet and hand over
 its `file:///` URL.** The template and layout rules are in
-`~/.claude/skills/documentation/references/contact-sheet.html`. This holds whether or not the work
-came from a `/documentation` run; the trigger is *reporting about pictures*, not which skill is loaded.
+`~/.claude/skills/docs-relevance/references/contact-sheet.html`. This holds whether or not the work
+came from a `/docs-relevance` run; the trigger is *reporting about pictures*, not which skill is loaded.
 
 **Why:** the user has asked for this repeatedly and had to ask again each time, because every instance
 came with a reason it seemed unnecessary. The reasons are always the same shape and always wrong:

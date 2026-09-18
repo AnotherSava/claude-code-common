@@ -5,7 +5,7 @@ platform: windows
 
 # Share the three macOS-only capture guards with Windows, and require parity
 
-The two documentation-capture halves have drifted. The `documentation` skill states that the machinery lives in the skill and only the staging lives in the project — image processing was moved into `skills/documentation/scripts/` and is genuinely shared, but the *policy* around the shutter was not, and now exists on one platform only.
+The two documentation-capture halves have drifted. The `docs-relevance` skill states that the machinery lives in the skill and only the staging lives in the project — image processing was moved into `skills/docs-relevance/scripts/` and is genuinely shared, but the *policy* around the shutter was not, and now exists on one platform only.
 
 ## What has drifted
 
@@ -34,12 +34,12 @@ So: shared helper now; the port only if it later earns itself.
 
 ## The work, in order
 
-1. Write the parity requirement below into `skills/documentation/SKILL.md` as a rule. Independent of the other three and far cheaper, so it can go first — and it is the only item that outlives this memo. Deliberately not done when this was captured: that file had uncommitted in-flight work on the same capture machinery, so the edit belongs with whoever finishes it.
+1. Write the parity requirement below into `skills/docs-relevance/SKILL.md` as a rule. Independent of the other three and far cheaper, so it can go first — and it is the only item that outlives this memo. Deliberately not done when this was captured: that file had uncommitted in-flight work on the same capture machinery, so the edit belongs with whoever finishes it.
 2. `assert_publishable` into a Python module both sides call, invoked from PowerShell before the shutter. Highest value of the three, because it enforces a user-set rule currently enforced by eye on one platform.
 3. `keep_raw`.
 4. `config_value`.
 
-Open, and better decided when the work starts than now: whether the shared module lands in this repo's `skills/documentation/scripts/` (shared machinery, reaching every project) or in tauri-dashboard's `capture/lib/`. One reading is that the *mechanism* is skill machinery while the *list* is project data, so the function goes in the skill and takes the allowed set as an argument. That is a judgement, not a settled thing.
+Open, and better decided when the work starts than now: whether the shared module lands in this repo's `skills/docs-relevance/scripts/` (shared machinery, reaching every project) or in tauri-dashboard's `capture/lib/`. One reading is that the *mechanism* is skill machinery while the *list* is project data, so the function goes in the skill and takes the allowed set as an argument. That is a judgement, not a settled thing.
 
 ## The standing requirement
 
@@ -47,7 +47,7 @@ The user's own addition, and the reason this is a memo rather than only a fix: t
 
 **And aligned in *output*, not only in functionality.** Measured 2026-09-13, after the above was written. Asked to make the two platforms' frames the same shade of grey, they were not: every macOS frame was a flat `189` at full alpha, while the five Windows frames kept the OS's own *translucent* border and so took their shade from whatever sat behind the page — `159`–`183` on a white one, `53`–`54` on a dark one. GitHub renders a README in dark mode by default, so the divergence showed up precisely where most readers are. A feature can exist on both sides, be called the same way, and still produce two different pictures; a parity check that stops at "the code path exists" never sees it. State both halves in the rule.
 
-The mechanics of that particular case — `--opaque`, and why stroking only the cut sides looks right on white and fails on dark — are already written into `skills/documentation/SKILL.md`. So is the other finding from the same round: that `hairline.py` exited 0 whether it stroked a frame or decided the frame already had one, indistinguishable from success to its caller, fixed with a `--require` flag that asserts the *outcome* rather than that a stroke happened. Neither needs restating here. The rule written for item 1 states the principle and leaves the mechanics where they are.
+The mechanics of that particular case — `--opaque`, and why stroking only the cut sides looks right on white and fails on dark — are already written into `skills/docs-relevance/SKILL.md`. So is the other finding from the same round: that `hairline.py` exited 0 whether it stroked a frame or decided the frame already had one, indistinguishable from success to its caller, fixed with a `--require` flag that asserts the *outcome* rather than that a stroke happened. Neither needs restating here. The rule written for item 1 states the principle and leaves the mechanics where they are.
 
 The asymmetry that makes this easy to miss: the macOS half is where new work has been happening, so it accumulates features; the Windows half is edited rarely and from the other machine, so nobody notices it standing still. A parity check belongs wherever a capture feature gets added, which is why writing it into the skill is item 1 above rather than a closing suggestion — a memo gets checked off, and this requirement has to outlast that.
 
