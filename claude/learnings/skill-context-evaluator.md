@@ -51,10 +51,34 @@ use their output where each is named below.]` and replaces each value with `[out
 so the skill still runs correctly at the cost of one extra round trip. Distinguish the two when
 diagnosing — a deferred line renders a bracketed instruction, a failing line stops the skill loading.
 
-Two data points a side is a clean split but a small sample, so treat "range" as the best-supported rule
-rather than a proven one. Either way the remedy is the same and does not depend on the cause: a command
-carrying a remote revision range belongs in a process step, named there so later steps can cite it, as
-`pull` step 1 does.
+What was measured is `@{upstream}` **bare** against `@{upstream}` **inside a range**, two cases each.
+Whether a range of plain refs also defers is untested: `release` carried
+`git rev-list HEAD..origin/main --count` in its Context on 2026-09-17, which suggests it does not, but
+nobody watched it render, and invoking that skill to find out would cut a release.
+
+The remedy is the same either way: a command carrying a remote revision range belongs in a process step,
+named there so later steps can cite it, as `pull` step 1 does.
+
+## `!` lines are not evaluated in the order they are written
+
+A Context section reads like a script, and it is not one. Measured 2026-09-17 in the `pull` skill,
+whose first line was `git fetch -q` and whose third was `git diff --name-status HEAD @{upstream}`: the
+third rendered **empty** against a remote four commits ahead, and the identical command run seconds
+later in a process step returned 56 paths. The diff had read the tracking ref as it stood before the
+fetch moved it.
+
+This is nastier than the deferral above, because nothing looks wrong. A deferred line renders a visible
+bracketed instruction; this one renders a plausible, confident, empty answer — and "no incoming files"
+is exactly the value that makes the skill decide there is nothing to do.
+
+So a Context section cannot contain a step and its dependant. Any line whose output depends on a
+*mutation* performed by another line — a fetch, an unstage, a generated file — belongs in a process
+step, where the ordering is guaranteed because every `!` line has finished before the body runs. Keep
+in Context only what is true regardless of what else ran: the working tree, the index, config values
+like `git rev-parse --abbrev-ref @{upstream}`, which reads `.git/config` rather than the remote.
+
+The mutating line itself can stay — the fetch still has to happen, and its failure is still a
+precondition worth rendering. What cannot stay beside it is anything that reads the result.
 
 ## Fallback chains work
 
@@ -80,14 +104,18 @@ A fallback appended to a pipeline binds to the pipeline's status, which is the *
 
 Verified both directions: the working form renders the project list normally, and forcing the failure (`--token bogus`) renders `UNAVAILABLE`. The cost is losing `head`'s output cap, so only drop it where the result set is inherently small. Always test the failure path — the success path looks identical either way, and a silently-empty context label is far harder to diagnose later than a loud one.
 
-## A new or edited Context line cannot be tested in the session that wrote it
+## Testing a Context line means running the skill
 
-Skills are discovered at session start. A skill directory created mid-session is not
-invocable — `Skill` answers `Unknown skill: <name>`, so the throwaway-probe trick (a minimal
-skill holding just the candidate `!` lines, invoked once and deleted) does not work in the
-session that needs the answer. An edited line in an *existing* skill has the same problem
-from the other side: invoking that skill to see whether the line renders also runs the whole
-skill body, which is rarely acceptable just to test a Context line.
+A skill created or edited mid-session is picked up without a restart, and its file is re-read
+on every invocation. Measured 2026-09-17: `pull` was created at 11:10 and invoked at 11:19,
+20:23 and 21:04 in one session, rendering its current Context each time — two lines fewer
+after an edit between the second invocation and the third. The `Skill` tool refused it for
+`disable-model-invocation`, which is a registry hit rather than a miss.
+
+The cost of a test is what bites, not its availability. Invoking a skill to watch one Context
+line render runs the whole body, which is rarely acceptable: `release` cuts a release,
+`commit` commits. A throwaway probe — a minimal skill holding just the candidate `!` lines,
+invoked once and deleted — follows from the mid-session pickup above, but nobody has run one.
 
 This matters because the failure is not local: a non-zero exit kills skill loading before
 the body is read, so one bad Context line makes the whole skill unusable until someone
@@ -119,7 +147,7 @@ complex command behind the gate.
 ## Commands that fail or are unreliable in context
 
 - `gh pr view` — fails when no PR exists (non-zero exit)
-- `git log HEAD..@{upstream}`, `git rev-list @{upstream}...HEAD` — any remote revision range; deferred to a manual run rather than preprocessed
+- `git log HEAD..@{upstream}`, `git rev-list @{upstream}...HEAD` — `@{upstream}` inside a revision range; deferred to a manual run rather than preprocessed. A range of plain refs (`HEAD..origin/main`) is untested, not known-bad
 - Commands with `--format="%h %ai %s"` — nested quotes parsed incorrectly
 - Any command that can legitimately return non-zero
 

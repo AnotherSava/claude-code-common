@@ -16,18 +16,18 @@ The reference for every branch below is `~/.claude/learnings/git-stash-pull-safe
 ## Context
 - Fetch: !`git fetch -q 2>&1 || echo FETCH-FAILED`
 - Upstream: !`git rev-parse --abbrev-ref @{upstream} 2>/dev/null || echo NO-UPSTREAM`
-- Incoming files: !`git diff --name-status HEAD @{upstream} 2>/dev/null || echo NONE`
 - Working tree status: !`git status --short`
 - Local changes vs HEAD: !`git diff --name-only HEAD`
 
 ## Process
 
-1. **Measure the divergence, then settle the preconditions before touching anything.** Two inputs cannot come from the Context section above: a `!` line whose command carries a revision range against `@{upstream}` is handed back to be run rather than preprocessed, while the same ref as a bare argument preprocesses fine — see `~/.claude/learnings/skill-context-evaluator.md`. Run both now, one per Bash call, and refer to their output by the names given here:
+1. **Measure the divergence, then settle the preconditions before touching anything.** Three inputs cannot come from the Context section above, for two separate reasons, and both are recorded in `~/.claude/learnings/skill-context-evaluator.md`. A `!` line whose command carries a revision range against `@{upstream}` is handed back to be run rather than preprocessed, while the same ref as a bare argument preprocesses fine. Worse, `!` lines are not evaluated in the order they are written, so any of them reading `@{upstream}` may see the ref as it stood *before* the Fetch line updated it. Nothing above is safe to read about the remote; a process step is, because every `!` line has finished by the time one runs. So run all three here, one per Bash call, and refer to their output by the names given:
    ```
    git rev-list --left-right --count @{upstream}...HEAD 2>/dev/null || echo NO-UPSTREAM
    git log --oneline -n 40 HEAD..@{upstream} 2>/dev/null || echo NONE
+   git diff --name-status HEAD @{upstream} 2>/dev/null || echo NONE
    ```
-   The first is **Behind and ahead counts**, the second **Incoming commits**. Then stop wherever one of these holds:
+   In order they are **Behind and ahead counts**, **Incoming commits** and **Incoming files**. Then stop wherever one of these holds:
    - **Upstream** is `NO-UPSTREAM` — this branch tracks nothing. Say so and stop.
    - **Fetch** is `FETCH-FAILED` — report its text verbatim and stop, because every count below is then stale.
    - **Behind and ahead counts** reads `0` on the left — already current. Say so and stop. Do not stash, merge, or touch the tree to confirm it.

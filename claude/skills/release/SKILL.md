@@ -11,12 +11,17 @@ Tag the current `main` commit as `vX.Y.Z` and let the project's CI workflow buil
 ## Context
 
 ### Git state (universal)
+
+Both counts below carry their own `git fetch`, and the repetition is deliberate: `!` lines are not
+evaluated in the order they are written, so a standalone fetch line guarantees nothing to the lines
+under it, and a stale `0` here is what clears a release that should stop. A second fetch of the same
+ref is a no-op. See `~/.claude/learnings/skill-context-evaluator.md`.
+
 - Repo root: !`git rev-parse --show-toplevel 2>/dev/null || pwd`
 - Working tree clean?: !`git status --porcelain`
 - Current branch: !`git branch --show-current`
-- Fetch remote: !`git fetch origin main 2>/dev/null || true`
-- Unmerged remote commits: !`git rev-list HEAD..origin/main --count 2>/dev/null || echo 0`
-- Unpushed local commits: !`git rev-list origin/main..HEAD --count 2>/dev/null || echo 0`
+- Unmerged remote commits: !`git fetch origin main 2>/dev/null || true; git rev-list HEAD..origin/main --count 2>/dev/null || echo 0`
+- Unpushed local commits: !`git fetch origin main 2>/dev/null || true; git rev-list origin/main..HEAD --count 2>/dev/null || echo 0`
 - Latest tag: !`git describe --tags --abbrev=0 2>/dev/null || echo "(none)"`
 - Repo: !`gh repo view --json nameWithOwner --jq .nameWithOwner 2>/dev/null || echo unknown`
 
