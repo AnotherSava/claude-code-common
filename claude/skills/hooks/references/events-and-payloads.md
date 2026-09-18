@@ -53,9 +53,26 @@ the placement shown here. Prefer the proven one.
 The `//` root anchor is mandatory. Without it the rule matches nothing and the hook silently never
 runs — it fails closed and quietly, so verify it fires before assuming it works.
 
-Neither this file nor the SKILL.md documents an `Edit(…)` form, or several patterns in one condition. Only
-`Write(//**/SKILL.md)` appears anywhere, so a hook needing to cover both tools or several paths wants one entry
-per pattern until someone establishes otherwise by testing.
+**The value is a permission rule**, the same syntax `permissions.allow`/`deny` take, so the tool name is part
+of it: `Edit(*.ts)` and `Bash(git *)` are both valid, and a bare string with no `Tool(…)` wrapper is not.
+Evaluated only on `PreToolUse`, `PostToolUse`, `PostToolUseFailure`, `PermissionRequest` and
+`PermissionDenied`; on any other event a hook carrying an `if` never runs at all.
+
+A `Bash(…)` pattern matches the *command and its arguments*, per the upstream table (2026-09-18):
+
+| `if` pattern | command | runs? | why |
+|---|---|---|---|
+| `Bash(git *)` | `FOO=bar git push` | yes | leading assignments are stripped first |
+| `Bash(git *)` | `npm test && git push` | yes | every subcommand is checked separately |
+| `Bash(rm *)` | `echo $(rm -rf /)` | yes | `$()` and backticks are checked too |
+| `Bash(cat *)` | `echo before $(date) after` | no | neither the whole command nor `date` matches |
+| `Bash(git *)` | `$TOOL git push` | yes | an unresolvable command name runs the hook anyway |
+| `Bash(git push *)` | `echo $(date)` | yes | a pattern naming more than the command runs on any `$()`, backtick or `$VAR` |
+
+The last two rows are the shape to plan around: **`if` is best-effort and fails open**, so anything it cannot
+parse spawns the hook. Upstream says as much — use `permissions.deny` when the requirement is a hard block
+rather than a cheap gate. What this means for a *nested* interpreter is that the pattern sees the outer
+command only: a `New-Item` inside `powershell -Command "…"` is matched as `powershell *`, never as `New-Item *`.
 
 ## Async and timeouts
 

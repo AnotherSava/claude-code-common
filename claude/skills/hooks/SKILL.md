@@ -38,8 +38,10 @@ Apply the cheapest gate that expresses the condition. Each rung avoids the entir
 below it.
 
 1. **`if` field** — pattern-gates on tool *arguments* and costs **zero process startup** when it
-   does not match. `"if": "Write(//**/SKILL.md)"`. The `//` root anchor is required; without it
-   the rule silently matches nothing and the hook never runs.
+   does not match. It takes a permission rule, so it gates a Bash command as readily as a path:
+   `"if": "Bash(git *)"`, `"if": "Write(//**/SKILL.md)"`. The `//` root anchor is required on a
+   path pattern; without it the rule silently matches nothing and the hook never runs. It gates
+   rather than enforces — see the reference for what it fails open on.
 2. **`matcher`** — gates on the event's discriminator (tool name for `PreToolUse`/`PostToolUse`,
    `notification_type` for `Notification`, start mode for `SessionStart`). Exact string unless it
    contains regex metacharacters. An absent matcher means *every* occurrence of that event.
@@ -125,8 +127,12 @@ The file stores escaped quotes as literal `"`, which defeats exact-string editin
 programmatically, then `json.loads` the result **before** writing it back — a syntax error here
 breaks every hook at once.
 
-**Hooks load at session start.** An existing session keeps the old configuration; relaunch to pick
-up a change. This is the usual reason a just-added hook "doesn't work".
+**A hook change takes effect without a relaunch.** Measured 2026-09-18: a `PreToolUse` entry
+written into a project's `.claude/settings.local.json` fired on the very next Bash call of the same
+session. This line claimed the opposite, which sends anyone testing a new hook off to restart for
+nothing — and it is the same fact §8.5 rests on, that the first bad save is already in force. What
+was measured is the project-level file; whether the user-level `settings.json` reloads the same way
+is untested, so prove it fires rather than assuming either way.
 
 ## 8. Verify
 
@@ -175,6 +181,13 @@ dated line here rather than leaving it in a session transcript.
   will misfire, however good its checks are. `plan-archive.py done` inferred "the plan is
   finished" from an idle timeout and archived a plan four minutes after it was written. Ask what
   the event actually proves before hanging an action on it.
+- **2026-09-18** — An `if` pattern gates a *nested* interpreter only by its outer command, and it
+  fails open on anything the command parser cannot decompose. Measured with
+  `"if": "Bash(powershell *Junction*)"`: it matched
+  `powershell -NoProfile -Command "New-Item -ItemType Junction …"`, stayed quiet on a plain command
+  and on `;`/`||` compounds, and fired anyway on a `&&` brace group wrapping a multi-line
+  `python3 -c "…"`. So `if` buys a real reduction and never a guarantee — budget for occasional
+  spawns on complex commands, and reach for `permissions.deny` when the requirement is a hard block.
 - **2026-08-21** — A malformed command in a blocking `PreToolUse` hook matched on
   `^(Bash|Write|Edit)$` disables all three mutation tools at once, leaving no way to repair
   `settings.json` from inside the session — the user has to run a shell command. The JSON-parses
