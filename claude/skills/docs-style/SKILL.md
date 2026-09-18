@@ -13,6 +13,20 @@ Every rule here was paid for by a review round on a document that already read w
 
 Read `~/.claude/skills/docs-style/references/style-guide.md` for the worked before/after pairs. This file is the decision procedure; that one is the depth.
 
+## When the path already answers it
+
+Ask nothing where the file's location fixes the reader. These conventions do not move, so a question about them spends an exchange to be told what the path already said.
+
+| Path | Reader | This file |
+|---|---|---|
+| A skill's own files — `SKILL.md`, and whatever it ships under `references/` or `scripts/` | Claude, executing the procedure | Does not apply |
+| `learnings/<topic>.md`, `memory/*.md` | Claude, consulting it mid-task | Applies |
+| `README.md`, `docs/**`, a convention version README | A person | Applies — ask the questions below |
+
+**A skill's own files are out of scope, not merely a different depth.** Every rule here is about how a document reads to a person: an opening that gives the reason before the definition, a header whose content a reader can predict, a sentence that does not defend itself. A SKILL.md is a procedure Claude executes, and its constraints, commands and edge cases *are* the content — trimming them so they read better removes what a run needs. Leave them alone.
+
+Ask the questions below only where the path does not decide.
+
 ## Before the first sentence, ask
 
 **Who the reader is and what they want the document for are the user's to tell you, not yours to infer.** Ask before drafting or rewriting, and do not start until the answers are specific. Every rule further down this file operates *within* those answers — get them wrong and a document can satisfy all of them and still be the wrong document.
@@ -164,5 +178,6 @@ Then: is any paragraph arguing for a decision that is already made? Is any sente
 
 - Do NOT restructure a document's *content* to match a house shape — the layout of a docs site belongs to `github-pages`, and whether a page is still accurate belongs to `docs-relevance`
 - Do NOT apply these to code comments shorter than a few lines, commit messages, or chat replies
+- Do NOT apply these to a skill's own files — `SKILL.md` and what it ships beside it are a procedure for Claude, not prose for a person; see the path table above
 - Do NOT rewrite a user's own words in a quote, an annotation, or a verbatim block
 - Do NOT cut a warning, a prerequisite, an assumption or an edge case to make a page shorter — brevity is never a reason to drop a constraint the reader needs

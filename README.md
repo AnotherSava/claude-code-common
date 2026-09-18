@@ -159,6 +159,7 @@ Governs how a document is written, where [Docs Relevance](#docs-relevance) gover
 - Names the actor instead of leaving a procedure in the passive, and refuses a header a reader cannot predict the content of
 - Carries the before/after pairs in `references/style-guide.md`, every one of them text that shipped and was then replaced
 - Names what it will not do: never cut a warning, prerequisite or edge case to make a page shorter, and never rewrite a quote
+- Resolves the reader from the file's path where that settles it, and declines a skill's own files outright — a SKILL.md is a procedure Claude executes, so trimming it to read better removes what a run needs
 
 ---
 
