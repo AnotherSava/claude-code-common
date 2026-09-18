@@ -36,9 +36,11 @@ See learnings/comparing-paths-symlinks-and-case.md.
 
 from __future__ import annotations
 
+import json
 import os
 import subprocess
 import sys
+import traceback
 
 # (link path, path within the repo). Mirrors the install blocks in README.md; a
 # link added there needs a line here or it goes unchecked.
@@ -68,6 +70,24 @@ GIT_SETTINGS: list[tuple[str, str]] = [
 REPO = os.path.dirname(os.path.dirname(os.path.dirname(os.path.realpath(__file__))))
 
 
+def link_text(path: str) -> str:
+    """Where `path` points, read off the link itself, or "" when it is not a link at all.
+
+    Never `realpath`, which walks the path: on the very failures this is called to
+    explain, walking raises the same error a second time — and it would raise inside
+    the handler, where nothing catches it. Measured on the Windows machine: three links
+    the process was refused (WinError 448) made `realpath` raise out of `points_at`'s
+    own `except`, the never-raise guard at the foot of this file turned that into exit
+    0 with no output, and a broken install read as a clean report for two days.
+    `readlink` reads the reparse point without following it, and it answers for a
+    junction as well as for a symlink.
+    """
+    try:
+        return os.readlink(path)
+    except OSError:
+        return ""
+
+
 def points_at(path: str, target: str) -> tuple[bool, str]:
     """Return (ok, human explanation) for one path expected to reach `target`."""
     if not os.path.lexists(path):
@@ -75,10 +95,13 @@ def points_at(path: str, target: str) -> tuple[bool, str]:
     try:
         if os.path.samefile(path, target):
             return True, "ok"
-    except OSError:
-        # The link exists but leads nowhere — a dangling link, or a target the
-        # repo no longer has.
-        return False, f"dangling, points at {os.path.realpath(path)}"
+    except OSError as exc:
+        # The link exists but leads nowhere: a dangling link, a target the repo no longer
+        # has, or one this process is refused. Windows will not follow a reparse point
+        # created by a non-administrator, and it refuses a symlink exactly as readily as a
+        # junction — `conventions`, `memory` and `scripts` were all in that state on the
+        # Windows machine, two of them symlinks, so the link *type* is not what to report.
+        return False, f"leads nowhere — {exc.strerror or exc}; points at {link_text(path) or 'nothing readable'}"
     if not os.path.islink(path):
         # A real file or directory sitting where a link belongs. On Windows this
         # is what `ln -s` from Git-Bash leaves behind: a copy that drifts from
@@ -151,7 +174,6 @@ def main() -> int:
 
     if mode == "hook":
         if failed:
-            import json
             body = "\n".join(f"  - {label} — {why}" for label, why in failed)
             print(json.dumps({"systemMessage":
                               f"Dotfiles install is incomplete on this machine — "
@@ -175,5 +197,17 @@ if __name__ == "__main__":
     except SystemExit:
         raise
     except BaseException:
-        # Never disrupt Claude Code, whatever went wrong here.
+        # Never disrupt Claude Code, whatever went wrong here — but never exit quietly either.
+        # This script's whole job is to make a broken install loud, so a crash that printed
+        # nothing and returned 0 read as an install with nothing wrong. That is what happened:
+        # `points_at` raised a second time from inside its own error handler and every line of
+        # the report disappeared, while the link it had choked on stayed broken.
+        if sys.argv[1:2] == ["hook"]:
+            print(json.dumps({"systemMessage":
+                              "The dotfiles install check crashed, so the install is unverified "
+                              "this session — run `python -S ~/.claude/hooks/check-install.py` "
+                              "to see the error."}))
+        else:
+            traceback.print_exc()
+            print("\nThis check crashed partway — nothing above is a verdict on the install.")
         raise SystemExit(0)

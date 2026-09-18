@@ -21,9 +21,9 @@ whether a repo keeps project memory at all is not a machine's business.
 Paths are compared with `os.path.samefile`, never as strings, and never with `os.path.islink`. On
 Git Bash `ln -s` silently makes a copy, and a copy resolves to itself, so `realpath` returns a
 sensible path and `isdir` calls it healthy while it mirrors nothing — different inodes is the only
-signal. The Windows directory junction the script creates has answered `islink` False since Python
-3.8, so keying on that would report every correctly wired repo on that machine as broken.
-See `learnings/comparing-paths-symlinks-and-case.md`.
+signal. A Windows directory junction has answered `islink` False since Python 3.8, and machines
+still hold caches wired by an older version of the script that made junctions, so keying on that
+would report every one of them as broken. See `learnings/comparing-paths-symlinks-and-case.md`.
 
 Detection only, and the remediation is `FIX`. Four states the script itself refuses to guess at —
 a cache already linked somewhere else, a filename held by both sides, something that is not a
@@ -91,6 +91,20 @@ def variants(parent: str, name: str) -> list[str]:
     return sorted(entry for entry in entries if entry != name and entry.casefold() == name.casefold())
 
 
+def link_target(cache: str) -> str:
+    """Where `cache` points, read off the link itself, or "" when it is not a link at all.
+
+    Never `realpath` on a path that has already refused to resolve: `realpath` walks it, so it
+    raises the same error a second time, from inside the handler that was explaining the first —
+    which takes this rule out and has it reported as unmeasured rather than as the finding it is.
+    `readlink` reads the reparse point without following it.
+    """
+    try:
+        return os.readlink(cache)
+    except OSError:
+        return ""
+
+
 def check(root: str) -> list[str]:
     """The one way this can be wrong, as one line — or nothing, when there is nothing to point at."""
     memory = os.path.join(root, *REL.split("/"))
@@ -103,8 +117,14 @@ def check(root: str) -> list[str]:
         try:
             if os.path.samefile(cache, memory):
                 return []
-        except OSError:
-            pass  # a dangling link, reported below by where it resolves to
+        except OSError as exc:
+            # Windows refuses to follow a reparse point created without elevation — WinError 448,
+            # and it refuses a symlink as readily as a junction — so this is a link that exists,
+            # points at the right place, and cannot be walked by whoever has to walk it. Saying so
+            # beats the dangling-link wording: the repair is to recreate it, not to re-point it.
+            return [f"{cache} cannot be followed — {exc.strerror or exc}; it points at "
+                    f"{link_target(cache) or 'nothing readable'}, so this machine's project memory "
+                    f"is unreachable where it is refused"]
         return [f"{cache} is not {REL}/ — it resolves to {os.path.realpath(cache)}, so this session's "
                 f"project memory is written outside the repo and never reaches git"]
     others = variants(parent, name)

@@ -316,14 +316,23 @@ def conventions_module() -> tuple[ModuleType | None, str]:
     session-start hook follows — two readers of one format drift the day either
     changes shape, and this one would drift silently, on a machine nobody is
     watching.
+
+    Every filesystem touch sits inside the handler, the existence probe included.
+    `is_file()` answers False for a path that is merely absent, but it raises for one
+    the OS refuses to walk — and such a path is what the Windows peer had: a link in
+    `~/.claude` created without elevation, which Windows declines to follow at all
+    (WinError 448), a symlink as readily as a junction. That escaped this function,
+    took the peer's whole snapshot down, and
+    printed the machine as NOT REACHED when the one thing it could not read was its
+    CONV column.
     """
     path = skill_dir().parent.parent / "conventions" / "engine.py"
-    if not path.is_file():
-        # The state a peer is actually in when this fires: its dotfiles checkout predates the
-        # conventions engine. Saying so beats a bare path, which reads as a broken install.
-        return None, f"no convention engine at {path} — this machine's dotfiles checkout may be behind"
     name = "ghs_conventions"
     try:
+        if not path.is_file():
+            # The state a peer is actually in when this fires: its dotfiles checkout predates the
+            # conventions engine. Saying so beats a bare path, which reads as a broken install.
+            return None, f"no convention engine at {path} — this machine's dotfiles checkout may be behind"
         spec = importlib.util.spec_from_file_location(name, path)
         module = importlib.util.module_from_spec(spec)
         # Registered before it is executed, not after: a class defined in a module missing from
@@ -623,7 +632,7 @@ def scan_machine(name: str, projects_root: Path, github_user: str, depth: int) -
             states[slug].conventions = read_conventions(module, versions, repo)
 
     return MachineSnapshot(
-        # as_posix so a Windows root reads `D:/projects` in the report, matching
+        # as_posix so a Windows root renders with forward slashes in the report, matching
         # how it is written in config.env and how every repo path is rendered.
         name=name, os_label=os_label(), projects_root=projects_root.as_posix(),
         scanned_at=time.time(), scanned_count=len(owned), repos=states,
