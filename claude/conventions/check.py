@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
 """The continuous checker: every convention rule this repo has taken on, re-derived now.
 
-    python ~/.claude/conventions/check.py <repo-root>
+    python ~/.claude/conventions/check.py [repo-root]    # defaults to the current directory
 
 What a repo's `.claude/commit-checks.sh` runs. A version is a migration — it ran, or it did not,
 and the repo's record says how far — while a rule is a property that has to hold *continuously*,
@@ -9,7 +9,7 @@ which is why it lives here rather than inside a version folder: a version is fro
 repo runs it, and a check improves for every repo at once.
 
 Which versioned rules run is read off the repo's adopted integer, never off the tree: a rule
-introduced by v11 does not run in a repo at v10, so a repo takes on stricter checking by adopting
+introduced by v8 does not run in a repo at v7, so a repo takes on stricter checking by adopting
 and never because someone edited a shared file. The mapping from a rule to the version that
 introduced it is derived from the version folders' `rules:` frontmatter, so nothing states it twice.
 
@@ -18,8 +18,9 @@ number, and each names the command that repairs what it found — `FIX` in the m
 the finding. What belongs there is a property no migration can settle for good because it is not
 about the repo alone: the memory-cache link is per-machine, so a second machine has genuinely not
 done it and no number could be true of both. The price is the one the versioned half exists to
-avoid — a universal rule added here reaches every repo the moment it is committed — so it is the
-smaller class on purpose, and a property a repo can adopt belongs in a version.
+avoid — a universal rule added here reaches every repo whose gate calls this checker, with no
+adoption in between — so it is the smaller class on purpose, and a property a repo can adopt
+belongs in a version.
 
 A rule that cannot establish its answer — git refusing, a file that will not read — raises, and
 that arrives here as **unmeasured**: the rule is named, the exception with it, and the exit code is
@@ -117,12 +118,17 @@ def run(name: str, root: str) -> list[str]:
 
 
 def main() -> int:
-    if len(sys.argv) != 2 or sys.argv[1].startswith("-"):
-        print("usage: check.py <repo-root>")
+    # The argument is optional because a commit gate runs from the repo root and passed `.`, which
+    # is what the default already is. It stays available for pointing at another checkout, and a
+    # path is never inferred beyond cwd: resolving up to the git toplevel would let a run started
+    # in a subdirectory silently check a repo the caller did not name.
+    if len(sys.argv) > 2 or (len(sys.argv) == 2 and sys.argv[1].startswith("-")):
+        print("usage: check.py [repo-root]    # defaults to the current directory")
         return 2
-    root = os.path.abspath(sys.argv[1])
+    given = sys.argv[1] if len(sys.argv) == 2 else "."
+    root = os.path.abspath(given)
     if not os.path.isdir(root):
-        print(f"{sys.argv[1]} is not a directory, so there is nothing here to check")
+        print(f"{given} is not a directory, so there is nothing here to check")
         return 2
     try:
         # Zero for a repo that is exempt or has never been asked, so both run no rules and say so
