@@ -168,3 +168,19 @@ Three properties that decide how you use it:
 Cross-check for a durable public copy with Software Heritage, the main systematic archiver of public GitHub:
 `https://archive.softwareheritage.org/api/1/origin/https://github.com/{owner}/{repo}/get/` — `NotFoundExc` means
 no archived snapshot.
+
+## `gh run list --commit` needs the full 40-char sha, and answers `[]` for a short one
+
+`--commit` matches the run's `head_sha` literally rather than resolving an abbreviation, so a
+7-character sha — what `git rev-parse --short HEAD` and `git log --oneline` hand you — comes back
+as an empty array, exit 0, no error. Measured on gh 2.86.0: `gh run list --commit 68c3525` printed
+`[]` twice within 40s of a push and still printed `[]` two days later, while the same three runs
+came back immediately for `gh run list --commit 68c3525c2e90965feaf031566bb3ee04968644f3`.
+
+The failure mode is the dangerous one for a post-push CI check: an empty list is exactly what "no
+workflows ran" looks like, so a check that filters on a short sha reports a green push as an
+unwatched one, and a red one as nothing at all. The first time this happened it was written off as
+the flag being unreliable, and the fallback — `--limit <n>` plus matching `headSha` by hand — has
+its own hole, since a guessed `n` truncates the very run that failed.
+
+Pass `git rev-parse HEAD`, never `--short`.
