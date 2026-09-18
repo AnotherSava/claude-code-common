@@ -86,8 +86,8 @@ class Backlog:
         # version defining this layout, so the fixture records it — the same file `/adopt` would
         # write. Seeded here rather than bypassed with a flag: a test-only escape hatch in the
         # helper would be production surface existing solely for tests, and it would also stop
-        # this suite from exercising the guard's happy path at all. v1 is the version that
-        # declares `affects: memo`; a higher number would claim migrations this tree never ran.
+        # this suite from exercising the guard's happy path at all. v1 is `memos.py`'s
+        # REQUIRES_VERSION; a higher number would claim migrations this tree never ran.
         with open(os.path.join(self.root, ".claude", "conventions"), "w",
                   encoding="utf-8", newline="\n") as fh:
             fh.write("# Convention version this repo has adopted.\n1\n")

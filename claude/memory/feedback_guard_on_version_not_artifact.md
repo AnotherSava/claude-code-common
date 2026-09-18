@@ -11,8 +11,8 @@ Real case (2026-09-15): `memos.py` reads `.claude/memos/` and would list an empt
 
 **Why it is the better rule:**
 
-- **Artifact-sniffing answers for one migration and has to be rewritten for the next.** A version comparison survives the format moving again — the next step declares `affects:` and the guard needs no edit at all.
-- **It makes the producer declare the dependency** rather than the consumer guess at it. A step saying "I reshape what `memo` stores" is a fact its author knows; "does `memos.md` still exist" is a consumer inferring that fact from wreckage.
+- **Artifact-sniffing answers for one migration and has to be rewritten for the next.** A version comparison survives the format moving again: the shape of the check never changes, only the number it compares against.
+- **The consumer names the version it needs, as a constant beside the code that reads the format.** A first design had the *producer* declare it instead — an `affects: <tool>` field on the version, scanned at call time — justified by the claim that the consumer would then need no edit when the format moved. That claim was false: changing a stored format means editing its reader regardless, so the constant is bumped in the file someone is already in, and the field was removed on 2026-09-17 along with the machinery that read it.
 - **It refuses in a repo that is conformant but unrecorded, and that is correct rather than a flaw.** Unrecorded is a different fact from fine, and conflating them is the thing versioning exists to stop. Expect that cost and state it — it means the adoption pass becomes a prerequisite for the tool, once per repo.
 
 **How to apply:** adding a guard to a tool whose format is governed elsewhere, ask "what version last changed what I read?" and compare against what this repo has adopted. Reach for the artifact only when there is no version to ask about. Degrade open, never closed: if the version cannot be determined at all, say so and continue, because a helper that refuses to run when its *governor* is broken is worse than one that proceeds in a repo that turns out to be behind.

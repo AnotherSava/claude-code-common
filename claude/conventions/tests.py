@@ -734,21 +734,14 @@ def record_round_trip(gate: Gate, base: str, versions: list[engine.Version]) -> 
         gate.ok(True, "reading it raises rather than answering 0")
 
 
-def behind_for_cases(gate: Gate, base: str, versions: list[engine.Version]) -> None:
-    """The `behind_for` answer waves a tool through wherever this system does not govern the repo."""
-    print("\nbehind_for")
-    tools = sorted({tool for version in versions for tool in version.affects})
-    if not tools:
-        # Every answer below would be None whatever the repo, since a tool no version names is one
-        # nothing can be behind for — so the four cases would pass without distinguishing anything.
-        gate.not_covered("behind_for answers None where this system does not govern the repo, and a "
-                         "pair of numbers where it does",
-                         "no version declares an `affects:` tool, so there is nothing to be behind for")
-        return
-    tool = tools[0]
+def behind_cases(gate: Gate, base: str) -> None:
+    """`behind` waves a caller through where this system does not govern the repo, and raises
+    rather than answering where it cannot tell."""
+    print("\nbehind")
+    required = 1
     plain = os.path.join(base, "behind-nonrepo")
     os.makedirs(plain, exist_ok=True)
-    gate.ok(engine.behind_for(plain, tool) is None, "None for a directory that is not a git repo")
+    gate.ok(engine.behind(plain, required) is None, "None for a directory that is not a git repo")
 
     other, failure = build(base, "behind-third-party", Tree({"README.md": "someone else's\n"}))
     code, output = run_git(other, ["remote", "add", "origin", "https://github.com/someone-else/thing.git"])
@@ -757,25 +750,38 @@ def behind_for_cases(gate: Gate, base: str, versions: list[engine.Version]) -> N
     else:
         gate.ok(engine.is_third_party(other) == "someone-else", "a third-party origin is read as its owner",
                 repr(engine.is_third_party(other)))
-        gate.ok(engine.behind_for(other, tool) is None, "None for a repo whose origin belongs to someone else")
+        gate.ok(engine.behind(other, required) is None, "None for a repo whose origin belongs to someone else")
 
     exempt, failure = build(base, "behind-exempt", Tree(
         {".claude/conventions": "exempt a clone of someone else's project\n"}))
     if failure:
         gate.ok(False, "a scratch repo with an exempt record is built", failure)
     else:
-        gate.ok(engine.behind_for(exempt, tool) is None, "None for an exempt record")
+        gate.ok(engine.behind(exempt, required) is None, "None for an exempt record")
 
-    required = max(version.number for version in versions if tool in version.affects)
-    behind, failure = build(base, "behind-repo", Tree({"README.md": "a repo\n"}))
+    # The case that was missing, and that shipped wrong: an unreadable record is a question never
+    # put, not a pass. Returning None here let `memos.py` operate on a layout it could not vouch
+    # for, silently, which is the exact failure the whole check exists to prevent.
+    broken, failure = build(base, "behind-unparseable", Tree({".claude/conventions": "not-a-number\n"}))
+    if failure:
+        gate.ok(False, "a scratch repo with an unparseable record is built", failure)
+    else:
+        raised = False
+        try:
+            engine.behind(broken, required)
+        except engine.VersionError:
+            raised = True
+        gate.ok(raised, "raises rather than returning None when the record will not parse")
+
+    behind_repo, failure = build(base, "behind-repo", Tree({"README.md": "a repo\n"}))
     if failure:
         gate.ok(False, "a scratch repo for the positive answer is built", failure)
         return
-    answer = engine.behind_for(behind, tool)
-    gate.ok(answer is not None and answer[:2] == (0, required),
-            f"(0, v{required}, title) for a repo at 0 whose stored {tool} data v{required} reshapes", repr(answer))
-    refused = walk_to(behind, required)
-    gate.ok(not refused and engine.behind_for(behind, tool) is None,
+    answer = engine.behind(behind_repo, required)
+    gate.ok(answer is not None and answer[0] == 0,
+            f"(0, title) for a repo at 0 against a caller needing v{required}", repr(answer))
+    refused = walk_to(behind_repo, required)
+    gate.ok(not refused and engine.behind(behind_repo, required) is None,
             f"and None once that repo has adopted v{required}", refused)
 
 
@@ -812,7 +818,7 @@ def main() -> int:
         rule_behaviour(gate, base, outside_repo)
         universal_behaviour(gate, base, outside_repo, before)
         record_round_trip(gate, base, versions)
-        behind_for_cases(gate, base, versions)
+        behind_cases(gate, base)
     finally:
         restore_env(before)
         remove_tree(base)

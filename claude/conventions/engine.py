@@ -51,7 +51,7 @@ RECORD_REL = ".claude/conventions"
 # Whose repos adopt these conventions. A clone of someone else's project is exempt with no opt-out
 # file anywhere — see `~/.claude/memory/user_github_account.md`. A fork of these dotfiles has to
 # change this name, and three things go quiet if it does not: the session-start notice says nothing
-# in the fork's own repos, `status` and `adopt` refuse to touch them, and `behind_for` waves every
+# in the fork's own repos, `status` and `adopt` refuse to touch them, and `behind` waves every
 # tool through a repo it can no longer speak for.
 OWNER = "AnotherSava"
 
@@ -65,7 +65,7 @@ ORIGIN_URL_RE = re.compile(r"[:/]([^/:]+)/[^/]+?(?:\.git)?/?$")
 # Everything a version's frontmatter may declare. Anything else is refused rather than ignored: a
 # `version:` or `script:` left behind by a port would otherwise sit there reading as authoritative
 # while the folder name and the folder's contents quietly decided both.
-FIELDS = ("title", "affects", "rules")
+FIELDS = ("title", "rules")
 
 RECORD_HEADER = ("# Convention version this repo has adopted, from the claude dotfiles repo.",
                  "# Written by /adopt. See claude/conventions/ in that repo.")
@@ -93,7 +93,6 @@ class Version(NamedTuple):
     number: int
     slug: str
     title: str
-    affects: tuple[str, ...]  # tools whose stored data this reshapes — see `behind_for`
     rules: tuple[str, ...]    # continuous rules this version hands to the checker
     folder: str
     readme: str
@@ -172,8 +171,7 @@ def _version_from(name: str) -> Version:
     if not title:
         raise VersionError(f"{label} declares no title")
     script = os.path.join(folder, "apply.py")
-    return Version(int(match.group(1)), match.group(2), title, _names(data, "affects", label, "tool name"),
-                   _names(data, "rules", label, "rule name"), folder, readme, script if os.path.isfile(script) else "")
+    return Version(int(match.group(1)), match.group(2), title, _names(data, "rules", label, "rule name"), folder, readme, script if os.path.isfile(script) else "")
 
 
 def load_versions() -> list[Version]:
@@ -314,37 +312,36 @@ def pending(root: str) -> list[Version]:
     return _pending(load_versions(), record)
 
 
-def behind_for(root: str, tool: str) -> tuple[int, int, str] | None:
-    """`(adopted, required, title)` when this repo has not adopted the newest version reshaping
-    `tool`'s stored data, else None.
+def behind(root: str, required: int) -> tuple[int, str] | None:
+    """`(adopted, title)` when this repo has not adopted version `required`, else None.
 
     A tool that reads a format these conventions define cannot trust that format until the repo
-    has adopted the version that last changed it. Asking "does the old artifact still exist?" is
-    the wrong question — it answers for one migration and has to be rewritten for the next — so a
-    version declares `affects:` instead and the tool asks for a number.
+    has adopted the version that last changed it. The caller names the number it needs, beside the
+    code that reads the format — which is where anyone changing that format is already working.
+    Asking "does the old artifact still exist?" instead answers for one migration and has to be
+    rewritten for the next.
 
     Real case: v1 turns `.claude/memos.md` into `.claude/memos/`, and `memos.py` reads only the
     new layout. In a repo that has not adopted v1, `list` reports an empty backlog while
     thirty-three items sit in the old file, and `add` writes a memo into a directory beside it,
     producing the half-migrated state v1 then refuses to resolve on its own.
 
-    None means "go ahead", and it is returned for a repo this system does not govern — no `.git`,
-    a third-party origin, an `exempt` line — because a tool must not refuse to work in a directory
-    that was never going to hold a record. Anything that stops this from reaching an answer raises
-    instead, so a caller can tell a pass from a question never put.
+    None means "go ahead", and it is returned only for a repo this system does not govern — no
+    `.git`, a third-party origin, an `exempt` line — because a tool must not refuse to work in a
+    directory that was never going to hold a record. Anything that stops this from reaching an
+    answer raises, including a record that will not parse: a caller has to be able to tell a pass
+    from a question never put, and silence on an unreadable record is the second dressed as the
+    first.
     """
     if not is_repo(root) or is_third_party(root) is not None:
         return None
-    wanted = [version for version in load_versions() if tool in version.affects]
-    if not wanted:
-        return None
     record = read_record(root)
-    if record.error or record.exempt:
+    if record.error:
+        raise VersionError(record.error)
+    if record.exempt or record.number >= required:
         return None
-    required = max(version.number for version in wanted)
-    if record.number >= required:
-        return None
-    return record.number, required, next(v.title for v in wanted if v.number == required)
+    version = next((v for v in load_versions() if v.number == required), None)
+    return record.number, version.title if version else f"v{required}"
 
 
 def _write_number(path: str, number: int) -> str:

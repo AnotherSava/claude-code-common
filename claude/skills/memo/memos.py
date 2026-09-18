@@ -65,6 +65,12 @@ from typing import NamedTuple
 if hasattr(sys.stdout, "reconfigure"):
     sys.stdout.reconfigure(encoding="utf-8")
 
+# The convention version that defines the layout every command here reads. Bump it in the same
+# commit as a version that moves the format again — changing the stored format means editing the
+# code below regardless, so the constant is in the file someone is already in. `_refuse_if_behind`
+# is what enforces it.
+REQUIRES_VERSION = 1
+
 # Seconds are stored but never shown: several memos captured in one minute (a /wrap-up disposing
 # of a batch) would otherwise tie, and the tie-break would order them by slug, not capture order.
 TS_FMT = "%Y-%m-%d %H:%M:%S"  # local timezone, 24-hour
@@ -483,10 +489,10 @@ def _refuse_if_format_unadopted() -> None:
     backlog: one `memo` call put eleven items on the wrong side of a migration that had not
     happened.
 
-    The question asked is the version, not the artifact — `has this repo adopted the newest
-    version affecting memo?` rather than `does memos.md still exist?`. The second answers for one
-    migration and has to be rewritten for the next; the first keeps working when the format moves
-    again, because the next version declares `affects: memo` and this check needs no edit.
+    The question asked is the version, not the artifact — `is this repo at REQUIRES_VERSION or
+    above?` rather than `does memos.md still exist?`. The second answers for one migration and has
+    to be rewritten for the next. The constant sits beside the code that reads the layout, so a
+    version that moves the format again is edited in the same file, in the same pass.
 
     It never blocks on its own failure. A conventions engine that is missing, moved or unreadable
     makes the answer unknown, not bad, and a backlog helper that refuses to run because a sibling
@@ -501,14 +507,14 @@ def _refuse_if_format_unadopted() -> None:
     sys.path.insert(0, os.path.join(dotfiles, "conventions"))
     try:
         import engine
-        behind = engine.behind_for(_root(), "memo")
+        behind = engine.behind(_root(), REQUIRES_VERSION)
     except BaseException as exc:
         print(f"note: could not check whether this repo has adopted the memo format ({exc})", file=sys.stderr)
         return
     if behind is None:
         return
-    adopted, required, title = behind
-    sys.exit(f"This repo has not adopted the memo backlog format: it is at v{adopted}, and v{required} "
+    adopted, title = behind
+    sys.exit(f"This repo has not adopted the memo backlog format: it is at v{adopted}, and v{REQUIRES_VERSION} "
              f"({title}) is what defines the layout every command here reads.\n"
              f"Run /adopt first — writing a memo now would leave the backlog half migrated.")
 
