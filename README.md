@@ -647,6 +647,7 @@ A `SessionStart` hook verifying every symlink and git setting the [install block
 A missing link is silent in a way that looks like working software, and each one fails differently: no `output-styles` link leaves `outputStyle` in `settings.json` resolving to nothing, so response-style rules apply on one machine and not the other; no `memory` link sends saved memories outside the repo; no `learnings` link makes every lookup come back empty as though nothing had been written down. None of it shows in git, because the links are machine-local while the settings depending on them are committed and identical everywhere.
 
 - **Paths are compared by inode (`os.path.samefile`), never as strings.** These links store `projects` where the disk spells it `Projects`, so a textual comparison passes or fails depending on whether the script was reached through the symlink or from the repo. The inode test also catches a "link" that is really a copy — what Git-Bash `ln -s` leaves behind on Windows, and what every textual check calls healthy.
+- **A link the OS refuses to follow is reported, not crashed on.** Windows declines to follow a reparse point created by a non-administrator, `samefile` raises on one, and `realpath` then raised again from inside the handler explaining it — which exited 0 with no output at all, so a broken install read as a clean report. Three links were in that state on the Windows machine while this printed nothing. The check now names the refusal and where the link points; a crash anywhere in it prints the traceback by hand, and says the install is unverified as a hook.
 - **No matcher**, deliberately. The events reference lists `|` among the characters that keep a matcher an *exact* string, which would make `startup|resume` match nothing and the hook silently never fire; an absent matcher is the one form certain to run. A broken install is a persistent state rather than a passing event, so re-reporting it after a `/clear` is honest rather than noisy.
 - **It cannot verify `~/.claude/settings.json` or `~/.claude/hooks` when run as a hook**, since it is reached through them — but nothing else runs either when those are broken, so the hook firing at all is what vouches for them. Run it from the repo to check them for real.
 
@@ -681,6 +682,18 @@ When it matches, it does two things:
 
 - **Injects the conventions** — a condensed reminder citing the [Doppler](#doppler) skill, so a wrong project or config gets corrected at the moment of the command even if the skill was never invoked.
 - **Denies a `doppler secrets set`/`delete` that omits `--silent`** — without it Doppler prints the full secrets table, every value included, into the transcript. The deny inspects only the Bash `command`, so prose or docs that merely mention the command still get the reminder rather than a block, and a bare `-h`/`--help` is exempt since usage output carries no values.
+
+---
+
+### Windows Link Guard
+
+**File:** `claude/hooks/windows-link-guard.py`
+
+Windows does not follow a reparse point created by a non-administrator — RedirectionGuard, WinError 448 — and it refuses a symlink exactly as readily as a junction. A link made from an ordinary Git Bash is therefore created, resolves from the shell that made it, and raises in whichever process has to read it next. Measured 2026-09-18 on the Windows machine: three of the twelve `~/.claude` install links and all 19 project memory caches were in that state, and the one that surfaced dropped a whole machine out of [GitHub Status](#github-status) while leaving [`/adopt`](#adopt) unable to load its own engine there.
+
+A `PreToolUse` on `Bash`, gated by four `if` patterns — `powershell *ItemType*`, `pwsh *ItemType*`, `cmd *` and `mklink *` — so an ordinary command never starts the interpreter. It exits silently off Windows, and on a command that merely names the verbs rather than running them, since `grep -rn "New-Item -ItemType Junction"` is not an invocation. Otherwise it asks PowerShell whether this shell is elevated and, when the answer is no or unobtainable, blocks with exit 2, quoting the command it saw and naming the elevated form to run instead.
+
+The `if` gate is best-effort and fails open — a command the harness cannot decompose reaches the script whatever the pattern says — so the script's own match is what decides, never the gate. It also only ever sees what Claude runs: a link made by hand in a terminal is caught later instead, by [Install Check](#install-check) for the ones under `~/.claude` and by the `memory-cache-linked` rule for each repo's own cache.
 
 ---
 
@@ -787,6 +800,7 @@ macOS / Linux users skip this section — see [Linux / macOS](#linux--macos) bel
 Run from the project root *as Administrator*:
 
 ```powershell
+New-Item -ItemType Directory -Force -Path "$env:USERPROFILE\.claude" | Out-Null
 New-Item -ItemType SymbolicLink -Path "$env:USERPROFILE\.claude\CLAUDE.md" -Target "$PWD\claude\CLAUDE.md"
 New-Item -ItemType SymbolicLink -Path "$env:USERPROFILE\.claude\skills" -Target "$PWD\claude\skills"
 New-Item -ItemType SymbolicLink -Path "$env:USERPROFILE\.claude\hooks" -Target "$PWD\claude\hooks"
@@ -897,12 +911,15 @@ a session by different routes:
 ### Versioning project memory
 
 The `claude/scripts/link-project-memory.sh` script redirects a project's memory
-cache — via a symlink, or a directory junction on Windows — into a committed
-`.claude/memory/` directory inside that repo. The harness keeps reading and
-writing the same path, so auto-recall is unaffected; the files just live in the
-repo now and travel with `git clone`.
+cache, by symlink, into a committed `.claude/memory/` directory inside that repo.
+The harness keeps reading and writing the same path, so auto-recall is unaffected;
+the files just live in the repo now and travel with `git clone`.
 
-Run once per project, per machine — from inside the repo:
+Run once per project, per machine — from inside the repo, and on Windows from an
+elevated shell. Windows will not follow a link created by a non-administrator
+([Windows Link Guard](#windows-link-guard) has the mechanics), so without
+elevation the script refuses and prints the command to run rather than leaving a
+link behind that some process will not walk:
 
 ```bash
 bash ~/.claude/scripts/link-project-memory.sh

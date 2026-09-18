@@ -33,6 +33,31 @@
             "command": "python -S \"$HOME/.claude/hooks/doppler-guard.py\""
           }
         ]
+      },
+      {
+        "matcher": "^Bash$",
+        "hooks": [
+          {
+            "type": "command",
+            "if": "Bash(powershell *ItemType*)",
+            "command": "python -S \"$HOME/.claude/hooks/windows-link-guard.py\""
+          },
+          {
+            "type": "command",
+            "if": "Bash(pwsh *ItemType*)",
+            "command": "python -S \"$HOME/.claude/hooks/windows-link-guard.py\""
+          },
+          {
+            "type": "command",
+            "if": "Bash(cmd *)",
+            "command": "python -S \"$HOME/.claude/hooks/windows-link-guard.py\""
+          },
+          {
+            "type": "command",
+            "if": "Bash(mklink *)",
+            "command": "python -S \"$HOME/.claude/hooks/windows-link-guard.py\""
+          }
+        ]
       }
     ],
     "PostToolUse": [

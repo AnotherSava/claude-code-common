@@ -46,9 +46,10 @@ UNIX_HEADING = "### Linux / macOS"
 NEW_ITEM_RE = re.compile(r'^New-Item -ItemType SymbolicLink -Path "([^"]+)" -Target "([^"]+)"$')
 LN_RE = re.compile(r'^ln -s "([^"]+)" (\S+)$')
 GIT_CONFIG_RE = re.compile(r'^git config --global (\S+) "?([^"]+?)"?$')
-# Lines that carry no link and are still expected: the bash block creates the directory the links
-# go into. Listed rather than pattern-matched, so a new one is a stop rather than a silent skip.
-IGNORED = ("mkdir -p ~/.claude",)
+# Lines that carry no link and are still expected: each block creates the directory the links go
+# into. Listed rather than pattern-matched, so a new one is a stop rather than a silent skip.
+IGNORED = ("mkdir -p ~/.claude",
+           'New-Item -ItemType Directory -Force -Path "$env:USERPROFILE\\.claude" | Out-Null')
 
 FAILURES: list[str] = []
 
