@@ -81,6 +81,40 @@ found = any(isinstance(n, ast.BinOp) and isinstance(n.op, ast.BitOr)
 A grep is not a substitute. `] | None`, `str | None` and friends each miss the others — one such
 sweep found nine files and left a tenth (`Path | None`) that failed the moment the gate ran.
 
+## The piped copy has no `__file__`, so paths anchored on the script diverge
+
+Reading the program from stdin leaves it with no file on disk, and so with no `__file__`. Any path
+the script derives by walking upward from its own location then resolves to somewhere different on
+the two ends, and neither end raises: each writes and reads a perfectly good directory, and they are
+not the same directory.
+
+Measured 2026-09-18 in the two-machine repo scan this file opens on. The tool puts its artifacts in
+the first ancestor of its own directory that holds a `.git`:
+
+```python
+base = skill_dir()           # <repo>/claude/skills/<skill> where __file__ exists,
+for parent in base.parents:  # ~/.claude/skills/<skill> where it does not
+    if (parent / ".git").exists():
+        return parent / "tmp"
+return base / "tmp"
+```
+
+Run from disk, `skill_dir()` sits inside the checkout and the walk finds the repo. Piped to the peer,
+it falls back to the literal `~/.claude/skills/<skill>`; the walk found no `.git` above that, so it
+took the last line instead. One machine therefore keeps its artifacts in `<repo>/tmp` when it runs
+the tool itself and in `~/.claude/skills/<skill>/tmp` when the other machine drives it — so a file
+written under one invocation is not there under the other, and the write reports success either way.
+
+Here `~/.claude/skills` is a symlink into the checkout, which makes resolving the fallback enough:
+
+```python
+base = skill_dir().resolve()
+```
+
+The general form: a path a piped script derives from its own location is derived from nothing. Where
+both ends have to agree on one, take it from something both can see — a symlink into the checkout, an
+environment variable the caller exports, or a value the peer reports back in its own output.
+
 ## Testing a fix on the peer without touching its checkout
 
 Ship the tree to a temp directory over the same ssh, run there, delete:

@@ -34,6 +34,19 @@ Modes:
   --descriptions P  read the descriptions from P instead of stdin
   --html PATH       where to write the HTML report
   --state PATH      where the state file lives
+  --cache PATH      where THIS machine's description cache lives
+  --no-cache        ignore the stored descriptions, on both machines, and mark
+                    every working machine for a fresh one
+
+A description is reused whenever the work it was written from is byte-identical,
+which each machine decides for its OWN clones from a content digest rather than a
+date. Every machine caches only what it owns: the peer resolves its clones during
+the scan and the answer rides back inside the snapshot, and `--report` writes each
+machine's new descriptions back to that machine. So a repo is described once
+however many machines report on it, and switching machines starts warm.
+
+The scan around it is not cached: its cost is the per-repo `git fetch` and `gh
+issue list`, and both ask the remote something no local state can answer.
 
 Environment:
   PROJECTS_ROOT — directory to scan (overrides config/config.env)
@@ -56,6 +69,7 @@ config file before invoking.
 
 from __future__ import annotations
 
+import hashlib
 import html
 import importlib.util
 import json
@@ -85,6 +99,15 @@ PEER_CONNECT_TIMEOUT = 15
 # Below this the DESCRIPTION column is dropped from the terminal table rather
 # than squeezed — see print_table for the measurement behind the number.
 DESC_USEFUL_WIDTH = 34
+
+# Past this size a file is folded into the work digest by (size, mtime) rather
+# than by its bytes — see compute_work_digest for what that costs.
+DIGEST_CONTENT_LIMIT = 8_000_000
+
+# Bumped when the digest's inputs or the file's shape change, which invalidates
+# every stored entry at once: an old digest and a new one are not comparable, and
+# a description kept against one would be reused on work it was never written from.
+CACHE_VERSION = 2
 
 
 
@@ -180,6 +203,52 @@ def porcelain_entries(repo: Path) -> list[tuple[str, str]]:
             i += 1  # the origin path rides along as the next field
         entries.append((code, path))
     return entries
+
+
+def compute_work_digest(repo: Path, head: str, entries: list[tuple[str, str]],
+                        commits: list[str], untracked: list[str]) -> str:
+    """Hash everything a one-line description of this clone's pending work is written from.
+
+    Two equal digests mean that work is byte-identical, so the description
+    written against the first is still true of the second and the reader that
+    would write it again can be skipped. A modification date cannot stand in for
+    this in either direction: `git status` reports a deleted file with no mtime
+    left to read, while touching a file moves its mtime without changing a line.
+
+    Both halves of the pending state go in. `git diff HEAD` covers tracked text
+    edits, staged ones included, but it renders a modified binary as the same
+    "Binary files differ" line whatever the new bytes are — so the working-tree
+    content of every named path is hashed as well, which is also what covers
+    untracked files. A file past DIGEST_CONTENT_LIMIT is folded in by size and
+    mtime instead; that misses a change only if an edit preserves both.
+    """
+    h = hashlib.sha256()
+    h.update(head.encode())
+    for line in commits:
+        h.update(b"\0c" + line.encode())
+    for code, path in entries:
+        h.update(b"\0p" + code.encode() + path.encode())
+    diff = subprocess.run(["git", "-C", str(repo), "diff", "HEAD"], capture_output=True)
+    h.update(b"\0d" + diff.stdout)
+    # Porcelain names an untracked directory as one entry; ls-files has already
+    # expanded it, so the union covers the directory's files without walking it here.
+    for rel in sorted({path for _, path in entries} | set(untracked)):
+        h.update(b"\0f" + rel.encode())
+        full = repo / rel
+        try:
+            if not full.is_file():
+                h.update(b"-")  # deleted in the workdir, or the directory form of an untracked entry
+                continue
+            stat = full.stat()
+            if stat.st_size > DIGEST_CONTENT_LIMIT:
+                h.update(f"{stat.st_size}:{stat.st_mtime_ns}".encode())
+                continue
+            with full.open("rb") as f:
+                for chunk in iter(lambda: f.read(1 << 20), b""):
+                    h.update(chunk)
+        except OSError:
+            h.update(b"?")
+    return h.hexdigest()
 
 
 def find_repos(root: Path, depth: int) -> list[Path]:
@@ -423,6 +492,16 @@ class RepoState:
     changes: list[str]  # "XY path" porcelain entries
     commits: list[str]  # "hash subject" for @{upstream}..HEAD
     open_issues: int | None  # via `gh` on that machine; None when it could not answer
+    # Content hash of the pending work — see compute_work_digest. Empty where the clone has none.
+    # Defaulted, like `conventions` below, so a state file written before this field existed still
+    # loads under `--report`; an empty digest never matches a cached one, so it re-describes.
+    work_digest: str = ""
+    # The description that clone's own machine already holds for exactly this digest, looked up there
+    # during the scan and empty when it holds none. Resolved on the machine that owns the clone, so a
+    # repo only the peer has still arrives described — it rides back inside the snapshot like every
+    # other field here. This is the cache being read, not a second place descriptions are kept: what
+    # the report finally shows lives in RepoRow.descriptions, and the cache is rewritten from those.
+    cached_description: str = ""
     # None where the repo holds no record and never will — see read_conventions. Defaulted so a
     # state file written before this field existed still loads under `--report`.
     conventions: ConventionState | None = None
@@ -484,6 +563,10 @@ class MachineSnapshot:
     # field, and defaulting to no-error there renders `conventions v0` — a machine that was never
     # asked, reading exactly like a fleet that is up to date.
     conv_error: str = "this scan predates the convention check; re-run it"
+    # Where this machine keeps the descriptions of its own clones. Reported rather than derived,
+    # because the machine running the report has to write the peer's descriptions back to the peer
+    # and cannot know where that machine's checkout puts its tmp/.
+    cache_path: str = ""
 
     def to_json(self) -> str:
         d = asdict(self)
@@ -502,6 +585,7 @@ class MachineSnapshot:
 
 def collect_state(repo: Path, rel: str) -> RepoState:
     branch = git(["symbolic-ref", "--short", "HEAD"], repo) or "(detached)"
+    head_sha = git(["rev-parse", "HEAD"], repo)
     upstream = git(["rev-parse", "--abbrev-ref", "--symbolic-full-name", "@{upstream}"], repo)
     commits: list[str] = []
     candidates: list[float] = []
@@ -541,7 +625,8 @@ def collect_state(repo: Path, rel: str) -> RepoState:
     # Untracked files: `git diff` doesn't see them. Treat each as pure additions —
     # use `git ls-files` so .gitignore is respected (untracked dirs are recursed).
     # Skip binary content (NUL-byte sniff) and very large files (>1 MB).
-    for path in git_z(["ls-files", "--others", "--exclude-standard", "-z"], repo):
+    untracked = git_z(["ls-files", "--others", "--exclude-standard", "-z"], repo)
+    for path in untracked:
         full = repo / path
         try:
             if not full.is_file() or full.stat().st_size > 1_000_000:
@@ -555,11 +640,17 @@ def collect_state(repo: Path, rel: str) -> RepoState:
         except OSError:
             pass
 
+    # Computed for every clone rather than only the dirty ones. A clone that is
+    # merely behind is still work `has_work` reports and so is still owed a
+    # description, and on a clean tree this reads an empty diff and no files.
+    digest = compute_work_digest(repo, head_sha, entries, commits, untracked)
+
     return RepoState(
         path=rel, branch=branch, unpushed=unpushed, behind=behind, pulled=False,
         uncommitted=len(entries), lines_added=lines_added, lines_deleted=lines_deleted,
         oldest_epoch=min(candidates) if candidates else 0.0,
         changes=[f"{code} {path}" for code, path in entries], commits=commits, open_issues=None,
+        work_digest=digest,
     )
 
 
@@ -591,6 +682,16 @@ def scan_machine(name: str, projects_root: Path, github_user: str, depth: int) -
 
     states = {slug: collect_state(repo, rel) for repo, rel, slug in owned}
     by_slug = {slug: repo for repo, _, slug in owned}
+
+    # Each machine answers for its own clones, so the digest is compared here, where it was
+    # computed, rather than by whoever collates the two. A repo the peer alone has therefore
+    # arrives already described, and neither machine ever re-reads work the other has read.
+    if not os.environ.get("GHS_NO_CACHE"):
+        cached = load_cache(cache_file())
+        for slug, state in states.items():
+            entry = cached.get(slug, {})
+            if state.work_digest and entry.get("digest") == state.work_digest:
+                state.cached_description = entry.get("description", "")
 
     # Pull repos with inbound commits and no uncommitted changes. `behind` is
     # intentionally left as counted, so the report can say "4 pulled" rather
@@ -636,7 +737,7 @@ def scan_machine(name: str, projects_root: Path, github_user: str, depth: int) -
         # how it is written in config.env and how every repo path is rendered.
         name=name, os_label=os_label(), projects_root=projects_root.as_posix(),
         scanned_at=time.time(), scanned_count=len(owned), repos=states,
-        conv_latest=latest, conv_sha=sha, conv_error=conv_error,
+        conv_latest=latest, conv_sha=sha, conv_error=conv_error, cache_path=cache_file().as_posix(),
     )
 
 
@@ -667,8 +768,11 @@ def scan_peer(peer_ssh: str, peer_python: str, source: bytes) -> MachineSnapshot
     ssh.exe specifically.
     """
     name = peer_name(peer_ssh)
+    # --no-cache has to cross the hop: the peer resolves its own clones' descriptions, so a
+    # refresh asked for here would otherwise refresh only half the report.
+    remote_argv = "--json --no-cache" if os.environ.get("GHS_NO_CACHE") else "--json"
     cmd = ["ssh", "-o", "BatchMode=yes", "-o", f"ConnectTimeout={PEER_CONNECT_TIMEOUT}",
-           peer_ssh, f"{peer_python} - --json"]
+           peer_ssh, f"{peer_python} - {remote_argv}"]
     print(f"[{name}] scanning over ssh...", file=sys.stderr)
     try:
         with tempfile.TemporaryFile() as fin, tempfile.TemporaryFile() as fout, tempfile.TemporaryFile() as ferr:
@@ -986,10 +1090,17 @@ def print_detail(rows: list[RepoRow], multi: bool) -> None:
     """Per-repo uncommitted and unpushed listings — the raw material for the
     one-line descriptions Claude writes in SKILL.md step 3.
 
+    Only for the machines whose description is still the placeholder. A clone
+    whose digest matched the cache already has its line, so printing its diff
+    again would be raw material for work nobody is going to do.
+
     Porcelain status is XY where X (staged) / Y (unstaged) may be a space — swap
     spaces for a center dot so the columns line up visually.
     """
-    dirty = [(r, m, s) for r in rows for m, s in r.states.items() if s and s.changes]
+    def unwritten(row: RepoRow, machine: str) -> bool:
+        return row.descriptions.get(machine) == PENDING_DESCRIPTION
+
+    dirty = [(r, m, s) for r in rows for m, s in r.states.items() if s and s.changes and unwritten(r, m)]
     if dirty:
         print("\nUncommitted changes:")
         for row, machine, state in dirty:
@@ -997,7 +1108,7 @@ def print_detail(rows: list[RepoRow], multi: bool) -> None:
             for line in state.changes:
                 print(f"  {line[:2].replace(' ', '·')}{line[2:]}")
 
-    pending = [(r, m, s) for r in rows for m, s in r.states.items() if s and s.commits]
+    pending = [(r, m, s) for r in rows for m, s in r.states.items() if s and s.commits and unwritten(r, m)]
     if pending:
         print("\nUnpushed commits (for Claude to summarize per repo):")
         for row, machine, state in pending:
@@ -1347,12 +1458,39 @@ def tmp_dir() -> Path:
     ~/.claude/skills is a symlink into the dotfiles clone, so resolving this
     file lands inside that repo. A skill copied rather than symlinked has no
     repo above it, and its artifacts go beside the skill instead.
+
+    The resolve is what makes the answer the same on both sides of the SSH hop.
+    The peer runs this script from stdin, where `script_path()` is None and
+    `skill_dir()` falls back to the literal ~/.claude/skills/... path — whose
+    parents are ~/.claude and ~, neither of which holds a .git. Walking that
+    unresolved would put the peer's artifacts beside the skill while the same
+    machine running the report itself put them in the repo's tmp/, so a file
+    written to one would be read from the other and never found.
     """
-    base = skill_dir()
+    base = skill_dir().resolve()
     for parent in base.parents:
         if (parent / ".git").exists():
             return parent / "tmp"
     return base / "tmp"
+
+
+def this_machine_name(config: Path) -> str:
+    """What this machine calls itself in the report — the name its snapshot and its
+    descriptions are keyed by. Resolved in one place because `--report` has to pick
+    its own column out of a state file the scan wrote."""
+    return config_value(config, "MACHINE_NAME") or socket.gethostname().split(".", 1)[0]
+
+
+def cache_file() -> Path:
+    """Where THIS machine keeps the descriptions of its OWN clones.
+
+    Resolved here rather than passed down, for the reason `config_file` is: the
+    peer runs this script from stdin and has to find its own paths, and the scan
+    that reads the cache is several calls below the one that parsed `--cache`.
+    GHS_CACHE is how that flag reaches it, the same way `--width` travels as
+    GHS_WIDTH.
+    """
+    return Path(os.environ.get("GHS_CACHE") or tmp_dir() / "github-status-descriptions.json")
 
 
 def config_value(config: Path, key: str) -> str | None:
@@ -1410,8 +1548,7 @@ def scan_this_machine(config: Path) -> MachineSnapshot | None:
     root = resolve_root(config)
     if root is None:
         return None
-    name = config_value(config, "MACHINE_NAME") or socket.gethostname().split(".", 1)[0]
-    return scan_machine(name, root, github_user(), int(os.environ.get("ROOT_DEPTH", "4")))
+    return scan_machine(this_machine_name(config), root, github_user(), int(os.environ.get("ROOT_DEPTH", "4")))
 
 
 def gather(config: Path) -> list[MachineSnapshot] | None:
@@ -1490,6 +1627,105 @@ def render(snapshots: list[MachineSnapshot], rows: list[RepoRow], width: int) ->
               f"and without open issues.")
         return
     print_table(groups, visible_columns(groups, len(reached)), width)
+
+
+def load_cache(path: Path) -> dict[str, dict[str, str]]:
+    """Read one machine's description cache: slug -> {"digest", "description"}.
+
+    There is no machine key inside, because a cache file holds only the clones of
+    the machine it sits on. The entry then lives next to the thing it describes,
+    so whichever machine runs the report finds it — the one whose clone it is
+    always has it, and the other reads it off that machine's snapshot.
+
+    A missing, unreadable or older-format file reads as an empty cache rather
+    than an error. Every entry in it is re-derivable by describing the clone
+    again, so the worst a bad file costs is the reading it was meant to save.
+    """
+    try:
+        data = json.loads(path.read_text(encoding="utf-8"))
+    except (OSError, json.JSONDecodeError):
+        return {}
+    if not isinstance(data, dict) or data.get("version") != CACHE_VERSION:
+        return {}
+    entries = data.get("entries")
+    return entries if isinstance(entries, dict) else {}
+
+
+def cache_payload(rows: list[RepoRow], machine: str) -> str:
+    """Serialize one machine's cache from the rows: every description written for
+    its clones, against the digest of the work it describes.
+
+    Rebuilt from the rows rather than merged into what was loaded, so a repo that
+    went clean and a superseded digest drop out without a prune of their own. An
+    unwritten description is not stored: the placeholder is what the report shows
+    when nobody has written one yet.
+    """
+    entries: dict[str, dict[str, str]] = {}
+    for row in rows:
+        state = row.states.get(machine)
+        text = row.descriptions.get(machine, "")
+        if state and state.work_digest and text and text != PENDING_DESCRIPTION:
+            entries[row.slug] = {"digest": state.work_digest, "description": text}
+    return json.dumps({"version": CACHE_VERSION, "entries": entries}, ensure_ascii=False, indent=1)
+
+
+def save_local_cache(path: Path, rows: list[RepoRow], machine: str) -> None:
+    path.parent.mkdir(parents=True, exist_ok=True)
+    path.write_text(cache_payload(rows, machine), encoding="utf-8")
+
+
+def save_peer_cache(peer_ssh: str, remote_path: str, rows: list[RepoRow], machine: str) -> str:
+    """Write the peer's own clones' descriptions back to the peer, and return what
+    went wrong, or "" on success.
+
+    Sent to `cat` rather than to this script, so nothing has to run on the far
+    side and the payload can travel on stdin — which the scan's own hop cannot do,
+    since there stdin already carries the script. The file is replaced whole
+    because this side has just seen every one of that machine's repos, so what it
+    writes is the complete cache rather than a patch needing a merge.
+    """
+    if "'" in remote_path:
+        return f"peer cache path contains a quote and was not written: {remote_path}"
+    directory = remote_path.rsplit("/", 1)[0] if "/" in remote_path else "."
+    cmd = ["ssh", "-o", "BatchMode=yes", "-o", f"ConnectTimeout={PEER_CONNECT_TIMEOUT}", peer_ssh,
+           f"mkdir -p '{directory}' && cat > '{remote_path}'"]
+    try:
+        with tempfile.TemporaryFile() as fin, tempfile.TemporaryFile() as ferr:
+            fin.write(cache_payload(rows, machine).encode("utf-8"))
+            fin.seek(0)
+            done = subprocess.run(cmd, stdin=fin, stdout=subprocess.DEVNULL, stderr=ferr, timeout=PEER_CONNECT_TIMEOUT + 30)
+            if done.returncode != 0:
+                ferr.seek(0)
+                return ferr.read().decode("utf-8", "replace").strip() or f"ssh exited {done.returncode}"
+    except (OSError, subprocess.TimeoutExpired) as e:
+        return str(e)
+    return ""
+
+
+def store_descriptions(snapshots: list[MachineSnapshot], rows: list[RepoRow],
+                       local: str, peer_ssh: str | None) -> None:
+    """Send each machine's descriptions to the machine whose clones they describe.
+
+    Which is the whole point of splitting the cache: a line written here about a
+    clone that lives on the peer is stored there, so a report run from that machine
+    tomorrow already has it and neither side ever reads the same diff twice.
+
+    A peer that cannot be written to is named rather than swallowed. Nothing is
+    lost that a re-read would not recover, but the silent version of this failure
+    is a cache that never warms while every run reports work reused.
+    """
+    save_local_cache(cache_file(), rows, local)
+    for snap in snapshots:
+        if snap.name == local or snap.status != "ok":
+            continue
+        if not peer_ssh or not snap.cache_path:
+            print(f"WARNING: {snap.name}'s descriptions were not stored — "
+                  f"{'no PEER_SSH is configured' if not peer_ssh else 'it did not report where its cache lives'}. "
+                  f"They will be written again next run.", file=sys.stderr)
+            continue
+        if problem := save_peer_cache(peer_ssh, snap.cache_path, rows, snap.name):
+            print(f"WARNING: {snap.name}'s descriptions could not be stored on it ({problem}). "
+                  f"They will be written again next run.", file=sys.stderr)
 
 
 def state_to_json(snapshots: list[MachineSnapshot], rows: list[RepoRow]) -> str:
@@ -1593,6 +1829,13 @@ def main() -> int:
         if w.isdigit():
             os.environ["GHS_WIDTH"] = w
 
+    # Both travel as environment rather than as arguments, because the scan that reads them runs
+    # several calls below this one and, in peer mode, on the other machine entirely.
+    if c := flag_value(argv, "--cache"):
+        os.environ["GHS_CACHE"] = c
+    if "--no-cache" in argv:
+        os.environ["GHS_NO_CACHE"] = "1"
+
     state_path = Path(flag_value(argv, "--state") or tmp_dir() / "github-status-state.json")
     html_path = Path(flag_value(argv, "--html") or tmp_dir() / "github-status.html")
 
@@ -1614,7 +1857,9 @@ def main() -> int:
         snapshots, rows = state_from_json(state_path.read_text(encoding="utf-8"))
         source = flag_value(argv, "--descriptions")
         text = Path(source).read_text(encoding="utf-8") if source else sys.stdin.read()
-        apply_descriptions(rows, text.strip() or "{}", [s.name for s in snapshots if s.status == "ok"])
+        reached_names = [s.name for s in snapshots if s.status == "ok"]
+        apply_descriptions(rows, text.strip() or "{}", reached_names)
+        store_descriptions(snapshots, rows, this_machine_name(config), config_value(config, "PEER_SSH"))
         render(snapshots, rows, target_width(config))
         owner = rows[0].slug.split("/", 1)[0] if rows else github_user()
         write_html(html_path, rows, snapshots, owner)
@@ -1626,10 +1871,23 @@ def main() -> int:
         return 2
     rows = merge(snapshots)
     reached_names = [s.name for s in snapshots if s.status == "ok"]
+    # A description is a pure function of the work it describes, so an unchanged digest means last
+    # run's line is still true and this clone does not have to be read again. Each machine resolved
+    # that for its own clones during the scan; nothing is looked up here. Everything the scan itself
+    # costs — the fetch, the `gh` call — asks the remote a question no local state could answer, and
+    # is not cached at all.
+    reused = 0
     for row in rows:
         for machine in row.working(reached_names):
-            row.descriptions[machine] = PENDING_DESCRIPTION
+            state = row.states.get(machine)
+            text = state.cached_description if state else ""
+            row.descriptions[machine] = text or PENDING_DESCRIPTION
+            reused += bool(text)
     render(snapshots, rows, target_width(config))
+    to_write = sum(1 for r in rows for m in r.working(reached_names)
+                   if r.descriptions.get(m) == PENDING_DESCRIPTION)
+    if reused or to_write:
+        print(f"\nDescriptions: {reused} reused from the cache, {to_write} still to write.")
     print_detail(rows, multi=sum(s.status == "ok" for s in snapshots) > 1)
     state_path.parent.mkdir(parents=True, exist_ok=True)
     state_path.write_text(state_to_json(snapshots, rows), encoding="utf-8")

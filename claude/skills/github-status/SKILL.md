@@ -116,17 +116,23 @@ of the two rather than their sum. Output has three parts:
      machine — `gh` needs no clone, so an unauthenticated `gh` over there neither blanks the column
      nor drops a clean-but-ticketed repo out of the report. Blank means zero, issues disabled, or
      neither machine could ask.
-   - **DESCRIPTION** — `<analyze below>` on every machine line with pending work, so a repo busy on
-     both carries two. It is the one cell that wraps, under its own machine's line. **You fill these
-     in** per step 3. On a narrow terminal the column is **dropped entirely** rather than squeezed,
+   - **DESCRIPTION** — the line already written for that machine's work, or `<analyze below>` where
+     nobody has written one yet, so a repo busy on both carries two cells. It is the one cell that
+     wraps, under its own machine's line. **You fill in the placeholders** per step 3; a cell that
+     arrives with text in it came from the cache and is already true of the work as it stands. On a
+     narrow terminal the column is **dropped entirely** rather than squeezed,
      with a line under the table saying so: eight fixed columns leave it under ~34 characters, a
      one-line summary then wraps to four or five rows, and the table grows past three times the height
      of the report — measured at 122 lines for 18 repos on an 80-column terminal, against 42 without
      it. Nothing is lost; the HTML carries every description in full. Still write them in step 3, and
      still paste the table as it comes.
 3. **Detail sections** — `git status --porcelain` and `git log @{upstream}..HEAD` per repo per
-   machine, tagged `[machine]` when both were reached. This is raw material for step 3, **not** part
-   of the user-facing report: do not paste it back to the user.
+   machine, tagged `[machine]` when both were reached. Printed **only for the machines still holding
+   a placeholder**, since a clone whose description came from the cache needs no reading. This is raw
+   material for step 3, **not** part of the user-facing report: do not paste it back to the user.
+
+Between the summary and the detail sits one line — `Descriptions: N reused from the cache, M still to
+write` — and M is the size of step 3, not the number of rows in the table.
 
 The run also writes a state file next to the report. Step 3 reads it rather than re-scanning, so the
 descriptions land on exactly the state they were written from.
@@ -134,10 +140,15 @@ descriptions land on exactly the state they were written from.
 ## 3. Write the descriptions and render the report
 
 **A description belongs to a machine, not to a repo.** The table marks `<analyze below>` once per
-machine with pending work, and each one is owed its own **one-line description** of what that
-machine's in-flight work accomplishes (≤ ~80 chars; the user-visible change or theme, not file- or
-commit-level detail). A repo working on both machines gets two, written from that machine's detail
-section alone — one line covering both leaves whichever machine it did not describe unexplained.
+machine whose work nobody has described yet, and each one is owed its own **one-line description** of
+what that machine's in-flight work accomplishes (≤ ~80 chars; the user-visible change or theme, not
+file- or commit-level detail). A repo working on both machines gets two, written from that machine's
+detail section alone — one line covering both leaves whichever machine it did not describe unexplained.
+
+**Write only the placeholders, and pass only those back.** A cell that already carries text was
+reused from the cache because the work behind it has not changed by a byte, so re-describing it
+spends a read to arrive at the same sentence. Passing a cached line back is harmless but pointless;
+what is neither is overwriting one with a *different* line for work that did not move.
 
 **Key each entry by the PROJECT cell — or by whatever that machine calls the folder.** The two differ
 when a repo is cloned under different names, and the title comes from whichever machine lists first
@@ -254,9 +265,31 @@ paste the detail sections at all.
   reading its detail — a sibling Claude session committing mid-run is the usual cause, and the tell is
   a detail section that no longer matches what the table claimed — re-run step 2 and describe from the
   fresh output. Say in the report that you re-ran and why.
-- **Artifacts go in the dotfiles repo's gitignored `tmp/`**, as `github-status.html` and
-  `github-status-state.json`. The filenames are stable, so an open browser tab reloads onto the new
-  report. Override with `--html <path>` / `--state <path>`.
+- **Descriptions are cached per clone, keyed by a digest of the work — never by a date.** The scan
+  hashes what a description is written from: the HEAD sha, the unpushed commit lines, the porcelain
+  entries, `git diff HEAD`, and the working-tree bytes of every file named. An unchanged digest means
+  the sentence written last time is still true, so the cell arrives filled and step 3 shrinks to the
+  clones that actually moved. The working-tree bytes are in the hash because `git diff` renders every
+  version of a modified binary as the same "Binary files differ" line. A date could key none of it: a
+  deletion leaves no mtime behind, and `touch` moves one without changing a line. Pass `--no-cache` to
+  re-describe everything — it crosses the SSH hop, so one run means one rule on both machines. Bump
+  `CACHE_VERSION` in the script when the digest's inputs or the file's shape change, since an old
+  digest and a new one are not comparable.
+- **Each machine caches only its own clones, and that is what makes switching machines cheap.** The
+  entry lives next to the clone it describes: the peer resolves its own repos' descriptions during the
+  scan and they ride back inside its snapshot, and `--report` writes each machine's newly written
+  lines back to that machine over SSH. So a repo is described once however many machines report on it,
+  and a report run from the other machine tomorrow starts warm instead of re-reading work this one
+  already read. A peer that cannot be written to is named on stderr rather than swallowed; nothing is
+  lost that the next run would not redo, but a cache that never warms while every run claims reuse is
+  the failure worth hearing about.
+- **The scan itself is deliberately not cached.** Its cost is the per-repo `git fetch` and `gh issue
+  list`, and both ask the remote something no local state can answer — a cache over them would report
+  a stale REMOTE and a stale ISSUES with nothing to say it had.
+- **Artifacts go in the gitignored `tmp/` of each machine's own dotfiles clone**, as
+  `github-status.html`, `github-status-state.json` and `github-status-descriptions.json` — the last of
+  these on both machines, the first two only where the report was run. The filenames are stable, so an
+  open browser tab reloads onto the new report. Override with `--html` / `--state` / `--cache`.
 - **The only GitHub API call is the open-issue count** (`gh issue list --repo OWNER/REPO`), pinned to
   the origin slug so a fork reports its own issues and never its `upstream` parent's.
 - **The convention gap comes from the `/adopt` engine, not from a second reader of the record.**
@@ -280,7 +313,10 @@ explicit-exclusion history.
 ## Out of scope
 
 - Do NOT push, commit, stash, merge, rebase, or check out anything, on either machine. The only
-  mutations are `git fetch` and `git pull --ff-only` on clean repos — both intentional, see above.
+  mutations to a repo's contents are `git fetch` and `git pull --ff-only` on clean repos — both
+  intentional, see above. The one write outside that is the description cache in each machine's
+  gitignored `tmp/`, which `--report` also writes on the peer; it is derived data, and deleting it
+  costs a re-read and nothing else.
 - Do NOT scan paths outside each machine's configured `PROJECTS_ROOT`.
 - Do NOT run `/adopt`, or any step's `apply`, off the back of this report. The CONV column states a
   gap; closing one is a walk through that repo's own session, with each mutation shown and approved.
