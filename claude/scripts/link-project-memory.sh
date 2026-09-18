@@ -18,6 +18,10 @@
 # Re-run safe (idempotent). Run once per project per machine:
 #   bash ~/.claude/scripts/link-project-memory.sh [project-path]
 # With no argument it uses the current git repo root.
+#
+# On Windows, run it from an elevated shell. Windows refuses to follow a link created by a
+# non-administrator, so without elevation this refuses and prints the command rather than
+# making one — see the case in learnings/git-bash-windows-symlinks.md.
 
 set -euo pipefail
 
@@ -74,21 +78,41 @@ fi
 
 # --- Point the cache folder at the committed repo directory -----------------
 # On Windows, `ln -s` from Git Bash silently makes a *copy*, not a link, and
-# `cmd //c mklink` mangles its `/J` switch under MSYS — so create the directory
-# junction via PowerShell (no admin needed). A junction reads back as a symlink
-# in Git Bash, so the migration logic above and the Unix branch below treat it
-# the same way.
+# `cmd //c mklink` mangles its `/J` switch under MSYS — so create the link via
+# PowerShell, and create the same kind the README's install block creates.
+#
+# What decides whether that link works is elevation, not the kind. Windows refuses to
+# follow a reparse point created by a non-administrator — RedirectionGuard, WinError
+# 448 — and it refuses a symlink exactly as readily as a junction, so the "junction,
+# no admin needed" this branch used to run bought a link some processes will not walk.
+# Measured 2026-09-18: all 19 caches it had made on the Windows machine were unreadable
+# from a Python launched over SSH, alongside two of the `~/.claude` links, while every
+# link installed from an elevated prompt beside them was fine. So this refuses to make
+# a link it cannot make properly, and says what to run instead.
 case "$(uname -s)" in
   MINGW* | MSYS* | CYGWIN*)
     link_win="$(cygpath -w "$cache_mem" 2>/dev/null || echo "$cache_mem")"
     target_win="$(cygpath -w "$repo_mem" 2>/dev/null || echo "$repo_mem")"
+    ps_link="New-Item -ItemType SymbolicLink -Path '$link_win' -Target '$target_win'"
 
-    # Idempotent: a correctly-pointing junction reads back as a symlink here.
-    # readlink yields a POSIX path (lowercased drive, maybe trailing slash), so
-    # normalize both sides to Windows form before comparing.
-    if [ -L "$cache_mem" ] && [ "$(cygpath -w "$(readlink "$cache_mem")" 2>/dev/null)" = "$target_win" ]; then
+    # Idempotent, but only for a symlink: a junction from an older run of this script
+    # also reads back as a symlink to `[ -L ]`, and re-running is how one gets replaced.
+    # readlink yields a POSIX path (lowercased drive, maybe trailing slash), so normalize
+    # both sides to Windows form before comparing. What this cannot see is a symlink that
+    # was itself made without elevation — indistinguishable from a good one here, and left
+    # alone; `check-install.py` is what reports the ones under `~/.claude`.
+    link_type="$(powershell -NoProfile -Command "(Get-Item -LiteralPath '$link_win' -Force).LinkType" 2>/dev/null | tr -d '\r')"
+    if [ "$link_type" = "SymbolicLink" ] && [ "$(cygpath -w "$(readlink "$cache_mem")" 2>/dev/null)" = "$target_win" ]; then
       echo "already linked: $cache_mem -> $repo_mem"
       exit 0
+    fi
+
+    if [ "$(powershell -NoProfile -Command "([Security.Principal.WindowsPrincipal][Security.Principal.WindowsIdentity]::GetCurrent()).IsInRole([Security.Principal.WindowsBuiltInRole]::Administrator)" 2>/dev/null | tr -d '\r')" != "True" ]; then
+      echo "error: this shell is not elevated, and a link made without elevation is one" >&2
+      echo "       Windows can refuse to follow (WinError 448). Nothing was changed." >&2
+      echo "       Run this in PowerShell as Administrator, then re-run this script:" >&2
+      echo "         $ps_link" >&2
+      exit 1
     fi
 
     # Clear a stale junction/symlink. Never force-delete a populated dir —
@@ -99,13 +123,13 @@ case "$(uname -s)" in
       rmdir "$cache_mem" 2>/dev/null || { echo "error: $cache_mem still holds files (migration collisions); resolve manually" >&2; exit 1; }
     fi
 
-    if powershell -NoProfile -Command "New-Item -ItemType Junction -Path '$link_win' -Target '$target_win'" >/dev/null 2>&1; then
-      echo "linked: $cache_mem -> $repo_mem"
-      echo "commit  $repo_mem  in the '$(basename "$repo_root")' repo to share it."
-    else
-      echo "could not create the junction automatically. Run this in PowerShell (no admin needed):"
-      echo "  New-Item -ItemType Junction -Path '$link_win' -Target '$target_win'"
+    if ! powershell -NoProfile -Command "$ps_link" >/dev/null 2>&1; then
+      echo "error: could not create the link. Run this in PowerShell as Administrator:" >&2
+      echo "         $ps_link" >&2
+      exit 1
     fi
+    echo "linked: $cache_mem -> $repo_mem"
+    echo "commit  $repo_mem  in the '$(basename "$repo_root")' repo to share it."
     exit 0
     ;;
 esac

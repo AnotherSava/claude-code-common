@@ -243,7 +243,7 @@ Everything under `~/.claude/` is symlinked from the dotfiles repo (`CLAUDE.md`, 
 For first-time global installation, use the platform-appropriate command block from `README.md`'s Global Installation section. For ad-hoc symlinks during a session:
 
 - **macOS / Linux:** `ln -s` with an absolute target path (`"$(pwd)/..."`).
-- **Windows:** Never create symlinks from Bash (`ln -s`) — it silently creates copies instead. Use PowerShell `New-Item -ItemType SymbolicLink` from an Administrator prompt. Use `$PWD` to build absolute target paths.
+- **Windows:** Never create symlinks from Bash (`ln -s`) — it silently creates copies instead. Use PowerShell `New-Item -ItemType SymbolicLink` from an Administrator prompt. Use `$PWD` to build absolute target paths. The Administrator part is not a formality: Windows refuses to follow a reparse point created by a non-administrator (WinError 448), a symlink as readily as a junction, and the refusal surfaces in some other process rather than at creation.
 
 ## Global Memory
 

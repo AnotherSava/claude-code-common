@@ -16,15 +16,41 @@ user's environment sets it.)
 
 ## Two Windows link types
 
-| Type | Command | Admin needed? | Cross-drive? |
+| Type | Command | Admin needed to create? | Cross-drive? |
 |---|---|---|---|
-| Directory junction | `mklink /J` | no | yes |
+| Directory junction | `mklink /J` / `New-Item -ItemType Junction` | no | yes |
 | Symbolic link (dir) | `mklink /D` / `New-Item -ItemType SymbolicLink` | yes, unless **Developer Mode** is on | yes |
 
-Prefer a **junction** when a script redirects a directory (e.g. a cache folder
-into a repo) — it needs no elevation. `New-Item -ItemType SymbolicLink` succeeds
-without admin only when Windows Developer Mode is enabled (the README's "run as
-Administrator" requirement is the safe default for users who don't have it on).
+That third column says who may *create* a link, not who may *follow* one, and only the
+first of those is a property of the type.
+
+## Create every link from an elevated prompt
+
+Elevate before creating a link of either type. Windows refuses to follow a reparse point
+created by a non-administrator — `ERROR_UNTRUSTED_MOUNT_POINT`, WinError 448 — and it
+refuses a symlink as readily as a junction, so the junction's "no admin needed" buys a
+link that gets created and then cannot be walked.
+
+The refusal belongs to the process doing the walking rather than to the link, which is
+what makes it quiet: one shell resolves the path and another raises on it. Measured on
+the Windows machine:
+
+- 2026-09-16, from the Git Bash session that had just created a `~/.claude/conventions`
+  junction without elevation — `python ~/.claude/conventions/check.py` ran through it and
+  reported all 9 rules held.
+- 2026-09-18, from a Python launched over SSH — that same junction raised 448, and so did
+  `~/.claude/memory` and `~/.claude/scripts`, both of them **symlinks**, while the nine
+  other install links beside them resolved. Every project memory cache junction on the
+  machine raised it too, 19 of 19.
+
+**Recreate a suspect link rather than inspecting it.** `(Get-Item -LiteralPath $p -Force).LinkType`
+gives the type and says nothing about trust, and nothing exposes trust directly — the only
+test is whether the process that has to follow the link can. From an elevated PowerShell:
+
+```powershell
+[System.IO.Directory]::Delete($p, $false)    # removes the reparse point, never the target
+New-Item -ItemType SymbolicLink -Path $p -Target $t
+```
 
 ## `cmd //c mklink` fails from Git Bash
 
@@ -46,23 +72,37 @@ None of the usual MSYS escapes rescue it:
 ```bash
 link_win="$(cygpath -w "$cache_dir")"     # C:\Users\...\memory
 target_win="$(cygpath -w "$repo_dir")"    # D:\...\memory
-powershell -NoProfile -Command "New-Item -ItemType Junction -Path '$link_win' -Target '$target_win'"
+powershell -NoProfile -Command "New-Item -ItemType SymbolicLink -Path '$link_win' -Target '$target_win'"
 ```
 
 - Build Windows-form paths with `cygpath -w`.
 - Use **single quotes** around the paths inside the PS command — backslashes are
   literal in PowerShell single-quoted strings, and bash has already expanded the
-  variables. (Swap `Junction` → `SymbolicLink` if you specifically need a symlink
-  and have admin / Developer Mode.)
+  variables.
+- Check elevation first, and when the shell does not have it, print that command for the
+  user to run and exit non-zero. Falling back to `-ItemType Junction` is the trap the
+  section above describes: it succeeds, and leaves behind a link some process will refuse.
+
+```bash
+powershell -NoProfile -Command "([Security.Principal.WindowsPrincipal][Security.Principal.WindowsIdentity]::GetCurrent()).IsInRole([Security.Principal.WindowsBuiltInRole]::Administrator)" | tr -d '\r'
+```
+
+Keep the outer parentheses. Without them PowerShell binds `.IsInRole` to
+`[WindowsIdentity]::GetCurrent()` rather than to the cast result, and the error names the wrong
+type — *`[System.Security.Principal.WindowsIdentity]` does not contain a method named 'IsInRole'* —
+which reads as the method not existing rather than as a precedence mistake. Measured 2026-09-18,
+where it surfaced as a guard reporting that elevation could not be determined and blocking
+everything.
 
 This is the same `New-Item` the README tells users to run by hand; the only
 difference is the script invokes it via `powershell -Command` instead of the
-user typing it into a PowerShell prompt.
+user typing it into a PowerShell prompt. The worked example is
+`claude/scripts/link-project-memory.sh`.
 
-## Reading a junction back (idempotency check)
+## Reading a link back (idempotency check)
 
-A junction created this way appears to Git Bash as a **symlink**: `[ -L "$p" ]`
-is true. But `readlink` returns a POSIX path with a **lowercased drive and
+Both types appear to Git Bash as a **symlink**: `[ -L "$p" ]` is true for a
+junction too. But `readlink` returns a POSIX path with a **lowercased drive and
 trailing slash**:
 
 ```
@@ -76,6 +116,14 @@ Normalize both sides with `cygpath -w` before comparing:
 if [ -L "$cache" ] && [ "$(cygpath -w "$(readlink "$cache")")" = "$target_win" ]; then
   echo "already linked"; exit 0
 fi
+```
+
+That test cannot tell a junction from a symlink, so a script carrying it reports every
+junction an earlier version of itself created as already linked and never replaces one.
+Ask PowerShell for the type where replacing them is the point:
+
+```bash
+powershell -NoProfile -Command "(Get-Item -LiteralPath '$link_win' -Force).LinkType" | tr -d '\r'   # SymbolicLink | Junction
 ```
 
 ### From Python the same junction is not a link at all
@@ -109,7 +157,7 @@ prints the target in brackets:
 
 ```
 > dir /al %USERPROFILE%\.gitignore
-03/29/2026  12:39 AM    <SYMLINK>      .gitignore [D:\projects\claude\git\gitignore]
+03/29/2026  12:39 AM    <SYMLINK>      .gitignore [{{projects-root}}\claude\git\gitignore]
 ```
 
 A plain file produces `File Not Found` from `/al` while `dir` without the flag

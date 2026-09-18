@@ -129,6 +129,27 @@ Two consequences, and the second is the expensive one:
   box via [[peer_messaging]]'s dashboard relay. Then have it write to a file you read back over SSH,
   per [[feedback_route_output_not_paste]].
 
+## You cannot drop privileges here, and `runas` says nothing about it
+
+An sshd session for an account in the Administrators group arrives **elevated** — High mandatory
+level, `SeCreateSymbolicLinkPrivilege` enabled — so anything measured from it is measured with
+rights an ordinary desktop shell does not have. Testing what happens *without* elevation needs a
+different route, and the obvious one is not it:
+
+```
+runas /trustlevel:0x20000 "cmd /c C:\path\to\probe.cmd"
+```
+
+Measured 2026-09-18: that returns **exit 0** and runs nothing. No output file appeared anywhere
+under the profile, and `runas` printed no error — it needs an interactive desktop to start the new
+console on, and an sshd session has none. A scheduled task registered at `RunLevel Limited` would
+get a filtered token, but it runs in the logged-on user's session and flashes a console on their
+screen, which [[feedback_no_flashing_windows]] rules out.
+
+What is left is a person at that machine running the command in an ordinary PowerShell window, with
+the result written to a file this side reads back over SSH per [[feedback_route_output_not_paste]].
+Say that plainly rather than reporting the elevated measurement as though it covered both.
+
 ## Probing reachability without fooling yourself
 
 - **zsh has no `/dev/tcp`.** That is a bash feature; `(echo >/dev/tcp/host/port)` under zsh reports every port
