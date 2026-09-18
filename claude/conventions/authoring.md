@@ -11,6 +11,18 @@ before. A reworded guideline is neither. A rule no repo currently violates still
 a rule runs only where the adopted number is at or above the version introducing it — shipped
 without a version, it would be enforced nowhere.
 
+**One version, one prerequisite.** Scope a version by the condition that decides whether it applies,
+not by topic. Where two changes no-op under the same condition, they are one version: a repo with no
+`package.json` should answer that walk once, not three times, and a repo with a backlog should get
+every transformation that backlog needs in one pass.
+
+The corollary matters more. A version written as a follow-up to an earlier one — "now that the
+directory exists, date the names in it" — assumes a repo sitting in the intermediate state. Check
+that such a repo exists before writing it: where none does, the two are one version, and splitting
+them invents a state nobody is in. Merging four such pairs on 2026-09-17 took the set from 14 to 9
+and dissolved a real contradiction, where the later version existed partly to withdraw an escape the
+earlier one allowed.
+
 A convention no check can read is not a version at all. It belongs in `not-versioned.md` with its
 reason, so that "current" keeps meaning *every versionable convention has been decided*. A
 convention a check can read but no single number could ever be true of is not a version either, and
@@ -33,6 +45,13 @@ A version folder is frozen the moment any repo runs it. Two repos run the same n
 times, so editing one gives them different behaviour under one name, and the earlier one will never
 re-run it to find out. A rule is the opposite: a better way of spotting the same violation should
 reach every repo at once, including ones that adopted long ago.
+
+That makes editing a version folder a thing to avoid, not a thing forbidden. The harm is concrete and
+therefore checkable: work out whether any repo that already adopted this number sees different
+behaviour afterwards. Where none does — the number is unadopted anywhere, or the edit touches prose
+no migration reads — the edit is safe and the freeze has nothing to protect. Removing a frontmatter
+field on 2026-09-17 passed that test: the gate answered identically at every adopted number, and one
+repo held a record.
 
 So a **stricter** rule is a new version, and a **better-detecting** rule is an edit to the rule
 file. The first changes what a repo is required to be; the second changes only how accurately the
@@ -67,7 +86,7 @@ then. So retire a version only when it has stopped being a migration at all — 
 to the memory-cache one, now a universal rule. A version that is merely wrong is superseded by a
 later one.
 
-The folder holds a `README.md` opening with frontmatter — `title` required, `affects` and `rules`
+The folder holds a `README.md` opening with frontmatter — `title` required, `rules`
 optional — then four sections, in order:
 
 - `## What changed` — the convention as it now reads, and why it moved.
@@ -84,9 +103,11 @@ The default is prose and nothing else. A version may carry an `apply.py` beside 
 the migration is genuinely mechanical and tedious; it takes the repo root, does the work, prints
 what it did, and exits non-zero on anything it cannot classify.
 
-Set `affects: <tool>` when the version reshapes data another tool reads, so that tool can ask the
-adopted number rather than sniffing for the artifact a migration replaces. Asking about the artifact
-answers for one migration and has to be rewritten for the next.
+When a version reshapes data another tool reads, that tool gates itself on the number: it declares the
+version it needs as a constant beside the code that reads the format, and calls `engine.behind`.
+Changing a stored format means editing that reader anyway, so the constant is bumped in the same pass.
+Sniffing for the artifact a migration replaces answers for one migration and has to be rewritten for
+the next.
 
 ## Writing a rule
 

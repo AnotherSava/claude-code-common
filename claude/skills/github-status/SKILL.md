@@ -75,7 +75,7 @@ and Linux; drop `--width` if undetected). It scans both machines concurrently, s
 of the two rather than their sum. Output has three parts:
 
 1. **Machine summary**, one line each: name, OS, projects root, repos discovered, the convention
-   version set that machine measured against (`conventions v13 (8f0f4b0)` — its own dotfiles checkout, which
+   version set that machine measured against (`conventions v9 (8f0f4b0)` — its own dotfiles checkout, which
    is what every CONV cell in its column is relative to), and how long ago it was scanned. A machine
    that could not be reached prints `NOT REACHED` with the SSH error instead, and drops out of the
    table entirely — it is named once here rather than under every repo.

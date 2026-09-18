@@ -1,6 +1,6 @@
 """Every symlink and git setting this dotfiles repo installs is in place on this machine.
 
-The commit gate itself depends on one of them. v14 tells every repo to run
+The commit gate itself depends on one of them. v9 tells every repo to run
 `python3 ~/.claude/conventions/check.py .`, so adopting it made a repo's gate reach through
 `~/.claude/conventions` — and nothing asserted that link at the moment the gate runs. What asserted
 it was `check-install.py` at session start, which had already run: a link arriving in a `git pull`

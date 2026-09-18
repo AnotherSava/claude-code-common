@@ -134,7 +134,7 @@ needed it.
 So these hand the checker a rule under `claude/conventions/universal/` rather than a version. No version
 gates one: it runs in every repo whatever its number, an exempt repo included, it fails the commit gate
 exactly as a versioned rule does, and it names in its `FIX` the command that repairs what it found. The
-class is small on purpose — a universal rule reaches every repo the moment it is committed, with no
+class is small on purpose — a universal rule reaches every repo whose gate calls the checker, with no adoption in between, with no
 adoption in between — so a property a repo can *adopt* belongs in a version, and only what adoption
 cannot settle belongs here.
 
@@ -150,6 +150,6 @@ cannot settle belongs here.
   `universal/install-links-present.py`, which names the platform's install block in the README as the
   repair and reads `check-install.py`'s own lists rather than restating them. No number could settle it:
   a fresh machine has none of the links, and one added upstream arrives in a `git pull` that no
-  adoption follows. It is asked at commit because v14 made a repo's gate dial
+  adoption follows. It is asked at commit because v9 made a repo's gate dial
   `~/.claude/conventions/check.py`, so the gate reads one of these links to run at all, while the
   session-start check that used to be the only assertion had already run by then.
