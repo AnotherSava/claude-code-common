@@ -65,6 +65,17 @@ breaks years after any adoption from a cleared cache, a moved checkout, or a Git
 made a copy. It was a version until it was not, and the per-repo machine record that tried to carry
 it is gone with it.
 
+**Per-machine is necessary and not sufficient: the failure has to be silent too.** A rule belongs
+at every commit in every repo only where nothing else would report the violation. The memory-cache
+link qualifies twice over — it breaks years after any adoption, from a cleared cache or a moved
+checkout, and stays broken with nothing saying so. A Windows ACL that leaves tracked files writable
+but not deletable is just as per-machine and does not qualify: `git mv` answers `Permission denied`
+at the moment of the rename, in the session that needed it, so a universal rule would re-report an
+error the action already raised. Considered and declined on 2026-09-18. What was missing there was
+the reading rather than the detection — that git's refusal names an ACL and not a git bug — and
+that is `learnings/windows-file-acl-delete-denied.md`, which a filename search reaches before
+anyone starts theorising.
+
 The price is the one the versioned half exists to avoid: a universal rule reaches every repo the
 moment it is committed, with no adoption in between, and fails that repo's commit gate on the same
 exit code 1 as any other rule — in a session that never asked for it and is in the middle of

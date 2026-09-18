@@ -82,6 +82,8 @@ A rule gated by no version runs in every repo whose gate calls the checker, what
 
 That reach is the cost: a universal rule arrives everywhere with no adoption in between. **A property a repo can adopt belongs in a version.** Only a property no migration could settle belongs here, and both of today's are the same shape — a link this machine either made or did not, which no number could ever be true of because the same repo arrives on the second machine with the work genuinely not done.
 
+Per-machine is necessary and not sufficient: the failure has to be silent too. Where something else already reports the violation — a Windows ACL whose refusal git prints at the moment of the rename — the answer is a learning to look up, not a rule at every commit. `authoring.md` carries the case that settled it.
+
 - **`memory-cache-linked`** — this machine's Claude memory cache for the repo is a link into the repo's committed `.claude/memory/`. A repo with no `.claude/memory/` holds vacuously: with nothing committed there is nothing to point at, and whether a repo keeps project memory is not a machine's question.
 - **`install-links-present`** — every symlink and git setting the install blocks create is in place, with the platform's own README block as the repair.
 
