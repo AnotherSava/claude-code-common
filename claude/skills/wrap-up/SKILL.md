@@ -138,6 +138,13 @@ reads it, on whichever box they happen to be on, while the machine that can act 
 reachable through the dashboard relay. Offered as a memo and corrected on 2026-09-13 and again on
 2026-09-15, so recommend the ping.
 
+**A finding another repo's session has to decide is routed too, even where this machine could act.**
+The test above is capability; this one is ownership, and they come apart on a finding this session
+could implement but has no standing to settle — whether a convention is worth writing, whether a
+shared rule should change. Recommend the ping to the session that owns that repo. Offered as a memo
+on 2026-09-18 and corrected: *"discuss with claude agent — either on this machine or air — it's
+their work"*. A memo there files the question in the backlog of a repo that cannot answer it.
+
 **A `--platform` tag does not soften that.** The flag exists for a memo that was going into the
 backlog anyway and happens to need one box — not as a way to park work a live session over there
 could take now. Route when there is someone to route to; tag when there is not, and the memo was
