@@ -66,6 +66,46 @@ output looks rigorous. Spell out what does *not* count as refutation:
 and then add the counterweight explicitly — *"be honest in both directions; do not dismiss a real defect for
 tidiness, and do not pass a nit to look thorough."* Without that sentence the refuters converge on dismissal.
 
+## Count the votes as a majority, and never require unanimity to survive
+
+The gate's polarity is easier to get backwards than it looks, and getting it backwards returns a
+clean bill from a round that found plenty. Measured 2026-09-18: two refuters per finding, each told
+*"default to refuted=true if uncertain"*, with survival written as
+
+```js
+const survives = votes.every(v => !v.refuted)     // WRONG — one uncertain vote kills
+```
+
+Thirty-one findings went in and `confirmed: []` came out. Every one of them was real, and the
+biggest was a documented join that matched nothing in any of the four repositories it was written
+for. The instruction and the tally compounded: told to default to dismissal, a skeptic unsure about
+a finding it had not reproduced says refuted, and unanimity then lets that single vote decide.
+
+Three refuters and a majority kill (`kills * 2 >= live.length`) is the shape that works, with the
+"default to refuted" instruction removed — ask instead for a concrete reason the claim fails, and
+say that not reproducing it is not one. The same round re-run that way confirmed thirty-five.
+
+Report the ballot on each survivor (`survived 3/3`) rather than just the count. A finding that
+survived 2/3 is a different object from one nobody could refute, and the distinction is free.
+
+## A defect count that stops falling means the design is wrong, not the code
+
+Successive rounds on the same artifact should converge. When they do not, the thing being reviewed
+is the wrong shape, and further rounds measure that rather than fixing it.
+
+Measured across four rounds on one convention migration: 31 confirmed, then 35, then 53, then 46 —
+roughly 165 defects, in three successive designs of the same script. Each round's fixes were real
+and each new design was blind to something the previous one had caught: joining records on a
+timestamp mistook an unrelated entry from the same minute for a lost one's file, and counting
+categories instead reported two records swapped across two buckets as correct, because the counts
+cancel. The curve was the finding, not any individual item on it.
+
+So decide the stopping rule before round three, and say it out loud: *if the next round does not
+reduce the count, the artifact changes shape rather than getting another pass.* What replaced the
+script there was prose telling an agent to read the two lists side by side — the matching was a
+judgement about whether two texts describe the same thing, which is why no rule over strings ever
+settled it, and why each fix traded one blind spot for another.
+
 ## Feed them what is already verified
 
 List, in the shared prompt, everything already established: the build passes, the emitted SQL is *this*, this
