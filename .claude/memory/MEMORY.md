@@ -6,3 +6,4 @@
 - [Memory index is one source, generated](memory-index-single-source.md) — CLAUDE.md's list is rendered from MEMORY.md's `{always}` entries; why `@`-import and a drift checker were rejected
 - [Adoption is prose, not scripts](adoption-prose-over-scripts.md) — the three facts that let a source-destroying migration drop its scripted per-item assertion, and the incident that argued against it
 - [v1's assertion is directory-blind](v1-assertion-is-directory-blind.md) — it checks a checklist line reached some file, not which of `memos/` and `done/`; an open item filed as addressed passes
+- [Untracked checklists block the split](untracked-checklists-block-the-split.md) — two repos hold an uncommitted `.claude/memos.md`; commit it before `/adopt` runs there or v1 destroys every marker

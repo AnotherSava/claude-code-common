@@ -114,6 +114,16 @@ The default is prose and nothing else. A version may carry an `apply.py` beside 
 the migration is genuinely mechanical and tedious; it takes the repo root, does the work, prints
 what it did, and exits non-zero on anything it cannot classify.
 
+**Mechanical is not the same as tedious, and the difference decides this.** The test is whether
+every step is a transformation rather than a judgement. Version 010 was written as an `apply.py`
+because re-checking 001's routing looked mechanical, and it was thrown away after four adversarial
+rounds confirmed 31, 35, 53 and 46 defects across three successive designs of it, each blind to
+something the previous one caught. What made it unmechanisable was visible beforehand: matching a
+checklist line to the file it became is a judgement about whether two texts describe the same
+thing, and every key available for joining them was lossy. Where the work is tedious and fuzzy,
+prose is the instrument — and the tell that you guessed wrong is a fix round that trades one blind
+spot for another instead of reducing the count.
+
 When a version reshapes data another tool reads, that tool gates itself on the number: it declares the
 version it needs as a constant beside the code that reads the format, and calls `engine.behind`.
 Changing a stored format means editing that reader anyway, so the constant is bumped in the same pass.
