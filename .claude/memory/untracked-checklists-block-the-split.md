@@ -17,7 +17,14 @@ there rather than concluding the repo never kept a backlog — and the silence i
 indistinguishable from that conclusion, which is why [[v1-assertion-is-directory-blind]]'s failure
 can recur unreported.
 
-**Commit `.claude/memos.md` in those two repos before running `/adopt` there.** One commit, before
+**A tracked checklist with an uncommitted edit loses only that edit, and loses it the same way.**
+url-cleaner is in that state as this is written — `git status --short` shows ` M .claude/memos.md`
+— and 001 splits from the file on disk while nothing afterwards can read anything but a committed
+revision. So the item captured since the last commit reaches a memo file whose marker is
+unrecoverable, and the memo reads as an ordinary new capture rather than as one whose state nobody
+can now establish.
+
+**Commit `.claude/memos.md` in all three repos before running `/adopt` there.** One commit, before
 the walk starts, and the whole problem is gone. v010's step 1 says so, but a walk reaches that
 instruction only after 001 has already run and deleted the file, so the prevention has to happen
 earlier than the version that documents it — which means from here, or from a session working in
