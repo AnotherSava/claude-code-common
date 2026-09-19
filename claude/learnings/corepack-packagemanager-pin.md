@@ -50,9 +50,32 @@ it fails with:
 Internal Error: EPERM: operation not permitted, open 'C:\...\nodejs\pnpx'
 ```
 
-Run it from an **elevated** (Run as administrator) PowerShell. Cannot self-elevate from the
-agent — ask the user to run `corepack enable npm` in an admin shell. Alternative without admin:
-`corepack enable --install-directory <a writable dir already on PATH>`.
+Run it from an **elevated** (Run as administrator) PowerShell. An agent can raise that itself with
+`Start-Process … -Verb RunAs -Wait`, which puts a UAC prompt on the user's desktop rather than a
+command in their lap — ask immediately before, since the prompt interrupts whatever they are doing,
+then run it. Redirect inside the elevated process (`-RedirectStandardOutput` is rejected alongside
+`-Verb RunAs`), and prefer `powershell -Command` over `cmd /c` as the elevated shell: cmd's quoting
+rules around `/c "…" > file` swallow the redirect and exit 1 with no output. Alternative without
+admin: `corepack enable --install-directory <a writable dir already on PATH>`.
+
+## Upgrading Node silently un-pins the manager
+
+**Re-run `corepack enable npm` after every Node upgrade**, before trusting the pin again. The
+upgrade replaces the Node install directory and takes corepack's shims with it, so `npm -v` quietly
+goes back to answering with the bundled npm and `packageManager` stops being enforced.
+
+Nothing reports it. There is no error, the install still works, and a conventions rule asserting the
+pin's *shape* — that the field exists and matches `npm@x.y.z` — passes exactly as before, because
+the field is untouched; it is the machine that stopped honouring it. The only honest check is
+`npm -v` inside the project, compared against the field.
+
+Measured 2026-09-18 on Windows: `winget upgrade --id OpenJS.NodeJS.LTS` took Node 24.13.0 to
+24.19.0 and `npm -v` went from the pinned 12.0.2 to the bundled 11.17.0 in the same breath.
+
+The same upgrade **kills every running Node process's tooling**. Replacing `node.exe` ended all nine
+MCP servers belonging to three live Claude Code sessions — the expectation that a running process
+keeps its already-mapped image is wrong here. Check what is running first, and expect any editor or
+agent session relying on a Node-based server to need a restart afterwards.
 
 ## It freezes until you bump it — that's the point
 
@@ -73,5 +96,11 @@ npm view npm version          # the `latest` dist-tag → current stable
 npm view npm dist-tags --json # shows next-N tags; a `next-12: 12.0.0-pre.1` means 12 is prerelease — don't pin to it
 ```
 
-As of June 2026: npm 11 is the current stable major (latest `11.17.0`), shipped with the Node 24
-LTS line; npm 12 is prerelease only.
+Read the answer rather than carrying one: npm's stable major moves, and a version written here is
+wrong on a schedule. Measured 2026-09-18, `npm view npm version` answered `12.0.2`, where a note
+from June 2026 in this file had said npm 12 was prerelease only.
+
+**Check the pinned npm runs on the Node the project targets.** npm 12 requires
+`^22.22.2 || ^24.15.0 || >=26.0.0`, so a project on an earlier Node 24 patch needs an npm 11 pin
+instead — and the mismatch is a warning on every command rather than a refusal, so it persists
+quietly.
