@@ -174,9 +174,11 @@ thing twice and pushes out the part only you can write. Keep out:
 
 - When a machine has both uncommitted changes and unpushed commits, combine them by theme rather than
   by count: "Mid-flight macOS deploy support, partly committed."
-- Repos with no pending work get no description — a row in the report on its open issues or its
-  convention gap alone is one of them; leave them out of the map. A machine that is clean or absent
-  gets none either — only the ones marked `<analyze below>`.
+- Repos with no pending work get no description — a row in the report on its open issues, its
+  convention gap, or an inbound REMOTE count alone is one of them; leave them out of the map. A
+  machine that is clean or absent gets none either — only the ones marked `<analyze below>`. A
+  description covers work that machine is holding, so incoming commits never call for one: they are
+  another machine's, REMOTE counts them, and the auto-pull has usually applied them already.
 
 Then feed the descriptions back as a JSON object keyed by the **PROJECT cell value**, verbatim. A
 repo working on one machine takes a plain string, which binds to that machine; a repo working on
@@ -191,7 +193,8 @@ JSON
 
 A plain string given for a repo working on several machines is refused with a warning rather than
 guessed at — it would have to be assigned to one column, asserting something unchecked about the
-other. Naming a machine that has no pending work is refused the same way.
+other. Naming a machine that is owed no description — one that is clean, absent, or only behind —
+is refused the same way.
 
 - Pass the same `--width <N>` as step 2.
 - A key matching no repo is reported on stderr rather than silently dropped — if you see that

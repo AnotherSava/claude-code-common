@@ -91,6 +91,54 @@ Two more cleanups for readable output: start the script with `$ProgressPreferenc
 PowerShell emits a wall of `#< CLIXML` progress objects onto the stream, and pipe results through `tr -d '\r'`
 locally since every line arrives CRLF.
 
+## Handing it data: send a program on stdin, not a command line
+
+Encoding solves a *script* cmd.exe would mangle. It does not solve a command carrying *data* — a
+destination path, a file's contents — because every byte of that data sits in the same string sshd
+hands to cmd.exe, and no quoting makes it safe. Single quotes are literal characters there; `&`,
+`|`, `<`, `>`, `^` and `%` are metacharacters; and the POSIX utilities a one-liner reaches for are
+absent.
+
+Put the data on stdin and keep the remote command to bare tokens:
+
+```bash
+printf '%s' "$PROGRAM" | ssh host "python -"
+```
+
+Build the program with every variable inlined as a literal, so nothing variable reaches a shell:
+
+```python
+program = ("import pathlib\n"
+           f"p = pathlib.Path({json.dumps(dest)})\n"
+           "p.parent.mkdir(parents=True, exist_ok=True)\n"
+           f"p.write_text({json.dumps(payload)}, encoding='utf-8')\n")
+```
+
+Any string put through `json.dumps` is also a valid Python string literal, and it escapes every
+non-ASCII character, so the program stays pure ASCII whatever the payload holds. The bare
+`python -` tokenizes the same under cmd.exe and sh, so the command string parses identically on
+either side.
+
+What the obvious alternatives do instead, measured against a Windows peer 2026-09-18–19:
+
+| sent | result |
+|---|---|
+| `cat <file>` | `'cat' is not recognized as an internal or external command` |
+| `mkdir -p D:/a/b` | `The syntax of the command is incorrect.` |
+| `mkdir D:/a` — no `-p`, forward slashes alone | `The syntax of the command is incorrect.` |
+| `'…'` around a path | literal apostrophes in the filename |
+| `python -c "print(a, \"\|\", b)"` | `The filename, directory name, or volume label syntax is incorrect.` |
+
+Both halves of the `mkdir` line fail on their own: cmd's `mkdir` has no `-p`, and it rejects `/`
+as a separator even without one. The last row is the trap that survives switching to Python — a
+`-c` one-liner still travels through cmd, so a metacharacter inside it is eaten before Python sees
+it.
+
+The failure is directional, which is what hides it. That same `mkdir -p '<dir>' && cat > '<path>'`
+works against a POSIX peer, so a two-machine setup keeps its cache warm in one direction and cold
+in the other, with only a per-run warning to say so. Prefer stdin to `-EncodedCommand` whenever the
+payload can grow, too: base64 in argv is bounded by cmd.exe's command-line limit, and stdin is not.
+
 ## ssh.exe as a *client*, spawned inside an sshd session, cannot forward stdin
 
 Driving a Windows box over SSH and having *it* ssh somewhere else — a peer scan, a relayed

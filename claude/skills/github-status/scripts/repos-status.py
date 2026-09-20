@@ -508,10 +508,29 @@ class RepoState:
 
     @property
     def has_work(self) -> bool:
-        """In-flight git work. Deliberately excludes the convention gap: a description
-        is owed for every machine this is true of, and an unadopted version is work nobody
-        has started rather than work half done, so there is nothing to summarize."""
+        """Anything git has to report about this clone — what puts it in the table.
+        Deliberately excludes the convention gap, which the table asks about separately."""
         return bool(self.uncommitted or self.unpushed or self.behind)
+
+    @property
+    def has_own_work(self) -> bool:
+        """Work this clone is holding — what a description is written from.
+
+        Narrower than `has_work` by the `behind` term alone, and that term is the
+        difference between the two questions. Incoming commits are another machine's
+        work, REMOTE already counts them, and the auto-pull has usually applied them
+        by the time the report prints. So a clone that is only behind leaves a
+        description nothing to say: `git status --porcelain` and
+        `git log @{upstream}..HEAD` both come back empty, print_detail emits no
+        section for it, and the placeholder asks for a summary of work that is not
+        there. Measured 2026-09-18 on a clone reporting `behind: 2, pulled: True`
+        with every other count zero.
+
+        An unadopted convention version is excluded for its own reason: it is work
+        nobody has started rather than work half done, so there is nothing to
+        summarize there either.
+        """
+        return bool(self.uncommitted or self.unpushed)
 
     @property
     def has_conventions_gap(self) -> bool:
@@ -640,9 +659,9 @@ def collect_state(repo: Path, rel: str) -> RepoState:
         except OSError:
             pass
 
-    # Computed for every clone rather than only the dirty ones. A clone that is
-    # merely behind is still work `has_work` reports and so is still owed a
-    # description, and on a clean tree this reads an empty diff and no files.
+    # Computed for every clone rather than only the dirty ones: a clone whose tree is
+    # clean can still be holding unpushed commits, which `has_own_work` counts and a
+    # description is owed for. On a clean tree this reads an empty diff and no files.
     digest = compute_work_digest(repo, head_sha, entries, commits, untracked)
 
     return RepoState(
@@ -750,6 +769,14 @@ def peer_name(peer_ssh: str) -> str:
     return host.split(".", 1)[0] or host
 
 
+def peer_interpreter(config: Path) -> str:
+    """The interpreter name on the peer, for both hops that cross to it — the scan
+    and the description-cache write. A Windows peer has `python` and no `python3`,
+    and a Homebrew macOS one the reverse, so the default is only the second guess.
+    """
+    return config_value(config, "PEER_PYTHON") or "python3"
+
+
 def scan_peer(peer_ssh: str, peer_python: str, source: bytes) -> MachineSnapshot:
     """Run this same script on the peer over SSH and parse the snapshot it prints.
 
@@ -828,8 +855,10 @@ class RepoRow:
         return max((st.conventions.behind for st in self.states.values() if st and st.conventions), default=0)
 
     def working(self, reached: list[str]) -> list[str]:
-        """The reached machines with pending work — the ones a description is owed for."""
-        return [m for m in reached if (st := self.states.get(m)) and st.has_work]
+        """The reached machines a description is owed for — those holding work of their
+        own. A clone that is merely behind is in the table on its REMOTE count and is
+        not one of them; see `RepoState.has_own_work`."""
+        return [m for m in reached if (st := self.states.get(m)) and st.has_own_work]
 
 
 def merge(snapshots: list[MachineSnapshot]) -> list[RepoRow]:
@@ -1574,10 +1603,9 @@ def gather(config: Path) -> list[MachineSnapshot] | None:
         local_only = scan_this_machine(config)
         return None if local_only is None else [local_only]
 
-    peer_python = config_value(config, "PEER_PYTHON") or "python3"
     with ThreadPoolExecutor(max_workers=2) as ex:
         local = ex.submit(scan_this_machine, config)
-        remote = ex.submit(scan_peer, peer_ssh, peer_python, source)
+        remote = ex.submit(scan_peer, peer_ssh, peer_interpreter(config), source)
         local_result = local.result()
         if local_result is None:
             return None
@@ -1674,24 +1702,47 @@ def save_local_cache(path: Path, rows: list[RepoRow], machine: str) -> None:
     path.write_text(cache_payload(rows, machine), encoding="utf-8")
 
 
-def save_peer_cache(peer_ssh: str, remote_path: str, rows: list[RepoRow], machine: str) -> str:
+def peer_write_program(remote_path: str, payload: str) -> bytes:
+    """A standalone program that writes one file on the peer, destination and
+    contents both inlined as literals so neither has to survive a shell.
+
+    Any string put through `json.dumps` is also a valid Python string literal —
+    JSON's escapes are a subset of Python's — and it escapes every non-ASCII
+    character, so the program is pure ASCII whatever a description contains and the
+    far side cannot decode its own source wrongly. The directory is created here
+    rather than by a second remote command, which is what makes one hop enough.
+    """
+    return ("import pathlib\n"
+            f"p = pathlib.Path({json.dumps(remote_path)})\n"
+            "p.parent.mkdir(parents=True, exist_ok=True)\n"
+            f"p.write_text({json.dumps(payload)}, encoding='utf-8')\n").encode("ascii")
+
+
+def save_peer_cache(peer_ssh: str, peer_python: str, remote_path: str, rows: list[RepoRow], machine: str) -> str:
     """Write the peer's own clones' descriptions back to the peer, and return what
     went wrong, or "" on success.
 
-    Sent to `cat` rather than to this script, so nothing has to run on the far
-    side and the payload can travel on stdin — which the scan's own hop cannot do,
-    since there stdin already carries the script. The file is replaced whole
-    because this side has just seen every one of that machine's repos, so what it
-    writes is the complete cache rather than a patch needing a merge.
+    The destination path and the payload both ride on stdin, inside a program sent
+    to `<peer_python> -` exactly as the scan's hop sends this script. Nothing
+    variable reaches the remote command string, and that is the whole design:
+    sshd hands that string to whatever shell the peer defaults to, which on Windows
+    is cmd.exe. There `'…'` quotes nothing, `mkdir` has no `-p` and rejects `/` as a
+    separator, `cat` does not exist, and `&`, `|`, `<`, `>`, `^` and `%` are
+    metacharacters. An earlier `mkdir -p '<dir>' && cat > '<path>'` therefore failed
+    on every run against a Windows peer with "The syntax of the command is
+    incorrect.", while the same line works against a POSIX one — so the cache warmed
+    in one direction only. Bare metacharacter-free tokens tokenize identically under
+    both shells, which is why the scan hop never had the problem.
+
+    The file is replaced whole because this side has just seen every one of that
+    machine's repos, so what it writes is the complete cache rather than a patch
+    needing a merge.
     """
-    if "'" in remote_path:
-        return f"peer cache path contains a quote and was not written: {remote_path}"
-    directory = remote_path.rsplit("/", 1)[0] if "/" in remote_path else "."
     cmd = ["ssh", "-o", "BatchMode=yes", "-o", f"ConnectTimeout={PEER_CONNECT_TIMEOUT}", peer_ssh,
-           f"mkdir -p '{directory}' && cat > '{remote_path}'"]
+           f"{peer_python} -"]
     try:
         with tempfile.TemporaryFile() as fin, tempfile.TemporaryFile() as ferr:
-            fin.write(cache_payload(rows, machine).encode("utf-8"))
+            fin.write(peer_write_program(remote_path, cache_payload(rows, machine)))
             fin.seek(0)
             done = subprocess.run(cmd, stdin=fin, stdout=subprocess.DEVNULL, stderr=ferr, timeout=PEER_CONNECT_TIMEOUT + 30)
             if done.returncode != 0:
@@ -1703,7 +1754,7 @@ def save_peer_cache(peer_ssh: str, remote_path: str, rows: list[RepoRow], machin
 
 
 def store_descriptions(snapshots: list[MachineSnapshot], rows: list[RepoRow],
-                       local: str, peer_ssh: str | None) -> None:
+                       local: str, peer_ssh: str | None, peer_python: str) -> None:
     """Send each machine's descriptions to the machine whose clones they describe.
 
     Which is the whole point of splitting the cache: a line written here about a
@@ -1723,7 +1774,7 @@ def store_descriptions(snapshots: list[MachineSnapshot], rows: list[RepoRow],
                   f"{'no PEER_SSH is configured' if not peer_ssh else 'it did not report where its cache lives'}. "
                   f"They will be written again next run.", file=sys.stderr)
             continue
-        if problem := save_peer_cache(peer_ssh, snap.cache_path, rows, snap.name):
+        if problem := save_peer_cache(peer_ssh, peer_python, snap.cache_path, rows, snap.name):
             print(f"WARNING: {snap.name}'s descriptions could not be stored on it ({problem}). "
                   f"They will be written again next run.", file=sys.stderr)
 
@@ -1859,7 +1910,7 @@ def main() -> int:
         text = Path(source).read_text(encoding="utf-8") if source else sys.stdin.read()
         reached_names = [s.name for s in snapshots if s.status == "ok"]
         apply_descriptions(rows, text.strip() or "{}", reached_names)
-        store_descriptions(snapshots, rows, this_machine_name(config), config_value(config, "PEER_SSH"))
+        store_descriptions(snapshots, rows, this_machine_name(config), config_value(config, "PEER_SSH"), peer_interpreter(config))
         render(snapshots, rows, target_width(config))
         owner = rows[0].slug.split("/", 1)[0] if rows else github_user()
         write_html(html_path, rows, snapshots, owner)
