@@ -87,10 +87,11 @@ of the two rather than their sum. Output has three parts:
    when some cell fills them:
    - **PROJECT** is always present — the clone path relative to the projects root, taken from this
      machine where it has the repo. It doubles as the key you write descriptions against in step 3.
-   - **MACHINE** appears only when two machines were reached. The cell carries the machine's state
-     when it has no metrics to show: `chrome clean` (present, nothing pending anywhere, conventions
-     included) and `chrome absent` (no clone there) are different facts, and a blank cell would say
-     both.
+   - **MACHINE** appears only when two machines were reached, and a machine gets a line under a repo
+     only where it has a clone of it — so a repo cloned on one machine is a single line naming that
+     machine, and which machines a block lists is where the repo exists. The cell reads
+     `chrome clean` where that clone has nothing to report at all, conventions included; a blank
+     there would sit between filled neighbours in a fixed grid and read as a missing value.
    - **BRANCH** shows only for a machine on something other than `main`/`master`.
    - **UNPUSHED** — commits in `@{upstream}..HEAD`.
    - **REMOTE** — commits in `HEAD..@{upstream}`. A trailing `✓` (e.g. `4 ✓`) means the script
@@ -166,8 +167,8 @@ thing twice and pushes out the part only you can write. Keep out:
 - the convention gap — the CONV column and the card's `N conventions behind` carry it, and an
   unadopted step is work nobody has started rather than work in flight, so it is not what a
   description is for;
-- "not cloned on chrome" — the MACHINE cell says `chrome absent`, and in the HTML that column is
-  simply empty;
+- "not cloned on chrome" — that machine has no line in the table at all, and in the HTML its column
+  is simply empty;
 - **the machine's own name.** Every description already sits in that machine's column, under its
   header, so naming it repeats the header and costs characters the summary needs. Write "An untracked
   config/ and an .env.example edit.", not "on chrome, an untracked config/ …".
@@ -176,9 +177,10 @@ thing twice and pushes out the part only you can write. Keep out:
   by count: "Mid-flight macOS deploy support, partly committed."
 - Repos with no pending work get no description — a row in the report on its open issues, its
   convention gap, or an inbound REMOTE count alone is one of them; leave them out of the map. A
-  machine that is clean or absent gets none either — only the ones marked `<analyze below>`. A
-  description covers work that machine is holding, so incoming commits never call for one: they are
-  another machine's, REMOTE counts them, and the auto-pull has usually applied them already.
+  machine whose clone is clean, or which has no clone and so no line, gets none either — only the
+  ones marked `<analyze below>`. A description covers work that machine is holding, so incoming
+  commits never call for one: they are another machine's, REMOTE counts them, and the auto-pull has
+  usually applied them already.
 
 Then feed the descriptions back as a JSON object keyed by the **PROJECT cell value**, verbatim. A
 repo working on one machine takes a plain string, which binds to that machine; a repo working on
@@ -258,8 +260,9 @@ paste the detail sections at all.
   distinguishing them: it exists to show what is outstanding, and neither of those is. **Do not "fix"
   the empty column by putting `clean` or `not cloned here` back** — the ambiguity was chosen knowingly,
   and restoring the labels re-fills every column on a quiet day, which is what the change removed. The
-  terminal table still separates the two, because a blank cell there sits between filled neighbours in
-  a fixed grid and would read as either fact.
+  terminal table still separates the two, by a different means: a clone with nothing to report is
+  marked `clean`, and a machine with no clone gets no line rather than a blank cell — a blank there
+  sits between filled neighbours in a fixed grid and would read as a missing value.
 - **An unreachable peer degrades loudly**, never silently: the machine summary and the report header
   both name it with the SSH error, and the table falls back to the single-machine shape. A machine
   that did not answer has no column, so the page header is where its failure is stated. A 300s

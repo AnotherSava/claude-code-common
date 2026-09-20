@@ -15,10 +15,11 @@ clean — a version gap is outstanding work in that repo, and nothing else in th
 report would ever mention it.
 
 Results merge on the repo's `OWNER/REPO` origin slug — the only identity that
-survives a different clone path on each machine. A machine that has no clone of
-a repo is reported as `absent`, one that has a clean clone as `clean`, and a
-machine that could not be reached as `not reached`; those three say different
-things and none of them is a blank.
+survives a different clone path on each machine. A machine gets a line under a
+repo only where it has a clone of it: one holding nothing to report is marked
+`clean`, and one that could not be reached is named once in the summary as `not
+reached`. A machine with no clone of that repo gets no line, so which machines a
+repo's block lists is itself the answer to where the repo exists.
 
 Output is a box table on stdout with per-repo detail sections, plus a
 self-contained HTML report written to the repo's gitignored tmp/.
@@ -29,7 +30,9 @@ Modes:
   --json            scan THIS machine only and print its snapshot as JSON; this
                     is what the peer invocation runs over SSH
   --report          re-read the state file, fold in the per-repo descriptions
-                    read from stdin, print the final table, and write the HTML
+                    read from stdin, print the final table, write the HTML, and
+                    store what was applied in the state file and both caches, so
+                    re-running it renders and stores the same thing again
   --width N         target total table width (also accepted via GHS_WIDTH)
   --descriptions P  read the descriptions from P instead of stdin
   --html PATH       where to write the HTML report
@@ -931,22 +934,21 @@ class DisplayGroup:
     rows: list[dict[str, str]]
 
 
-def machine_cell(name: str, state: RepoState | None) -> str:
-    """The MACHINE cell, carrying the machine's state when it has no metrics.
+def machine_cell(name: str, state: RepoState) -> str:
+    """The MACHINE cell, carrying `clean` when the machine has no metrics.
 
-    'clean' and 'absent' are different facts and a blank cell would say both at
-    once, so each gets a word of its own. A machine that was never reached has
-    no row at all — the summary above the table names it once, with the error,
-    which beats repeating it under every repo.
+    A blank cell there sits between filled neighbours in a fixed grid and would
+    read as a missing value, so a clone with nothing to report says so in a word.
+
+    Two kinds of machine have no row at all rather than a word: one with no clone,
+    and one that was never reached. Neither has anything to report on this repo,
+    and the summary above the table names an unreachable machine once, with its
+    error, which beats repeating it under every repo.
 
     A clone behind on conventions is not clean: its CONV cell is filled, and the
     two sitting on one line would contradict each other.
     """
-    if state is None:
-        return f"{name} absent"
-    if not state.has_anything:
-        return f"{name} clean"
-    return name
+    return name if state.has_anything else f"{name} clean"
 
 
 def conventions_cell(state: ConventionState | None) -> str:
@@ -968,25 +970,31 @@ def build_groups(rows: list[RepoRow], reached: list[str]) -> list[DisplayGroup]:
         lines: list[dict[str, str]] = []
         for machine in reached:
             state = row.states.get(machine)
+            # A machine with no clone gets no line. Every other cell on it would be
+            # empty, so the line carried one word — the machine's name and `absent` —
+            # and spent a row of the table saying where the repo is not. The reader
+            # can already see that: a repo cloned on one machine renders one line, and
+            # which machine it names is the same fact the dropped line was stating.
+            if state is None:
+                continue
             first = not lines
             cells = {
                 "project": row.name if first else "",
                 "machine": machine_cell(machine, state),
                 "branch": "", "unpushed": "", "remote": "", "local": "", "age": "",
-                "conventions": conventions_cell(state.conventions if state else None),
+                "conventions": conventions_cell(state.conventions),
                 "description": row.descriptions.get(machine, ""),
                 "issues": str(row.open_issues) if first and row.open_issues else "",
             }
-            if state:
-                if state.branch not in DEFAULT_BRANCHES:
-                    cells["branch"] = state.branch
-                if state.unpushed:
-                    cells["unpushed"] = str(state.unpushed)
-                if state.behind:
-                    cells["remote"] = f"{state.behind} ✓" if state.pulled else str(state.behind)
-                cells["local"] = format_local(state.uncommitted, state.lines_added, state.lines_deleted)
-                if state.oldest_epoch:
-                    cells["age"] = compact_age(now - state.oldest_epoch)
+            if state.branch not in DEFAULT_BRANCHES:
+                cells["branch"] = state.branch
+            if state.unpushed:
+                cells["unpushed"] = str(state.unpushed)
+            if state.behind:
+                cells["remote"] = f"{state.behind} ✓" if state.pulled else str(state.behind)
+            cells["local"] = format_local(state.uncommitted, state.lines_added, state.lines_deleted)
+            if state.oldest_epoch:
+                cells["age"] = compact_age(now - state.oldest_epoch)
             lines.append(cells)
         groups.append(DisplayGroup(rows=lines))
     return groups
@@ -1911,6 +1919,13 @@ def main() -> int:
         reached_names = [s.name for s in snapshots if s.status == "ok"]
         apply_descriptions(rows, text.strip() or "{}", reached_names)
         store_descriptions(snapshots, rows, this_machine_name(config), config_value(config, "PEER_SSH"), peer_interpreter(config))
+        # The state file is this run's working set and this mode is what fills it in, so what was
+        # just applied belongs back in it. Without this write it goes on saying `<analyze below>`
+        # for every cell described here, and a second --report — one to re-render at another
+        # width, say — reads those placeholders, renders them, and rebuilds both machines' caches
+        # from them. Measured 2026-09-19: one such re-render replaced a twelve-entry cache with an
+        # empty one, said nothing, and the next scan reported every description as still to write.
+        state_path.write_text(state_to_json(snapshots, rows), encoding="utf-8")
         render(snapshots, rows, target_width(config))
         owner = rows[0].slug.split("/", 1)[0] if rows else github_user()
         write_html(html_path, rows, snapshots, owner)

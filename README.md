@@ -409,7 +409,7 @@ Cross-machine overview of all your GitHub-owned local clones — branch, behind/
 **Features:**
 - Walks `PROJECTS_ROOT` (configured per-machine on first run), filters to repos owned by your GitHub user
 - **Covers both machines in one run** — the peer is scanned by piping this same script into its interpreter over SSH, so nothing is installed on the far side and the two ends cannot run different versions of the scan
-- Merges the two on each repo's `OWNER/REPO` origin slug, the only identity that survives a different clone path per machine; the terminal table separates `clean` from `absent`, while the report shows only outstanding work and leaves both as an empty column
+- Merges the two on each repo's `OWNER/REPO` origin slug, the only identity that survives a different clone path per machine; in the terminal table a machine gets a line only where it has a clone, so which machines a block lists is itself where the repo exists, while the report shows only outstanding work and leaves clean and absent alike as an empty column
 - Fetches every repo's origin in parallel on both machines before reading state, so counts reflect the current remote
 - Auto-pulls clean repos with inbound commits via `git pull --ff-only` on both machines, marks pulled repos with `✓`
 - **Reports each clone's convention gap** in a `CONV` column and in the report card, so a repo behind on [`/adopt`](#adopt) appears even with a clean tree — it imports the conventions engine rather than re-reading `.claude/conventions`, since two readers of one format drift the day either changes shape. Per machine, not per repo: the two dotfiles checkouts are routinely at different commits, so each machine's summary line names the version set its column was measured against
