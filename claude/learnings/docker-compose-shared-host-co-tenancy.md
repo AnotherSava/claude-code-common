@@ -146,6 +146,27 @@ docker rm -f <container>            # the old container belongs to the now-renam
 docker compose up -d --no-deps <new-service-name>
 ```
 
+**Do that recreate immediately, because until it happens the OLD name still resolves.** A running container
+keeps the aliases it was created with; editing the compose file changes what the *next* container answers to
+and nothing about the one already up. So every consumer still dialing the old name keeps working, the rename
+looks complete, and the breakage is deferred to whatever recreates the container next — a deploy, a host
+reboot, an unrelated `up -d` weeks later.
+
+Measured 2026-09-20: a service renamed `mongo` → `<tenant>-db` on 2026-09-03 went on answering to `mongo` for
+**17 days**. The container was recreated at 04:36; the nightly backup, whose credential file still said
+`mongo`, had succeeded at 04:10 that morning and failed from the next run on, with
+`lookup mongo on 127.0.0.11:53: server misbehaving`.
+
+Two things follow:
+
+- **The grace period is the danger.** A rename that broke instantly would be caught by whoever did it. One
+  that breaks at an arbitrary later moment arrives detached from its cause, in whatever component nobody
+  thought to re-render.
+- **The copy that breaks is the one nothing regenerates.** That app's URI came from a secret manager and
+  changed with the rename; the backup's came from a one-off render command in a runbook, so it aged in place.
+  After renaming a service, grep the box for the old name rather than trusting the file you edited:
+  `grep -rl <old-name> /etc/<tenant> /opt/<tenant>`.
+
 ## Landmine 2: `environment:` beats `env_file:` even when the value is empty
 
 Compose interpolation (`${VAR}`) reads the shell and a file named exactly `.env` in the project directory —

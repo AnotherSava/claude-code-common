@@ -77,6 +77,33 @@ TimeoutStartSec=3600      # generous, and finite; the point is that it terminate
 Bound the individual calls inside the job as well. The unit timeout turns a hang into a killed unit with
 nothing recorded; a per-call timeout turns it into a named failure of the step that hung.
 
+## `systemctl is-active` cannot judge a `oneshot`, and answers as if it can
+
+A oneshot that has just **succeeded** reports `inactive` and exits **3** — byte-identical to one that has
+never run at all, because a oneshot's normal resting state is not running. Verified 2026-09-20 against a
+timer-driven backup minutes after a confirmed-good run:
+
+```console
+$ systemctl is-active <tenant>-backup.service
+inactive
+$ echo $?
+3
+```
+
+The reflex is to reach for `is-active` in a health check or a status script, where it then reports every
+healthy oneshot on the box as a problem — or, script the other way round, reports a job that has never
+executed as fine. Neither reading is available from that command.
+
+```bash
+systemctl show <unit> -p ActiveState --value    # failed | inactive | activating
+systemctl show <unit> -p ExecMainStatus --value # the last run's exit code
+```
+
+`ActiveState=failed` is the honest signal, and it is **not durable**: the next run overwrites it, so a job
+that fails nightly and succeeds once shows clean afterwards. Recording a failure is not the same as telling
+anyone about it — for that the job needs `OnFailure=` (above) or an external dead-man's switch, which is the
+only mechanism that also catches the unit never firing.
+
 ## A templated `OnFailure=` handler must not speak for units it knows nothing about
 
 `OnFailure=alert@%n.service` is a good pattern precisely because any unit can adopt it — which is also how it

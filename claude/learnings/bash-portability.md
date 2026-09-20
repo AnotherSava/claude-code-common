@@ -129,6 +129,25 @@ cmd > /tmp/out.txt 2>&1; echo "exit: $?"; tail -3 /tmp/out.txt
 Portable to bash, zsh and `sh`, and it keeps the status beside the command that produced
 it rather than behind an array whose name depends on the shell.
 
+**zsh has special INTEGER parameters that bash leaves free, and assigning a string to one
+is an arithmetic error.** `GID`, `UID`, `EUID`, `PPID` and friends are typed, so a
+plain-looking assignment fails — and the message names the *value* rather than the
+variable, which sends you off to inspect the data:
+
+```sh
+GID=$(cat id.txt)     # zsh: "bad math expression: operator expected at `a98ac0b71e...'"
+                      # bash: fine, GID is an ordinary variable
+```
+
+Measured 2026-09-20: capturing a MongoDB ObjectId into `GID` failed three times while the
+file was checked with `od -c` and proved clean — the hex was never the problem. `GID` and
+`UID` are the two that turn up naturally in scripts, and a hex value is the cruel case,
+because one of all digits assigns without complaint and only an id containing a letter
+fails.
+
+Pick a name the shell does not own. Lower case is the reliable habit: the typed parameters
+are all upper case, and lower case is the convention for script-local variables anyway.
+
 **Unquoted `[...]` in a path is a glob, and in zsh it is fatal or silent depending on
 where it lands.** This bites hardest on Next.js dynamic routes, whose directory names
 are literally bracketed:
