@@ -86,6 +86,7 @@ Analyzes changes and generates atomic Conventional Commit messages.
 
 **Features:**
 - Reviews staged and unstaged changes, groups them into atomic commits
+- Clears the index before staging each group, so work staged before the run cannot ride into the first commit
 - Delegates to `/reflect`, `/clean-code`, and `/docs-relevance` before planning commits
 - Drafts commit messages in imperative mood with type prefixes
 - Presents a full plan for approval before executing any commits
