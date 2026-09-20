@@ -171,6 +171,7 @@
 - [Check where it is consumed](feedback_check_where_it_is_consumed.md) {always} — a session-start assertion is blind for the whole session; put a precondition check on the action that needs it
 - [Cache lives with what it caches](feedback_cache_lives_with_what_it_caches.md) — store derived data with its subject, not with the producer; the next consumer starts warm
 - [Reversible edit, not backup-and-restore](feedback_reversible_over_backup.md) {always} — temp file mutations for a check: self-inverse sed; backups collide on basename and zsh `$var` in a for-list silently no-ops
+- [A probe command still writes](feedback_probe_command_still_writes.md) {always} — re-running something to read its output performs every write it does; empty input made one re-render blank a full cache
 - [A settled design means build it](feedback_settled_design_means_build_it.md) {always} — don't record the decision and resume the in-flight commit; pause the workflow, build it, then commit
 - [Write the procedure to find the missing artifact](feedback_write_the_procedure.md) {always} — review asks "is this right", a runbook asks "does this exist"; run the commands a doc quotes rather than predicting their output
 - [No guessed facts](feedback_no_guessed_facts.md) {always} — don't state a guessed URL/path/endpoint or capability claim as known, or widen a supplied fact when paraphrasing; verify or flag it
