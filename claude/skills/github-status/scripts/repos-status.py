@@ -78,7 +78,6 @@ import importlib.util
 import json
 import os
 import re
-import shutil
 import socket
 import subprocess
 import sys
@@ -1016,8 +1015,8 @@ def visible_columns(groups: list[DisplayGroup], machine_count: int) -> list[tupl
 
 def target_width(config: Path) -> int:
     """Total table width to fill. Resolved in order: GHS_WIDTH env var, the
-    GHS_WIDTH line in config.env, then the detected terminal width (120 if that
-    can't be queried — e.g. stdout is a pipe under the Bash tool).
+    GHS_WIDTH line in config.env, then the detected terminal width (see
+    `skills/shared/terminal_width.py`; 120 when no ancestor process has a tty).
 
     The DESCRIPTION column stretches to consume whatever this width leaves after
     the fixed columns, so the table spans the full target width.
@@ -1025,7 +1024,14 @@ def target_width(config: Path) -> int:
     val = config_value(config, "GHS_WIDTH")
     if val and val.isdigit():
         return int(val)
-    return shutil.get_terminal_size((120, 24)).columns
+    # Imported here rather than at the top for the same reason the convention engine is: the peer
+    # runs this script from stdin, where a relative import has no `__file__` to hang off. Only the
+    # rendering side ever asks for a width — the peer answers in JSON — so this never runs there,
+    # and the peer needs no copy of the module to scan successfully.
+    sys.path.insert(0, str(skill_dir().parent / "shared"))
+    from terminal_width import terminal_columns  # inline: see above
+
+    return terminal_columns(120)
 
 
 def print_table(groups: list[DisplayGroup], cols: list[tuple[str, str]], width: int) -> None:

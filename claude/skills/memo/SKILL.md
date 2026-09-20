@@ -2,7 +2,7 @@
 name: memo
 description: Capture an off-task idea to the project's memo backlog, or list and act on existing memos
 model: haiku
-allowed-tools: Read, Edit, Bash(git rev-parse:*), Bash(tput cols:*), Bash(python ~/.claude/skills/memo/memos.py:*), PowerShell
+allowed-tools: Read, Edit, Bash(git rev-parse:*), Bash(python ~/.claude/skills/memo/memos.py:*), PowerShell
 ---
 
 # Memo
@@ -62,11 +62,8 @@ The `memos.py` helper owns the timestamp, the slug, the title derivation and the
 
 ### If `$ARGUMENTS` is empty — review the backlog
 
-1. **Detect the terminal width** so the listing fills the screen — the helper's stdout is piped, which hides the real width, so determine it yourself:
-   - **Windows:** use the **PowerShell tool** to evaluate `$Host.UI.RawUI.WindowSize.Width` — that tool specifically, since `powershell.exe` from Bash reports the wrong console. It is not present in every session; when `ToolSearch` surfaces none, the width is simply not detectable here, which is an expected outcome rather than an obstacle to work around. Take the fallback below and move on. Do not reach for `tput cols` from Git Bash instead: measured 2026-09-15, it answered 80 on a wider terminal and `$COLUMNS` was empty — the piped default wearing a plausible number, which is worse than no answer.
-   - **macOS/Linux:** run `tput cols` (or read `$COLUMNS`).
-
-   Subtract a 2-column gutter, then run `python ~/.claude/skills/memo/memos.py list --width <N>` to render the backlog (drop `--width` if you couldn't determine it — the helper falls back to ~100).
+1. **Render the backlog** with `python ~/.claude/skills/memo/memos.py list`. On macOS and Linux the helper finds the real terminal width itself, via `skills/shared/terminal_width.py` — pass no `--width`.
+   - **Windows only:** the helper cannot detect it there (a console is not a pty), so get the width from the **PowerShell tool** evaluating `$Host.UI.RawUI.WindowSize.Width` — that tool specifically, since `powershell.exe` from Bash reports the wrong console — subtract a 2-column gutter, and pass `--width <N>`. When `ToolSearch` surfaces no PowerShell tool the width is simply not available; run the plain command and accept the ~100 fallback rather than hunting for a substitute. Do not reach for `tput cols` from Git Bash: measured 2026-09-15, it answered 80 on a wider terminal and `$COLUMNS` was empty — the piped default wearing a plausible number, which is worse than no answer.
 2. Present that output **verbatim, inside a fenced code block** — it's numbered newest-first and wrapped so each memo's title lines up under its first line, and the code block preserves that alignment. If it shows "(no open memos)", say so and stop.
 3. Two markers appear on a line, and they mean different things. A trailing ` …` means that memo has a body beyond its title — read it with `python ~/.claude/skills/memo/memos.py show <n>`, and don't paste bodies into the listing. A leading `[macos]` or `[windows]` means the work needs that box; the listing still shows and numbers it normally, so the marker is information and never a reason to skip a line.
 4. Offer two paths: address one now (the user gives a number), or leave them. If the user picks one, that begins a new task — do the work, then run `python ~/.claude/skills/memo/memos.py done <n>` once it's genuinely done, which moves the file into `done/`. That prints an `undo:` line; `memos.py reopen <slug>` moves it back if it was closed too early. Closing several at once means naming them in **one** command (`done 2 4`) — a number indexes the listing you just read, and closing one renumbers the rest, so separate calls land on memos you never named. **When the memo they pick is tagged for the other platform**, do whatever part of it is portable here and route the rest to the live session on that box per `~/.claude/memory/peer_messaging.md`, then leave it open unless the portable part was the whole memo.

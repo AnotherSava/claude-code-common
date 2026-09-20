@@ -1,18 +1,26 @@
 ---
 name: Terminal width detection for full-width output
-description: How to get the real Claude Code terminal width for width-bounded output, and why the obvious methods return a fallback instead
+description: Skill helpers get the real width from skills/shared/terminal_width.py; why every obvious probe returns a plausible fallback instead, and what is still Windows-only
 type: reference
 ---
-Getting the user's real terminal width from inside a skill or tool is not straightforward, because the Bash/PowerShell tools run with a piped (non-tty) stdout:
+Width-bounded output — a table, an aligned listing — is sized by `claude/skills/shared/terminal_width.py`. Import `terminal_columns(fallback)` from it rather than writing a detector; the argument is what to use when nothing can be detected.
 
-- `shutil.get_terminal_size()` / `os.get_terminal_size()` → returns the fallback (80); stdout isn't a tty.
-- `tput cols` or `powershell.exe ...` **launched from the Bash tool** → wrong value (the Bash pty is ~80, and a spawned `powershell.exe` gets its own ~120 console, not the real one).
-- The **PowerShell tool** evaluating `$Host.UI.RawUI.WindowSize.Width` → **correct** real width (e.g. 156). The PS host object attaches to the actual console. This is the reliable Windows source. On macOS/Linux, `tput cols` / `$COLUMNS` is the best-effort equivalent.
+Getting the real width from inside a skill helper is not straightforward, because the Bash/PowerShell tools run with a piped (non-tty) stdout, and **every probe fails by returning a plausible number rather than an error**:
 
-**TUI gutter:** Claude Code indents message/tool output by ~2 columns, so a table or box exactly as wide as the window has its right border clipped off-screen. Subtract a ~2-column margin from the detected width when sizing full-width output.
+- `shutil.get_terminal_size()` / `os.get_terminal_size()` → its own fallback (80); stdout isn't a tty.
+- `tput cols` → 80. Measured 2026-09-19 on macOS in a 147-column pane. Previously believed to be the best-effort macOS/Linux source; it is not, and it is no better there than the Git Bash case below.
+- `$COLUMNS` → `0` or empty.
+- `/dev/tty` → `device not configured`. The helper's shell has no controlling terminal at all.
+- `powershell.exe` **launched from the Bash tool** → its own ~120 console, not the real one.
 
-Because the detection must happen outside the piped process, width-dependent rendering also can't live in a skill's `!` context line — that always renders at the fallback width. Detect the width in a process step, then pass it down.
+**What does work on macOS/Linux:** the shell has no tty, but the Claude Code process a few levels up does, and its winsize is the pane's. Walk `ps -o ppid=,tty=` up the parent chain to the first ancestor with a tty, then read `stty -f /dev/<tty> size` (`-F` on GNU/Linux). That is what the shared module does — 147 where `tput cols` said 80.
 
-**The PowerShell tool is not present in every session.** Observed 2026-08-26: a session had no PowerShell tool at all — absent from the tool list, and a `ToolSearch` for it returned no deferred match — which leaves *no* source of the real width, since every Bash route above is already ruled out. Don't burn turns hunting for a substitute; there isn't one. Pin the width in the consuming skill's own config instead: `github-status` reads a `GHS_WIDTH` line from `~/.claude/skills/github-status/config/config.env`, which sits ahead of detection in its fallback chain (`--width` → `GHS_WIDTH` env → config.env → detected width → 120).
+**Windows is still PowerShell-only.** A console is not a pty, so the walk finds nothing. The **PowerShell tool** evaluating `$Host.UI.RawUI.WindowSize.Width` attaches to the actual console and returns the real width; the consuming skill subtracts the gutter itself and passes `--width N`. Keep `--width` honored ahead of detection for exactly this.
 
-Applied in the `github-status` skill: it detects the width (PowerShell tool), subtracts 2, and passes `--width N` to `repos-status.py`, whose DESCRIPTION column is elastic (fills the remaining width, wraps long text). See `claude/skills/github-status/SKILL.md` in the Claude dotfiles repo.
+**TUI gutter:** Claude Code indents message/tool output by ~2 columns, so content exactly as wide as the window has its right border clipped off-screen. `terminal_columns` already subtracts this when `CLAUDECODE` is set, so a caller passing an explicitly detected width is the only one that needs to do its own subtraction.
+
+**Context `!` lines still can't render width-dependent output** — they capture with no ancestor tty in reach, so they always come out at the fallback. Render in a process step instead.
+
+**The PowerShell tool is not present in every session.** Observed 2026-08-26: a session had no PowerShell tool at all — absent from the tool list, and a `ToolSearch` for it returned no deferred match. On Windows that leaves no source of the real width; don't burn turns hunting for a substitute. Pin it in the consuming skill's config instead: `github-status` reads a `GHS_WIDTH` line from its `config/config.env`, which sits ahead of detection in its chain (`--width` → `GHS_WIDTH` env → config.env → detected width → 120).
+
+Applied in `github-status` (a bordered table whose DESCRIPTION column is elastic, filling the remaining width) and `memo` (a wrapped, aligned listing). The authoring rule for new skills is the "Full-width terminal output" section of `claude/skills/skill/SKILL.md`.

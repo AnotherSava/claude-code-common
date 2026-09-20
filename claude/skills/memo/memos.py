@@ -35,7 +35,8 @@ in the name, rather than also in a field that could disagree with it.
 
   memos.py add [--title T] [--platform P] "<text>"
                                       write a new open memo; title derived if absent
-  memos.py list [--width N]           numbered, newest-first, wrapped + aligned titles
+  memos.py list [--width N]           numbered, newest-first, wrapped + aligned titles;
+                                      width also accepted via MEMO_WIDTH, else detected
   memos.py show <n|slug>              one memo in full, title and body
   memos.py path <n|slug>              its absolute path, for editing it directly
   memos.py done <n|slug> [<n|slug>…]  move them into done/, resolved before any move
@@ -53,12 +54,15 @@ import datetime
 import functools
 import os
 import re
-import shutil
 import subprocess
 import sys
 import textwrap
 import unicodedata
 from typing import NamedTuple
+
+sys.path.insert(0, os.path.join(os.path.dirname(os.path.abspath(__file__)), "..", "shared"))
+
+from terminal_width import terminal_columns  # noqa: E402 — needs the sys.path line above
 
 # Emit UTF-8 regardless of the platform console codepage, so the em-dash survives (Windows defaults
 # stdout to cp1252, which would mangle it).
@@ -399,16 +403,24 @@ def cmd_add(args: list[str]) -> None:
 
 
 def _width(args: list[str]) -> int:
+    """Render width: `--width`, else MEMO_WIDTH, else the detected terminal, else 100.
+
+    MEMO_WIDTH is the escape hatch for the two cases detection cannot serve — Windows,
+    where a console is not a pty, and a `!` shell, whose output Claude Code indents further
+    than the gutter `terminal_columns` subtracts. It mirrors GHS_WIDTH in `github-status`.
+    """
     if "--width" in args:
         i = args.index("--width")
         try:
             return int(args[i + 1])
         except (IndexError, ValueError):
             pass
-    # stdout is almost always piped here (the skill's `!` capture, or the Bash tool), so this returns
-    # the fallback, not the real terminal. Callers detect the width themselves and pass --width — same
-    # split as the github-status skill.
-    return shutil.get_terminal_size((100, 24)).columns
+    pinned = os.environ.get("MEMO_WIDTH", "")
+    if pinned.isdigit():
+        return int(pinned)
+    # stdout is almost always piped here (the skill's `!` capture, or the Bash tool), so every
+    # in-process probe answers its own default — terminal_columns asks the pty upstream instead.
+    return terminal_columns(100)
 
 
 def cmd_list(args: list[str]) -> None:

@@ -14,7 +14,7 @@ description: >-
   "what is uncommitted on the other machine".
   DO NOT TRIGGER when: user is asking about a single specific repo (use
   `git status` / `git log` directly).
-allowed-tools: Bash(python ~/.claude/skills/github-status/scripts/repos-status.py:*), Bash(python3 ~/.claude/skills/github-status/scripts/repos-status.py:*), Bash(test -f ~/.claude/skills/github-status/config/config.env:*), Bash(grep -q PEER_SSH ~/.claude/skills/github-status/config/config.env:*), Bash(tput cols:*), PowerShell, AskUserQuestion, Read(~/.claude/skills/github-status/config/config.env), Write(~/.claude/skills/github-status/config/config.env)
+allowed-tools: Bash(python ~/.claude/skills/github-status/scripts/repos-status.py:*), Bash(python3 ~/.claude/skills/github-status/scripts/repos-status.py:*), Bash(test -f ~/.claude/skills/github-status/config/config.env:*), Bash(grep -q PEER_SSH ~/.claude/skills/github-status/config/config.env:*), PowerShell, AskUserQuestion, Read(~/.claude/skills/github-status/config/config.env), Write(~/.claude/skills/github-status/config/config.env)
 ---
 
 ## Context
@@ -55,24 +55,19 @@ root. Key-based SSH must already work non-interactively (`ssh -o BatchMode=yes <
 
 ## 2. Run the scan
 
-**First, detect the terminal width** so the table fills the screen. The script's stdout is piped,
-which hides the real width from it, so determine it yourself:
+Run `python ~/.claude/skills/github-status/scripts/repos-status.py` (`python3` on macOS and Linux).
+On macOS and Linux it sizes the table to the real terminal itself, via `skills/shared/terminal_width.py`,
+already less the gutter Claude Code's TUI indents tool output by — pass no `--width`.
 
-- **Windows:** use the **PowerShell tool** to evaluate `$Host.UI.RawUI.WindowSize.Width`. Use the
-  PowerShell tool specifically — running `powershell.exe` from the Bash tool returns the wrong value
-  (it gets its own console, not the real one).
-- **macOS/Linux:** run `tput cols` (or read `$COLUMNS`).
-- If you can't determine it, omit `--width`; the script falls back to the `GHS_WIDTH` line in
-  config.env, then to 120.
+**Windows needs the width passed in**, because a console is not a pty and the script cannot read it:
+evaluate `$Host.UI.RawUI.WindowSize.Width` with the **PowerShell tool** specifically (`powershell.exe`
+from the Bash tool gets its own console and returns the wrong value), subtract a gutter of 2, and pass
+`--width <N>` — a table exactly as wide as the window has its right border clipped off-screen. With no
+PowerShell tool available, omit `--width` and let the script fall back to the `GHS_WIDTH` line in
+config.env, then to 120.
 
-**Then subtract a gutter margin of 2** and pass the result as `--width <N>`. Claude Code's TUI indents
-message/tool output by a couple of columns, so a table exactly as wide as the window has its right
-border clipped off-screen — the margin keeps the whole table visible (e.g. a 156-column window →
-`--width 154`).
-
-Run `python ~/.claude/skills/github-status/scripts/repos-status.py --width <N>` (`python3` on macOS
-and Linux; drop `--width` if undetected). It scans both machines concurrently, so it costs the slower
-of the two rather than their sum. Output has three parts:
+The scan hits both machines concurrently, so it costs the slower of the two rather than their sum.
+Output has three parts:
 
 1. **Machine summary**, one line each: name, OS, projects root, repos discovered, the convention
    version set that machine measured against (`conventions v9 (8f0f4b0)` — its own dotfiles checkout, which
@@ -187,7 +182,7 @@ repo working on one machine takes a plain string, which binds to that machine; a
 several takes an object keyed by machine name:
 
 ```
-python ~/.claude/skills/github-status/scripts/repos-status.py --report --width <N> <<'JSON'
+python ~/.claude/skills/github-status/scripts/repos-status.py --report <<'JSON'
 {"3d/FreeCAD": "<one-line summary>",
  "scheduler": {"air": "<what air is doing>", "chrome": "<what chrome is doing>"}}
 JSON
@@ -198,7 +193,8 @@ guessed at — it would have to be assigned to one column, asserting something u
 other. Naming a machine that is owed no description — one that is clean, absent, or only behind —
 is refused the same way.
 
-- Pass the same `--width <N>` as step 2.
+- Width resolves exactly as in step 2 — nothing to pass on macOS and Linux; on Windows repeat the
+  same `--width <N>` you used there, so both tables come out the same width.
 - A key matching no repo is reported on stderr rather than silently dropped — if you see that
   warning, fix the key and re-run; `--report` re-reads the state file, so re-running is free.
 - If a description contains a character awkward for a single-quoted heredoc (a literal backslash, or

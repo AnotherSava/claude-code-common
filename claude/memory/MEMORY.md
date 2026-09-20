@@ -74,7 +74,7 @@
 - [Find the override before stacking a setting](feedback_check_overrides_first.md) {always} — a global setting that looks ignored is usually cancelled by a local rule; remove that rule instead of adding a redundant copy
 - [Specific, not categorical](feedback_specific_not_categorical.md) — a generated description must describe the item; a category statement repeats down the list or restates the name
 - [Fetch when history confuses](feedback_fetch_when_history_confuses.md) — local refs look exhaustive but exclude unfetched remote commits; `git fetch` before theorising about missing work
-- [Terminal width detection](reference_terminal_width_detection.md) — real width only via the PowerShell tool's `$Host.UI.RawUI.WindowSize.Width`; subtract ~2 for the TUI gutter
+- [Terminal width detection](reference_terminal_width_detection.md) — import `skills/shared/terminal_width.py`; every obvious probe answers 80, the real width comes off the nearest ancestor process's tty (PowerShell tool on Windows)
 - [Run the other platform's branch](feedback_cross_platform_scripts.md) — platform-branching scripts are tested only on the authoring OS; run the other branch, don't ship a print-only stub
 - [Memory scope by reuse, not origin](feedback_memory_scope_default_global.md) — "it came up here" doesn't make it project-scoped; test reuse in another repo, split mixed findings
 - [Branch features only a reporter can validate](feedback_branch_for_external_validation.md) — externally-verifiable feature goes on its own branch to test; unrelated bugs found on the way ship to main

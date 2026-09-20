@@ -66,14 +66,17 @@ plaintext on disk and a rotation can't leave it serving a dead credential. See t
 
 ```bash
 memo() {
-  local py="$HOME/.claude/skills/memo/memos.py" w c
+  local py="$HOME/.claude/skills/memo/memos.py"
   if [ $# -gt 0 ]; then python "$py" add "$@"; return; fi
-  if [ -n "$MEMO_WIDTH" ]; then w=$MEMO_WIDTH
-  elif [ -n "$CLAUDECODE" ]; then w=148   # captured CC `!` shell can't detect width — pin to (window − indent − gutter)
-  else c=$(tput cols 2>/dev/null || echo 100); w=$(( c > 40 ? c - 2 : 98 )); fi
-  python "$py" list --width "$w"
+  # memos.py sizes itself everywhere but Windows, where a console is not a pty — see Width below.
+  case "$(uname -s)" in
+    MINGW* | MSYS* | CYGWIN*) python "$py" list --width "${MEMO_WIDTH:-148}" ;;
+    *) python "$py" list ;;
+  esac
 }
 ```
+
+macOS reaches the same helper through `~/.local/bin/memo` rather than a shell function, and that script needs no width arm at all — it execs `memos.py` and nothing else.
 
 `! memo` (or `memo` in any terminal) prints the open backlog at full width in ~0.1 s; `memo <text>` writes that text as a new memo file, deriving the title from its first sentence (no quotes needed). This is the **model-free** path — the `/memo` skill is slow because it drives the model through multi-step tool calls, wasted effort for a plain list/append. Reach for the skill only when you want model help: titling an idea well on capture, or reviewing with offers to act on items.
 
@@ -81,7 +84,11 @@ memo() {
 
 **Flags forward for free, and only from the front.** `"$@"` reaches `add` unchanged, so `memo --platform windows the thing that only works there` works without touching the function. `_take_flag` reads only the opening run of `--flag value` pairs, which is what keeps a flag word occurring later in a memo's own prose — `memo use --title to name a thing` — from being eaten along with the word after it. Lead with the flags; anything after the first non-flag argument is memo text.
 
-**Width (and a Claude Code gotcha).** A real terminal auto-detects (bash `tput cols`, PowerShell `$Host…WindowSize.Width`). But Claude Code captures `!`-command stdout with no tty, so `tput cols` returns the `xterm` default (80) — the real window is unreachable. **Two facts make this work:** (1) Claude Code syncs `.bashrc` *functions* into the `!` shell but **not** its top-level `export`s — so a `MEMO_WIDTH` export in `.bashrc` never reaches `! memo`; the pinned value must live *inside the function*. (2) `CLAUDECODE=1` *is* in CC's environment (it's not from `.bashrc`), so it's the reliable "captured context" flag. Hence: gate the pin on `CLAUDECODE` and hard-code this machine's CC width in the function body; a real terminal (no `CLAUDECODE`) falls through to `tput`. **Set the pin to `window − ~4 − 2`, not the raw window**: CC renders `!`-command output under a `└` tree prefix that indents it ~4 columns, so wrapping at the full width overflows and the terminal re-wraps the overflow (e.g. 156-col window → pin ≈ 148). Adjust the number if you resize.
+**Width.** Pass nothing on macOS, Linux and WSL: `memos.py` asks `skills/shared/terminal_width.py`, which walks up the process chain to the Claude Code process and reads that tty's winsize. Neither `tput cols` nor `$COLUMNS` can answer from a captured shell — both return their own defaults, 80 and 0, with no error — which is why the wrapper used to carry a pinned number instead.
+
+**Windows still needs one, and the pin has to sit inside the function.** A console is not a pty, so the walk finds nothing and the helper falls back to ~100. Two facts shape the workaround: Claude Code syncs `.bashrc` *functions* into the `!` shell but not its top-level `export`s, so a `MEMO_WIDTH` export never reaches `! memo` and the default must be written in the function body; and `CLAUDECODE=1` is in Claude Code's own environment rather than `.bashrc`, so it is the reliable flag for a captured shell where a narrower value is wanted. **Set the pin to `window − ~4 − 2`, not the raw window**: Claude Code renders `!`-command output under a `└` tree prefix that indents it ~4 columns, so wrapping at the full width overflows and the terminal re-wraps it (a 156-column window wants ≈ 148). Adjust it after resizing.
+
+That `└` indent applies to the detected path too, and the shared module subtracts only the 2-column gutter — it is tuned for tool-call output, which is where the skills render their tables. A `! memo` listing can therefore run a couple of columns wide. `memos.py` reads a `MEMO_WIDTH` environment variable ahead of detection for exactly this, the same way `github-status` reads `GHS_WIDTH`; in a plain terminal an export is enough, but the `!` shell never sees one, so fixing it there means the same in-function default Windows already uses.
 
 ## PowerShell `claude` wrapper
 

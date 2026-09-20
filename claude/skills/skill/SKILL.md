@@ -169,19 +169,24 @@ If the skill's own script (`Bash(python ~/.claude/skills/<name>/scripts/<script>
 
 ## Full-width terminal output
 
-When a skill renders output meant to fill the terminal — a table, an aligned/wrapped listing — it must detect the terminal width, because the rendering script can't.
+When a skill renders output meant to fill the terminal — a table, an aligned/wrapped listing — its helper gets the width from `skills/shared/terminal_width.py`. Import it; do not write a second detector. The failure it prevents is invisible, so a drifting copy reports a wrong width exactly as confidently as a right one.
 
-**Why the script can't self-detect.** A skill's helper runs with its stdout **piped** (the `!` context capture, or the Bash tool), so `shutil.get_terminal_size()` / `tput cols` *inside the script* return a fallback, not the real window. For the same reason, **width-dependent rendering must not live in a Context `!` line** — that always renders at the fallback width. Render it in a process step instead, after detecting the width.
+```python
+sys.path.insert(0, os.path.join(os.path.dirname(os.path.abspath(__file__)), "..", "shared"))
 
-**The pattern** (reuse the `github-status` skill's implementation):
+from terminal_width import terminal_columns  # noqa: E402 — needs the sys.path line above
 
-1. Detect the width yourself, in a process step:
-   - **Windows:** the **PowerShell tool** evaluating `$Host.UI.RawUI.WindowSize.Width` — the PowerShell tool specifically; `powershell.exe` from Bash gets its own console and reports the wrong value.
-   - **macOS/Linux:** `tput cols` (or `$COLUMNS`).
-2. Subtract a small gutter (≈2 columns) — Claude Code's TUI indents tool/message output, so content exactly as wide as the window gets its right edge clipped.
-3. Pass the result to the helper as `--width <N>`; the helper honors `--width`, else falls back to `get_terminal_size()` then a fixed default. If detection fails, omit `--width` and accept the fallback.
+width = terminal_columns(100)  # the argument is the fallback when nothing can be detected
+```
 
-Add `PowerShell` and `Bash(tput cols:*)` to `allowed-tools` for the detection step. Working examples: `~/.claude/skills/github-status` (a bordered table) and `~/.claude/skills/memo` (a wrapped, aligned listing).
+**Why the obvious probes don't work.** A helper's stdout is **piped** (the `!` context capture, or the Bash tool), so `shutil.get_terminal_size()`, `tput cols` and `$COLUMNS` all report their own defaults rather than the window, and /dev/tty is `device not configured`. None of them fail loudly — measured 2026-09-19, `tput cols` answered 80 in a 147-column pane. The shared module walks up the process chain to the harness, which does own the pane's pty, and reads its winsize; it also takes the ≈2-column gutter off, since Claude Code's TUI indents tool output and content exactly as wide as the window loses its right edge.
+
+Two things the module cannot do, which stay the skill's job:
+
+- **Windows.** A console is not a pty, so detection returns nothing there. The skill asks the **PowerShell tool** to evaluate `$Host.UI.RawUI.WindowSize.Width` — that tool specifically; `powershell.exe` from Bash gets its own console and reports the wrong value — subtracts the gutter itself, and passes `--width <N>`. Keep `--width` honored ahead of detection for exactly this. Add `PowerShell` to `allowed-tools`.
+- **Context `!` lines.** Width-dependent rendering must not live in one. Those capture with no ancestor tty in reach, so they always render at the fallback; put the render in a process step.
+
+Working examples: `~/.claude/skills/github-status` (a bordered table) and `~/.claude/skills/memo` (a wrapped, aligned listing).
 
 ## Is the destination published?
 
@@ -277,7 +282,7 @@ Skills run on both Windows (Git Bash) and macOS (zsh/bash), so every script and 
   ```bash
   case "$(uname -s)" in Darwin) echo "~/.zshrc" ;; MINGW*|MSYS*|CYGWIN*) echo "~/.bashrc" ;; *) [ -n "$ZSH_VERSION" ] || [ "${SHELL##*/}" = "zsh" ] && echo "~/.zshrc" || echo "~/.bashrc" ;; esac
   ```
-- **OS-specific commands** — branch on `uname -s` and give both arms (as the Full-width terminal section does: `tput cols` on macOS/Linux vs the PowerShell tool on Windows). Never emit a command that exists on only one OS without a fallback.
+- **OS-specific commands** — branch on `uname -s` and give both arms (as the Full-width terminal section does: the shared detector on macOS/Linux vs the PowerShell tool on Windows). Never emit a command that exists on only one OS without a fallback.
 - **Stay POSIX** — a snippet appended to the rc may run under bash *or* zsh. Use constructs both accept (`[ … ]`, `case`, `$( )`); avoid bash-only `[[ … ]]`/arrays where a POSIX form works, and avoid zsh-only syntax.
 - **Beware tool flag drift** — macOS ships BSD `sed`/`grep`/`date` whose flags differ from GNU (e.g. `sed -i` needs an arg on BSD). Prefer portable invocations, or cross-platform tools the skill can already rely on (`git`, `node`, `python`).
 - **Paths** — forward slashes everywhere (see Conventions); `~`/`$HOME` resolve on both; never assume drive letters.
