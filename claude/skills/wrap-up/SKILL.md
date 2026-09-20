@@ -190,6 +190,11 @@ Then stop and wait. This is a gate: nothing is committed until the list is dispo
   and put the evidence, the reproduction and the reasoning in the body, which has no length limit.
 - **drop** means do nothing at all: no memo, no work, no argument, no raising it again later in
   the same run.
+- **A memo number read in step 5 may be stale by step 6.** The listing is positional and
+  newest-first, so a memo the user captures while answering the gate renumbers everything below
+  it. Re-run `memos.py list` before any `done <n>`, and key the disposition to the memo's title
+  rather than the number you presented. Measured 2026-09-19: a finding presented as memo 4 was
+  memo 5 by the time it was closed.
 
 Report what you did in one short line per item, then continue to step 7 in the same response.
 
