@@ -12,8 +12,8 @@ description: >-
   their repos, "which repos have unpushed commits", "what's new on remotes",
   "what have I been working on", "which repos are behind on conventions", or
   "what is uncommitted on the other machine".
-  DO NOT TRIGGER when: user is asking about a single specific repo (use
-  `git status` / `git log` directly).
+  DO NOT TRIGGER when: user is asking about a single specific repo — that is
+  `/repo-status`, which runs this same scan with `--repo`.
 allowed-tools: Bash(python ~/.claude/skills/github-status/scripts/repos-status.py:*), Bash(python3 ~/.claude/skills/github-status/scripts/repos-status.py:*), Bash(test -f ~/.claude/skills/github-status/config/config.env:*), Bash(grep -q PEER_SSH ~/.claude/skills/github-status/config/config.env:*), PowerShell, AskUserQuestion, Read(~/.claude/skills/github-status/config/config.env), Write(~/.claude/skills/github-status/config/config.env)
 ---
 
@@ -288,10 +288,29 @@ paste the detail sections at all.
 - **The scan itself is deliberately not cached.** Its cost is the per-repo `git fetch` and `gh issue
   list`, and both ask the remote something no local state can answer — a cache over them would report
   a stale REMOTE and a stale ISSUES with nothing to say it had.
+- **`--repo <path|slug>` scopes the whole run to one repo**, on both machines — this is what the
+  `repo-status` skill invokes, and it is a scope rather than a filter: the peer is told the slug too,
+  so it scans one repo instead of its fleet, and the run costs seconds. Three things change with it.
+  The display filter is off, so a repo with nothing outstanding still renders — a fleet run answers
+  "what needs attention" and a scoped one answers "how does this repo stand", where `clean` is the
+  answer rather than an empty table. It does not render this table at all — `render_single` prints
+  a short block per machine instead, omitting every fact sitting at its default, because columns
+  exist to align repos against each other and one repo has nothing to align with. It writes **no
+  HTML** either — one repo's worth of it is a page to open for what a line already said, and this
+  report carries that repo anyway — so its only artifact is a state file under the repo's own name,
+  which keeps a scoped `--report` from rendering and storing from the fleet's. And the description
+  cache is **merged** instead of rebuilt, on both machines:
+  a run that saw one repo has no opinion about the rest, and rebuilding from its rows would erase
+  every other entry — on the peer that erasure is total, since a clean clone there contributes no
+  entry at all. The peer's merge runs on the peer, because this side holds no copy of the entries it
+  would need to compose the union.
 - **Artifacts go in the gitignored `tmp/` of each machine's own dotfiles clone**, as
   `github-status.html`, `github-status-state.json` and `github-status-descriptions.json` — the last of
   these on both machines, the first two only where the report was run. The filenames are stable, so an
-  open browser tab reloads onto the new report. Override with `--html` / `--state` / `--cache`.
+  open browser tab reloads onto the new report. Override with `--html` / `--state` / `--cache`. A
+  scoped run adds `repo-status-<owner>-<repo>-state.json` and writes no HTML at all; it shares the
+  description cache above, which is the one artifact the two runs have in common, and `--html` is
+  refused rather than ignored.
 - **The only GitHub API call is the open-issue count** (`gh issue list --repo OWNER/REPO`), pinned to
   the origin slug so a fork reports its own issues and never its `upstream` parent's.
 - **The convention gap comes from the `/adopt` engine, not from a second reader of the record.**

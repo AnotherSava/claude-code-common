@@ -33,6 +33,16 @@ Modes:
                     read from stdin, print the final table, write the HTML, and
                     store what was applied in the state file and both caches, so
                     re-running it renders and stores the same thing again
+  --repo PATH|SLUG  scope the whole run to ONE repo, on every machine — the
+                    repo-status skill's mode. A path (default `.`) is resolved to
+                    its origin slug here, so the peer finds its own clone of the
+                    same repo whatever it calls the folder. Scoping also keeps the
+                    repo in the report when it has nothing pending: the fleet run
+                    answers "what needs attention" and drops a quiet repo, while
+                    this one answers "how does this repo stand", where `clean` is
+                    the answer rather than an absence of one. Renders as a block
+                    per machine rather than as a table (see render_single), and to
+                    the terminal only — no HTML, and --html is refused
   --width N         target total table width (also accepted via GHS_WIDTH)
   --descriptions P  read the descriptions from P instead of stdin
   --html PATH       where to write the HTML report
@@ -56,6 +66,8 @@ Environment:
   GITHUB_USER   — origin-URL owner to filter by (default AnotherSava)
   ROOT_DEPTH    — find -maxdepth value (default 4)
   GHS_WIDTH     — target table width (else terminal width, then 120)
+  GHS_ONLY_SLUG — `OWNER/REPO` to scope the run to; what --repo resolves to, and
+                  how the scope reaches the scan several calls below main()
 
 Config keys — config/config.env, per-machine and gitignored:
   PROJECTS_ROOT — as above
@@ -318,11 +330,49 @@ def pull_one(repo: Path) -> bool:
 
 ORIGIN_SLUG = re.compile(r"github\.com[:/](?P<owner>[^/]+)/(?P<repo>[^/]+?)(?:\.git)?/?$")
 
+# `OWNER/REPO` as --repo accepts it literally: exactly one slash, and neither half
+# a path segment `.`/`..` could occupy. A value of this shape that is ALSO an
+# existing directory is read as the directory, since that is what the user is
+# standing in and a coincidental match would silently report a different repo.
+SLUG_SHAPE = re.compile(r"[A-Za-z0-9._-]+/[A-Za-z0-9._-]+")
+
 
 def origin_slug(repo: Path) -> str | None:
     """Return 'OWNER/REPO' parsed from the repo's `origin` URL, or None."""
     m = ORIGIN_SLUG.search(git(["remote", "get-url", "origin"], repo))
     return f"{m['owner']}/{m['repo']}" if m else None
+
+
+def only_slug() -> str | None:
+    """The one repo this run is scoped to, or None for a whole-fleet run.
+
+    Read from the environment rather than passed down, because the scan that
+    consults it runs several calls below the argument parsing and, on the peer,
+    in a different process on a different machine. `--no-cache` and the width
+    already travel this way for the same reason.
+    """
+    return os.environ.get("GHS_ONLY_SLUG") or None
+
+
+def resolve_repo_scope(value: str) -> str | None:
+    """Turn a --repo value into the `OWNER/REPO` slug both machines merge on.
+
+    A slug is taken as given; anything else is read as a path and asked for its
+    `origin`. The slug is what crosses to the peer because the clone path does
+    not survive the hop — the same repo is `claude` here and could be
+    `claude-code-common` there, and a path would find nothing or, worse, find a
+    different repo that happens to sit at that path.
+    """
+    if SLUG_SHAPE.fullmatch(value) and not Path(value).exists():
+        return value
+    path = Path(value).expanduser().resolve()
+    if not path.is_dir():
+        print(f"ERROR: --repo {value}: no such directory, and not an OWNER/REPO slug.", file=sys.stderr)
+        return None
+    slug = origin_slug(path)
+    if not slug:
+        print(f"ERROR: --repo {value}: {path} has no GitHub `origin` remote to identify it by.", file=sys.stderr)
+    return slug
 
 
 def open_issue_count(slug: str) -> int | None:
@@ -676,7 +726,14 @@ def collect_state(repo: Path, rel: str) -> RepoState:
 
 
 def discover_owned(projects_root: Path, github_user: str, depth: int) -> list[tuple[Path, str, str]]:
-    """Return [(repo_path, rel_to_root, slug)] for repos whose origin matches github_user."""
+    """Return [(repo_path, rel_to_root, slug)] for repos whose origin matches github_user.
+
+    A scoped run keeps only the one repo. The walk still happens — it is a
+    `git remote get-url` per repo, against the fetch, the `gh` call and the
+    convention read the scope removes — and it is what lets the peer find its own
+    clone under whatever path it keeps it at.
+    """
+    wanted = only_slug()
     owner_pat = re.compile(rf"github\.com[:/]{re.escape(github_user)}/")
     owned: list[tuple[Path, str, str]] = []
     for repo in find_repos(projects_root, depth):
@@ -690,7 +747,7 @@ def discover_owned(projects_root: Path, github_user: str, depth: int) -> list[tu
         if not owner_pat.search(origin):
             continue
         slug = origin_slug(repo)
-        if slug:
+        if slug and (wanted is None or slug == wanted):
             owned.append((repo, rel, slug))
     return owned
 
@@ -800,6 +857,12 @@ def scan_peer(peer_ssh: str, peer_python: str, source: bytes) -> MachineSnapshot
     # --no-cache has to cross the hop: the peer resolves its own clones' descriptions, so a
     # refresh asked for here would otherwise refresh only half the report.
     remote_argv = "--json --no-cache" if os.environ.get("GHS_NO_CACHE") else "--json"
+    # So does the scope, and as the slug rather than the path: an unscoped peer would scan its
+    # whole fleet to have every repo but one discarded at the merge, spending the minutes the
+    # scope exists to save. The slug is already `OWNER/REPO` — metacharacter-free under both a
+    # POSIX shell and the cmd.exe a Windows sshd hands this string to.
+    if wanted := only_slug():
+        remote_argv += f" --repo {wanted}"
     cmd = ["ssh", "-o", "BatchMode=yes", "-o", f"ConnectTimeout={PEER_CONNECT_TIMEOUT}",
            peer_ssh, f"{peer_python} - {remote_argv}"]
     print(f"[{name}] scanning over ssh...", file=sys.stderr)
@@ -898,7 +961,13 @@ def merge(snapshots: list[MachineSnapshot]) -> list[RepoRow]:
     # since age = now - epoch. A repo with no pending work has no age at all, so the
     # whole ageless tail would otherwise sit in discovery order; the widest convention
     # gap breaks that tie, putting the repos furthest behind at the top of it.
-    rows = [r for r in rows if r.has_work or r.open_issues or r.conventions_gap]
+    #
+    # None of that filtering applies to a scoped run. "Which repos need attention"
+    # is a question about a set, so a quiet repo is noise in it; "how does THIS repo
+    # stand" was asked about one repo, and `nothing outstanding` is the answer to it
+    # rather than a reason to print an empty table.
+    if only_slug() is None:
+        rows = [r for r in rows if r.has_work or r.open_issues or r.conventions_gap]
     rows.sort(key=lambda r: (-r.sort_epoch, -r.conventions_behind))
     return rows
 
@@ -1658,7 +1727,109 @@ def backfill_issue_counts(snapshots: list[MachineSnapshot]) -> None:
                     peer.repos[slug].open_issues = count
 
 
+def machine_facts(state: RepoState) -> list[str]:
+    """What is worth saying about one clone, in reading order, with every fact that
+    sits at its default left out.
+
+    A single-repo report is read by someone who asked about this repo, so the
+    interesting content is whatever is NOT ordinary: `main`, an upstream with
+    nothing either way, and a current convention record are the expected answers and
+    say nothing by being printed. What remains is short enough to read as a sentence.
+
+    Returning [] means the clone is entirely ordinary — the caller says `clean`
+    rather than printing an empty line, because silence about a machine the user
+    named is the one thing this report must not do.
+    """
+    facts: list[str] = []
+    if state.branch not in DEFAULT_BRANCHES:
+        facts.append(f"on {state.branch}")
+    if state.uncommitted:
+        lines = format_lines(state.lines_added, state.lines_deleted)
+        facts.append(f"{state.uncommitted} uncommitted" + (f" ({lines})" if lines else ""))
+    if state.unpushed:
+        facts.append(f"{state.unpushed} unpushed")
+    if state.behind:
+        facts.append(f"{state.behind} inbound{' (pulled)' if state.pulled else ''}")
+    if state.oldest_epoch:
+        facts.append(f"oldest {compact_age(time.time() - state.oldest_epoch)} ago")
+    if (conv := state.conventions) and conv.anything:
+        facts.append(conv.note or f"{conv.behind} convention{'s' if conv.behind != 1 else ''} behind")
+    return facts
+
+
+def pack_facts(facts: list[str], width: int) -> list[str]:
+    """Group facts into lines of at most `width`, breaking only between them.
+
+    Wrapping this line by words would split `4 inbound (pulled)` across two lines
+    and leave `(pulled)` reading as a fact of its own, so the break points are the
+    separators and nothing else. A single fact wider than the budget — a long branch
+    name, a convention note — takes a line of its own and is allowed to overrun it:
+    truncating it would hide the part that made it worth printing.
+    """
+    lines: list[str] = []
+    current = ""
+    for fact in facts:
+        joined = f"{current} · {fact}" if current else fact
+        if current and len(joined) > width:
+            lines.append(current)
+            current = fact
+        else:
+            current = joined
+    if current:
+        lines.append(current)
+    return lines
+
+
+def render_single(snapshots: list[MachineSnapshot], rows: list[RepoRow], width: int) -> None:
+    """One repo, as a short block per machine rather than as a row of a table.
+
+    The fleet table's columns exist to align many repos against each other; with one
+    repo every column is a header over a single value, and most of them are blank.
+    So this drops the grid and the machine summary, and prints only what is true and
+    not ordinary — see `machine_facts` for which facts that excludes.
+    """
+    row = rows[0]
+    repo = row.slug.split("/", 1)[1]
+    # The clone path and the GitHub repo name disagree often enough to be worth both
+    # (`claude` is `claude-code-common`), and saying one twice is worth neither.
+    title = row.slug if row.name == repo else f"{row.name} — {row.slug}"
+    if row.open_issues:
+        title += f" · {row.open_issues} open issue{'s' if row.open_issues != 1 else ''}"
+    elif row.open_issues is None:
+        # Not the same as zero, and printing nothing would assert the zero.
+        title += " · open issues unknown"
+    print(title)
+    print()
+
+    label_width = max(len(s.name) for s in snapshots)
+    for snap in snapshots:
+        label = f"  {snap.name:<{label_width}}  "
+        # Every line of a machine's entry hangs under the same indent, so the label
+        # column stays clear however many lines the entry runs to. The budget is
+        # what is left of the terminal after that indent.
+        indent = " " * len(label)
+        budget = max(20, width - len(label))
+        emit = lambda lines: [print((label if i == 0 else indent) + text) for i, text in enumerate(lines)]
+        if snap.status != "ok":
+            emit(textwrap.wrap(f"not reached — {snap.error}", budget))
+            continue
+        state = row.states.get(snap.name)
+        if state is None:
+            emit(["no clone here"])
+            continue
+        emit(pack_facts(machine_facts(state), budget) or ["clean"])
+        if (desc := row.descriptions.get(snap.name, "")) and desc != PENDING_DESCRIPTION:
+            for line in textwrap.wrap(desc, budget):
+                print(indent + line)
+
+
 def render(snapshots: list[MachineSnapshot], rows: list[RepoRow], width: int) -> None:
+    # A scoped run always has its one row — `main` exits before here when it found none —
+    # so the "nothing pending" branch below is unreachable for it and would be wrong if it
+    # were not: a clean repo is that report's answer, not an absence of one.
+    if only_slug() is not None:
+        render_single(snapshots, rows, width)
+        return
     print_machine_summary(snapshots)
     print()
     reached = [s.name for s in snapshots if s.status == "ok"]
@@ -1693,14 +1864,12 @@ def load_cache(path: Path) -> dict[str, dict[str, str]]:
     return entries if isinstance(entries, dict) else {}
 
 
-def cache_payload(rows: list[RepoRow], machine: str) -> str:
-    """Serialize one machine's cache from the rows: every description written for
-    its clones, against the digest of the work it describes.
+def cache_entries(rows: list[RepoRow], machine: str) -> dict[str, dict[str, str]]:
+    """One machine's cache entries as the rows define them: every description
+    written for its clones, against the digest of the work it describes.
 
-    Rebuilt from the rows rather than merged into what was loaded, so a repo that
-    went clean and a superseded digest drop out without a prune of their own. An
-    unwritten description is not stored: the placeholder is what the report shows
-    when nobody has written one yet.
+    An unwritten description is not stored: the placeholder is what the report
+    shows when nobody has written one yet.
     """
     entries: dict[str, dict[str, str]] = {}
     for row in rows:
@@ -1708,15 +1877,37 @@ def cache_payload(rows: list[RepoRow], machine: str) -> str:
         text = row.descriptions.get(machine, "")
         if state and state.work_digest and text and text != PENDING_DESCRIPTION:
             entries[row.slug] = {"digest": state.work_digest, "description": text}
+    return entries
+
+
+def cache_payload(entries: dict[str, dict[str, str]]) -> str:
     return json.dumps({"version": CACHE_VERSION, "entries": entries}, ensure_ascii=False, indent=1)
 
 
 def save_local_cache(path: Path, rows: list[RepoRow], machine: str) -> None:
+    """Write this machine's cache file.
+
+    A whole-fleet run rebuilds it from the rows rather than merging into what was
+    loaded, so a repo that went clean and a superseded digest drop out without a
+    prune of their own — this side has just seen every one of that machine's repos,
+    so what it writes is the complete cache.
+
+    A SCOPED run has seen exactly one, and that sentence stops being true of it.
+    Rebuilding there would replace a warm cache with a single entry and say nothing,
+    so every other repo would be re-read on the next fleet run — the same silent
+    erasure a `--report` re-render caused in 2026-09-19, arriving by a different
+    door. So a scoped run merges: the repo it looked at overwrites, and the ones it
+    never looked at carry through untouched, because having no opinion about a repo
+    is not evidence that its entry is stale.
+    """
+    entries = cache_entries(rows, machine)
+    if only_slug() is not None:
+        entries = load_cache(path) | entries
     path.parent.mkdir(parents=True, exist_ok=True)
-    path.write_text(cache_payload(rows, machine), encoding="utf-8")
+    path.write_text(cache_payload(entries), encoding="utf-8")
 
 
-def peer_write_program(remote_path: str, payload: str) -> bytes:
+def peer_write_program(remote_path: str, payload: str, merge: bool) -> bytes:
     """A standalone program that writes one file on the peer, destination and
     contents both inlined as literals so neither has to survive a shell.
 
@@ -1725,11 +1916,30 @@ def peer_write_program(remote_path: str, payload: str) -> bytes:
     character, so the program is pure ASCII whatever a description contains and the
     far side cannot decode its own source wrongly. The directory is created here
     rather than by a second remote command, which is what makes one hop enough.
+
+    `merge` is what a scoped run needs and is why the merge runs THERE rather than
+    here: this side has seen one of the peer's repos and holds no copy of the
+    entries for the rest, so it cannot compose the union it wants written. The far
+    side can — it is sitting on the file. A version mismatch or an unreadable file
+    merges into nothing, matching `load_cache`: every entry is re-derivable, so the
+    worst a bad file costs is the reading it was meant to save.
     """
-    return ("import pathlib\n"
+    keep = ("prior = {}\n"
+            "try:\n"
+            "    old = json.loads(p.read_text(encoding='utf-8'))\n"
+            f"    if isinstance(old, dict) and old.get('version') == {CACHE_VERSION}:\n"
+            "        prior = old.get('entries') or {}\n"
+            "except Exception:\n"
+            "    pass\n"
+            "fresh = json.loads(text)\n"
+            "fresh['entries'] = {**prior, **fresh['entries']}\n"
+            "text = json.dumps(fresh, ensure_ascii=False, indent=1)\n") if merge else ""
+    return ("import json, pathlib\n"
             f"p = pathlib.Path({json.dumps(remote_path)})\n"
+            f"text = {json.dumps(payload)}\n"
+            + keep +
             "p.parent.mkdir(parents=True, exist_ok=True)\n"
-            f"p.write_text({json.dumps(payload)}, encoding='utf-8')\n").encode("ascii")
+            "p.write_text(text, encoding='utf-8')\n").encode("ascii")
 
 
 def save_peer_cache(peer_ssh: str, peer_python: str, remote_path: str, rows: list[RepoRow], machine: str) -> str:
@@ -1748,15 +1958,17 @@ def save_peer_cache(peer_ssh: str, peer_python: str, remote_path: str, rows: lis
     in one direction only. Bare metacharacter-free tokens tokenize identically under
     both shells, which is why the scan hop never had the problem.
 
-    The file is replaced whole because this side has just seen every one of that
-    machine's repos, so what it writes is the complete cache rather than a patch
-    needing a merge.
+    On a whole-fleet run the file is replaced whole, because this side has just seen
+    every one of that machine's repos, so what it writes is the complete cache
+    rather than a patch needing a merge. A scoped run has seen one of them and asks
+    the far side to merge instead — see `peer_write_program`.
     """
     cmd = ["ssh", "-o", "BatchMode=yes", "-o", f"ConnectTimeout={PEER_CONNECT_TIMEOUT}", peer_ssh,
            f"{peer_python} -"]
     try:
         with tempfile.TemporaryFile() as fin, tempfile.TemporaryFile() as ferr:
-            fin.write(peer_write_program(remote_path, cache_payload(rows, machine)))
+            fin.write(peer_write_program(remote_path, cache_payload(cache_entries(rows, machine)),
+                                         merge=only_slug() is not None))
             fin.seek(0)
             done = subprocess.run(cmd, stdin=fin, stdout=subprocess.DEVNULL, stderr=ferr, timeout=PEER_CONNECT_TIMEOUT + 30)
             if done.returncode != 0:
@@ -1901,8 +2113,26 @@ def main() -> int:
     if "--no-cache" in argv:
         os.environ["GHS_NO_CACHE"] = "1"
 
-    state_path = Path(flag_value(argv, "--state") or tmp_dir() / "github-status-state.json")
+    # The scope is resolved to a slug here, on the machine that has the path, and
+    # every reader below — including the peer's own process — sees only the slug.
+    if "--repo" in argv:
+        scope = resolve_repo_scope(flag_value(argv, "--repo") or ".")
+        if scope is None:
+            return 2
+        os.environ["GHS_ONLY_SLUG"] = scope
+
+    # A scoped run writes NO HTML: one repo's worth of it is a page to open and scroll
+    # for something the table beside it already said in one line, and the fleet report
+    # carries that repo anyway. It still needs a state file, which `--report` reads —
+    # under its own name, since sharing the fleet run's would leave a one-repo state
+    # file for the next `--report` to render and store both machines' caches from.
+    stem = f"repo-status-{only_slug().replace('/', '-')}" if only_slug() else "github-status"
+    state_path = Path(flag_value(argv, "--state") or tmp_dir() / f"{stem}-state.json")
     html_path = Path(flag_value(argv, "--html") or tmp_dir() / "github-status.html")
+    if only_slug() and flag_value(argv, "--html"):
+        print("ERROR: --html is not available with --repo — a scoped run reports to the "
+              "terminal only.", file=sys.stderr)
+        return 2
 
     # Peer mode: scan this machine and print the snapshot, nothing else. Every
     # progress line goes to stderr so stdout carries only the JSON.
@@ -1933,15 +2163,27 @@ def main() -> int:
         # empty one, said nothing, and the next scan reported every description as still to write.
         state_path.write_text(state_to_json(snapshots, rows), encoding="utf-8")
         render(snapshots, rows, target_width(config))
-        owner = rows[0].slug.split("/", 1)[0] if rows else github_user()
-        write_html(html_path, rows, snapshots, owner)
-        print(f"\nHTML report: file:///{str(html_path).replace(os.sep, '/').lstrip('/')}")
+        if only_slug() is None:
+            owner = rows[0].slug.split("/", 1)[0] if rows else github_user()
+            write_html(html_path, rows, snapshots, owner)
+            print(f"\nHTML report: file:///{str(html_path).replace(os.sep, '/').lstrip('/')}")
         return 0
 
     snapshots = gather(config)
     if snapshots is None:
         return 2
     rows = merge(snapshots)
+    # A scoped run that matched nothing must say so. Without this it renders an empty
+    # table, which is indistinguishable from the repo being found and having nothing
+    # outstanding — the one answer a scoped run exists to give, and so the one it must
+    # never give by accident.
+    if (wanted := only_slug()) and not rows:
+        reached = ", ".join(s.name for s in snapshots if s.status == "ok") or "no machine"
+        print(f"ERROR: {wanted} was not found on {reached}.\n"
+              f"It has to sit under that machine's PROJECTS_ROOT, within ROOT_DEPTH levels,\n"
+              f"with `origin` owned by {github_user()} — and not be one of the hard exclusions "
+              f"({', '.join(sorted(EXCLUDED))}).", file=sys.stderr)
+        return 2
     reached_names = [s.name for s in snapshots if s.status == "ok"]
     # A description is a pure function of the work it describes, so an unchanged digest means last
     # run's line is still true and this clone does not have to be read again. Each machine resolved

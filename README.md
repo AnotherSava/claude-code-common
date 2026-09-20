@@ -420,6 +420,25 @@ Cross-machine overview of all your GitHub-owned local clones — branch, behind/
 - Writes an HTML report to the repo's gitignored `tmp/` — one full-width block per project with the machines side by side in a column each, named once in a sticky header carrying their OS, projects root and scan age, so a column's position is what attributes its contents
 - Recomputes every interval in the page rather than baking it in, so a report left open or reopened tomorrow still reads correctly; exact timestamps sit on hover
 - Reports uncommitted-file lists and unpushed-commit subjects for the clones still awaiting a description, so Claude reads only the work that actually moved
+- **Scopes to one repo with `--repo`**, which is what [`/repo-status`](#repo-status) invokes — the peer is told the slug too, so both ends scan one repo; the scoped run renders a block per machine instead of this table, writes no HTML, and merges the description cache rather than rebuilding it
+
+---
+
+### Repo Status
+
+Cross-machine status of a single repo — this machine's clone and the peer's, side by side. The other half of [`/github-status`](#github-status): same scanner, same config, same description cache, scoped with `--repo` to the repo you are standing in. It answers "how does this repo stand" where the fleet report answers "which repos need attention", and it costs seconds rather than minutes because the peer is told the slug too and scans one repo instead of its own fleet.
+
+**Command:** `/repo-status`
+
+**Features:**
+- **Has no scripts of its own** — one `SKILL.md` invoking `github-status/scripts/repos-status.py --repo`, so the scanner, the per-machine config and the description cache are shared rather than duplicated
+- Resolves the repo to its `OWNER/REPO` origin slug before crossing to the peer, so the peer finds its own clone whatever path it keeps it at; a path or a slug both work as the argument
+- **Prints a block per machine, not the fleet's table** — columns exist to align repos against each other, and one repo has nothing to align with
+- **Omits every fact sitting at its default**: branch `main`, an upstream level in both directions, a current convention record, zero open issues. A clone with none of them reads `clean`, which is the whole line — what remains is only what is not ordinary
+- Distinguishes unknown from zero — `gh` failing to answer prints `open issues unknown` rather than nothing, which would assert a count nobody checked
+- Names a machine that was not reached with its SSH error, and one holding no clone as `no clone here`, rather than leaving either silent
+- **Shares the description cache and merges into it** instead of rebuilding — a run that saw one repo has no opinion about the rest, so every other entry carries through untouched, on both machines; the peer's merge runs on the peer, which is the only side holding its own entries
+- Terminal only. A repo found on no machine exits non-zero naming the reason, so an empty block never stands in for a clean one
 
 ---
 
