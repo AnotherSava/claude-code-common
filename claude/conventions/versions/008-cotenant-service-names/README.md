@@ -62,6 +62,16 @@ would assert a shape that was never read.
 
 Afterwards:
 
+- Remove the old container before publishing. On the box, after the edit: `docker rm -f
+  <old-container>`, then `docker compose up -d --no-deps <new-service-name>`. Where the rename gives
+  a service the name its own container already carries — which is what this convention asks for
+  wherever `container_name` was set before — compose reads that container as an orphan of the old
+  service and refuses to reuse the name, and the publish aborts on `Conflict. The container name
+  "/<name>" is already in use`. That abort is safe: compose stops before starting anything, so the
+  stack goes on serving what it was serving. Recreating the one service rather than the whole stack
+  also keeps one-shot siblings like a migration step from re-running. Volumes are named after the
+  compose *project*, so renaming a service keeps the data — renaming the project does not, and that
+  is a different and unsafe edit.
 - Assert identity rather than liveness, which no check here can do: the publish has to confirm this
   app's own marker is present *and* every other tenant's marker is absent. A status code, a `Server`
   header and the certificate all stay correct while the proxy routes to the wrong app, which is why
@@ -71,11 +81,6 @@ Afterwards:
   and `config/publish.env`, and nothing else — a deploy script, a Dockerfile, a runbook or a systemd
   unit on the box can name a service too. In a transcrypt-locked checkout `config/publish.env` reads
   as ciphertext, so unlock it before trusting that list.
-- Recreate the one service rather than the stack. After the edit, on the box:
-  `docker rm -f <old-container>` then `docker compose up -d --no-deps <new-service-name>`, so
-  one-shot siblings like a migration step do not re-run. Volumes are named after the compose
-  *project*, so renaming a service keeps the data — renaming the project does not, and that is a
-  different and unsafe edit.
 - Check any service that genuinely scales. A service running more than one replica cannot carry a
   `container_name` at all, so for that one the finding is the wrong instruction, and the convention
   needs the exception written into it rather than worked around in the repo.
