@@ -104,6 +104,12 @@ handled. Drop a candidate when:
 - a later step of this skill already owns it: `/commit` runs the remote sync check, `/reflect`,
   `/clean-code`, `/docs-relevance` and the confidentiality scan, so none of those is ever a
   finding here, however live it looks in the transcript
+- it is not this session's unfinished business. A true, routable observation about another repo
+  — or about another machine's per-machine configuration — is not a finding here just because
+  you said it once. Narrowing a concern the user has already corrected and re-presenting the
+  residue reads as not having listened. Measured 2026-09-19: a note that `corepack enable npm`
+  was unmeasured on the Windows box was raised as a routed ping, after the user had already
+  pointed out that the repo in question is not cloned there
 - an earlier `/wrap-up` in this same session already disposed of it
 
 That last one needs no bookkeeping: a previous run of this skill is itself in the transcript,
