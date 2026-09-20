@@ -33,7 +33,7 @@ See `~/.claude/learnings/shell-environment.md` for the expected bash functions a
 - run_repo_script helper in shell rc: !`cat ~/.bashrc ~/.zshrc ~/.bash_profile ~/.zprofile 2>/dev/null | grep -c "run_repo_script()" || echo 0`
 - Shell rc target: !`case "$(uname -s)" in Darwin) echo "~/.zshrc" ;; MINGW*|MSYS*|CYGWIN*) echo "~/.bashrc" ;; *) [ -n "$ZSH_VERSION" ] || [ "${SHELL##*/}" = "zsh" ] && echo "~/.zshrc" || echo "~/.bashrc" ;; esac`
 - Wrapper script exists: !`test -f scripts/deploy.sh && echo yes || echo no`
-- Wrapper target: !`grep -oE 'deploy(-[a-z]+)?\.sh' scripts/deploy.sh 2>/dev/null | tail -1 || echo none`
+- Wrapper target: !`grep -oE 'deploy(-[a-z-]+)?\.sh' scripts/deploy.sh 2>/dev/null | tail -1 || echo none`
 - Static web entry (index.html): !`(ls index.html web/index.html public/index.html src/index.html dist/index.html 2>/dev/null | grep -q .) && echo yes || echo no`
 - Static web dir (dir holding index.html; empty if none): !`for d in . web public src dist; do [ -f "$d/index.html" ] && { echo "$d"; break; }; done; true`
 - Project start script (a committed scripts/dev.sh the project already provides): !`test -f scripts/dev.sh && echo yes || echo no`
@@ -106,6 +106,22 @@ For a local web server, `deploy` stops whatever holds the port and relaunches th
   - if **Project start script** is yes → `bash scripts/dev.sh` — prefer the project's own committed starter, which may do setup the skill can't know about (rendering a gitignored config, fetching a token). It runs in the foreground and this target detaches it, which is the right shape.
   - else if **Dev-server dir** is non-empty → **Dev-server start command guess** Context value (picks `pnpm`/`yarn`/`bun`/`npm` from the lockfile). Keep it as the package-manager script (e.g. `npm run dev`) even when that script itself wraps another tool (Doppler, env loaders) — the wrapping lives in `package.json`, not here.
   - else (static site, no `dev` script) → `python -m http.server <DEV_PORT> --directory <DEV_DIR>`
+- `DEV_PRESTART_CMD=` — **optional, and only written when the user asks for one.** A command run from the
+  repo root between stopping the old server and launching the new one: seeding the local database from
+  production, fetching a fixture, rendering a generated file. Leave the key out entirely when there is no
+  such step; an empty value and an absent one behave identically, but an absent one does not invite an
+  editor to fill it in.
+
+  **The command belongs to the project, not here.** Write it as a committed script in the repo
+  (`scripts/<verb>.sh`) and point this key at it, so the knowledge of *how* a project seeds its database —
+  the container names, the host, the tool versions — stays in the repo that has it, and the global script
+  stays a thing every stack can use. Never put a stack's specifics behind another key in this file.
+
+  The gap between stop and launch is the whole reason the hook sits where it does: a step that replaces
+  state the app holds open — dropping and restoring a database being the clear case — cannot run safely
+  while the server is up. A failure does **not** stop the launch, because `deploy` is what leaves the app
+  runnable and a pre-start step is usually the part needing something beyond this machine; it is reported
+  at the point of failure and again beside the URL.
 
 `config/deploy.env` holds no secrets, so it is safe to commit (and committing it gives every contributor the same `! deploy`). The dev server writes `dev-server.log` / `dev-server.err.log` into `DEV_DIR` — ensure those are gitignored: if `<DEV_DIR>/dev-server*.log` (or a broader `dev-server*.log`) isn't already covered by `.gitignore`, add it. After writing the config, go to **step 3**.
 

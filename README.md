@@ -209,6 +209,7 @@ Shipping outward is a different verb: a versioned artifact goes through the `rel
 - Reads install path from `config/deploy.env` (asks on first run)
 - Install targets run the full pipeline: stop app → build → clean install dir → copy → launch → verify
 - Local web servers (a `package.json` with a `dev` script, or a plain static `index.html`) relaunch detached on the configured port, then get health-checked
+- An optional `DEV_PRESTART_CMD` runs the project's own script — seeding the local database from production, fetching a fixture — in the gap between stopping the old server and starting the new one
 - After first `/deploy`, use `! deploy` for instant deploys without LLM overhead
 
 ---
