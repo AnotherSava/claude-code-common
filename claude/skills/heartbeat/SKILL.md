@@ -252,12 +252,23 @@ whether the integration delivers at all and whether recovery fires, and both are
 minute with the job never stopped. Run it end to end, in this order:
 
 1. **Capture the current config from the API first**, not from memory — `timeout`, `grace`, `tags`,
-   `desc` and `channels`. You restore from this, and an un-restored check false-alarms daily.
+   `desc`, `channels`, and — for a check created with `--schedule` — **`schedule` and `tz` as well**.
+   You restore from this, and an un-restored check false-alarms daily.
+
+   A scheduled check needs those last two or it cannot be put back. `timeout` and `schedule` are
+   mutually exclusive, so compressing to a period **switches the check out of cron mode and drops the
+   schedule**, and its `timeout` reads `None` beforehand — capture only the four fields above and the
+   restore has nothing to re-send, leaving a daily-at-04:10 check on a flat period that measures from
+   whenever it last happened to ping.
 2. **Compress** to `--period-seconds 60 --grace-seconds 60`. `upsert` is keyed on name, so it updates
    rather than duplicating. **Append** a `DRILL IN PROGRESS <date> — restore to <timeout>/<grace>` marker
    to the captured `desc`; do **not** replace it. `hc.py list` does not return `desc` at all, so the
    field reads as empty when it is not, and a replacement silently destroys the grace rationale — which
    is the text that stops someone later "fixing" the number to a rounder one.
+
+   **Where `desc` cannot be recovered, omit the flag rather than guessing at the text.** `hc.py` leaves
+   an absent `--desc`/`--tags` out of the request body entirely, so a partial update preserves both —
+   which is the safe move when the only copy of the rationale is the one you cannot read.
 3. **Watch it fall.** The deadline is `last_ping + period + grace`, already past, so it goes `down`
    within seconds. The alert fires here.
 4. **Recover by running the real job**, not by pinging the URL by hand. A hand ping proves the URL
@@ -272,6 +283,13 @@ drilling. The teardown must not depend on the drill succeeding.
 
 This proves delivery and recovery. It does **not** prove the grace is the right length; nothing can,
 where that number is an admitted risk budget rather than a derivation.
+
+**The notification mail is the instrument, not the dashboard.** It carries what the API withholds: the
+`Description` block verbatim — which is the only way to confirm the drill preserved `desc`, since `list`
+will not return it — and a `Last Ping Body` section holding the job's own output. Read one after the
+drill rather than only watching the status flip. Measured 2026-09-20: a recovery mail carried the full
+grace derivation and the backup's `done dumping … (107 documents)` lines, settling two questions the
+status field could not answer.
 
 **You must see** three things, and the third is the one usually skipped:
 
