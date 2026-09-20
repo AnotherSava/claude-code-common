@@ -27,6 +27,25 @@ skills/<skill-name>/
   directory, not at the end; the `skill-tracked.py` hook flags a miss when the SKILL.md is
   written, but the hook is a net, not the plan.
 
+### One skill per user-facing task, one implementation underneath
+
+A distinct thing the user asks for gets its own skill, even when it is a thin wrapper over a
+skill that already exists. Skills are the user's interface — `/repo-status` is typed,
+`repos-status.py --repo .` is not — so folding a second task into an existing skill as a flag
+hides it behind prose nobody reads at the moment they want it.
+
+Single Source of Logic still applies, one layer down: the new skill gets its own `SKILL.md` and
+**no `scripts/` of its own**, invoking the existing script with the argument that scopes it. Real
+case: `/repo-status` is one `SKILL.md` calling `github-status/scripts/repos-status.py --repo`,
+sharing its scanner, its `config/config.env` and its description cache. Duplicating the script
+would have been the error that rule names; duplicating the *entry point* is what the user wanted.
+
+The reflex to guard against is proposing a flag to avoid "a second surface" — the surface the
+user counts is the skill list, not the file tree. Which surface a given tool is actually reached
+through is a fact to check rather than assume: `~/.claude/memory/user_memo_access_paths.md`
+records it for the memo backlog, and `feedback_deploy_script_not_skill.md` reaches the opposite
+conclusion for deploy and publish, where the script is the daily path.
+
 ## Addressing Claude project data (per-project memory, sessions, etc.)
 
 If your skill needs to read or write anything under `~/.claude/projects/<project-id>/` — most commonly a project's memory directory — see `~/.claude/skills/skill/references/claude-project-memory-paths.md`. It documents the path mangling rule, the cross-platform CWD recipe, and the common gotchas. Cite that file from your skill rather than re-deriving the algorithm.
