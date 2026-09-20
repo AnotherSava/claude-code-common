@@ -25,6 +25,8 @@ Ask nothing where the file's location fixes the reader. These conventions do not
 
 **A skill's own files are out of scope, not merely a different depth.** Every rule here is about how a document reads to a person: an opening that gives the reason before the definition, a header whose content a reader can predict, a sentence that does not defend itself. A SKILL.md is a procedure Claude executes, and its constraints, commands and edge cases *are* the content — trimming them so they read better removes what a run needs. Leave them alone.
 
+**Name a learnings file for the problem shape when its rules outlive the tool.** That directory is indexed by filename, so `postgres-copy-prod-to-dev.md` is invisible to someone doing the same job on another engine — and four of its five traps were never about Postgres. Tool-named is right where the content is genuinely about that tool; shape-named is right where one tool is the worked example under rules that are not.
+
 Ask the questions below only where the path does not decide.
 
 ## Before the first sentence, ask
@@ -145,6 +147,8 @@ The annotation was *that's too generic term*. When no precise noun exists, that 
 **Say what to do, then why.** A warning that opens on its reason makes the reader assemble the instruction themselves, and they are reading a warning because they are already in a hurry.
 
 The two halves fail independently and each failure looks fine alone. A warning with no instruction states a fact and asks for nothing. A warning whose reason is something the reader could have supplied — *because this is important*, *to avoid problems* — justifies the instruction with nothing and gets skipped. Write the imperative, then a reason that forces it: why it has to happen now, or in that order. Full case in `~/.claude/memory/feedback_warning_leads_with_instruction.md`.
+
+**A comparative frame says both options work.** *Recreate the one service rather than the stack* reads as a preference between two things that function, however forcing the reason after it is. Where the alternative actually fails, name the failure: *remove the old container first — the publish aborts on a name conflict otherwise*. Measured 2026-09-20: a reader met that exact line in a convention version, understood it, filed it as an optimisation, and hit the abort.
 
 ## Claims that decay
 
