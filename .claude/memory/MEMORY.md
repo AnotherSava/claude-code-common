@@ -7,3 +7,4 @@
 - [Adoption is prose, not scripts](adoption-prose-over-scripts.md) — the three facts that let a source-destroying migration drop its scripted per-item assertion, and the incident that argued against it
 - [v1's assertion is directory-blind](v1-assertion-is-directory-blind.md) — it checks a checklist line reached some file, not which of `memos/` and `done/`; an open item filed as addressed passes
 - [Untracked checklists block the split](untracked-checklists-block-the-split.md) — two repos hold an uncommitted `.claude/memos.md`; commit it before `/adopt` runs there or v1 destroys every marker
+- [Effort changes dirty this repo](effort-changes-dirty-this-repo.md) — `/effort` writes through the settings.json symlink into the tree; press `s` for session-only, and two effort keys can disagree

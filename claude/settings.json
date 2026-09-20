@@ -39,23 +39,23 @@
         "hooks": [
           {
             "type": "command",
-            "if": "Bash(powershell *ItemType*)",
-            "command": "python -S \"$HOME/.claude/hooks/windows-link-guard.py\""
+            "command": "python -S \"$HOME/.claude/hooks/windows-link-guard.py\"",
+            "if": "Bash(powershell *ItemType*)"
           },
           {
             "type": "command",
-            "if": "Bash(pwsh *ItemType*)",
-            "command": "python -S \"$HOME/.claude/hooks/windows-link-guard.py\""
+            "command": "python -S \"$HOME/.claude/hooks/windows-link-guard.py\"",
+            "if": "Bash(pwsh *ItemType*)"
           },
           {
             "type": "command",
-            "if": "Bash(cmd *)",
-            "command": "python -S \"$HOME/.claude/hooks/windows-link-guard.py\""
+            "command": "python -S \"$HOME/.claude/hooks/windows-link-guard.py\"",
+            "if": "Bash(cmd *)"
           },
           {
             "type": "command",
-            "if": "Bash(mklink *)",
-            "command": "python -S \"$HOME/.claude/hooks/windows-link-guard.py\""
+            "command": "python -S \"$HOME/.claude/hooks/windows-link-guard.py\"",
+            "if": "Bash(mklink *)"
           }
         ]
       }
@@ -318,6 +318,11 @@
   },
   "outputStyle": "action-first",
   "effortLevel": "xhigh",
+  "modelSettings": {
+    "claude-opus-5": {
+      "effortLevel": "high"
+    }
+  },
   "ultracode": true,
   "awaySummaryEnabled": false,
   "tui": "fullscreen",
