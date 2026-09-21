@@ -90,8 +90,20 @@ a few minutes). The site often serves over HTTPS while still "pending".
 - **Listing zones needs Zone → Zone → Read.** A DNS-only token returns an empty zone list,
   so you can't discover the zone ID without it.
 - Inspect a token's actual policies (permission groups + scoped resources) via the account
-  tokens API to see exactly what it can do, rather than guessing from the dashboard.
+  tokens API to see exactly what it can do, rather than guessing from the dashboard. Reading
+  them needs **API Tokens Read**, which a working token normally does not carry — so the
+  fallback is the token's Summary tab in the dashboard, which lists every policy and is worth
+  asking for before inferring a permission from which probes pass.
+- **A probe that succeeds names no permission.** An endpoint can answer 200 off a group you
+  were not thinking about, so "the GET worked, therefore Read is granted" is not sound — and
+  it leads to asking for Edit on a group the token does not carry at all. Verified on
+  `…/email/routing/rules`, which read fine with no Email Routing permission anywhere.
+- **Minting needs API Tokens Write**; without it `POST /accounts/{acct}/tokens` returns
+  `403 9109 Unauthorized`. Probe with `"policies":[]` — an authorization refusal proves the
+  limit while creating nothing, where a validation error would mean the create is allowed.
 
 ## See also
+- `cloudflare-email-routing-inbound.md` — receiving mail on a zone, and the Email Routing
+  permission groups, which are three different things with similar names.
 - `mapbox-gl-js.md` — Mapbox token URL restrictions (the public token baked into such a
   static bundle should be locked to the deployed domain).
