@@ -19,3 +19,13 @@ When tempted to explain why a piece of legacy code, documentation, or workflow s
   was already non-admin, already had content deletion disabled, and Jellyfin access tokens are already
   per-device revocable). One real benefit survived, and the honest answer was "narrow but real" rather than the
   four-point case I would otherwise have made.
+- **A justification can be accurate and still wrong, when nobody measured the population it describes.** The
+  bullets above are about claims with no basis; this is the harder case, where the basis is real and stale.
+  On 2026-09-21 (trips) I defended an automatic trip-merge by quoting the code comment recording the defect
+  it was written for — a four-day trip split in half by the order its bookings arrived. The comment was
+  true. Counting the live data settled it in one query: of 107 trips, three pairs overlapped within the
+  merge's day of slack and merging any of them would have been wrong, because trips there routinely abut,
+  one ending the day the next begins. The rule was right for the nine bookings it was written against and
+  wrong for the 298 that followed. So cite the comment to explain why something exists, and measure the
+  current data before arguing it should stay — the query is usually one command, and the code cannot tell
+  you what has changed around it.
