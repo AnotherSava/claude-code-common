@@ -2,7 +2,7 @@
 
 A screenshot in `docs/` is documentation that decays invisibly: the prose beside it stays
 true while the pixels stop being, and nothing renders differently when it happens. This is
-the measured basis for the screenshot step in the `documentation` skill — that skill owns
+the measured basis for the screenshot step in the `docs-relevance` skill — that skill owns
 the procedure; this file records which signals were tested, which were rejected, and why
 capture is not automated.
 
@@ -133,7 +133,7 @@ faded to grey, new composited semi-transparent, laid out `old | new | overlay`.
 The survey above still describes most projects, and its two objections stand — but they are about
 missing preconditions, not an impossibility, and both can be supplied. Automated capture became the
 right call for a WPF desktop app whose settings window is pure, deterministic, local UI, and the
-`documentation` skill now runs it under a per-screenshot policy (`auto` / `confirm` / `never`) the
+`docs-relevance` skill now runs it under a per-screenshot policy (`auto` / `confirm` / `never`) the
 user sets once. What made it safe, in the order the objections appear above:
 
 - **The framing is recorded because the capture is a committed script**, not a remembered sequence of
@@ -202,3 +202,17 @@ Two preconditions I asserted and had not checked, both of which made the work lo
   is silently cropped to the window; the result looks like a complete screenshot.
 - **`body { width: max-content }` is not enough** when sibling sections differ: the body takes the
   widest one and the narrower siblings still stretch to match. Each section needs it too.
+
+## Update 2026-09-20: the capture machinery decays too, and more quietly
+
+Everything above is about a frame going stale while the prose beside it stays true. The
+machinery that *produces* the frames decays the same way and is quieter about it, because a
+capture script runs only when a person re-shoots something — so a broken one waits in the
+repo until someone stages a window, and fails at the shutter. A capture that shells out to a
+skill's shared scripts is one rename away from exactly that; assert the dependency in the
+project's own commit gate, and see `skill-scripts-as-a-dependency.md` for what such a check
+has to get right.
+
+The same rot reaches prose: this file named the `docs-relevance` skill by its old name in two
+places, found in the same pass. A document pointing at a renamed skill costs only a confused
+reader, where a script pointing at one costs a staged window and a failed shot.
