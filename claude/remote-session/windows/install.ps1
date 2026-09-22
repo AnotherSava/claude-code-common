@@ -108,10 +108,16 @@ if ($libText -join "`n" -notmatch 'REMOTE_SESSION_KEEPALIVE=(\S+)') {
 }
 $keepalive = $Matches[1]
 
-$launcher = Join-Path $here 'run-hidden.py'
 $logDir = Join-Path $env:LOCALAPPDATA 'claude-remote-session'
 $log = Join-Path $logDir 'holder.log'
 New-Item -ItemType Directory -Path $logDir -Force | Out-Null
+
+# The launcher is copied out of the checkout for the same reason holder.sh is: the task runs it for
+# as long as the user is logged on, and a running script is an open file handle, so `rm` and
+# `git pull` both fail on the repo copy with "Permission denied" while the holder is up. Measured -
+# holder.sh was moved for this and run-hidden.py was left behind, which is the whole failure.
+$launcher = Join-Path $logDir 'run-hidden.py'
+Copy-Item -Path (Join-Path $here 'run-hidden.py') -Destination $launcher -Force
 
 # --- the task ------------------------------------------------------------------------------------
 

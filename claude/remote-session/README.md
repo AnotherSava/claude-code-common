@@ -88,8 +88,10 @@ powershell -NoProfile -ExecutionPolicy Bypass -File claude\remote-session\window
 
 It writes `%USERPROFILE%\.wslconfig`, registers a hidden scheduled task called
 `ClaudeRemoteSessionHolder`, starts it, and then checks that the holder came up rather than assuming
-it. Re-run it after changing anything under this directory — in particular `holder.sh`, whose running
-copy lives in the distro's own filesystem and is refreshed only by the installer.
+it. Re-run it after changing anything under this directory — in particular `holder.sh` and
+`run-hidden.py`, which run from copies outside the checkout and are refreshed only by the installer.
+They live outside it because a running script is an open file handle on Windows, and leaving either
+in place makes `git pull` on that machine fail while the holder is up.
 
 The Mac needs nothing installed. It needs SSH access to the Windows machine, which
 `claude/learnings/windows-openssh-over-tailscale.md` covers.
