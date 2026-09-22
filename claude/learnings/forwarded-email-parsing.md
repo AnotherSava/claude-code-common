@@ -45,6 +45,32 @@ One `.eml` is not one document:
 
 So decode once, keep the raw bytes, and hand each tier its own view.
 
+### The model needs the attachment's TEXT, and the failure without it is a confident lie
+
+Handing the model the decoded body alone is the obvious reading of the rule above, and it is wrong for the
+senders who put the itinerary in the attachment. Run each PDF part through a text extractor and append the
+result to what the model is sent.
+
+What makes this worth a section is the failure mode. The model does not fail — it reads a covering letter
+that genuinely states no fare, no seat and no address, and reports exactly that. The extraction comes back
+`needs_review` with three specific, well-worded notes saying the data was not provided, while the data sits
+in the attachment beside it. Measured on a forwarded FlixBus confirmation: the body carried none of it and
+the unread boarding pass carried the fare, both seat numbers, and the street address of both stations. A
+silent omission would have been *easier* to notice than a confident, specific denial.
+
+Three details:
+
+- **Label each part with its filename** in the appended text. A message can carry a boarding pass and a
+  receipt whose contents disagree, and the model has no other way to say which it read a figure from.
+- **Body first, attachments after.** The letter is context; the attachment is the itinerary. A model reading
+  top to bottom should meet them in that order.
+- **Cap the total.** A brochure or a 40-page terms document otherwise spends the rate limit on nothing. A
+  real itinerary runs to a few thousand characters, so a bound in the tens of thousands never fires on
+  anything genuine.
+
+A parser that declines the attachment does not save you here: kitinerary refused that same boarding-pass
+PDF, which is precisely why the model had to be given it.
+
 ## Recovering the original sender
 
 The envelope `From` of a forward is the forwarding mailbox, which is worse than useless when the sender
