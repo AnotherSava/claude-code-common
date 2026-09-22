@@ -536,3 +536,29 @@ into a crash, which is worse than the hang it was added to prevent.
 
 Where an external bound is genuinely the only option, guard it rather than assuming:
 `command -v timeout >/dev/null && TO="timeout 20" || TO=""`, then `$TO cmd`.
+
+## Asserting on a shell function's body needs `functions`, not `type`
+
+A change to a function in an rc file is only real once the shell loads it, so the natural check is to
+start a login shell and grep what it has. In zsh `type` does not print the body:
+
+```
+$ zsh -lic 'type claude'
+claude is a shell function from /Users/…/.zshrc
+```
+
+Grepping that output for anything in the function returns zero matches whether or not the edit
+worked, so the check reports success for a removal that never happened and for one that did. The
+failure is the vacuous kind that looks like evidence: a count of zero is exactly what a correct
+removal produces.
+
+Ask for the definition instead, and assert against it:
+
+```bash
+zsh -lic 'functions claude' | grep -c -- '--name'   # 0 only when it is genuinely gone
+```
+
+Bash spells the same thing `declare -f <name>`; its `type` does print the body, so a script that
+works under bash goes silent under zsh. Pair the assertion with a positive control — grep the same
+output for something you know survives — or a shell that failed to start reads identically to a
+clean result.
