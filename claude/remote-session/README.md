@@ -93,6 +93,11 @@ it. Re-run it after changing anything under this directory — in particular `ho
 They live outside it because a running script is an open file handle on Windows, and leaving either
 in place makes `git pull` on that machine fail while the holder is up.
 
+**Close your sessions before re-running it.** Re-registering the task stops the holder, and every
+session's `claude.exe` belongs to that holder's job object, so all of them are killed — the tmux
+server itself survives, which makes the loss easy to miss until you look for a session that is no
+longer there.
+
 The Mac needs nothing installed. It needs SSH access to the Windows machine, which
 `claude/learnings/windows-openssh-over-tailscale.md` covers.
 
