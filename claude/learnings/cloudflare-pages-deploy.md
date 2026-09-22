@@ -101,6 +101,19 @@ a few minutes). The site often serves over HTTPS while still "pending".
 - **Minting needs API Tokens Write**; without it `POST /accounts/{acct}/tokens` returns
   `403 9109 Unauthorized`. Probe with `"policies":[]` — an authorization refusal proves the
   limit while creating nothing, where a validation error would mean the create is allowed.
+- **API Tokens Write also edits an existing token**, so a scoped setup permission need not be
+  a permanent grant. `PUT /accounts/{acct}/tokens/{id}` takes the whole token — `{name, status,
+  policies}` — so read it first, filter `permission_groups` by id, and PUT the result; the
+  secret is unchanged, per the Roll bullet above. Keep the pre-edit JSON and diff the policies
+  afterwards on `(id, resources, effect, group names)`: that is what distinguishes "removed the
+  two groups I meant" from "rewrote the policy", and the response body alone does not.
+- **A permission group can be listed on a token and still authorize nothing, because it is
+  scoped to the wrong resource kind.** A group belonging to an account-level API — Pages,
+  Workers KV, Workers Scripts — inside a policy whose `resources` key is
+  `com.cloudflare.api.account.zone.<zoneid>` is accepted by the dashboard and refuses every
+  account endpoint with `10000`. So the token's Summary tab reads as if the capability is
+  there. Check the resource kind beside each group, not just the group list, and treat
+  "listed but refused" as mis-scoping before suspecting the credential.
 
 ## See also
 - `cloudflare-email-routing-inbound.md` — receiving mail on a zone, and the Email Routing
