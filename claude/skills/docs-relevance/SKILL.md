@@ -26,6 +26,12 @@ All file paths below (`README.md`, `docs/`, `docs/pages/`, `docs/index.md`, `doc
 
 ## Process
 
+**First, read the project's own guidelines, and let them override any step below.** A project `CLAUDE.md` — `.claude/CLAUDE.md` where it exists, otherwise the one at the repo root — is the only place a repo can say how it wants to be documented, and this skill has opinions that a repo is entitled to refuse: that a features list should exist, that a page describing something visual wants a picture, that a project with no images is the one most likely to want its first. Those are defaults, not requirements. Where the project says otherwise, the project wins, and the step is skipped rather than argued with.
+
+Say in the report which of its rules applied, so a skipped step reads as a decision already taken rather than as a check that quietly did not run. Step 5 reads the same file for staleness — that is a different job, and finding a rule here does not excuse checking whether the rest of it is still true.
+
+A repo that says nothing gets every step as written. Never infer a rule from the absence of something: a project with no screenshots has not thereby declined them, which is exactly the case step 4 is built to raise.
+
 1. **Read `README.md`** (at the repo root) and fix any references to changed paths, APIs, or behavior
 
 2. **Read all files in `docs/pages/`** (if the folder exists) and check for both staleness and gaps:
@@ -45,6 +51,8 @@ All file paths below (`README.md`, `docs/`, `docs/pages/`, `docs/index.md`, `doc
    - When in doubt about which side is correct, treat `docs/index.md` + `docs/pages/<feature>.md` as the source of truth and update the README to match.
 
 4. **Check documentation screenshots.** A screenshot is documentation that goes stale invisibly — the prose beside it stays true while the pixels stop being. Run the staleness checks whenever **Doc image files** is not `NONE`; when it is `NONE`, say so rather than staying silent, and go straight to the missing-shot pass below — a project with no images at all is the one most likely to want its first. Report the counts on every run, including a clean one.
+
+   **Unless the project has said it does not use them.** This whole step is governed by the guidelines read at the top of the Process: a repo whose `CLAUDE.md` rules out screenshots in its documentation gets no staleness pass, no manifest, no gap hunt and no offer — say the rule applied and move to step 5. Asking anyway is the specific failure that rule exists to stop, since the gap hunt below finds the same absence every run and would re-raise it forever.
 
    - **Start from the manifest, and leave it more complete than you found it.** **Screenshot manifest** in Context is `docs/screenshots/screenshots.json` — one entry per screenshot or per series taken together, recording what the frame shows, how to reproduce it, and whether this skill may replace it (`auto` / `confirm` / `never`). See `references/screenshot-manifest.md` for the schema, the policy semantics and the upkeep rules; read it before writing to the file. When Context reports `MISSING`, build the manifest during this run rather than working without one — every fact the steps below establish belongs in it, so the next run does not re-derive them.
    - **Ask about every undecided screenshot, once.** A file in **Doc image files** with no manifest entry, or an entry carrying no `policy`, has never been ruled on. Ask the user which policy it should have — `auto` (replace it without asking), `confirm` (propose, replace on approval), or `never` (report only; they take the picture) — and write their answer into `policy`. Ask about all of them in one exchange, not one question per image. When the question cannot be asked, write the entry with everything else you know and **no `policy` key at all**, then name those entries in the report so the next interactive run settles them. Never infer a policy from how a similar image was treated elsewhere.

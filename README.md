@@ -135,6 +135,7 @@ Scans project documentation for stale references and fixes them.
 **Command:** `/docs-relevance`
 
 **Features:**
+- Reads the project's own `CLAUDE.md` first and lets it override any step — a repo that rules out screenshots gets no staleness pass, no manifest and no offer — and says in the report which of its rules applied
 - Checks README, `docs/pages/`, CLAUDE.md, and source comments against current code
 - Fixes stale paths, API references, and behavior descriptions
 - Keeps curated feature listings (features page, docs index, README) in sync with the diff
