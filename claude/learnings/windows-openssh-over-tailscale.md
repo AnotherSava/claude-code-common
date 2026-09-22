@@ -177,6 +177,14 @@ Two consequences, and the second is the expensive one:
   box via [[peer_messaging]]'s dashboard relay. Then have it write to a file you read back over SSH,
   per [[feedback_route_output_not_paste]].
 
+## Nothing you start here outlives the connection
+
+Win32-OpenSSH puts the session in a job object with Kill-on-Job-Close, so every process an `ssh`
+command starts is killed the moment the connection drops — `start "" /b` does not escape it, and
+neither does a Windows process launched indirectly through WSL interop. A scheduled task does. The
+measurements, and what that means for anything meant to keep running, are in
+[[windows-persistent-terminal-session]].
+
 ## You cannot drop privileges here, and `runas` says nothing about it
 
 An sshd session for an account in the Administrators group arrives **elevated** — High mandatory

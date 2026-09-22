@@ -801,6 +801,23 @@ Two things about that key are worth knowing before debugging one. The name is re
 
 ---
 
+## Remote Session
+
+The `claude/remote-session/` directory holds a Claude session that runs on the Windows machine and
+can be watched from both machines at once — a keystroke in agterm on the Mac and an ordinary
+terminal on Windows, attached to the same session simultaneously. The agent is a native Windows
+process with a real Windows working directory, so it can build and drive Windows GUI applications;
+WSL and tmux only hold the terminal it lives in.
+
+It lives here rather than in its own repo because both halves come from one checkout: the Windows
+holder and the Mac attach script arrive together on a single `git pull`.
+
+Setup, daily use and what it does not survive are in
+[`claude/remote-session/README.md`](claude/remote-session/README.md); the measurements that shaped it
+are in `claude/learnings/windows-persistent-terminal-session.md`.
+
+---
+
 ## Global Installation
 
 Global files live in `claude/` (symlinked to `~/.claude/`) and `git/` (hooks, gitignore, gitattributes — each symlinked to `~/`). Project-local config stays in `.claude/`. The one directory under `claude/` that is deliberately not symlinked is `claude/tests/`: those run from a checkout of this repo, not from `~/.claude/`.
