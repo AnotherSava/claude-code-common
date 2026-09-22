@@ -49,6 +49,8 @@ The `memos.py` helper owns the timestamp, the slug, the title derivation and the
 
 **Every command here refuses in a repo that has not adopted this layout**, naming the version and pointing at `/adopt`. That layout is a convention the dotfiles repo defines and versions, so a repo below the newest version affecting `memo` is one where every command would be wrong in both directions: a listing reports an empty backlog while the old file holds items, and an `add` writes a memo beside it and leaves the migration half done. Run `/adopt` in that repo and re-run the command — in a repo already in the right shape it records the version in seconds and changes nothing. A refusal is never something to work around by writing the file by hand.
 
+**The one exception is a repo this session does not own.** `/adopt` is run by the session that owns a repo, so a capture about *another* repo has nowhere to go, and refusing there drops the observation instead of deferring it. Append it by hand in that repo's existing format, matching the surrounding shape and ordering exactly, and say that is what you did. Version 001's Path A splits every checklist item out of `memos.md`, so the line migrates with the rest whenever `/adopt` reaches that repo — provided it is committed by then. An uncommitted line is split from the file on disk while nothing afterwards can read any but a committed revision, so route it to the owning session for a commit rather than leaving it dirty. In a repo this session owns, the refusal stands: run `/adopt`.
+
 ## Process
 
 ### If `$ARGUMENTS` is non-empty — record a memo

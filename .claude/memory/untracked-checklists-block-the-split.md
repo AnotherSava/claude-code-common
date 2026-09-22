@@ -18,11 +18,17 @@ indistinguishable from that conclusion, which is why [[v1-assertion-is-directory
 can recur unreported.
 
 **A tracked checklist with an uncommitted edit loses only that edit, and loses it the same way.**
-url-cleaner is in that state as this is written — `git status --short` shows ` M .claude/memos.md`
-— and 001 splits from the file on disk while nothing afterwards can read anything but a committed
-revision. So the item captured since the last commit reaches a memo file whose marker is
-unrecoverable, and the memo reads as an ordinary new capture rather than as one whose state nobody
-can now establish.
+url-cleaner and printlab are both in that state as this is written — `git status --short` shows
+` M .claude/memos.md` — and 001 splits from the file on disk while nothing afterwards can read
+anything but a committed revision. So the item captured since the last commit reaches a memo file
+whose marker is unrecoverable, and the memo reads as an ordinary new capture rather than as one
+whose state nobody can now establish.
+
+**A session writing a memo into another repo creates this state itself.** printlab's dirty line was
+appended from a session working in the dotfiles repo on 2026-09-21, by hand, because `memos.py`
+refuses below v001 and `/adopt` there was not that session's to run. Writing the capture and leaving
+it uncommitted is the same hazard as finding it uncommitted — so a hand-written entry has to be
+routed to the owning session for a commit, not just written and reported.
 
 **Commit `.claude/memos.md` in all three repos before running `/adopt` there.** One commit, before
 the walk starts, and the whole problem is gone. v010's step 1 says so, but a walk reaches that
