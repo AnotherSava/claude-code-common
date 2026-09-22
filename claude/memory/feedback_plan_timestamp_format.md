@@ -17,12 +17,11 @@ After the plan has been fully executed, **move** the file from `docs/plans/` int
 - When execution of the plan is complete (all stages/tasks done): `git mv docs/plans/<file>.md docs/plans/completed/<file>.md` — keep the same filename.
 - The first `# H1` heading inside the plan body must be a descriptive title (e.g. `# Refactor X to Y`). The `plan-archive` hook derives the filename slug from this H1; generic section headers like `# Context` or `# Plan` produce useless archived filenames. Keep section headings at `##` under the title.
 
-**Say when a plan is finished — the hook cannot guess it.** `plan-archive.py done` also archives plans automatically, but only on a signal the plan states itself. It reads, in order:
+**Say in the plan when it is finished — nothing else can tell.** The `commit` skill makes the move, reading two signals out of the body with fenced code blocks stripped, so a checkbox quoted in an example is not mistaken for the plan's own state:
 
-1. An explicit `<!-- plan-archive: done -->` marker anywhere in the body — archives regardless of anything else.
-2. A task list: any open `- [ ]` means in flight, leave it; all boxes `- [x]` means finished, archive.
-3. Neither marker nor checkboxes: no verdict to read, so it waits until the file has been untouched for 7 days.
+1. An explicit `<!-- plan-archive: done -->` marker anywhere in the body — finished, whatever else the file says.
+2. A task list: any open `- [ ]` means in flight and it stays put; at least one `- [x]` with no open boxes means finished.
 
-So a plan carrying a verification checklist stays in `docs/plans/` until those boxes are ticked — tick them as the work lands, or add the marker for a prose plan with nothing to tick. Skips are logged to `~/.claude/plan-archive.log` with a reason (`open_tasks=10`, `no_signal_age=…`), which is where to look if a plan archives or lingers unexpectedly.
+A plan carrying neither states no verdict, and `/commit` reports that rather than guessing from its age. So a plan with a verification checklist sits in `docs/plans/` until those boxes are ticked — tick them as each piece is done, or add the marker for a prose plan with nothing to tick. The move is proposed in the commit plan and made only on confirmation, which puts it in the same commit as the work it describes.
 
-Until 2026-08-19 the hook instead inferred completion from the session going idle without a trailing `?` — unrelated to whether any work happened, and it archived a plan four minutes after it was written, before a single step ran. Idleness now only decides *when to look*, never whether to move. Nothing is lost by a skip: the check runs on every idle prompt, so a plan archives at the first idle moment after it says it is done.
+A `completed/` folder predating 2026-09-21 may hold a plan nobody ever finished, and a repo you only read from may be missing one: an idle-prompt hook used to make this move unattended, and it globbed every `.md` under `docs/plans/` with no way to tell a plan it had filed itself from a document the repo tracks upstream.

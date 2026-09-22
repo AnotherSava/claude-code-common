@@ -102,16 +102,6 @@
         ]
       },
       {
-        "matcher": "idle_prompt",
-        "hooks": [
-          {
-            "type": "command",
-            "command": "python -S \"$HOME/.claude/hooks/plan-archive.py\" done",
-            "async": true
-          }
-        ]
-      },
-      {
         "matcher": "permission_prompt",
         "hooks": [
           {

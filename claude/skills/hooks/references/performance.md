@@ -57,7 +57,7 @@ Each fed a payload that hits its first early return; all verified rc=0, zero std
 | minimal hook (parse stdin, discard) — the floor | 60.6 | 84.0 |
 | `doppler-guard.py` | 63.8 | 84.0 |
 | `skill-tracked.py` | 65.3 | 88.0 |
-| `plan-archive.py done` | 66.5 | 93.4 |
+| `plan-archive.py done` — subcommand retired since, archiving moved into `/commit` | 66.5 | 93.4 |
 | `plan-archive.py start` | 67.8 | 90.0 |
 | `memos-surface.py on-prompt` | 72.5 | 95.7 |
 
