@@ -12,6 +12,17 @@ Editing an *existing* rule is affected too, not just additions: e.g. adding a se
 
 **Fix:** stop the dev server, `rm -rf .next` (the *whole* dir), restart. Forces a clean CSS regen. Partial clears do **not** work — the dev cache lives under `.next/dev/` (`.next/dev/cache/turbopack/`), so removing `.next/cache`, `.next/static`, or `.next/server` leaves the stale compile intact.
 
+**Ask `next build` whether your code is wrong, before clearing anything.** The browser probe below tells you a rule is missing from the *dev* bundle and cannot say whether that is staleness or a class you wrote wrong — and those want opposite responses. A production build compiles from scratch every time, so grepping **its** CSS answers what the dev chunk cannot:
+
+```bash
+npm run build
+find .next -name '*.css' -not -path '*/cache/*' -exec grep -ho 'grid-template-columns:[^;}]*' {} \; | sort -u
+```
+
+Present in the built CSS and absent from the served chunk ⇒ the source is fine and only dev is stale, so restart instead of rewriting. Absent from both ⇒ it never generated, and the "never generate" section below is the one you want. Verified 2026-09-22: `grid-cols-[16rem_minmax(0,1fr)]` collapsed a two-column page into one column in dev while the build emitted `grid-template-columns:16rem minmax(0,1fr)` correctly — the dev chunk still carried the `15rem` and `20rem` from two earlier edits and had never recompiled.
+
+**A compile error in an intermediate edit can wedge the regeneration for the rest of the session.** Turbopack was hot-reloading normally, one broken edit went through (a mangled class name plus a missing import), and after it was fixed every later edit was ignored — the CSS rescan included. The tell is in the dev server's own error log: it keeps quoting **source lines that no longer exist**, from code already deleted. Check that before doubting the fix, because `curl` shows the *new* HTML while the CSS and the error are both from the old compile. `rm -rf .next/dev` and restart.
+
 **Sidestep it for layout-critical values:** use inline `style={{ marginLeft: -11 }}` instead of `-ml-[11px]`. Inline styles are part of the RSC/HTML payload and never depend on the CSS bundle's freshness, so they can't be broken by a stale rebuild. Reserve this for a handful of alignment-critical properties, not everything.
 
 **Verify from the browser, don't eyeball:** compare `getComputedStyle(el)` (and `getBoundingClientRect()` deltas) against intent; to confirm a rule actually made it into the bundle, fetch the served chunk and grep it:
