@@ -333,6 +333,7 @@ Cross-project preferences and feedback. Memory files live in `~/.claude/memory/`
 - [Redrawn icons keep the original's identity](~/.claude/memory/feedback_redrawn_icons_keep_identity.md) — keep the frame/facets that identify a host's component; drop only what smudges at icon size, and go bigger before going plainer
 - [Empty state names the filter](~/.claude/memory/feedback_empty_state_names_the_filter.md) — say what the filter hid, never that nothing happened; "show everything" is one click away and disproves it
 - [A transient control is sticky for its mount](~/.claude/memory/feedback_transient_control_sticky_for_mount.md) — hide a count-driven nav entry on arrival, never mid-interaction; render-phase state, not an effect
+- [A landing route chooses, never renders](~/.claude/memory/feedback_landing_route_chooses_not_renders.md) — `/` redirects to a section; a nav told what the page rendered means that content has no URL
 - [Desktop first, phone later](~/.claude/memory/feedback_desktop_first_then_phone.md) — no breakpoint tuning while the look is still moving; phone gets its own pass
 - [Deploy and publish are separate verbs](~/.claude/memory/feedback_deploy_publish_separate_verbs.md) — `deploy` runs it here, `publish` ships it out; own script each, never `deploy publish`
 - [No per-prompt hooks](~/.claude/memory/feedback_no_per_prompt_hooks.md) — never a hook on every prompt (worse if blocking); use an observable guideline or an on-demand check
