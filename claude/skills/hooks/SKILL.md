@@ -193,6 +193,24 @@ dated line here rather than leaving it in a session transcript.
   `settings.json` from inside the session — the user has to run a shell command. The JSON-parses
   check does not catch it, because the file stays well-formed. Validate a candidate copy by
   running its commands before overwriting the live file (§8.5).
+- **2026-09-21** — A hook that mutates a directory acts on every file there, including ones it did
+  not put there and does not own. `plan-archive.py done` globbed `docs/plans/*.md` and moved
+  whatever declared itself finished; in a third-party clone that meant deleting files the repo
+  tracks upstream, between turns, with nothing in the transcript to explain it. Its own log settles
+  the scale: of 41 archive moves, 20 were of files no `start_moved` had ever placed — 14 distinct
+  documents across 7 repos, some moved repeatedly after being restored. It was retired into a
+  `/commit` step. Before a hook
+  writes anywhere, ask what distinguishes its own artifacts from everything else in that location;
+  if nothing does, the hook is the wrong instrument.
+- **2026-09-21** — A text heuristic on the last assistant message is defeated by anything appended
+  after it. `plan-archive.py done` was guarded by `last_assistant_ends_with_question`, and a session
+  that appends a fixed marker to every reply made `endswith("?")` false on every turn, so the guard
+  never once fired there while logging 1174 correct skips elsewhere. A guard that fails silently in
+  whole sessions reads as a working guard in the aggregate.
+- **2026-09-21** — Removing a hook does not stop it running. Hooks load at session start, so every
+  live session keeps invoking the command that `settings.json` no longer registers. Leave the
+  entry point reachable and inert — `plan-archive.py` still dispatches on `argv[1] == "start"` and
+  returns on anything else, so a stale session's `done` call is a no-op rather than a fall-through.
 
 ## Out of scope
 

@@ -124,7 +124,7 @@ def last_assistant_ends_with_question(transcript_path: str) -> bool:
     return last_text.endswith("?")
 ```
 
-Reference implementation: the Tauri dashboard's `integrations/claude_hook.py` — see the `classify` function and the `benign_closers`-aware variant below.
+Reference implementation: the Tauri dashboard classifies in Rust, at `src-tauri/src/adapters/claude.rs` — `classify`, `classify_stop` and `classify_detailed`, with `QuestionRules::from_config` carrying the benign-closers list. Its `integrations/claude_hook.py` is only the hook entry point: it resolves the server URL, walks the process ancestry for the owning console, and POSTs the payload. Nothing in the Python file decides a state, so read the Rust when you want the heuristic as actually shipped — it is several mitigations ahead of the sketches below.
 
 Accuracy is ~80–90% in practice. Known misses:
 - "Anything else?" at the end of a true completion → false `awaiting`.
@@ -143,7 +143,7 @@ def last_assistant_ends_with_question(transcript_path, benign_closers=()) -> boo
     return not any(lower.endswith(c.lower()) for c in benign_closers)
 ```
 
-**Mitigation: trailing option lists.** Claude often appends a parenthetical option list like `"Save these? (all / numbers / none)"`. The `?` is mid-string, so `endswith("?")` returns false and the turn is mis-classified as `done`. Strip one trailing `(...)` group when (a) the trimmed text ends with `)` and (b) the substring before the matching `(` ends with `?`, then re-check. Round brackets only — don't peel `[...]` / `{...}` since they may carry unrelated content. The benign-closers comparison should run on the stripped text too, so `"What's next? (continue / stop)"` is still recognized as a benign closer.
+**Mitigation: trailing option lists.** Claude often appends a parenthetical option list like `"Save these? (all / numbers / none)"`. The `?` is mid-string, so `endswith("?")` returns false and the turn is mis-classified as `done`. A parenthetical is the common instance of a wider fault: **anything at all after the question mark defeats the check**, and a session configured to append a fixed marker to every reply defeats it on every turn rather than occasionally. The dashboard already handles its own case — `classify_stop` takes a `marker_template`, runs `strip_response_marker` before any heuristic, and is covered by `classify_stop_strips_trailing_marker_before_question_detection` over a question, a statement and a marker-only message. That strip is template-bound, so it clears the canary the dashboard injects and nothing else: a marker of a different shape still terminates the text and the turn still reads as `done`. Match the trailing string where you know it; where you do not, treat a classifier built on this heuristic as advisory and never hang an irreversible action off it. Strip one trailing `(...)` group when (a) the trimmed text ends with `)` and (b) the substring before the matching `(` ends with `?`, then re-check. Round brackets only — don't peel `[...]` / `{...}` since they may carry unrelated content. The benign-closers comparison should run on the stripped text too, so `"What's next? (continue / stop)"` is still recognized as a benign closer.
 
 ```python
 def strip_trailing_options(text: str) -> str:
@@ -573,8 +573,10 @@ Plan mode writes its approved plan to `~/.claude/plans/<auto-slug>.md`. Two hook
 - **Plan completion**: there is no direct hook for "implementation finished." Options in decreasing order of reliability:
   1. **Manual slash command** — user-triggered, always right.
   2. **On next `ExitPlanMode`** — archive the previously active plan when a new one is approved.
-  3. **Notification + `?`-heuristic** — on `idle_prompt` without a trailing `?`, treat as "truly done" and archive. Has the same ~10% miss rate as the state classifier.
+  3. **Notification + `?`-heuristic** — on `idle_prompt` without a trailing `?`, treat as "truly done" and archive. Two independent failures compound here. The heuristic carries the same ~10% miss rate as the state classifier, and on top of it any text appended after the question mark makes `endswith("?")` false, so the guard stops guarding without ever saying so. The deeper problem is what a between-turns hook can see: it has only the directory, and a glob over `docs/plans/*.md` cannot distinguish a plan the hook filed from a document the repo tracks upstream. Measured 2026-09-21 in a third-party clone — it moved a tracked plan doc seconds after a `git reset --hard`, then moved it again at the next idle prompt after the revert, presenting both times as a tracked file vanishing with nothing in the transcript to explain it.
   4. **`SessionEnd`** — archive whatever's active when the session closes. Conflates "done" with "abandoned."
+
+Archiving at commit time is the manual route in practice, and it is what this machine uses: `plan-archive.py start` files the plan on approval, and the `commit` skill proposes the move into `docs/plans/completed/` once the work is committed. The asymmetry is forced — approval has a hook and completion does not — and commit time is the first moment where both the change set and a reviewer are present, which is exactly what the between-turns options lack.
 
 The `PostToolUse`/`ExitPlanMode` matcher is narrow enough that the hook doesn't need additional filtering:
 
