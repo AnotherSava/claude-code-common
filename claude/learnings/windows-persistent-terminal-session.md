@@ -202,8 +202,33 @@ local call into the shared wrapper gets stamped remote. And a client that record
 evidence of "somewhere else": it is equally one attached before the convention shipped, one attached
 by driving tmux by hand, and one whose `/proc` entry could not be read.
 
+## The Mac-as-host direction needs almost none of this
+
+Reaching a session on the *Mac* from a Windows terminal is the same idea and a far smaller build,
+because every heavy piece above exists to defeat one Windows behaviour. The holder, the scheduled
+task, the WSL keepalive and `.wslconfig` are all downstream of Win32-OpenSSH's job object killing
+whatever an SSH connection started. macOS has no equivalent, so a tmux server started over SSH there
+is expected to outlive the connection with nothing holding it open.
+
+Measured 2026-09-23: an `ssh … whoami` run from the Windows box into the Mac account authenticated on
+a key already in place and returned that account's own name. So the transport is in place in both
+directions, and an earlier reading that called this one closed had used the *Windows* account name
+against the Mac — the two machines name their accounts differently, and the wrong user draws the
+same `Permission denied (publickey)` a missing key does. Take the account and host from the
+machine-coordinates memory rather than from here; naming them in this file would publish them.
+
+What is actually missing on the Mac is smaller and duller: tmux is not installed, and nothing starts
+Claude inside it, so no session there is attachable by anything. That is the same state the Windows
+box was in before any of this was built — a Claude owning its terminal's own pty, which no second
+client can join.
+
+The survival claim is reasoned from the absence of job objects rather than measured, because there
+is no tmux on that machine to measure it with. Test it before relying on it.
+
 ## Still unmeasured
 
+- Whether a tmux server started over SSH on macOS survives the connection dropping. Reasoned above
+  from the absence of a job object, never run.
 - Survival across a Windows reboot, a Windows Update restart, and a logoff. Only the at-logon trigger
   was reasoned about; none of the three was tested.
 - Whether `SIGWINCH` reaches the *Windows* console child through the WSL interop relay on a
