@@ -40,6 +40,13 @@ foreach ($key in 'WSL_DISTRO', 'REPO_WSL_PATH') {
 }
 $distro = $config['WSL_DISTRO']
 
+# --- the shell functions ---------------------------------------------------------------------------
+
+# Before anything else, because it needs none of what follows and because it refuses rather than
+# overwriting: a stale `claude` function is then reported while every session is still running,
+# instead of after re-registering the task has killed them all.
+& (Join-Path $here 'install-shells.ps1')
+
 # --- .wslconfig ----------------------------------------------------------------------------------
 
 # `instanceIdleTimeout = -1` is the documented way to stop a distro being shut down for idleness.
@@ -137,9 +144,38 @@ $settings = New-ScheduledTaskSettingsSet -Hidden -AllowStartIfOnBatteries -DontS
     -MultipleInstances IgnoreNew -ExecutionTimeLimit (New-TimeSpan -Seconds 0) -RestartCount 3 `
     -RestartInterval (New-TimeSpan -Minutes 1)
 
-Unregister-ScheduledTask -TaskName $TaskName -Confirm:$false -ErrorAction SilentlyContinue
-Register-ScheduledTask -TaskName $TaskName -Action $action -Trigger $trigger -Principal $principal `
-    -Settings $settings -Description 'Holds the WSL distro and tmux server that carry the Claude sessions.' | Out-Null
+# An existing registration is replaced in place with -Force, never removed and re-created. Measured
+# 2026-09-22 on the machine that registered it: `Unregister-ScheduledTask` on this task fails with
+# "Access is denied" for the same non-elevated account, while overwriting it succeeds — so a re-run
+# that deletes first needs elevation the first install did not. That failure used to be swallowed by
+# `-ErrorAction SilentlyContinue` and surface one line later as Register-ScheduledTask reporting
+# "Cannot create a file when that file already exists", an error about the wrong step.
+#
+# A running task is stopped first, because -Force will not replace one that is running.
+$existing = Get-ScheduledTask -TaskName $TaskName -ErrorAction SilentlyContinue
+$wasRunning = [bool]($existing -and $existing.State -eq 'Running')
+if ($wasRunning) { Stop-ScheduledTask -TaskName $TaskName }
+
+try {
+    Register-ScheduledTask -TaskName $TaskName -Action $action -Trigger $trigger -Principal $principal `
+        -Settings $settings -Force `
+        -Description 'Holds the WSL distro and tmux server that carry the Claude sessions.' | Out-Null
+} catch {
+    # The stop above happened for a replacement that then did not happen, so put the holder back
+    # before reporting. A failed run that leaves the task stopped is worse than one that changes
+    # nothing: the holder is gone until the next logon, and nothing says so.
+    if ($wasRunning) { Start-ScheduledTask -TaskName $TaskName }
+    if (-not $existing) { throw }
+    # Measured 2026-09-22 on the machine that registered it: the task file grants the registering
+    # account read-only access, so replacing the task is denied to the same user who created it and
+    # the first install is the only one that runs unelevated. Read the ACL for yourself with
+    # icacls "$env:SystemRoot\System32\Tasks\<task>". The raw error names neither the task nor
+    # elevation, which is why it is translated rather than passed through.
+    # Interpolated rather than built with -f, which binds tighter than + and would have formatted
+    # only the last piece of a concatenated message - leaving a literal {0} in what the user reads.
+    $denied = $_.Exception.Message
+    throw "could not replace the existing $TaskName task: $denied - re-run this script from an Administrator PowerShell, or delete the task there first."
+}
 Write-Host "task: registered $TaskName"
 
 # --- proof ---------------------------------------------------------------------------------------
