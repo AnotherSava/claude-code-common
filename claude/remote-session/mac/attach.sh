@@ -35,4 +35,7 @@ esac
 # The checkout is the same repo on both machines, so the far side runs its own copy of this script's
 # sibling. Keeping the remote command to bare tokens is what makes it survive cmd.exe, which is the
 # Windows sshd's default shell.
-exec ssh -t "$REMOTE_USER@$REMOTE_HOST" "wsl -d $WSL_DISTRO -- $REPO_WSL_PATH/claude/remote-session/wsl/cc-session.sh $project"
+# The trailing `mac` is the origin: this script only ever runs on the Mac, so it is the one place
+# that knows the person is not at the Windows keyboard. `claude` over there reads it back off the
+# client and attaches alongside rather than refusing.
+exec ssh -t "$REMOTE_USER@$REMOTE_HOST" "wsl -d $WSL_DISTRO -- $REPO_WSL_PATH/claude/remote-session/wsl/cc-session.sh $project mac"

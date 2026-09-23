@@ -52,6 +52,40 @@ remote_session_holder_up() {
     tmux has-session -t "=$REMOTE_SESSION_KEEPALIVE" 2>/dev/null
 }
 
+# The machine each client attached to a session is sitting at, one line per client, `unknown` where
+# the client recorded none. Takes the bare session name.
+#
+# The origin cannot be inferred, which is why every entry point has to state it. Measured 2026-09-22
+# against one local client and one attached from the Mac: the tmux client variables, the WSL process
+# ancestry and the client's own environment all separated those two, and none of them separated them
+# BY MACHINE — client_termtype named the terminal emulator, the ancestry was token-identical, and
+# windows/attach.cmd runs on this box the same cc-session.sh the Mac runs over ssh, so a second local
+# terminal reproduces the remote's fingerprint byte for byte. The Windows side does see the two
+# process trees apart, and has no identifier in common with a tmux client to join them by.
+#
+# One value covers a client attached before this convention shipped, one attached by driving tmux by
+# hand, and one whose /proc entry could not be read. They belong together because none of them can be
+# read as "somewhere else", and the caller refuses on all three.
+remote_session_client_origins() {
+    tmux list-clients -t "=$1" -F '#{client_pid}' 2>/dev/null | while read -r remote_session_client; do
+        remote_session_origin=$(tr '\0' '\n' < "/proc/$remote_session_client/environ" 2>/dev/null | sed -n 's/^REMOTE_SESSION_ORIGIN=//p')
+        printf '%s\n' "${remote_session_origin:-unknown}"
+    done
+}
+
+# Keep a pane whose command exited non-zero, instead of destroying the session with it.
+#
+# A session created for a command Claude Code rejects — an argument it does not know, a directory it
+# refuses — otherwise disappears in the same instant it appears, and the only thing on screen is the
+# attach failing rather than the reason it failed. `failed` holds that case alone, so an ordinary
+# exit still takes the session with it and leaves nothing to clean up.
+#
+# Set on the server rather than on the session, and before the session exists: one that fails
+# immediately can be gone before a `set-option -t` naming it could run.
+remote_session_keep_failed_panes() {
+    tmux set-option -g remain-on-exit failed
+}
+
 # The tmux session name for a project path, given as a path relative to WSL_PROJECT_ROOT.
 #
 # One function because two scripts derive it and they must agree: cc-session.sh is handed a project

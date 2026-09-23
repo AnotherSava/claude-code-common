@@ -37,13 +37,27 @@ the dashboard is not running the rows still list, without it.
 
 On the Windows machine, start a session the way you always did — `claude` in the project directory.
 The shell function now runs it inside the holder's tmux server, so it survives a disconnect and the
-Mac can attach to it later. Nothing about how you invoke it changed: `--new` still starts a fresh
-conversation, anything else still resumes and falls back to a fresh one.
+Mac can attach to it later. Nothing about how you invoke it changed: it resumes the conversation
+already in that directory and starts one where there is none. To set a running session back to a
+fresh conversation, use `/clear` inside it, from whichever terminal is watching.
 
-One session per directory, though. Running `claude` where one is already going refuses and tells you
-how to attach, rather than starting a second conversation in the same project. Two directories that
-share a last name — `scheduler/docs` and `travel/docs` — are different sessions, because the name is
+Claude Code's own subcommands — `claude update`, `claude doctor`, `claude mcp` and the others
+`claude --help` lists — run straight through, outside tmux, because they open no session. So do the
+flags that print and exit, and `--print`. Only an interactive session is wrapped, which is why the
+one-per-directory rule below never stands in the way of updating.
+
+One session per directory, and one terminal per machine onto it. Running `claude` where a session is
+already going attaches to that session instead of starting a second conversation in the same
+project — including while the Mac is watching it, which is the pair of viewers the whole design is
+for. It refuses only when a terminal on this machine is already attached, which would be two windows
+onto one pane. Two directories that share a last name — `scheduler/docs` and `travel/docs` — are different sessions, because the name is
 built from the whole path below the projects root.
+
+Which machine a client is at is recorded by whatever attached it, and read back off that client's
+own process. Nothing infers it: measured against one local client and one from the Mac, every
+ambient signal separated them for reasons that were not the machine, and `attach.cmd` runs on this
+box the same script the Mac runs over ssh, so a second local terminal reproduces the remote's
+fingerprint exactly. A client that recorded nothing is therefore refused rather than guessed at.
 
 To re-attach a session already running there, from this repo's root:
 
@@ -82,11 +96,17 @@ terminal both render at 120. Detaching the narrow one widens the other on its ne
 
 ## Setting it up
 
-Run the installer on the Windows machine, from this repo's root. It needs no elevation:
+Run the installer on the Windows machine, from this repo's root:
 
 ```powershell
 powershell -NoProfile -ExecutionPolicy Bypass -File claude\remote-session\windows\install.ps1
 ```
+
+**Re-run it from an Administrator PowerShell.** A first install needs no elevation; replacing a
+registration that already exists does, because the task file grants the account that created it
+read-only access — `icacls %SystemRoot%\System32\Tasks\ClaudeRemoteSessionHolder` shows who can
+write it. A run without elevation stops at that point and says which task it could not replace,
+leaving the holder as it found it.
 
 It writes `%USERPROFILE%\.wslconfig`, registers a hidden scheduled task called
 `ClaudeRemoteSessionHolder`, starts it, and then checks that the holder came up rather than assuming
@@ -94,6 +114,20 @@ it. Re-run it after changing anything under this directory — in particular `ho
 `run-hidden.py`, which run from copies outside the checkout and are refreshed only by the installer.
 They live outside it because a running script is an open file handle on Windows, and leaving either
 in place makes `git pull` on that machine fail while the holder is up.
+
+It also writes the `claude` function into every shell that has a profile. Git Bash, Windows
+PowerShell 5.1 and PowerShell 7 each read their own file and none of them is version-controlled, so
+it builds the function from `config.secret.env` rather than leaving them to be kept in step by
+hand. It leaves a function that already calls `start-here.sh` alone, and prints the replacement for
+one that does anything else rather than overwriting it, since a profile holds plenty the installer
+did not write.
+
+After the repo moves or the distro is renamed, that is the only part that has to run again — it
+touches neither the holder nor the scheduled task, so nothing running dies:
+
+```powershell
+powershell -NoProfile -ExecutionPolicy Bypass -File claude\remote-session\windows\install-shells.ps1
+```
 
 **Close your sessions before re-running it.** Re-registering the task stops the holder, and every
 session's `claude.exe` belongs to that holder's job object, so all of them are killed — the tmux
@@ -135,6 +169,21 @@ the holder.
 created it. `attach.sh` and `attach.cmd` both refuse to start one any other way, so this means
 something started `tmux new-session` directly over SSH — use the scripts.
 
+**A session you started with `claude` is not in the picker.** That shell's `claude` function is
+launching `claude.exe` itself instead of going through `start-here.sh`, so the session owns its
+terminal's own pty and nothing can attach to it. Run the shell installer above, which names the
+profile and prints what to put there, then restart that terminal — a shell reads its profile only at
+startup, so the window you are standing in keeps the old function however the file now reads.
+
+**It says a client is attached that recorded no machine.** That client attached before the origin
+was recorded, or by driving tmux directly. Reattach it — cmd+shift+r on the Mac, `attach.cmd` here —
+and `claude` can tell it from a terminal on this machine again. Every client attached at the moment
+this shipped reads that way once, and clears on its next attach.
+
+**A subcommand answers with "attach to the session already running here".** Claude Code has gained a
+command that the pass-through list in `wsl/start-here.sh` does not name, so it was treated as a
+request to start a session. Add it to that list — `claude --help` prints the current set.
+
 **A folder with a space in its name is refused from the Mac.** The project name is data travelling
 through the Windows shell, where `a b` arrives as `a` and no quoting prevents it — so it is refused
 at the boundary rather than opening on the wrong directory. Start that one on the Windows machine
@@ -172,15 +221,21 @@ Every piece below exists because something simpler was measured not to work; the
   from a `/mnt/d` working directory so the Windows child gets a real `D:\...` path.
 - **`wsl/start-here.sh`** is what the Windows machine's `claude` function runs. It does the same for
   whatever directory you are standing in, which is what makes every session started there
-  attachable. Both shells on that machine — Git Bash and PowerShell — call it and nothing else, so
-  their two `claude` functions cannot drift apart. Neither profile is version-controlled, which is
-  why only the thin call lives in them.
+  attachable. Every shell on that machine calls it and nothing else, so no profile carries behaviour
+  of its own that can drift from the rest.
+- **`windows/install-shells.ps1`** puts that call in each shell's profile. It builds the call from
+  the config, so a repo that moves or a distro that is renamed rewrites every profile from one
+  place.
 - **`mac/attach.sh`** and **`windows/attach.cmd`** are the two ways in, and
   **`mac/pick-session.sh`** is what the keystroke runs: it asks tmux on the far side which sessions
   exist, decorates them from the dashboard, opens agterm's picker, and creates the tab in the
   `remote` workspace.
 - **`lib.sh`** holds what more than one piece has to agree on: the config loader, the rule for naming
-  a session, the keepalive session's name, and the check for whether the holder is up. Each is there
+  a session, the keepalive session's name, the check for whether the holder is up, the read that
+  turns a session's attached clients into the machines they are sitting at, and the option that
+  keeps a pane whose command failed — without it a session created for an argument Claude Code
+  rejects disappears in the same instant, taking the error with it. The next `claude` in that
+  directory prints what the pane said, clears it, and starts a fresh session. Each is there
   because the alternative is two copies drifting — two scripts deriving a name from different inputs
   and disagreeing about it, or a rename that leaves three other places looking for a session nobody
   creates. The installer reads the keepalive name out of this file rather than repeating it, since

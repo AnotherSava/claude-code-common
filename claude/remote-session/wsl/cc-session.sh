@@ -6,7 +6,11 @@
 # and the interactive desktop both work. Starting it from an ext4 directory instead gets the
 # cmd.exe "UNC paths are not supported" failure.
 #
-# Usage: cc-session.sh <project>      # <project> is a directory name under WSL_PROJECT_ROOT
+# Usage: cc-session.sh <project> <origin>
+#
+# <project> is a directory name under WSL_PROJECT_ROOT. <origin> names the machine whose keyboard
+# the person is at — `windows` from this box, `mac` from the other one — and both callers pass it as
+# a bare token, which is the only thing that survives the Windows sshd's cmd.exe.
 
 set -eu
 
@@ -15,10 +19,17 @@ here=$(CDPATH= cd -- "$(dirname -- "$0")" && pwd)
 remote_session_load_config "$here/../config.secret.env" || exit 1
 
 project=${1:-}
-if [ -z "$project" ]; then
-    echo "usage: cc-session.sh <project>" >&2
+origin=${2:-}
+if [ -z "$project" ] || [ -z "$origin" ]; then
+    echo "usage: cc-session.sh <project> <origin>" >&2
     exit 2
 fi
+
+# Recorded in the environment of the client this script's final exec becomes, where start-here.sh
+# reads it back to decide whether a terminal on ITS machine is already attached. Demanded rather than
+# defaulted: an unrecorded origin reads as `unknown` there and refuses, so a default would silently
+# make every attach from one machine block the other.
+export REMOTE_SESSION_ORIGIN="$origin"
 
 directory="$WSL_PROJECT_ROOT/$project"
 if [ ! -d "$directory" ]; then
@@ -47,6 +58,7 @@ fi
 # Creating it wide means the first thing an attaching client sees is not a session laid out for a
 # terminal nobody is using; clients then clamp the pane down to the narrowest one attached.
 if ! tmux has-session -t "$session" 2>/dev/null; then
+    remote_session_keep_failed_panes
     tmux new-session -d -s "$name" -x 200 -y 50 -c "$directory" "$(remote_session_resume_command "$CLAUDE_EXE")"
 fi
 

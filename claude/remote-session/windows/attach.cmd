@@ -27,6 +27,9 @@ if "%DISTRO%"=="" (
     exit /b 1
 )
 
+REM The trailing `windows` is the origin — this file runs on the Windows box, so a client it attaches
+REM is a terminal on this machine, and `claude` in that project refuses a second one rather than
+REM opening two windows onto one pane.
 pushd "%~dp0..\wsl"
-wsl.exe -d %DISTRO% -- ./cc-session.sh %1
+wsl.exe -d %DISTRO% -- ./cc-session.sh %1 windows
 popd
