@@ -37,8 +37,10 @@ it needs **API Tokens Read**, which a working token usually does not have.
 `POST /accounts/{a}/tokens` needs **API Tokens Write** and refuses with `403 9109 Unauthorized to access
 requested resource` — an authorization refusal, not a complaint about the payload, so an empty `policies:[]`
 probe distinguishes "may not create" from "created something wrong" without creating anything.
-`GET …/tokens/permission_groups` needs API Tokens Read and refuses the same way, so a token that cannot
-mint also cannot look up the group ids it would need.
+`GET …/tokens/permission_groups` is documented as needing API Tokens Read. Do not infer from that which of
+your tokens may call it: measured 2026-09-22, the dedicated minting token listed every group while the
+general-purpose token answered `9109` to the same request. Probe it rather than reasoning about which
+permission a token is supposed to carry.
 
 A dedicated token whose only permission is API Tokens Write is a reasonable thing to keep in the ad-hoc
 credential store: it mints and revokes, and it is revocable on its own without touching the general-purpose
@@ -84,6 +86,11 @@ publish, and on an account that has never registered a workers.dev subdomain the
 *"could not automatically register … as your workers.dev subdomain because the name is unavailable"* before
 uploading anything. An inbound-mail Worker wants no HTTP endpoint anyway.
 
+That flag stops the *publish*, not the requirement. Add a route or a custom domain to any Worker on the
+account and the upload itself starts failing with `10063`, `workers_dev = false` notwithstanding — claim the
+account's subdomain once and nothing answers there.
+`cloudflare-workers-push-to-a-pulling-app.md` has the one-line API call.
+
 `wrangler deploy` then prints `No targets deployed` and that is success: the trigger is the routing rule,
 not a route.
 
@@ -94,6 +101,11 @@ one. Writing the raw message to a KV namespace and having the app pull on a time
 intact, at the cost of the poll interval. KV values take arbitrary bytes, so the message goes in whole; key
 it `<ISO timestamp>-<hash prefix>` so a list comes back in arrival order.
 
+Shortening that interval is the wrong lever — the free tier allows 1,000 list operations a day, so a
+one-minute sweep fails every afternoon. To get the latency back, keep the pull and add a separate signal:
+`cloudflare-workers-push-to-a-pulling-app.md` covers the hibernated WebSocket the app dials out and holds,
+down which the Worker sends one word that carries no document and therefore breaks no ingress rule.
+
 Give the puller its own token with Workers KV Storage Write and nothing else. The Worker needs no token at
 all — it writes through its binding.
 
@@ -102,6 +114,9 @@ ever arrived in, and the thing being queued is the only copy outside the sender'
 
 ## Related
 
+- `cloudflare-workers-push-to-a-pulling-app.md` — the wake-up channel that removes the poll interval:
+  Durable Object hibernation, custom domains and the certificate depth limit, and the account-level traps
+  that cost a first deploy.
 - `cloudflare-pages-deploy.md` — token gotchas that apply to every Cloudflare API: the `cfat_` verify
   endpoint, editing a token keeping its secret while Roll changes it, and reading a token's real policies.
 - `forwarded-email-parsing.md` — what actually arrives when a human forwards a confirmation.
