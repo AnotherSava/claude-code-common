@@ -143,6 +143,16 @@ Three separate notes produced these: *cumbersome writing*, *unnecessary word*, a
 
 The annotation was *you don't have to emphasize that it is an integer - just version number*. Naming the type where the reader needed the operands is the mechanism-instead-of-intent error at sentence scale.
 
+### A reference that resolves differently per reader
+
+❌
+> The same shape cost this project a queue item that reported cost, seats and station addresses as "not provided".
+
+✅
+> The same shape cost the trips project a queue item that reported cost, seats and station addresses as "not provided".
+
+Found in review rather than from an annotation. The sentence sits in a global memory, which renders into every session's `CLAUDE.md`, so *this project* named whichever repo happened to be open — right in one of them and wrong everywhere else.
+
 ## Scope claims
 
 ❌ *A convention in this repo is a claim about every repo **on the machine**.*

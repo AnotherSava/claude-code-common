@@ -121,6 +121,8 @@ Keep history in exactly two cases, and say which one applies:
 
 Anything else — what was tried, what it replaced, when it changed — belongs in the commit message, a learning, or a changelog.
 
+**A document read from many places cannot say "here".** *This project*, *this repo*, *the current config* resolve against wherever the reader happens to be, which is the one thing the writer does not control. A global memory renders into every session's `CLAUDE.md`, so its *this project* names whichever repo is open — right in one of them and wrong everywhere else. Name the thing: *the trips project*. Caught 2026-09-22 in a memory whose evidence sentence cited a defect from a different repo.
+
 **Never state what the reader has just read.** A sentence whose content the previous sentence already implied insults the person following along. The review comment this earns is *who could have thought* — for a line saying `/commit` commits the result.
 
 **Cutting has a floor, and you will find it by going through it.** Every rule above removes words, so the failure they produce together is a sentence so compressed that the reader cannot reconstruct what it means. That reads as confident and says nothing.
