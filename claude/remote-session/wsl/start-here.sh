@@ -25,25 +25,16 @@ CLAUDE_CODE_DISABLE_TERMINAL_TITLE=1
 WSLENV="CLAUDE_CODE_DISABLE_TERMINAL_TITLE:${WSLENV:-}"
 export CLAUDE_CODE_DISABLE_TERMINAL_TITLE WSLENV
 
-quote() {
-    for argument; do printf "'%s' " "$(printf '%s' "$argument" | sed "s/'/'\\\\''/g")"; done
-}
-
 fresh=""
 if [ "${1:-}" = "--new" ]; then
     shift
     fresh=yes
 fi
 
-exe=$(quote "$CLAUDE_EXE")
-args=$(quote "$@")
-
 if [ -n "$fresh" ]; then
-    inner="exec $exe $args"
+    inner="exec $(remote_session_quote "$CLAUDE_EXE") $(remote_session_quote "$@")"
 else
-    # `--continue` fails when the directory holds no conversation yet, which is the ordinary first
-    # run rather than an error; the fallback is what the shell functions already did.
-    inner="$exe --continue $args || exec $exe $args"
+    inner=$(remote_session_resume_command "$CLAUDE_EXE" "$@")
 fi
 
 # Nothing to wrap in: either there is no server to put this in, or we are already inside a pane and

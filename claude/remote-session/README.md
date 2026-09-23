@@ -52,7 +52,9 @@ claude\remote-session\windows\attach.cmd scheduler
 ```
 
 Every route creates the session if it is not running yet and attaches to it if it is. Opening a
-second client while the first is attached is the point, not a conflict.
+second client while the first is attached is the point, not a conflict. A route that has to create
+one resumes the conversation already in that directory, whichever machine it is invoked from, so
+picking a project from the Mac comes back to where that project was left rather than starting over.
 
 Detach with tmux's `Ctrl-b d`. The session and everything in it keep running; closing the terminal
 or dropping the connection does the same thing.

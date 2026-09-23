@@ -47,7 +47,7 @@ fi
 # Creating it wide means the first thing an attaching client sees is not a session laid out for a
 # terminal nobody is using; clients then clamp the pane down to the narrowest one attached.
 if ! tmux has-session -t "$session" 2>/dev/null; then
-    tmux new-session -d -s "$name" -x 200 -y 50 -c "$directory" "$CLAUDE_EXE"
+    tmux new-session -d -s "$name" -x 200 -y 50 -c "$directory" "$(remote_session_resume_command "$CLAUDE_EXE")"
 fi
 
 exec tmux attach-session -t "$session"

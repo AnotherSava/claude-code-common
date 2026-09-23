@@ -66,6 +66,31 @@ remote_session_name() {
     printf 'cc-%s' "$(printf '%s' "$1" | tr '/' '-')"
 }
 
+# Single-quotes its arguments for a shell command string this repo builds here and runs elsewhere —
+# inside a tmux pane, or through `sh -c`. Each argument comes back with a trailing space, so the
+# pieces concatenate without the caller tracking separators.
+remote_session_quote() {
+    for remote_session_argument; do printf "'%s' " "$(printf '%s' "$remote_session_argument" | sed "s/'/'\\\\''/g")"; done
+}
+
+# The command a newly created session runs: resume the conversation already in that directory, or
+# start a fresh one where there is none to resume.
+#
+# Shared because two call sites must agree and did not. start-here.sh is the Windows machine's
+# `claude` function and resumed; cc-session.sh is what the Mac's attach runs and launched the
+# executable bare, so opening a project from the Mac began a new conversation while opening the same
+# project on the Windows box came back to the old one. From the Mac that presents as the remote
+# session having lost everything, with nothing on screen to say a second conversation now exists.
+#
+# `--continue` exits non-zero where the directory holds no conversation yet, which is an ordinary
+# first run rather than a failure, so the fallback starts one.
+remote_session_resume_command() {
+    remote_session_exe=$(remote_session_quote "$1")
+    shift
+    remote_session_args=$(remote_session_quote "$@")
+    printf '%s --continue %s || exec %s %s' "$remote_session_exe" "$remote_session_args" "$remote_session_exe" "$remote_session_args"
+}
+
 # The path of a directory relative to WSL_PROJECT_ROOT, or its basename when it lies outside.
 remote_session_relative() {
     case "$1" in
