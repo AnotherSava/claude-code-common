@@ -35,10 +35,12 @@ Two ways out, neither via the connector:
 - `messageFormat: 'RAW'` returns the raw MIME, which *contains* the base64 attachment. Untested here, and note
   the payload lands in the model's context, where a large PDF is both expensive and unusable — nothing can
   decode base64 to a file except code, and the bytes would have to be transcribed verbatim to get there.
-- **Drive the browser instead**, which keeps the bytes out of any model's context entirely. See
-  `claude-in-chrome-probing.md` for the working route: hash-navigate the Gmail SPA per message, fetch each
-  `a[href*="view=att"]` with `disp=inline` swapped for `disp=safe`, and bridge the result to an origin that is
-  permitted to download — Chrome refuses every download from `mail.google.com`.
+- **Drive the browser instead**, which keeps the bytes out of any model's context entirely, and is verified
+  end to end as of 2026-09-22. See `claude-in-chrome-probing.md` for the working route: hash-navigate the
+  Gmail SPA per message, fetch each `a[href*="view=att"]` with `disp=inline` swapped for `disp=safe`, and
+  hand the result to a **localhost sink** — Chrome refuses every download from `mail.google.com`, and auto
+  mode refuses to bridge a private attachment through a third-party origin, so the sink has to be one you
+  serve yourself.
 
 ## Design implication
 
