@@ -319,6 +319,7 @@ Cross-project preferences and feedback. Memory files live in `~/.claude/memory/`
 - [No guessed facts](~/.claude/memory/feedback_no_guessed_facts.md) — don't state a guessed URL/path/endpoint or capability claim as known, or widen a supplied fact when paraphrasing; verify or flag it
 - [Dedupe before you compare](~/.claude/memory/feedback_dedupe_before_you_compare.md) — a paginated source's record count isn't a count of distinct things; reduce both sides to sets on the identity key before comparing or reporting
 - [Read the evidence you have](~/.claude/memory/feedback_read_the_evidence_you_have.md) — a root cause is read, not constructed; print the output you captured and read the log the failing thing wrote before theorising
+- [Reading an email includes its attachments](~/.claude/memory/feedback_read_email_means_attachments.md) — "check the original email" always means the whole message; the body alone answers a question nobody asked
 - [A verdict needs the act](~/.claude/memory/feedback_verdict_needs_the_act.md) — calling something forbidden needs the command or the diff, never the author's summary verb; when the work is unreadable, ask instead of concluding
 - [Windows should never flash](~/.claude/memory/feedback_no_flashing_windows.md) — no console window on the user's desktop, ever; `pythonw` + `CREATE_NO_WINDOW`, and beware the `cmd.exe` fix that undoes it
 - [Docs belong in git, data in the backup](~/.claude/memory/feedback_docs_belong_in_git.md) — a file "protected by nothing" is usually mis-tiered; move it, don't widen the backup to reach it
