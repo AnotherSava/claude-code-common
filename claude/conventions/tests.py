@@ -174,6 +174,19 @@ CASES = (
         Tree({"compose.yml": "services:\n  scheduler-app:\n    container_name: scheduler-app\n"}),
         "the compose file names no project, so there is no prefix to check a service key against",
     ),
+    Case(
+        "cotenant-hostnames",
+        Tree({"deploy/notify/wrangler.toml": 'name = "scheduler-notify"\nmain = "worker.js"\n'
+                                             'workers_dev = false\n\n[[routes]]\n'
+                                             'pattern = "scheduler-notify.example.com"\ncustom_domain = true\n'}),
+        Tree({"deploy/notify/wrangler.toml": 'name = "scheduler-notify"\nmain = "worker.js"\n\n[[routes]]\n'
+                                             'pattern = "notify.example.com"\ncustom_domain = true\n'}),
+        # No top-level `name`, so the script this file deploys has no name to judge and the hostname
+        # below it has nothing to be checked against — the rule refuses rather than guessing one.
+        Tree({"deploy/notify/wrangler.toml": 'main = "worker.js"\n\n[[routes]]\n'
+                                             'pattern = "scheduler-notify.example.com"\n'}),
+        "the wrangler file names no script, so there is nothing to check its hostnames against",
+    ),
 )
 
 
