@@ -8,3 +8,4 @@
 - [v1's assertion is directory-blind](v1-assertion-is-directory-blind.md) — it checks a checklist line reached some file, not which of `memos/` and `done/`; an open item filed as addressed passes
 - [Untracked checklists block the split](untracked-checklists-block-the-split.md) — two repos hold an uncommitted `.claude/memos.md`; commit it before `/adopt` runs there or v1 destroys every marker
 - [Effort changes dirty this repo](effort-changes-dirty-this-repo.md) — `/effort` writes through the settings.json symlink into the tree; press `s` for session-only, and two effort keys can disagree
+- [Remote session diagnostics](remote-session-diagnostics.md) — "remote session" means the tmux feature, not Remote Control; the four read-only commands for its live state, and why an attach can work while the conversation is new
