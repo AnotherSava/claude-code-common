@@ -63,3 +63,21 @@ So the same project came back to its old conversation when opened on Windows and
 when opened from the Mac. Both now build the command through `remote_session_resume_command` in
 `lib.sh`. Worth knowing the shape rather than the incident: two entry points to one feature, one of
 them quietly doing less.
+
+## A version skew between the two checkouts reads as a usage error
+
+Both machines run the same scripts out of their own checkout of this repo, so the halves can be at
+different commits, and the interface between them has changed under that. `cc-session.sh` takes a
+second argument since 2026-09-22 — the machine whose keyboard the person is at — and refuses
+without it, so a Mac whose checkout predates that pushes one argument and gets the usage line back.
+
+Nothing in that message says "your checkout is behind", which is why it belongs here. Before
+reading an attach failure as a broken feature, compare what each side is running:
+
+```sh
+git log --oneline -1 -- claude/remote-session
+ssh "$REMOTE_USER@$REMOTE_HOST" "wsl -d $WSL_DISTRO -- git -C $REPO_WSL_PATH log --oneline -1 -- claude/remote-session"
+```
+
+Pull on whichever is behind. The repair is the same whichever direction the skew runs in, and the
+next change to that interface will present exactly the same way.
