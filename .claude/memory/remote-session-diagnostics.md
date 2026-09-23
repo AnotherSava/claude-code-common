@@ -35,6 +35,9 @@ Four commands answered every question in the 2026-09-22 diagnosis:
 - `ssh … "wsl -d $WSL_DISTRO -- tmux capture-pane -p -t <session>"` — what is on that session's
   screen. Pass the **bare** name here: the `=name` exact-match form the scripts use for
   `has-session` is rejected by `capture-pane` as `can't find pane`, which reads as a dead session.
+  `display-message -p -t` refuses it the same way, and worse — it prints an empty value and exits 0,
+  so a format like `#{pane_dead}` comes back blank and a caller testing it for `1` silently decides
+  the pane is alive. Both took the bare name; `has-session` and `kill-session` keep the `=`.
 - The Windows box's conversation files, under that profile's `.claude/projects/`, in a directory
   named from the project's full path with separators flattened (`D--projects-<name>`). Listing it by
   mtime shows whether a conversation existed before the session started, and whether a second one
