@@ -177,6 +177,31 @@ grep-driven reasoning.
 So where one viewer is enough, `claude --bg` plus `claude attach` needs no WSL, no tmux and no
 scheduled task, and is by far the shorter path. Everything above is the price of the second viewer.
 
+## Nothing on a tmux client says which machine it is on
+
+Two clients on one server — one opened from a Windows terminal on the box, one over SSH from a Mac —
+are indistinguishable by every ambient signal. Measured 2026-09-22 against both at once, with the
+origin of each known in advance:
+
+| Signal | Why it does not answer |
+|---|---|
+| tmux's own `client_*` variables | Both `client_uid` and `client_user` name the same WSL user, because SSH lands in it. The `client_tty`, `client_name` and `client_pid` values are allocation order. The one informative variable, `client_termtype`, carries the emulator's XTVERSION reply — it names the terminal program, not the machine, and is empty for one that does not answer. |
+| The client's `/proc/<pid>/environ` | No `SSH_CLIENT`, `SSH_CONNECTION` or `SSH_TTY` reaches it: `wsl.exe` re-enters the distro with a clean environment and the remote's `WSLENV` is empty. The differences that do exist name the wrapper script that attached, not the machine it ran on. |
+| WSL process ancestry | Token-identical on both: `tmux: client` → `Relay(<pid>)` → `SessionLeader` → `/init` → `systemd`. |
+| The Windows process tree | It does separate them — the remote's `wsl.exe` descends from a per-connection `sshd.exe`, the local one from the terminal — but a Windows process and a WSL tmux client share no identifier to join them by. A timestamp join picked the wrong tree on the live data: the remote client's `client_created` read a second *earlier* than the `sshd.exe` that caused it. |
+
+So the origin has to be stated by whatever attaches, and read back from the client's own environment.
+Export a variable naming the machine immediately before `exec tmux attach-session`, then read
+`/proc/<client_pid>/environ` for the pids `tmux list-clients -t "=<session>"` reports. That storage
+holds: an environment set before the exec is still readable on the client pid hours later, mode 0400
+and owned by the same user, from a process that is not its descendant.
+
+Two traps in doing it. A wrapper both machines share cannot state the origin — each entry point has
+to pass the machine as an argument rather than the reader inferring it from which script ran, or a
+local call into the shared wrapper gets stamped remote. And a client that recorded nothing is not
+evidence of "somewhere else": it is equally one attached before the convention shipped, one attached
+by driving tmux by hand, and one whose `/proc` entry could not be read.
+
 ## Still unmeasured
 
 - Survival across a Windows reboot, a Windows Update restart, and a logoff. Only the at-logon trigger
