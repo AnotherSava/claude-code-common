@@ -76,6 +76,34 @@ Get-ScheduledTaskInfo -TaskName X | Select LastRunTime, LastTaskResult, NumberOf
 `LastTaskResult` of `0` plus an observable side effect (a log line, a changed heartbeat file) is the
 proof. Assert the side effect, not just the exit code.
 
+## The account that registered a task cannot replace it
+
+Registering unelevated works; re-registering what you registered does not. Measured 2026-09-22 from
+the same non-elevated account that created the task:
+
+```
+icacls C:\Windows\System32\Tasks\<TaskName>
+  <DOMAIN>\<user>:(R)
+  BUILTIN\Administrators:(I)(R,W,D,WDAC,WO)
+  NT AUTHORITY\SYSTEM:(I)(R,W,D,WDAC,WO)
+```
+
+Read-only for its own creator, so `Unregister-ScheduledTask` answers `Access is denied` and
+`Register-ScheduledTask -Force` answers the same. An elevated run succeeds and leaves that ACL
+exactly as it was, so every later replacement needs elevation too — the steady state, not a one-off
+to clear. Only the first install runs without it, which makes "it needs no elevation" true of the
+install and false of the upgrade.
+
+Silencing the removal makes it much harder to read. With `-ErrorAction SilentlyContinue` on
+`Unregister-ScheduledTask`, the denial is swallowed and surfaces one line later as
+`Register-ScheduledTask : Cannot create a file when that file already exists` — an error about the
+wrong step, naming neither the task nor elevation. Check the removal where it happens, and translate
+the access failure into a message that says which task and that an Administrator prompt is the fix.
+
+Stopping before replacing is its own hazard, because `Stop-ScheduledTask` *does* succeed unelevated.
+An installer that stops the task and then fails to register leaves it stopped, so the thing it was
+keeping alive is gone until the next logon with nothing saying so. Restart it on the failure path.
+
 ## Bash-to-PowerShell quoting
 
 Invoking a non-trivial PowerShell snippet from Git Bash via `powershell -Command "..."` mangles
