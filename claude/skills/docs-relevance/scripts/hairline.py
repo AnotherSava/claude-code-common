@@ -62,8 +62,8 @@ framing rather than retouching: it adds the edge the OS would have drawn, and
 moves nothing.
 
 `--opaque` IS THE ONE EXCEPTION, AND IT IS FOR A CROP OF A WINDOW WHOSE OWN
-BORDER IS TRANSLUCENT. Windows draws one that way — a flat 2px band at alpha
-~130 — so a crop of such a window arrives with a real border on its uncut sides
+BORDER IS TRANSLUCENT. Windows draws one that way — a 2px band that captures at
+alpha ~120-150 — so a crop of such a window arrives with a real border on its uncut sides
 and nothing on the cut ones, and the two cannot be made to match. Writing colour
 alone leaves the native sides tinted by whatever is behind the page: measured on
 a cropped tab strip, all four sides agreed at ~162 on white while on a dark page
@@ -79,6 +79,12 @@ earlier attempts at this frame were: stroking only the cut sides, which is
 correct on white and leaves a dark page with two visible edges and two invisible
 ones; and stroking all four while preserving alpha, which dilutes the colour to
 whatever the native alpha allows and reads as a corner darker than the flats.
+
+FOR A WINDOWS CAPTURE, PREFER `winframe.py` BESIDE THIS FILE. It does not edit the
+frame Windows drew; it draws it again from DWM's own model — corner radius, chord
+count, antialiasing, the 40% border and, optionally, the shadow — keeping only the
+content inside the clip DWM applies. Everything here works on a captured border,
+which is the border mixed with whatever shadow and backdrop lay behind it.
 
 ON macOS, RUN THE COLOUR-PROFILE STEP AFTER THIS, not before. A save through
 Pillow keeps an embedded `iCCP` profile — the passthrough at the save hands it
@@ -299,9 +305,11 @@ def add_hairline(path: Path, color=COLOR, width: int = WIDTH, opaque: bool = Fal
     if opaque:
         # Where the ring is solid the band is entirely border, so its alpha is the
         # OS's translucency and nothing of the window shows through it — take it to
-        # 255 rather than letting the page behind tint our own frame. Where the ring
-        # is partial the alpha really is coverage (the shape's outer fringe), and
-        # that is left alone, which is what keeps a rounded corner from squaring off.
+        # 255 rather than letting the page behind tint our own frame. The ring is
+        # solid on the outer fringe too, because `ring_of` counts every fringe pixel
+        # as wholly band, so the fringe is hardened with it and a rounded corner
+        # comes out stepped: measured on a raw Windows capture, a corner ramping
+        # 38 -> 121 -> 217 -> 244 came out 255 throughout.
         out.putalpha(Image.composite(Image.new("L", im.size, 255), alpha, ring.point(lambda v: 255 if v >= 250 else 0)))
     else:
         out.putalpha(alpha)

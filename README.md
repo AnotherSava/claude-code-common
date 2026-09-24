@@ -142,6 +142,7 @@ Scans project documentation for stale references and fixes them.
 - Reconciles documentation screenshots against the docs that cite them, and proves a shot stale by grepping the text visible in it against source
 - Records each shot in a `docs/screenshots/screenshots.json` manifest — what the frame shows, how to reproduce it, and whether replacement is `auto`, `confirm` or `never`
 - Replaces one only as its policy allows, capturing through a committed `docs/screenshots/capture/<id>.sh` so the second capture is free and the diff shows how the image was made; anything undecided stops to ask, and a shot you supply yourself is filed the same way
+- Gives a screenshot the edge its own capture lacks: a hairline traced from the image's alpha (`hairline.py`), or for a Windows capture the frame DWM draws, rebuilt from its measured model (`winframe.py`)
 - Writes a contact sheet — one self-contained HTML page carrying every screenshot, replacements as before/after pairs, each frame numbered and one click apart — and hands it over as a `file:///` link for the user to open; under `confirm` the sheet *is* the proposal, written before anything is captured
 - Names the shots that do not exist: sweeps pages for sections doing a picture's work in prose, proposes the two or three strongest, and captures none of them without an explicit yes
 - Regenerates dimensioned-draft drawings when the model they document changed
@@ -919,7 +920,7 @@ Every invocation also passes `-S`, which skips `site` — the single largest sli
 
 ### Screenshot capture helper (macOS)
 
-The `documentation` skill takes screenshots through a small helper rather than through the agent's own binary. macOS grants Screen Recording to a *binary*, and the agent's is version-named, so granting it there would both go stale on every update and hand whole-display access to every session forever. A purpose-built bundle at a fixed path is granted once and scoped to the one job. Build it once per machine:
+The `docs-relevance` skill takes screenshots through a small helper rather than through the agent's own binary. macOS grants Screen Recording to a *binary*, and the agent's is version-named, so granting it there would both go stale on every update and hand whole-display access to every session forever. A purpose-built bundle at a fixed path is granted once and scoped to the one job. Build it once per machine:
 
 ```bash
 bash claude/skills/docs-relevance/scripts/build-docshot.sh
