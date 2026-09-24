@@ -232,9 +232,37 @@ than to when the work started is what makes "15 minutes" mean fifteen minutes of
 carrying the machine shut, instead of expiring two minutes after someone closes
 the lid thirteen minutes into a task.
 
-## Aside: Claude Code holds its own caffeinate
+## Claude Code's own caffeinate does not cover a long turn
 
-Claude Code spawns `caffeinate -i -t 300`, renewed while a session is active. So
-plain *idle* sleep during an agent run is already largely covered, and adding a
-`PreventUserIdleSystemSleep` assertion alongside it is mostly redundant. The lid
-case is the real gap — and the only one that needs root.
+A turn can die mid-stream with `API Error: Your computer went to sleep mid-response`, and nothing
+in the agent prevents it. Claude Code spawns `caffeinate -i -t 300` per session, renewed while the
+session is active — visible in `pmset -g assertions` as a `PreventUserIdleSystemSleep` owned by a
+`caffeinate` child of the `claude` process. The five-minute lease is not held continuously enough to
+protect a streaming turn. Measured 2026-09-24: the last assistant text written before one such death
+is stamped `17:04:20.522Z`, and `pmset -g log` records `Entering Sleep state due to 'Idle Sleep' …
+Using Batt` at `10:04:20 -0700` — the same second. Nine such deaths appear across seven projects'
+transcripts between 2026-08-23 and 2026-09-24.
+
+It only happens on battery. Read the two timeouts with `pmset -g custom`: on these machines idle
+sleep is one minute on battery and disabled on AC, so a lapse in the lease sleeps the machine almost
+at once, and on the charger it cannot happen at all. Plugging in is the entire workaround.
+
+To find the incidents, grep the transcripts for the error and read the sleep reason beside it:
+
+```bash
+grep -rl "went to sleep mid-response" ~/.claude/projects/*/*.jsonl
+pmset -g log | grep -E "Entering Sleep state|Wake from"
+```
+
+Anything built to hold the assertion properly needs a bound, because a session that hangs with its
+process alive emits nothing and never leaves its working state — so a veto keyed on "any agent is
+busy" would hold forever. **Bound it on silence rather than on elapsed time.** Over 12,512 in-turn
+gaps sampled from 40 sessions (an assistant row to the next assistant row or tool result), the median
+is 1.4s, p99 is 81s, and 17 exceed ten minutes; the longest continuously-working stretch among the
+nine deaths above was 23.5 minutes. A cap on total hold therefore has to choose between bounding a
+hang and cutting a genuinely long turn, where a silence threshold bounds the first without touching
+the second — and re-arms by itself when a merely slow session emits again.
+
+The veto for this machine already exists in the dashboard project, as `src-tauri/src/lid_awake.rs`.
+It drives the `pmset disablesleep` lever above, gated by a `lid_awake_mode` that ships `off`, and its
+`is_busy` covers sessions that are working or waiting on the user.

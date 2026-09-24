@@ -187,7 +187,7 @@
 - [Windows should never flash](feedback_no_flashing_windows.md) {always} — no console window on the user's desktop, ever; `pythonw` + `CREATE_NO_WINDOW`, and beware the `cmd.exe` fix that undoes it
 - [Docs belong in git, data in the backup](feedback_docs_belong_in_git.md) {always} — a file "protected by nothing" is usually mis-tiered; move it, don't widen the backup to reach it
 - [No invented rationale](feedback_no_invented_rationale.md) {always} — asked to add a rule, record the rule and its replacement; don't supply a "why" you guessed
-- [Check the limit is real](feedback_check_the_limit_is_real.md) {always} — check it isn't already handled: evidence the system holds, a general rule whose premise fails here, or work a later step already owns
+- [Check the limit is real](feedback_check_the_limit_is_real.md) {always} — check it isn't already handled: evidence the system holds, a general rule whose premise fails here, work a later step owns, or a sibling project already built
 - [Live values = read the system](feedback_live_values_source_of_truth.md) {always} — rates/prices/config/deployed-state change without a commit; read the live source (DB/live page/doppler), never cite a doc snapshot as current
 - [Machine coordinates](machines-private.secret.md) {always} — encrypted (transcrypt); Tailscale tailnet names/IPs for the user's machines, plus the SSH login for the Windows desktop — use these to make any project reach one machine from another, never `*.local` or LAN IPs; platform mechanics in `learnings/windows-openssh-over-tailscale.md`
 - [A marker must be distinct](feedback_marker_must_be_distinct.md) {always} — a mark means something only by being unlike the others; reusing the nav marker for a notice made both meaningless

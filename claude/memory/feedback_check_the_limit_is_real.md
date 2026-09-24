@@ -76,3 +76,22 @@ and worse implementation of a procedure that already exists. Before flagging any
 handover point, ask which step owns it; if a later one does, say nothing and let it run. The
 correction was "sync should be part of commit skill, isn't it there already?", which is the same
 one-line question as in both cases above.
+
+## A fourth shape: already built in another of the user's own projects
+
+**Before proposing to build a mechanism, check whether one of these projects already implements it —
+and is merely switched off.** Seen 2026-09-24. A turn died with "your computer went to sleep
+mid-response", and I offered three fixes, all of them new machinery: wrap `claude` in `caffeinate`
+from `.zshrc`, raise the battery idle-sleep timeout, or plug in. The correction was "discuss with the
+dashboard agent — I want the laptop held awake only while an agent is working or waiting." The
+dashboard already had `src-tauri/src/lid_awake.rs`: the sudoers grant installed two months earlier,
+an `is_busy` predicate covering exactly working-or-waiting, and a mode key defaulting to off. It had
+recorded the session as Working for eight minutes before the sleep and held nothing, because the
+policy said not to.
+
+The tell is offering to add a wrapper, a hook or a setting so that **the machine** behaves
+differently. Sleep, notifications, the tray, the clipboard, cross-session state — each of those
+surfaces already has an owner among these projects, and the gap is usually a default rather than a
+missing feature. Ask which project owns the surface before designing anything, and message that
+session; `ListAgents` names the live ones. See [[feedback_check_live_sibling_session]] and
+[[peer_messaging]].
