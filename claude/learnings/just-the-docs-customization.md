@@ -55,6 +55,21 @@ To verify a width change actually applied, grep the compiled `assets/css/just-th
 
 `just-the-docs-default.css` is served with no content hash in its filename, so browsers hold the old copy after a Pages redeploy. A change confirmed live in the fetched CSS but "not showing" is almost always browser cache — hard-refresh (Ctrl+Shift+R).
 
+## A long site title wraps in the sidebar header
+
+The sidebar title uses `@include fs-6`, which is 1.5rem from the `sm` breakpoint up, inside a header
+fixed at `$header-height` (3.75rem). A title of about 20 characters, such as "Another URL Cleaner",
+wraps to two lines at the default 16.5rem nav width. The two lines then overflow the header, and the
+first one presses against the top edge. Drop it one step in `_sass/custom/custom.scss`, where the
+theme's mixins are in scope:
+
+```scss
+.site-title { @include fs-5; }
+```
+
+`fs-5` is 1.125rem from `sm` up and 1rem below it. Checked 2026-09-24 against v0.12.0 at a 1280px
+viewport: the title fits on one line. Check a longer title in a browser before relying on this.
+
 ## Suppressing the auto child-list (`has_toc`)
 
 A page with `has_children: true` makes just-the-docs auto-render a "Table of contents" list of its child pages at the bottom of the page body. If the page *also* has a hand-written navigation block (e.g. a "Next steps" section that links the same children with descriptions), the two duplicate each other.
