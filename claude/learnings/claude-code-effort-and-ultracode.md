@@ -4,6 +4,10 @@ How hard Claude thinks per turn is one setting with five ways to set it and two 
 and the docs surface almost none of it. Everything below was read out of the shipped binary (see the
 last section) against Claude Code 2.1.251.
 
+Effort is the right knob for an agent doing work. It is the wrong one for a headless `claude -p` transform,
+where `--effort low` still spends thousands of thinking tokens and `MAX_THINKING_TOKENS=0` is what actually
+switches thinking off — measured in `claude-cli-headless-inference.md`.
+
 ## The two value sets are not the same, and that is the trap
 
 | Where | Accepted values |
