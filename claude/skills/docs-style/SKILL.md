@@ -112,6 +112,8 @@ The forms to search for:
 
 **Describe the current state, not the route to it.** A document says how the thing is. How it got that way is the author's memory leaking into the reader's document — it felt significant to write because you were there, and it is dead weight to someone who was not.
 
+**This one rule reaches code comments at any length**, unlike everything else here — see `CLAUDE.md`'s Prose Style, which carries it so it is loaded while code is being written rather than only when this skill is invoked. A comment is the worst case for it: written in the same breath as the change, with the alternative just abandoned still feeling like part of the explanation.
+
 The tell is the past tense about something that no longer exists: *used to sit beside it*, *was renumbered once*, *it stopped being one*, *that half is gone*. Two whole sections of one document matched it — the history of a numbering change, and a retired second file — and both were cut in full. Git holds them: the commit that removed a thing carries its full text in the diff, so nothing is lost by leaving it out of the prose.
 
 Keep history in exactly two cases, and say which one applies:
@@ -183,7 +185,7 @@ Then: is any paragraph arguing for a decision that is already made? Is any sente
 ## Out of scope
 
 - Do NOT restructure a document's *content* to match a house shape — the layout of a docs site belongs to `github-pages`, and whether a page is still accurate belongs to `docs-relevance`
-- Do NOT apply these to code comments shorter than a few lines, commit messages, or chat replies
+- Do NOT apply these to code comments shorter than a few lines, commit messages, or chat replies — except "describe the current state", which binds a comment of any length and is in `CLAUDE.md` for that reason
 - Do NOT apply these to a skill's own files — `SKILL.md` and what it ships beside it are a procedure for Claude, not prose for a person; see the path table above
 - Do NOT rewrite a user's own words in a quote, an annotation, or a verbatim block
 - Do NOT cut a warning, a prerequisite, an assumption or an edge case to make a page shorter — brevity is never a reason to drop a constraint the reader needs
