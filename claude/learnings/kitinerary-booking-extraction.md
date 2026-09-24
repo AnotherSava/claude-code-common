@@ -90,6 +90,17 @@ for an LLM. Kiwi and Omio also attach per-segment `.ics`, which is as determinis
 path on the specific sender, because a generic `has:attachment filename:ics` sweep is dominated by ordinary
 meeting invites.
 
+**KItinerary will not turn those calendar parts into a booking, so do not plan a tier around it.** Measured
+2026-09-24 on a four-leg flight confirmation carrying one `VEVENT` per leg: the extractor answered "nothing
+found" for the whole `.eml`, and answered the same for a single 604-byte `.ics` handed to it alone with the
+right suffix. The data is deterministic; the engine still declines it.
+
+What is worth doing instead costs nothing — **append the calendar text to whatever the LLM tier reads.** It
+arrives as text, so unlike a PDF it needs no extractor call, and roughly 600 characters per leg carry the
+carrier, the flight number, both endpoints and exact `DTSTART`/`DTEND` instants: the facts the model is
+otherwise left to infer from marketing HTML. Match on the filename as well as the MIME type, because senders
+label these `application/ics`, which is not the registered type — `text/calendar` is.
+
 ## Modelling notes that came out of the data
 
 - **Cancellations are first-class.** The same confirmation code arrives confirmed and later cancelled; a naive
