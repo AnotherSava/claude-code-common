@@ -6,7 +6,9 @@ running an **agent** to do a **transform**, and the defaults that make an agent 
 One extraction took 85 seconds until the settings below were measured; the same work now takes 16.
 
 Everything here was measured against Claude Code 2.1.238 in a container, on two real confirmation emails put
-through a schema-constrained extraction prompt.
+through a schema-constrained extraction prompt. Signing the container in, and telling a rate limit or a
+rejected credential apart from a bad parse, is under "Running `claude -p` headless, in a container" in
+`~/.claude/learnings/anthropic-oauth-usage.md`.
 
 ## Extended thinking is on by default and will dominate the run
 

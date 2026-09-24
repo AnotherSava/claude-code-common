@@ -122,6 +122,8 @@ Authenticate **in place** rather than transporting a token:
   bare `401` — stderr is empty, the readable sentence sits inside the JSON envelope on stdout, and a window
   around the first `401` lands on `"status":401,` instead of the explanation.
 
+Per-call speed, model choice and the prompt-size cliff are in `~/.claude/learnings/claude-cli-headless-inference.md`.
+
 ## Credentials on macOS (Keychain, not a file)
 
 On macOS Claude Code stores OAuth credentials in the **system Keychain** — no `~/.claude/.credentials.json` is created. The Keychain entry holds the same `{"claudeAiOauth": {...}}` JSON blob as the file would on other OSes.
