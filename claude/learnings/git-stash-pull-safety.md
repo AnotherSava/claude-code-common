@@ -91,6 +91,14 @@ resolution had to touch. Confirm the discard is safe the way the last section of
 generated file is a deterministic function of committed state, so a gate that re-renders and fails on
 any difference is already the proof.
 
+**Discard it only when the generated part is its sole local change.** CLAUDE.md is hand-written around
+its rendered block, and a local edit to one of those hand-written paragraphs goes with the discard.
+Read `git diff -- <generated-path>` first; where any hunk falls outside the rendered region, stash the
+file with its source instead, and after the pop run the renderer's check mode rather than the renderer.
+Verified 2026-09-24: CLAUDE.md held a new paragraph plus one index line, upstream had reworded a
+different index line, and both files popped clean with `render-memory-index.py --check` reporting the
+block current.
+
 **`--index` is the part that's easy to miss.** A plain `git stash pop` restores everything
 as *unstaged*, silently flattening the staged/unstaged split. That destroys real
 information whenever the index held something deliberate — a staged file deletion, or a
