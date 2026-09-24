@@ -263,6 +263,41 @@ nine deaths above was 23.5 minutes. A cap on total hold therefore has to choose 
 hang and cutting a genuinely long turn, where a silence threshold bounds the first without touching
 the second — and re-arms by itself when a merely slow session emits again.
 
-The veto for this machine already exists in the dashboard project, as `src-tauri/src/lid_awake.rs`.
-It drives the `pmset disablesleep` lever above, gated by a `lid_awake_mode` that ships `off`, and its
-`is_busy` covers sessions that are working or waiting on the user.
+Both halves exist in the dashboard project, as two modules that share one predicate. The
+`lid_awake.rs` module drives the `pmset disablesleep` lever above and ships `off`, because that
+lever is privileged and system-wide. Its sibling `idle_awake.rs` holds a plain
+`PreventUserIdleSystemSleep` assertion and ships **on**, because that one is neither. Both read
+`Status::is_live_work`, which is true for a session that is working or holding background work and
+deliberately **false** for one blocked on the user — an agent parked on a question makes no
+progress while the Mac sleeps, so it must hold nothing.
+
+## Holding the idle assertion yourself
+
+Where the lid is not the requirement, `kIOPMAssertPreventUserIdleSystemSleep` is two flat C calls
+and needs no crate, no root and no setup. Four things are worth knowing before writing them:
+
+- **`kIOPMAssertionLevelOn` is 255, not 1.** The level is a bare `uint32_t`, so `1` compiles, links,
+  returns `kIOReturnSuccess` and asserts nothing.
+- **The assertion-type constant is a `CFSTR()` macro, not an exported symbol.** There is nothing to
+  put in an extern block; build the `CFStringRef` from `"PreventUserIdleSystemSleep"` at runtime.
+- **Both `CFStringRef` arguments must be non-NULL** — the header says so of the name, which is also
+  capped at 128 characters. Guard the construction, and read
+  `rust-then-some-drops-the-value.md` for the way that guard goes wrong.
+- **Nothing reads an assertion back.** The lid lever can be verified against `SleepDisabled` in the
+  IORegistry; an assertion has no such property. Only `pmset -g assertions` lists it, by owning
+  process and by the name you passed, and that subprocess is the only observer there is.
+
+```c
+IOReturn IOPMAssertionCreateWithName(CFStringRef type, IOPMAssertionLevel level,
+                                     CFStringRef name, IOPMAssertionID *id);
+IOReturn IOPMAssertionRelease(IOPMAssertionID id);
+```
+
+Both `IOPMAssertionID` and `IOPMAssertionLevel` are `uint32_t`; `IOReturn` is a signed `int` and
+success is `0`. Declaring the return `u32` still links and still compares equal to zero, so every
+error code is misreported rather than caught.
+
+None of the recovery apparatus the `disablesleep` lever needs applies here: the kernel releases an
+assertion when the owning process dies, so `SIGKILL`, a panic and a bare `exit()` all clear it, and
+nothing survives a reboot to be cleared at startup. That, plus its inability to suppress the
+low-battery and thermal sleeps, is the whole argument for defaulting it on.
