@@ -19,6 +19,7 @@ Two failures in one session, both while inverting `#[cfg(target_os = ...)]` gate
 - If you must copy, never flatten paths into one directory — two files can share a basename, and in a repo with a `mod.rs`/adapter layout they routinely do.
 - Assert the **end state** rather than the restore command's exit code: `cmp` the files that should differ, count the markers that should be gone, re-run the test suite. The restore succeeding says nothing about what it restored.
 - For a **tracked** file, that assertion is `git diff --quiet <path>` and nothing else. On 2026-09-16, proving a new checker fails, a script deleted a line from README's install block and one from `check-install.py`'s `LINKS`, then "restored" both by replacing an empty string — which inserts at position 0 rather than putting the line back. The script reported success and `git diff` found the two deletions still sitting there.
+- An appended probe (`echo '#error probe' >> f`) is only reversible by a `^…$` delete when `f` ends in a newline. On 2026-09-24 a source file ending in `}` with none turned the probe into `}#error probe`. The delete matched nothing, and `git diff --quiet` was the only thing that caught it. For a tracked file that was clean beforehand, restore with `git checkout -- <path>` rather than an inverse edit.
 - Better still, do not touch the real file: a parser or predicate can be imported and called on synthetic input in-process, which proves the same refusal with nothing to restore.
 - Under zsh, `$var` in a `for` list is one word. Use an explicit list or `${=var}`.
 
