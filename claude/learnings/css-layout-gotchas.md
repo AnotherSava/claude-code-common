@@ -458,3 +458,31 @@ child from the sizing it exists to do.
 
 Measured against the alternative on one header: pinning three values by px needed four numbers derived from a
 font-metrics pass, and every one of them was a Windows number with no macOS equivalent.
+
+## A stretched link takes the whole row's clicks — and its tooltips with them
+
+Making a whole list row clickable without JavaScript is one declaration: give the row `position: relative` and
+one link inside it a pseudo-element covering the row.
+
+```css
+li { position: relative; }
+li a.row::after { content: ""; position: absolute; inset: 0; }
+```
+
+Two consequences follow, and neither announces itself.
+
+**Every `title` inside the row stops resolving.** A tooltip comes from the element under the pointer, which is
+now the overlay, so a subject line and a sender line that each carried their own `title` both go silent — while
+the same markup on a row *without* an overlay keeps working. Measured 2026-09-23: the tooltips were reported as
+"only the selected row shows them", which is exactly what a pattern applied to every *other* row looks like.
+Put the text on the link that owns the overlay instead, joining what the covered elements would each have said
+with a newline; `title` renders it on separate lines.
+
+**Anything you lift above the overlay stops being clickable.** The instinct on discovering the above is to give
+the covered element `position: relative` so its tooltip works again — which pulls it out of the click target
+while the row's `cursor: pointer` still promises otherwise. That produces a dead band across a whole line,
+reported twice in one session as "the pointer is a hand but the click does nothing". Lift only elements that are
+themselves links, and prefer ones that navigate where the overlay does, so the two cannot disagree.
+
+Text selection inside the row also goes, since the drag lands on the overlay. That is the standing cost of the
+pattern rather than a bug to fix, and worth saying out loud before adopting it.

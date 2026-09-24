@@ -54,6 +54,8 @@ is *unlayered*, and in the CSS cascade **unlayered rules beat every `@layer` rul
 
 Links with no colour class still inherit; links with one now honour it. (Same reasoning applies to any element reset you write unlayered — put resets in `@layer base`.)
 
+**The hover half of that reset defeats `hover:no-underline`, and reads as a different bug.** An app that wants "underline on hover, never at rest" writes `a:hover { text-decoration: underline }` beside the `a` rule; unlayered, it beats the utility, so every `hover:no-underline` in the codebase is inert. Measured 2026-09-23: three of them — two on rows meant to react as a whole, one on filled nav pills whose own comment said it opted out — had never once applied, and the code read as correct at every call site. Nothing reports it, because the class is present and the cascade is simply answering a question about layers. Wrapping the pair in `@layer base` fixed all three at once, which is the tell that the call sites were never the problem.
+
 ## Some arbitrary utilities never generate — even after `rm -rf .next`
 
 Distinct from the stale-cache case above: a small set of arbitrary utilities refuse to appear in the bundle *at all*, no matter how many clean rebuilds you do. Two reproduced cases:
@@ -88,6 +90,20 @@ curl -s "http://localhost:PORT$css" | grep -o 'button, input[^{]*{'   # what it 
 ```
 
 `disabled:opacity-45` works on the fieldset itself — a disabled fieldset matches `:disabled`, so the variant applies to the container, not just its children.
+
+## Preflight leaves `<button>` on the arrow cursor
+
+Tailwind v4 resets buttons to `cursor: default`, matching the UA default rather than the hand most people expect. Links are untouched and keep `cursor: pointer` from the UA stylesheet, so a row of controls mixing the two disagrees with itself: measured 2026-09-23 on a cluster of `✓ ✕ ?` where the first two were `<button>` inside a form and the third an `<a>`, and only the `<a>` showed a hand.
+
+Fix it once in the base layer rather than per control, which is also what stops the two halves of such a cluster drifting apart:
+
+```css
+@layer base {
+  button { cursor: pointer; }
+}
+```
+
+**Check the served bundle, not the source**, since this is a default you are overriding rather than a rule you can see: `curl` the stylesheet and grep for `cursor:pointer` inside a `button` selector. A `disabled:cursor-default` at the call site is the right place for the exception, once one exists.
 
 ## Container queries are core in v4 (no plugin)
 
