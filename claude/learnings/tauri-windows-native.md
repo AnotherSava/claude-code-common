@@ -245,6 +245,19 @@ macOS needs nothing: an undecorated `NSWindow` has no zoom button, and tao's `is
 
 Verify it end-to-end with a scripted drag (`windows-gesture-simulation.md`) — and take the control seriously, since the pass condition is "nothing happened". Re-adding `WS_MAXIMIZEBOX` to the live HWND flips snap-to-top back on and proves the gesture works; the double-click path can't be controlled that way, because tao answers `is_maximizable()` from its own `WindowFlags` rather than the live style.
 
+## Don't round a Windows 11 window in CSS
+
+Windows 11 rounds every normal top-level window itself — 8 DIP, 12 px at 150% — and draws its border
+along that curve. A `border-radius` of the app's own on top (the fix macOS needs, see
+`tauri-macos-native.md`) does not sit on DWM's curve but inside it, and on a `transparent: true`
+window the gap between the two shows through: a thin arc of desktop at every corner, between
+Windows' border and the content. Measured with a 10 px CSS radius at 144 DPI: 24 see-through pixels
+per frame, and 0 once the radius was applied on macOS only. The square content is then clipped by
+DWM's own corner cleanly. `windows-11-dwm-frame.md` has DWM's geometry.
+
+The WebView has no platform API in Tauri v2 core without the `os` plugin; the user agent answers it
+for the two engines Tauri ships: WKWebView's names the `Macintosh`, WebView2's does not.
+
 ## White flash during horizontal resize
 
 When the window grows wider, the OS paints the newly-exposed area with the **window class's `hbrBackground`** brush before the WebView catches up and renders content into it. Default class brush is white → white flash against a dark theme.

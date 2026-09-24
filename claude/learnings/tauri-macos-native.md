@@ -72,7 +72,9 @@ changes, and three of them are silently insufficient alone:
 1. `"transparent": true` on the window in `tauri.conf.json`.
 2. `"macOSPrivateApi": true` at the `app` level — transparency needs it.
 3. The **`macos-private-api` Cargo feature** on the `tauri` dependency (see below).
-4. A `border-radius` on the frontend's root element, plus `overflow: hidden`.
+4. A `border-radius` on the frontend's root element, plus `overflow: hidden` — **on macOS only**. The
+   config is global, and on Windows 11 the same radius leaves a transparent arc inside the corner
+   DWM already rounds (`tauri-windows-native.md`).
 
 **The trap is a fifth thing that undoes all four.** If the app sets `NSWindow.backgroundColor` at
 runtime — a common fix for the white flash on first show — that overrides the config, and the window

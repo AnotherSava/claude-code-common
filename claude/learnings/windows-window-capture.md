@@ -203,6 +203,35 @@ neither, so reach for it first when the question is just *is this transparent*.
   latter can hand back a stale element whose children come up empty, which reads as "the window has no
   controls".
 
+## Photographing a popup menu
+
+A `TrackPopupMenu` menu (class `#32768`) survives only as long as nothing else takes focus, and every
+step of the usual two-backdrop capture takes focus somewhere:
+
+- **Don't raise it.** A popup never becomes the foreground window, so `SetForegroundWindow` fails,
+  and the ALT keypress that normally earns the right to raise dismisses the menu outright.
+- **Show the backdrops without activating them.** WinForms' `Form.Show()` activates; position and
+  show the backdrop with `SetWindowPos(..., SWP_NOACTIVATE | SWP_SHOWWINDOW)` alone, inserted just
+  below the menu in z-order. Activating anything ends the menu's modal loop, and the capture comes
+  back as two empty backdrops.
+- **Open it by message, not by click.** An app whose tray menu opens on a posted message can be
+  driven without synthesized input. The Rust `tray-icon` crate opens it on `WM_USER_TRAYICON` (6002,
+  in 0.24) with `lParam = WM_RBUTTONUP`, posted to its hidden `tray_icon_app` window, and shows it at
+  the pointer, so place the pointer first. Those ids belong to the crate; re-check them after a bump.
+- **Close it from outside.** `WM_CANCELMODE` posted to the menu's owner is the documented way to end
+  another thread's menu; a posted `WM_KEYDOWN`/`WM_KEYUP` Escape to the menu window is the fallback.
+  A real Escape keystroke may not reach it, because a menu opened by a posted message need not own
+  the foreground.
+- Windows 11 draws a light menu a **solid** light-grey frame with 6 px corners at 144 DPI, unlike a
+  window's semi-transparent one (`windows-11-dwm-frame.md`).
+
+## A window that opens under the pointer keeps its hover state
+
+A window that appears under a resting pointer can show hover UI — a chart's tooltip — and moving the
+pointer away afterwards with `SetCursorPos` does not clear it: the frame came back with the tooltip
+in it. Park the pointer clear of where the window will open **before** opening it, and put it back
+afterwards.
+
 ## A desktop-wide UI Automation search dies on one bad provider
 
 The obvious helper walks every descendant of the desktop root:
