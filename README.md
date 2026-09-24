@@ -272,7 +272,7 @@ Ships a project outward to where its users are — the counterpart to `deploy`, 
 
 **Features:**
 - Declines to write a wrapper at all for a project that publishes from CI — there the push *is* the ship, and a local path would upload a working tree stamped with local `HEAD`
-- Ships only committed, pushed code: a dirty tree or a `HEAD` that isn't `origin/<branch>` stops it before the box is touched
+- Ships only committed, pushed code: a dirty tree or a `HEAD` that isn't `origin/<branch>` stops it before the box is touched. A project with no users can waive that with `ALLOW_DIRTY_PUBLISH=1` in its `config/publish.env` and ship the working tree instead — the box then runs code no commit describes, which is why the key is per-project and never inherited by a co-tenant
 - Reconciles the box's checkout with a hard reset to the remote, cloning it on the first publish so step one behaves like every later one
 - Renders the production env file from Doppler straight onto the box over SSH, so no value reaches this terminal, the transcript, or shell history
 - Detaches the compose build and polls its log, since a build routinely outlives the tool timeout that invoked the script

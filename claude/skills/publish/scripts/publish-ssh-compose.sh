@@ -83,28 +83,49 @@ PROXY_SERVICE="$(getval PROXY_SERVICE)"; PROXY_SERVICE="${PROXY_SERVICE:-caddy}"
 VHOST_GATE="$(getval VHOST_GATE)"; VHOST_GATE="${VHOST_GATE:-/opt/landlord/bin/vhost-install}"
 SETTLE_SECONDS="$(getval SETTLE_SECONDS)"; SETTLE_SECONDS="${SETTLE_SECONDS:-25}"
 BRANCH="$(getval BRANCH)"; BRANCH="${BRANCH:-main}"
+# Whether this project may ship a working tree. Absent for every project that does not name it, and the guard
+# in step 1 is then exactly what it has always been — so a tenant inherits nothing from another tenant setting it.
+ALLOW_DIRTY="$(getval ALLOW_DIRTY_PUBLISH)"
 
 SSH="ssh -o BatchMode=yes -o ConnectTimeout=15 $SSH_HOST"
 cd "$REPO_DIR" || exit 1
 
-# ── Step 1: only ever ship committed, pushed code ────────────────────────────
-# A working tree that differs from origin means the box would run something no commit describes. This is the one
-# guard that cannot be waived: everything downstream reconciles the box TO a commit, so there must be one.
+# ── Step 1: what gets shipped ────────────────────────────────────────────────
+# A working tree that differs from origin means the box would run something no commit describes. That is the
+# default, and it is what a project that does not set ALLOW_DIRTY_PUBLISH gets.
+#
+# Setting it waives the guard and hands the job to step 2b, which uploads the tree rather than trusting the
+# pull. It is for a project with no users that is treating its production box as a staging environment, and
+# what it costs is provenance: neither the box nor this output can be diffed against a commit afterwards, so
+# "what is running" is answerable only from the machine that published, and only until that machine changes.
+# A project serving anybody must not set it.
 echo "=== Step 1: checking the working tree ==="
-if [ -n "$(git status --porcelain)" ]; then
-    echo "ERROR: uncommitted changes. Publish ships commits, not a working tree."
-    git status --short
-    exit 1
-fi
 git fetch -q origin "$BRANCH" 2>/dev/null
 LOCAL="$(git rev-parse HEAD)"
 REMOTE="$(git rev-parse "origin/$BRANCH" 2>/dev/null)"
-if [ "$LOCAL" != "$REMOTE" ]; then
-    echo "ERROR: HEAD is not origin/$BRANCH. Push first — the box pulls from the remote, not from here."
-    git log --oneline "origin/$BRANCH..HEAD" 2>/dev/null | sed 's/^/  unpushed: /'
-    exit 1
+PORCELAIN="$(git status --porcelain)"
+DIRTY=
+if [ -n "$PORCELAIN" ] || [ "$LOCAL" != "$REMOTE" ]; then
+    if [ "$ALLOW_DIRTY" != "1" ]; then
+        # Two different failures, and the fix differs, so they are reported apart rather than as one message.
+        if [ -n "$PORCELAIN" ]; then
+            echo "ERROR: uncommitted changes. Publish ships commits, not a working tree."
+            git status --short
+        else
+            echo "ERROR: HEAD is not origin/$BRANCH. Push first — the box pulls from the remote, not from here."
+            git log --oneline "origin/$BRANCH..HEAD" 2>/dev/null | sed 's/^/  unpushed: /'
+        fi
+        exit 1
+    fi
+    DIRTY=1
+    # Printed in full rather than summarised. This is the one line that says the thing about to go live is not
+    # in any repository, and it is read while deciding whether to let the rest of the run proceed.
+    echo "  ALLOW_DIRTY_PUBLISH=1 — shipping a WORKING TREE that matches no commit:"
+    git status --short | sed 's/^/    /'
+    git log --oneline "origin/$BRANCH..HEAD" 2>/dev/null | sed 's/^/    unpushed: /'
+else
+    echo "  clean, and HEAD matches origin/$BRANCH (${LOCAL:0:8})"
 fi
-echo "  clean, and HEAD matches origin/$BRANCH (${LOCAL:0:8})"
 
 # What changed since the box's current commit — decides whether the vhost needs reinstalling below.
 PREV="$($SSH "cd $REMOTE_REPO && git rev-parse HEAD" 2>/dev/null)"
@@ -130,6 +151,51 @@ else
     echo "=== Step 2: reconciling $REMOTE_REPO to origin/$BRANCH ==="
     $SSH "cd $REMOTE_REPO && git fetch origin -q && git reset --hard origin/$BRANCH -q && git rev-parse --short HEAD" \
         || { echo "ERROR: could not reconcile the checkout"; exit 1; }
+fi
+
+# ── Step 2b: overlay the working tree ────────────────────────────────────────
+# Only under ALLOW_DIRTY_PUBLISH, and only ever additive to what step 2 just put there: the reset has the box
+# at origin/$BRANCH, so this lays the uncommitted state over a known base rather than over whatever it held.
+#
+# tar over ssh rather than rsync. rsync is not installed on these boxes, and installing it is the landlord's
+# call rather than a tenant's — which is the whole reason this uses a tool that is already everywhere.
+#
+# The file list is git's own idea of the project: tracked files, plus untracked ones .gitignore does not cover.
+# So a build directory, a local .env and node_modules are no more shipped here than they are committed, and
+# the rendered .env step 3 writes is untouched. Files the list names but the disk does not — deleted, not yet
+# staged — are dropped, since tar would abort the whole transfer on the first one.
+#
+# Deletions are then applied explicitly. The reset above restored every tracked file from the commit, so a file
+# deleted locally comes back on the box and keeps being served unless it is removed here.
+if [ -n "$DIRTY" ]; then
+    echo "=== Step 2b: overlaying the working tree (ALLOW_DIRTY_PUBLISH=1) ==="
+    LIST="$(mktemp)"
+    git ls-files -z --cached --others --exclude-standard \
+        | while IFS= read -r -d '' f; do [ -e "$f" ] && printf '%s\0' "$f"; done > "$LIST"
+    SENT="$(tr -cd '\0' < "$LIST" | wc -c | tr -d ' ')"
+
+    # Both of these are about macOS, which attaches `com.apple.provenance` to ordinary files, and they fix
+    # two SEPARATE symptoms — measured on this box, because the warning and the file are easy to conflate:
+    #
+    #   COPYFILE_DISABLE=1  stops the AppleDouble sidecars. Without it GNU tar on the box materialises the
+    #                       metadata as a `._<name>` file beside every real one — 128 files of litter per
+    #                       publish, which a `git reset --hard` does not remove because they are untracked.
+    #   --no-xattrs         stops the warning line GNU tar prints per unreadable header. Cosmetic, and on its
+    #                       own it silences the complaint while the sidecars keep being written.
+    #
+    # The env var rather than `--no-mac-metadata`, which says the same thing: GNU tar has no such flag and
+    # would abort on it, and this script also runs from a Windows box, where the variable is simply ignored.
+    COPYFILE_DISABLE=1 tar --no-xattrs -czf - --null -T "$LIST" 2>/dev/null | $SSH "tar xzf - -C $REMOTE_REPO" \
+        || { rm -f "$LIST"; echo "ERROR: could not overlay the working tree onto $REMOTE_REPO"; exit 1; }
+    rm -f "$LIST"
+
+    if git ls-files --deleted | grep -q .; then
+        git ls-files --deleted | sed 's/^/    deleting on the box: /'
+        git ls-files -z --deleted | $SSH "cd $REMOTE_REPO && xargs -0 rm -f" \
+            || { echo "ERROR: could not remove deleted files on the box"; exit 1; }
+    fi
+
+    echo "  overlaid $SENT file(s) over ${LOCAL:0:8}"
 fi
 
 # ── Step 3: render secrets straight onto the box ─────────────────────────────
@@ -604,12 +670,17 @@ RESTARTS_AFTER="$($SSH "docker inspect $APP_CONTAINER --format '{{.RestartCount}
 if [ "$OK" = 0 ]; then
     # Qualify the headline rather than printing a bare OK. "PUBLISH OK" is read as "everything above was
     # checked", so on a shared box it would quietly certify the one property nobody verified.
+    # The commit is qualified for the same reason the headline is. A bare SHA on a dirty publish names a commit
+    # that does NOT describe what is running, which is worse than naming nothing — it is the one line someone
+    # copies into an incident note.
+    STAMP="${LOCAL:0:8}${DIRTY:+ + UNCOMMITTED WORKING TREE}"
     if [ "$IDENTITY_ASSERTED" = yes ]; then
-        echo "PUBLISH OK  ($SSH_HOST, ${LOCAL:0:8})"
+        echo "PUBLISH OK  ($SSH_HOST, $STAMP)"
     else
-        echo "PUBLISH OK — NOT IDENTITY-VERIFIED  ($SSH_HOST, ${LOCAL:0:8})"
+        echo "PUBLISH OK — NOT IDENTITY-VERIFIED  ($SSH_HOST, $STAMP)"
         echo "  The pages answered 200, which proves something is serving them, not that it is yours."
     fi
+    [ -n "$DIRTY" ] && echo "  Nothing in git describes what is now running. Commit and publish again to make it reproducible."
 else
     echo "PUBLISH FAILED — the stack is up but is not serving correctly."
     echo "  logs: ssh $SSH_HOST 'cd $COMPOSE_DIR && docker compose logs --tail 80 $APP_CONTAINER'"

@@ -562,3 +562,29 @@ Bash spells the same thing `declare -f <name>`; its `type` does print the body, 
 works under bash goes silent under zsh. Pair the assertion with a positive control — grep the same
 output for something you know survives — or a shell that failed to start reads identically to a
 clean result.
+
+## `tar` from macOS to Linux needs `COPYFILE_DISABLE=1`, and `--no-xattrs` is the decoy
+
+macOS attaches a `com.apple.provenance` extended attribute to ordinary files, and bsdtar carries those
+attributes into the archive. GNU tar on the receiving side cannot interpret them, so it does two separate
+things — and the fix for one is not the fix for the other:
+
+| Symptom | What stops it |
+| --- | --- |
+| A warning line per file: `Ignoring unknown extended header keyword 'LIBARCHIVE.xattr.com.apple.provenance'` | `--no-xattrs` |
+| A `._<name>` AppleDouble file written beside every real one | `COPYFILE_DISABLE=1` |
+
+`--no-xattrs` alone silences the complaint while the sidecar files keep being written, which is the trap:
+the output goes clean and the damage continues. Measured 2026-09-24 shipping 128 files — `--no-xattrs`
+produced 0 warnings and 128 pieces of litter; the env var produced 128 warnings and 0 litter. Both together
+give 0 and 0.
+
+```bash
+COPYFILE_DISABLE=1 tar --no-xattrs -czf - --null -T "$LIST" | ssh host 'tar xzf - -C /dest'
+```
+
+Prefer the env var to bsdtar's `--no-mac-metadata`, which says the same thing: GNU tar has no such flag and
+aborts on it, so a script that also runs from Linux or Git Bash breaks, whereas an unknown variable is simply
+ignored. And verify by **counting files at the destination**, not by reading the transfer's output — the
+litter is invisible to a sender that reports success, and `git status` on the receiving checkout is what
+surfaced it.

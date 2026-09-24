@@ -136,6 +136,18 @@ Optional: `BUILD_SERVICES` (default `app`), `VERIFY_URL_EXTRA`, `DOPPLER_PROJECT
 `BRANCH` (default `main`). Also `IDENTITY_CHECK` and `HOST_MANIFEST`, both of which a co-tenant should leave
 unset — see below for why writing one is a regression rather than extra care.
 
+**`ALLOW_DIRTY_PUBLISH=1` waives the committed-and-pushed guard, and almost nothing should set it.** With it,
+step 1 warns instead of refusing and step 2b tars the working tree over the checkout step 2 just reconciled,
+so what runs on the box is one machine's disk at one moment. Nothing in git describes it: the box's HEAD names
+the commit the overlay was laid over, not the code serving. The publish says so — it ends
+`+ UNCOMMITTED WORKING TREE` — and that line is the only record that exists.
+
+Set it only where the box is a **staging environment for a project with no users**, and where the cost of the
+thing being wrong is somebody looking at a wrong page for a few minutes. A project serving anybody must not
+have it, and it must not be copied between co-tenants on one box: the key's absence is exactly what keeps the
+guard behaving for them as it did before the key existed. Committing and publishing again is what makes a box
+reproducible after a dirty publish.
+
 Two of those decide whether the publish can see the failures a 200 hides:
 
 - **`IDENTITY_CHECK`** — a command run locally after the URL checks; a non-zero exit fails the publish.
@@ -250,7 +262,8 @@ restart before `! publish` resolves — and use the direct path meanwhile.
 
 The script's own steps are documented in its header. What matters here is what it refuses:
 
-- **Uncommitted or unpushed work stops it.** The box pulls from the remote; there must be a commit to pull.
+- **Uncommitted or unpushed work stops it**, unless that project set `ALLOW_DIRTY_PUBLISH=1`. The box pulls from
+  the remote, so by default there must be a commit to pull.
 - **The build is detached and polled**, because a compose build routinely outlives the tool timeout.
 - **The proxy is only recreated when the vhost actually changed** — a bind-mounted config file keeps its old inode,
   so a reload reports "config is unchanged" and the new vhost silently never gets a certificate; recreating is the
@@ -271,7 +284,8 @@ reply to something else does not clear the bar — the user must name what is be
 ## Out of scope
 
 - Do NOT create or push tags, bump versions, or write release notes — that is `release`.
-- Do NOT publish a working tree, or anything not on the remote.
+- Do NOT publish a working tree, or anything not on the remote — except where that project has set
+  `ALLOW_DIRTY_PUBLISH=1`, which is a staging arrangement and is described above.
 - Do NOT write a wrapper for a project that publishes from CI.
 - Do NOT do first-time server provisioning (users, Docker, the proxy stack, DNS) — this skill ships an app to a box
   that is already serving one.
