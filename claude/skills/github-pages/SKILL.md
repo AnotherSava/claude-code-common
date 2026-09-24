@@ -109,7 +109,10 @@ heading_anchors: true
 
 exclude:
   - plans/                    # internal planning docs, if any
+  - screenshots/*.py          # helper scripts kept beside the docs, if any
 ```
+
+Everything under the source directory that is not excluded or prefixed with `_` or `.` is published, so a check or capture script kept beside the docs ships on the site as a static file. `exclude` takes globs: listing `screenshots/*.py` rather than each script by name covers the next one added (verified 2026-09-24 against a local `github-pages` gem build, with the old per-file list as the control).
 
 ### Pin the remote theme
 
