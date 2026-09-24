@@ -1,6 +1,6 @@
 # What the conventions require
 
-The set as it stands at v10. Each row is one **version** — a change a repo takes on by running `/adopt` once. A ✓ means the version also handed a **rule** to the checker, so the property keeps being asserted at every commit rather than only on the day it was adopted.
+The set as it stands. Each row is one **version** — a change a repo takes on by running `/adopt` once. A ✓ means the version also handed a **rule** to the checker, so the property keeps being asserted at every commit rather than only on the day it was adopted.
 
 [Conventions](convention-versions.md) explains how versions, rules and the record work. This page is only what they ask for.
 
@@ -16,6 +16,7 @@ The set as it stands at v10. Each row is one **version** — a change a repo tak
 | **v8** | a compose service is named after its project, because the service key becomes a DNS alias on every network it joins and a generic one collides with a neighbour's | the repo deploys to the shared host | ✓ |
 | **v9** | the commit gate runs whatever actually gates the deploy, and calls the conventions checker | always | |
 | **v10** | every memo v1's split produced sits on the side its checklist marker asked for, since v1 asserted only that each line reached *some* file | the repo's backlog was once a `memos.md` checklist | |
+| **v11** | a Cloudflare Worker's script name is its project's own, and every hostname it claims opens with that name, because a DNS zone is a namespace every project taking hostnames in it shares | the repo holds a `wrangler.toml` | ✓ |
 
 Each version is gated on one prerequisite, and versions that shared one were merged rather than kept apart: v1 covers every transformation a backlog needs, v2 both halves of what a `.gitignore` may hold, v5 the three Node properties in the order they depend on each other, v9 both halves of the gate.
 

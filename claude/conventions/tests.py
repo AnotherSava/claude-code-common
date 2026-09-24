@@ -13,7 +13,8 @@ Three things are asserted, and the third is the one worth the seconds it takes.
 **The version set.** Every folder parses, the numbers are unique and contiguous from 1, the folder
 name and the number agree, and every README carries the four mandatory sections in order. Then the
 wiring between the two halves: a name in a `rules:` field with no file behind it, and a rule file no
-version names, are each a rule nobody runs.
+version names, are each a rule nobody runs. And `docs/convention-requirements.md` carries one row per
+version, ticked where the version names a rule.
 
 The same wiring read the other way for `universal/`, whose rules no version gates: a name declared
 in both places is one filename being two rules, and a universal rule with no `FIX` leaves a repo
@@ -65,6 +66,7 @@ import engine  # noqa: E402 — likewise
 
 RULES_DIR = os.path.join(HERE, "rules")
 UNIVERSAL_DIR = os.path.join(HERE, "universal")
+REQUIREMENTS_PAGE = os.path.join(os.path.dirname(os.path.dirname(HERE)), "docs", "convention-requirements.md")
 # The script a universal rule recommends, in this checkout rather than through `~/.claude`: the gate
 # has to exercise the copy being committed, not whatever the machine currently has installed.
 LINK_SCRIPT = os.path.join(os.path.dirname(HERE), "scripts", "link-project-memory.sh")
@@ -406,6 +408,34 @@ def rule_wiring(gate: Gate, versions: list[engine.Version]) -> None:
         gate.ok(bool(check.fix_of(name)), f"universal/{name}.py names the command that fixes what it finds",
                 "a universal rule is gated by nothing, so a repo meets it already failing and with no "
                 "version README to read; FIX is the whole of what it is told to do")
+
+
+def requirements_page(gate: Gate, versions: list[engine.Version]) -> None:
+    """The requirements page carries one row per version, ticked exactly where the version hands the checker a rule.
+
+    Nothing else reads that page, so a version shipped without its row leaves the page describing a
+    smaller set than the one every repo is asked to adopt, with nothing reporting it.
+    """
+    print("\nthe requirements page")
+    try:
+        with open(REQUIREMENTS_PAGE, encoding="utf-8") as handle:
+            lines = handle.read().splitlines()
+    except (OSError, UnicodeDecodeError) as exc:
+        gate.ok(False, "docs/convention-requirements.md reads", str(exc))
+        return
+    rows: dict[int, bool] = {}
+    for line in lines:
+        cells = [cell.strip() for cell in line.strip().strip("|").split("|")]
+        if line.startswith("|") and cells[0].startswith("**v") and cells[0].endswith("**") and cells[0][3:-2].isdigit():
+            rows[int(cells[0][3:-2])] = cells[-1] == "✓"
+    for version in versions:
+        gate.ok(version.number in rows, f"v{version.number} {version.slug} has a row on the requirements page")
+        if version.number in rows:
+            gate.ok(rows[version.number] == bool(version.rules),
+                    f"v{version.number} {version.slug}: the page ticks Re-checked exactly when the version names a rule",
+                    f"the page says {'✓' if rows[version.number] else 'blank'}, `rules:` says {list(version.rules)}")
+    for number in sorted(set(rows) - {version.number for version in versions}):
+        gate.ok(False, f"the requirements page's v{number} row has a version folder", "no folder carries that number")
 
 
 # ---------------------------------------------------------------- the rules
@@ -828,6 +858,7 @@ def main() -> int:
         outside_repo = run_git(base, ["rev-parse", "--show-toplevel"])[0] != 0
         version_shape(gate, versions)
         rule_wiring(gate, versions)
+        requirements_page(gate, versions)
         rule_behaviour(gate, base, outside_repo)
         universal_behaviour(gate, base, outside_repo, before)
         record_round_trip(gate, base, versions)
