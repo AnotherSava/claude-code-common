@@ -159,7 +159,10 @@ REMOTE_SESSION_BADGE='⇄'
 # client is attached with the `active-pane` flag and the format checks for it. The flag's own effect
 # is an active pane the client chooses independently, which does nothing in a session with one pane.
 #
-# Both options are set on every attach rather than when the holder starts the server, because the
+# tmux's status line is off. Each session holds one window running Claude, so the bar would only
+# repeat the session name and a clock beneath Claude's own interface, and take a row from it to do so.
+#
+# Every option here is set on every attach rather than when the holder starts the server, because the
 # holder runs from a copy that only the installer refreshes, and re-running the installer kills every
 # session.
 #
@@ -168,6 +171,7 @@ REMOTE_SESSION_BADGE='⇄'
 # Terminal ignores the request. A tab left at a prompt after a detach would otherwise keep naming the
 # session, and the dashboard would read that tab as the session being on screen.
 remote_session_attach() {
+    tmux set-option -g status off
     tmux set-option -g set-titles on
     tmux set-option -g set-titles-string "#{?#{m:*active-pane*,#{client_flags}},$REMOTE_SESSION_BADGE #T,#T}"
 
