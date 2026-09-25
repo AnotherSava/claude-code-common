@@ -219,17 +219,27 @@ def existing_tab(project: str) -> "str | None":
 
     A tab's foreground process is the ssh that attach.sh execs into, and the project is a word inside
     its one remote-command argument, right after cc-session.sh — never an argument of its own.
+
+    Every open window is searched, because a bare `tree --json` answers for the frontmost one only:
+    a tab in a background window would be missed and a second client opened beside it. Closed
+    windows are listed too, and `tree --window` on one fails, so they are skipped.
     """
-    result = agtermctl("tree", "--json")
-    if result.returncode != 0:
+    listing = agtermctl("window", "list", "--json")
+    if listing.returncode != 0:
         return None
-    tree = json.loads(result.stdout)["result"]["tree"]
-    for workspace in tree.get("workspaces", []):
-        for session in workspace.get("sessions", []):
-            for argument in session.get("foreground") or []:
-                words = argument.split()
-                if any(word.endswith("/cc-session.sh") and words[i + 1:i + 2] == [project] for i, word in enumerate(words)):
-                    return session.get("id")
+    for window in json.loads(listing.stdout)["result"]["windows"]:
+        if window.get("open") is False:
+            continue
+        result = agtermctl("tree", "--json", "--window", window["id"])
+        if result.returncode != 0:
+            continue
+        tree = json.loads(result.stdout)["result"]["tree"]
+        for workspace in tree.get("workspaces", []):
+            for session in workspace.get("sessions", []):
+                for argument in session.get("foreground") or []:
+                    words = argument.split()
+                    if any(word.endswith("/cc-session.sh") and words[i + 1:i + 2] == [project] for i, word in enumerate(words)):
+                        return session.get("id")
     return None
 
 
