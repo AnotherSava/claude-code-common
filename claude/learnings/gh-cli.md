@@ -174,8 +174,8 @@ no archived snapshot.
 `--commit` matches the run's `head_sha` literally rather than resolving an abbreviation, so a
 7-character sha — what `git rev-parse --short HEAD` and `git log --oneline` hand you — comes back
 as an empty array, exit 0, no error. Measured on gh 2.86.0: `gh run list --commit 68c3525` printed
-`[]` twice within 40s of a push and still printed `[]` two days later, while the same three runs
-came back immediately for `gh run list --commit 68c3525c2e90965feaf031566bb3ee04968644f3`.
+`[]` twice within 40s of a push and still printed `[]` two days later, when the same query with the
+full sha, `gh run list --commit 68c3525c2e90965feaf031566bb3ee04968644f3`, returned all three runs.
 
 The failure mode is the dangerous one for a post-push CI check: an empty list is exactly what "no
 workflows ran" looks like, so a check that filters on a short sha reports a green push as an
@@ -184,3 +184,12 @@ the flag being unreliable, and the fallback — `--limit <n>` plus matching `hea
 its own hole, since a guessed `n` truncates the very run that failed.
 
 Pass `git rev-parse HEAD`, never `--short`.
+
+**Even the full sha answers late.** The `head_sha` filter lags the unfiltered listing by a minute or
+more after a push. Measured 2026-09-24 on a push starting Build, Docs and `pages-build-deployment`:
+`gh run list --commit <full sha>` returned `[]` 8 s after the push, then only
+`pages-build-deployment` about 30 s later, and adding `--workflow Build` still returned nothing a
+minute after that. All the while, `gh run list --limit 10` already showed all three runs for that
+sha. A few minutes later the same filtered query returned all three. So a partial answer shortly
+after a push reads as "only these workflows ran". Compare it against the workflows the repo's
+`on: push` triggers, and re-query until each one appears.
