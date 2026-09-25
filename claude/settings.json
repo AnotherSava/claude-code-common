@@ -184,6 +184,17 @@
         ]
       }
     ],
+    "ElicitationResult": [
+      {
+        "hooks": [
+          {
+            "type": "command",
+            "command": "python -S \"$CLAUDE_AI_AGENT_DASHBOARD/integrations/claude_hook.py\" working",
+            "async": true
+          }
+        ]
+      }
+    ],
     "PreCompact": [
       {
         "hooks": [
