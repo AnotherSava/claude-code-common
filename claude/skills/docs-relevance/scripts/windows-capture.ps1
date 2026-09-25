@@ -143,19 +143,23 @@ function Add-WindowFrame {
     # in place, so without a copy the only way to try a different frame is to take
     # the shot again -- which needs the app staged and the machine taken over. And a
     # caller that stages its file in a temp directory deletes it in `finally`, so a
-    # guard that threw first would lose the capture outright. That is why the repo
-    # is found from the script that called this, never from $Path, which may be that
-    # temp directory: the copy goes to the gitignored tmp/ of the caller's repo.
-    # The probe runs with Continue: under Windows PowerShell 5.1 a caller's
-    # $ErrorActionPreference = 'Stop' turns git's stderr into a terminating error
-    # that would pre-empt the message below.
-    $caller = $MyInvocation.PSScriptRoot
-    $root = if ($caller) { & { $ErrorActionPreference = 'Continue'; git -C $caller rev-parse --show-toplevel 2>$null } }
-    if (-not $root) { throw "Add-WindowFrame was called from outside a git repository, so there is no tmp/ to keep the raw of $Path in, and it has no frame. Call it from a capture script under the repo's docs/screenshots/capture/." }
+    # guard that threw first would lose the capture outright. So the copy is made in
+    # %TEMP% first and only then moved to where it belongs: the gitignored tmp/ of
+    # the repo holding the script that called this. That repo is found from the
+    # caller, never from $Path, which may be that temp directory, and by walking up
+    # to .git rather than by asking git, which may be missing from PowerShell's PATH
+    # or refuse the repo as dubious ownership.
+    $raw = Join-Path ([System.IO.Path]::GetTempPath()) "screenshot-raws\$(Split-Path -Leaf $Path)"
+    New-Item -ItemType Directory -Force -Path (Split-Path -Parent $raw) | Out-Null
+    Copy-Item -Force $Path $raw
+    $root = $MyInvocation.PSScriptRoot
+    while ($root -and -not (Test-Path (Join-Path $root '.git'))) { $root = Split-Path -Parent $root }
+    if (-not $root) { throw "Add-WindowFrame was called from outside a git repository, so there is no tmp/ to keep the raw of $Path in, and it has no frame. The capture is kept at $raw. Call it from a capture script under the repo's docs/screenshots/capture/." }
     $raws = Join-Path $root 'tmp\screenshot-raws'
     New-Item -ItemType Directory -Force -Path $raws | Out-Null
-    $raw = Join-Path $raws (Split-Path -Leaf $Path)
-    Copy-Item -Force $Path $raw
+    $kept = Join-Path $raws (Split-Path -Leaf $Path)
+    Move-Item -Force $raw $kept
+    $raw = $kept
     $suggest = "$(if ($py) { $py } else { 'python' }) `"$winframe`" $($flags -join ' ') `"$raw`" --out `"$Path`""
     if (-not $py) { throw "Captured $Path but python is not on PATH, so it has no frame. The capture is kept at $raw. Install python (with numpy and scipy) and run: $suggest" }
     if (-not (Test-Path $winframe)) { throw "Captured $Path but $winframe is missing, so it has no frame. The capture is kept at $raw. Install the dotfiles and run: $suggest" }
