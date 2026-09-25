@@ -14,7 +14,10 @@ Three pieces:
 2. A Mac equivalent of wsl/start-here.sh, called from the `claude` shell function already defined in ~/.zshrc — the same hook point the Windows shells use, so every session started there becomes attachable without changing how it is invoked.
 3. A windows/attach-mac.cmd: ssh into the Mac and run that script for a named project, the mirror of mac/attach.sh.
 
-What carries over unchanged: lib.sh (session naming, the config loader, the client-origin reader), and the REMOTE_SESSION_ORIGIN convention — the new entry points pass `mac` and `windows` the same way the existing two do.
+What carries over unchanged: lib.sh's session naming, config loader and quoting, and the REMOTE_SESSION_ORIGIN convention — the new entry points pass `mac` and `windows` the same way the existing two do. Three other lib.sh pieces assume the Windows box hosts the session, so each needs a form that knows which machine is the host:
+- remote_session_attach treats `windows` as the local origin. Used as is, it would badge the Mac's own tab with `⇄` and leave the Windows one unbadged; it has to compare the origin with the host machine instead.
+- remote_session_resume_command builds in the WSLENV export and the title switch-off the Windows dashboard needs.
+- remote_session_client_origins reads /proc/<pid>/environ, which macOS does not have, so every client would read as `unknown` and the one-terminal-per-machine refusal would fire whenever anyone is attached.
 
 Transport is already in place and verified 2026-09-23: the Windows box's key is authorized on the Mac and an ssh whoami from there returns the Mac account's own name. Take the account and host from the machines-private memory. config.secret.env will need the Mac's coordinates added beside the Windows ones.
 

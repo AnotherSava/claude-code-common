@@ -90,7 +90,9 @@ if (-not (Test-Path $wsl)) { throw "no wsl.exe at $wsl" }
 # Linux process is executing over the drvfs mount is an open Windows file handle for as long as it
 # runs, so leaving it in the repo makes `git pull` on this machine fail on a locked file whenever the
 # holder is up - a failure that names the file and not the reason. Re-run this script after changing
-# holder.sh or lib.sh; nothing else picks either change up.
+# holder.sh, or what it uses from lib.sh (the keepalive session's name and remote_session_holder_up);
+# nothing else refreshes these copies. Every other script sources the checkout's lib.sh and sees a
+# change on its next run.
 #
 # lib.sh goes with it because holder.sh sources it for the keepalive session's name, and sits beside
 # it there rather than one directory up as it does in the checkout.

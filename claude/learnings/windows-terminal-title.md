@@ -21,7 +21,7 @@ Claude Code spawns hooks with `CREATE_NO_WINDOW`, which gives the hook a **fresh
 - `GetConsoleProcessList` inside the hook lists the invisible console's pids (just the hook + its shell wrapper). Titles written there succeed (`ok=True`) but are invisible — this is exactly why the April tests below looked "attached but ineffective".
 - The fix: the hook also walks its **ancestor pid chain** (Toolhelp32 snapshot → pid→ppid map, stdlib `ctypes` only). The long-lived Claude Code process and the user's shell sit 1–3 levels up and own the visible console.
 - The title-setter then tries candidates **far-to-near**: far ancestors are GUI processes (WindowsTerminal.exe, explorer.exe) where `AttachConsole` simply fails; the first success walking inward is the user's shell or Claude itself — the real console. Near-end transients (per-hook cmd/python) hold the invisible console and are never reached.
-- `GetConsoleWindow()` **cannot** discriminate invisible vs real consoles: on current Windows 11, conPTY consoles report no window (returns 0), same as `CREATE_NO_WINDOW` ones.
+- `GetConsoleWindow()` alone **cannot** discriminate invisible vs real consoles. A `CREATE_NO_WINDOW` console returns 0, but a conPTY console returns a `PseudoConsoleWindow` whether or not a terminal shows it, so a non-zero handle proves nothing. The owner separates them: `GetAncestor(…, GA_ROOTOWNER)` resolves to a visible `CASCADIA_HOSTING_WINDOW_CLASS` window only for a console a Windows Terminal tab hosts (see "It is invisible on the *tab*, but the pane gives it away"). Measured 2026-09-24 on Windows Terminal pwsh consoles, WSL `claude.exe` consoles and a `CREATE_NO_WINDOW` child.
 - Pid-reuse guard: intersect successive candidate reports per session — transient pids differ every event and drop out; long-lived ones survive.
 
 ### Verification trap: Claude's Bash tool has its own hidden console
@@ -53,10 +53,19 @@ From inside a Claude bash subprocess / hook:
 
 Claude Code itself emits OSC 2 title sequences on every render tick (status spinner like `⠐ Claude Code`). This competes with any externally-set title while Claude renders. Notes:
 
-- Claude's OSC writes go through the PTY stream straight to WT — they do **not** update the conhost title, so `GetConsoleTitleW` can't observe them.
+- Under Windows Terminal's own pseudo-console, Claude's OSC writes go through the PTY stream straight to WT — they do **not** update the conhost title, so `GetConsoleTitleW` can't observe them. The headless conhost WSL gives a Windows child does parse them into the console title; see the WSL tmux section below.
 - To opt out, set `CLAUDE_CODE_DISABLE_TERMINAL_TITLE=1` in the environment when invoking Claude. See [anthropics/claude-code#44590](https://github.com/anthropics/claude-code/issues/44590) and [#23355](https://github.com/anthropics/claude-code/issues/23355).
 - PowerShell also re-asserts its own title on each prompt render unless the WT profile sets `--suppressApplicationTitle`.
 - Mitigation without the env var: periodically re-push (the dashboard reasserts titles older than 5s on every state emit).
+
+## A session running inside WSL tmux
+
+When `claude.exe` runs in a pane of a WSL tmux server and the Windows Terminal tab only hosts a `wsl.exe … tmux attach` client, the attach dance above still succeeds and still reaches nothing on screen by itself. Measured 2026-09-24 on Windows 11 with tmux 3.4:
+
+- **The target console is WSL's, not the tab's.** `claude.exe` is a child of `wslhost.exe`, attached to a `conhost.exe --headless --inheritcursor` that `wslhost.exe` owns. `SetConsoleTitleW` through `AttachConsole` on it returns success and arrives in tmux as the pane's title. The tab shows it only if tmux forwards pane titles — `set-titles on` with `set-titles-string '#T'`, covered in `windows-persistent-terminal-session.md`.
+- **That console belongs to no window.** `GetConsoleWindow()` returns an invisible `PseudoConsoleWindow` with no owner, so the `GetAncestor(…, GA_ROOTOWNER)` route further down resolves to the pseudo-window itself rather than a Windows Terminal window. The tmux client's console does resolve to the hosting window, but nothing joins that `wsl.exe` to the session it shows.
+- **It parses Claude's own title escapes.** `GetConsoleTitleW` on a busy session returned Claude's spinner title, so the read-back holds whichever writer came last. `CLAUDE_CODE_DISABLE_TERMINAL_TITLE` reaches `claude.exe` there only if `WSLENV` names it.
+- **Windows Terminal keeps the last title after the tmux client exits.** tmux asks for the pre-attach title back with `CSI 23;0;0t`, and Windows Terminal has no title stack, so a detached tab goes on naming the session until something overwrites it.
 
 ## `wt.exe` capabilities (per Microsoft docs, Nov 2025)
 
@@ -81,9 +90,9 @@ Verified September 2026 against seven live Claude Code sessions sharing one Wind
 
 - **Judge success by the returned length, never by `GetLastError`.** After a call that succeeded it reads a stale 203 (`ERROR_ENVVAR_NOT_FOUND`).
 - Failure codes worth recognising: 6 `ERROR_INVALID_HANDLE` for a process with no console (any GUI process), 5 `ERROR_ACCESS_DENIED` for a system process, 87 `ERROR_INVALID_PARAMETER` for a pid that does not exist.
-- It works for a headless console too (a `CreateNoWindow` child), so it is not Windows Terminal specific: it reads the console object, whoever renders it. `GetConsoleWindow()` returns 0 for such a console, which is why it cannot be used to tell a real console from an invisible one.
+- It works for a console with no window of its own too (a `CreateNoWindow` child), so it is not Windows Terminal specific: it reads the console object, whoever renders it. `GetConsoleWindow()` returns 0 for that kind, and a `PseudoConsoleWindow` for a pseudo-console whether shown or hidden, so only that window's root owner tells a real console from an invisible one (see the hooks section above).
 - Because the read is per console, it is the only way to ask "what is each session showing" without enumerating tabs. A terminal's window caption can only ever answer for the tab in front.
-- Since Claude Code's own OSC writes bypass conhost (see above), what comes back is what *you* wrote, which makes this a durable place to read your own last published state after a restart.
+- Under Windows Terminal's own pseudo-console, Claude Code's OSC writes bypass conhost (see "Claude Code overwrites the title"), so what comes back is what *you* wrote, which makes this a durable place to read your own last published state after a restart. WSL's headless conhost parses those writes, so for a `claude.exe` under WSL the read-back holds whichever writer came last unless `CLAUDE_CODE_DISABLE_TERMINAL_TITLE` reaches it through `WSLENV` (see "A session running inside WSL tmux").
 
 ## Which tab is on screen
 

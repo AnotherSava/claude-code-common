@@ -64,7 +64,7 @@ when opened from the Mac. Both now build the command through `remote_session_res
 `lib.sh`. Worth knowing the shape rather than the incident: two entry points to one feature, one of
 them quietly doing less.
 
-## A version skew between the two checkouts reads as a usage error
+## A version skew between the two checkouts reads as a usage error, or as nothing
 
 Both machines run the same scripts out of their own checkout of this repo, so the halves can be at
 different commits, and the interface between them has changed under that. `cc-session.sh` takes a
@@ -79,5 +79,11 @@ git log --oneline -1 -- claude/remote-session
 ssh "$REMOTE_USER@$REMOTE_HOST" "wsl -d $WSL_DISTRO -- git -C $REPO_WSL_PATH log --oneline -1 -- claude/remote-session"
 ```
 
-Pull on whichever is behind. The repair is the same whichever direction the skew runs in, and the
-next change to that interface will present exactly the same way.
+Pull on whichever is behind; the repair is the same whichever direction the skew runs in.
+
+Not every change between the halves fails that loudly. Since 2026-09-24 a remote tab's title is
+split across the machines: the Mac's picker stopped naming the tab and opens it in `/`, and the
+Windows side's `lib.sh` (`remote_session_attach`) turns on tmux's `set-titles` so the dashboard's
+status reaches every attached terminal. A skew there raises no error. The remote tab just shows no
+status: it stays on `⇄ <project>` when the Mac is behind, and has neither status nor badge when
+Windows is behind. Compare the two checkouts before debugging a title, too.

@@ -1,7 +1,7 @@
 # Keeping a terminal session alive on a Windows box you reach over SSH
 
-Everything here was measured against a Windows 11 machine (build 10.0.26200) driven from a Mac over
-Tailscale SSH, on 2026-09-21. The worked case is a Claude Code session that has to survive
+Unless a section gives a date or setup of its own, what it describes was measured against a Windows
+11 machine (build 10.0.26200) driven from a Mac over Tailscale SSH, on 2026-09-21. The worked case is a Claude Code session that has to survive
 disconnects and be viewable from two machines at once, but the failures are not specific to it: they
 hit any long-lived process started on a Windows host through an SSH connection.
 
@@ -191,16 +191,50 @@ origin of each known in advance:
 | The Windows process tree | It does separate them — the remote's `wsl.exe` descends from a per-connection `sshd.exe`, the local one from the terminal — but a Windows process and a WSL tmux client share no identifier to join them by. A timestamp join picked the wrong tree on the live data: the remote client's `client_created` read a second *earlier* than the `sshd.exe` that caused it. |
 
 So the origin has to be stated by whatever attaches, and read back from the client's own environment.
-Export a variable naming the machine immediately before `exec tmux attach-session`, then read
+Export a variable naming the machine before running `tmux attach-session`, then read
 `/proc/<client_pid>/environ` for the pids `tmux list-clients -t "=<session>"` reports. That storage
-holds: an environment set before the exec is still readable on the client pid hours later, mode 0400
-and owned by the same user, from a process that is not its descendant.
+holds: an environment set before the attach is still readable on the client pid hours later, mode
+0400 and owned by the same user, from a process that is not its descendant.
 
 Two traps in doing it. A wrapper both machines share cannot state the origin — each entry point has
 to pass the machine as an argument rather than the reader inferring it from which script ran, or a
 local call into the shared wrapper gets stamped remote. And a client that recorded nothing is not
 evidence of "somewhere else": it is equally one attached before the convention shipped, one attached
 by driving tmux by hand, and one whose `/proc` entry could not be read.
+
+## Putting a status on every terminal attached to a session
+
+A status an outside process writes into the session — the Claude Code Dashboard titling a tab — has
+to cross tmux to reach the terminals, and by default it stops there. Measured 2026-09-24 against
+tmux 3.4 in WSL, with every tab reading `PowerShell` while the dashboard logged each write as
+successful:
+
+- **A Windows child's console title becomes the pane's title.** `claude.exe` in a pane runs on a
+  headless conhost under `wslhost.exe`. A `SetConsoleTitleW` issued through `AttachConsole` on it
+  arrives as `#{pane_title}`, and so do the program's own title escapes. At start the pane title is
+  the executable's Windows path, not the host name a Linux pane gets.
+- **tmux passes a pane title on only with `set-titles on`.** With `set-titles-string '#T'` it arrives
+  byte for byte, emoji, `%` and `#{…}` included. The default string puts `#S:#I:#W - ` in front of
+  it. A client is sent the title of the pane in front of it, only when that changes, so a change in
+  a session it is not viewing never reaches it.
+- **A title format is expanded per client, and reads flags but not environment.** `client_flags`
+  and `client_termname` differ per client; the client's environment is invisible to formats.
+  `attach-session -f active-pane` works as a marker, and does nothing in a one-pane window:
+  `#{?#{m:*active-pane*,#{client_flags}},⇄ #T,#T}` gave two clients of one session `⇄ 🟢 x` and
+  `🟢 x`.
+- **An export in the shell that runs `new-session` never reaches the pane** when the server is
+  already running. The pane gets the server's environment plus only the variables
+  `update-environment` names. Put the export in the pane's command, and add it to `WSLENV` there
+  for a Windows child (see the `WSLENV` section above).
+- **Windows Terminal keeps the last title after a detach.** tmux pushes and pops the title around an
+  attach (`CSI 22;0;0t` and `CSI 23;0;0t`, from the `xterm-256color` smcup/rmcup), and Windows
+  Terminal implements no title stack ([microsoft/terminal#14575](https://github.com/microsoft/terminal/issues/14575)).
+  Attach without `exec` and print an empty `OSC 0` when tmux returns.
+- **Windows OpenSSH's ConPTY forwards the titles to the ssh client**, after first sending its own
+  console title (`C:\WINDOWS\SYSTEM32\cmd.exe`). Measured in a private ConPTY harness driving the
+  same `cmd.exe /c wsl … tmux attach` the sshd runs, not on the Mac itself.
+- **tmux stores `.` and `:` in a session name as `_`.** A script that derives a name keeping them
+  misses the session on every later `=name` lookup.
 
 ## The Mac-as-host direction needs almost none of this
 
@@ -236,3 +270,6 @@ is no tmux on that machine to measure it with. Test it before relying on it.
 - Ctrl-C, bracketed paste and mouse reporting through the interop relay.
 - Whether an ssh-started `claude --bg` escapes the job object on a box with no daemon already
   running.
+- Whether a pane's title reaches an agterm tab end to end over Windows OpenSSH from the Mac, `⇄`
+  included, and whether the Mac's own dashboard then leaves that tab alone. The ConPTY leg was
+  measured in a local harness on the Windows machine only.

@@ -140,7 +140,7 @@
 - [Keep your half of the task](feedback_keep_your_half.md) {always} — hand back only what needs a human; reading the log and saying what it shows stays mine
 - [Message a sibling agent](peer_messaging.md) {always} — `ListAgents` + `SendMessage` reach the other projects' live sessions and need no approval to send; a message starts a real turn there, so never send one to chat, confirm or thank. An empty `ListAgents` means local-only, not unreachable — cross-machine goes through the dashboard relay.
 - [Dashboard agent roster](dashboard_agent_roster.md) — `GET /api/agents` says what sessions run on either machine, with status; an empty answer needs `sync_listening` checked first
-- [Dashboard owns session names](feedback_dashboard_owns_session_names.md) — a `claude` wrapper sets behaviour, never `--name` or a terminal title; the dashboard already does both
+- [Dashboard owns session names](feedback_dashboard_owns_session_names.md) — a `claude` wrapper sets behaviour, never `--name` or a title of its own; forwarding the dashboard's is fine
 - [Sweep the old wording](feedback_sweep_the_old_wording.md) {always} — retiring a rule: grep the old behaviour's words, not the new rule's, then check the lists and gate enumerations that encode it with no words at all
 - [Guard on the version, not the artifact](feedback_guard_on_version_not_artifact.md) {always} — a tool reading a format defined elsewhere checks the adopted version, not whether the old artifact is still there; sniffing it rots at the next migration
 - [Lead with the rule, not the value](feedback_lead_with_the_rule.md) {always} — a request naming a value, answered with a rule: say the rule in the FIRST sentence or the number reads as hardcoded

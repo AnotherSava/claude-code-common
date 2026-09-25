@@ -25,15 +25,17 @@ here=$(CDPATH= cd -- "$(dirname -- "$0")" && pwd)
 remote_session_load_config "$here/../config.secret.env" || exit 1
 
 # Claude's per-tick OSC title writes would otherwise clobber the status circle the dashboard puts in
-# the tab. WSL passes an environment variable to a Windows child only when WSLENV names it.
+# the tab. WSL passes an environment variable to a Windows child only when WSLENV names it. This
+# covers the commands that run straight through below; a session's command carries its own copy
+# (lib.sh remote_session_resume_command), because tmux does not hand this environment to a pane.
 CLAUDE_CODE_DISABLE_TERMINAL_TITLE=1
 WSLENV="CLAUDE_CODE_DISABLE_TERMINAL_TITLE:${WSLENV:-}"
 export CLAUDE_CODE_DISABLE_TERMINAL_TITLE WSLENV
 
 # The machine whose keyboard the person is at. This script only ever runs on the Windows box, so it
-# can state it rather than work it out, and the tmux client the last line becomes carries it for as
-# long as that client lives. No WSLENV entry: the reader is another Linux process in this distro,
-# not a Windows child.
+# can state it rather than work it out, and the tmux client it attaches carries it for as long as
+# that client lives. No WSLENV entry: the reader is another Linux process in this distro, not a
+# Windows child.
 REMOTE_SESSION_ORIGIN=windows
 export REMOTE_SESSION_ORIGIN
 
@@ -121,7 +123,8 @@ if tmux has-session -t "=$session" 2>/dev/null; then
 
     # Nothing attached, or only the other machine: this is the second viewer the design exists for,
     # so join what is running rather than refusing or starting a second conversation beside it.
-    exec tmux attach-session -t "=$session"
+    remote_session_attach "$session" "$REMOTE_SESSION_ORIGIN"
+    exit
 fi
 
 # Created detached and attached as a second step, rather than in one call. A single
@@ -131,4 +134,4 @@ fi
 # of this connection's job object.
 remote_session_keep_failed_panes
 tmux new-session -d -s "$session" -c "$PWD" "$inner"
-exec tmux attach-session -t "=$session"
+remote_session_attach "$session" "$REMOTE_SESSION_ORIGIN"

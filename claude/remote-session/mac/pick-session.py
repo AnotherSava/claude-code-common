@@ -34,7 +34,6 @@ import urllib.error
 import urllib.request
 
 WORKSPACE = "remote"
-BADGE = "⇄"
 SESSION_PREFIX = "cc-"
 DEFAULT_DASHBOARD = "http://127.0.0.1:9077"
 SUBTITLE_LIMIT = 70
@@ -256,10 +255,15 @@ def main() -> int:
         agtermctl("session", "select", already)
         return 0
 
+    # No --name: an agterm name outranks the terminal title, and the title is where the session's
+    # status arrives, badge included (lib.sh remote_session_attach). The tab opens in `/` because the
+    # dashboard on this machine falls back to a tab's working directory when its title names no
+    # status, and a tab sitting in a project directory would be read as that project's local session.
+    # No project is named after `/`.
     result = agtermctl(
         "session", "new",
         "--workspace-name", WORKSPACE, "--create-workspace",
-        "--name", f"{BADGE} {project}",
+        "--cwd", "/",
         "--command", f"{attach} {project}",
         "--wait",
     )

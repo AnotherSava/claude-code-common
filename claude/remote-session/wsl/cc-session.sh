@@ -25,8 +25,8 @@ if [ -z "$project" ] || [ -z "$origin" ]; then
     exit 2
 fi
 
-# Recorded in the environment of the client this script's final exec becomes, where start-here.sh
-# reads it back to decide whether a terminal on ITS machine is already attached. Demanded rather than
+# Recorded in the environment of the tmux client this script attaches, where start-here.sh reads it
+# back to decide whether a terminal on ITS machine is already attached. Demanded rather than
 # defaulted: an unrecorded origin reads as `unknown` there and refuses, so a default would silently
 # make every attach from one machine block the other.
 export REMOTE_SESSION_ORIGIN="$origin"
@@ -62,4 +62,4 @@ if ! tmux has-session -t "$session" 2>/dev/null; then
     tmux new-session -d -s "$name" -x 200 -y 50 -c "$directory" "$(remote_session_resume_command "$CLAUDE_EXE")"
 fi
 
-exec tmux attach-session -t "$session"
+remote_session_attach "$name" "$origin"

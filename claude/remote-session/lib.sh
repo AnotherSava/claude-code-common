@@ -1,5 +1,5 @@
 #!/bin/sh
-# The two things every script here needs: the config, and the rule for naming a session.
+# What more than one script here has to agree on.
 #
 # Source it, then call what you need:
 #
@@ -96,8 +96,12 @@ remote_session_keep_failed_panes() {
 # projects' `docs` subdirectories would otherwise ask for the same session, and since a second run
 # in one directory is refused, that collision would present as a refusal to start at all. A project
 # at the top of the tree still comes out as `cc-<project>`.
+#
+# `.` and `:` become `_` because tmux rewrites them that way when it creates a session. A name that
+# kept them would be stored under a different one, so every later `=name` lookup would miss it: the
+# attach fails straight after the create, and the next run fails on a duplicate session.
 remote_session_name() {
-    printf 'cc-%s' "$(printf '%s' "$1" | tr '/' '-')"
+    printf 'cc-%s' "$(printf '%s' "$1" | tr '/.:' '-__')"
 }
 
 # Single-quotes its arguments for a shell command string this repo builds here and runs elsewhere —
@@ -118,11 +122,63 @@ remote_session_quote() {
 #
 # `--continue` exits non-zero where the directory holds no conversation yet, which is an ordinary
 # first run rather than a failure, so the fallback starts one.
+#
+# The command also turns off Claude's own terminal-title writes, which would otherwise overwrite the
+# status the Claude Code Dashboard puts in the tab on every render tick. The export has to be part of
+# the command: tmux starts a pane with the server's environment plus only the variables its
+# `update-environment` option names, so an export in the shell that ran `new-session` never reaches
+# claude.exe. WSLENV has to name the variable too, because WSL passes a variable to a Windows child
+# only when WSLENV lists it. `${WSLENV:-}` is left for the pane's shell to expand, keeping whatever
+# the server already passes.
 remote_session_resume_command() {
     remote_session_exe=$(remote_session_quote "$1")
     shift
     remote_session_args=$(remote_session_quote "$@")
-    printf '%s --continue %s || exec %s %s' "$remote_session_exe" "$remote_session_args" "$remote_session_exe" "$remote_session_args"
+    printf 'export CLAUDE_CODE_DISABLE_TERMINAL_TITLE=1 WSLENV="CLAUDE_CODE_DISABLE_TERMINAL_TITLE:${WSLENV:-}"; %s --continue %s || exec %s %s' "$remote_session_exe" "$remote_session_args" "$remote_session_exe" "$remote_session_args"
+}
+
+# The mark in front of a session's status on a tab that is not on the Windows machine. It tells a
+# remote session apart from a local one at a glance. It also keeps the Mac's own dashboard from
+# reading the title as a status, which it does only for a title that opens with a status symbol. That
+# dashboard then falls back to the tab's working directory, which is why the picker opens these tabs
+# in `/` (mac/pick-session.py).
+REMOTE_SESSION_BADGE='⇄'
+
+# Attaches this terminal to a session, and blanks the terminal's title when tmux hands it back.
+# Takes the bare session name and the machine the person is at, `windows` or `mac`.
+#
+# The tab title is how every attached terminal shows the session's status. The Claude Code
+# Dashboard on the Windows machine writes the status into claude.exe's console, and it arrives in
+# tmux as the pane's title. tmux passes a pane's title on to the terminals attached to it only with
+# `set-titles` on, and it has to pass it verbatim: the dashboard reads the Windows tab title back to
+# tell which session is on screen, and tmux's default title puts the session and window names in
+# front of it, which leaves that reading matching nothing.
+#
+# A terminal on another machine gets the title with the badge in front. tmux cannot see
+# REMOTE_SESSION_ORIGIN — a title format reads a client's flags but not its environment — so such a
+# client is attached with the `active-pane` flag and the format checks for it. The flag's own effect
+# is an active pane the client chooses independently, which does nothing in a session with one pane.
+#
+# Both options are set on every attach rather than when the holder starts the server, because the
+# holder runs from a copy that only the installer refreshes, and re-running the installer kills every
+# session.
+#
+# The title is blanked afterwards because Windows Terminal keeps the last title a program set once
+# that program exits. tmux asks for the title from before the attach to be restored, and Windows
+# Terminal ignores the request. A tab left at a prompt after a detach would otherwise keep naming the
+# session, and the dashboard would read that tab as the session being on screen.
+remote_session_attach() {
+    tmux set-option -g set-titles on
+    tmux set-option -g set-titles-string "#{?#{m:*active-pane*,#{client_flags}},$REMOTE_SESSION_BADGE #T,#T}"
+
+    remote_session_attach_status=0
+    if [ "$2" = windows ]; then
+        tmux attach-session -t "=$1" || remote_session_attach_status=$?
+    else
+        tmux attach-session -f active-pane -t "=$1" || remote_session_attach_status=$?
+    fi
+    printf '\033]0;\007'
+    return "$remote_session_attach_status"
 }
 
 # The path of a directory relative to WSL_PROJECT_ROOT, or its basename when it lies outside.

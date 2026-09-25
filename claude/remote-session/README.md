@@ -13,8 +13,9 @@ only hold the terminal it lives in.
 
 From the Mac, press **cmd+shift+r** in agterm. A fuzzy picker lists the Windows machine's attachable
 sessions, each with its status and what it is working on; choosing one opens it as a tab in a
-workspace called `remote`, created on first use. Picking a session that already has a tab selects
-that tab rather than opening a second client on it.
+workspace called `remote`, created on first use. The tab is titled with the session's status, as it
+is on the Windows machine, behind a `⇄` that marks it as remote. Picking a session that already has
+a tab selects that tab rather than opening a second client on it.
 
 To start something new, take the last row — **Start a project…** — which opens a second picker over
 the projects on that machine, so a name is completed rather than remembered. It is a second step
@@ -57,7 +58,9 @@ Which machine a client is at is recorded by whatever attached it, and read back 
 own process. Nothing infers it: measured against one local client and one from the Mac, every
 ambient signal separated them for reasons that were not the machine, and `attach.cmd` runs on this
 box the same script the Mac runs over ssh, so a second local terminal reproduces the remote's
-fingerprint exactly. A client that recorded nothing is therefore refused rather than guessed at.
+fingerprint exactly, apart from the `active-pane` flag the attach sets to put `⇄` in a remote tab's
+title. That flag comes from the machine the entry point states, not from anything observed. A
+client that recorded nothing is therefore refused rather than guessed at.
 
 To re-attach a session already running there, from this repo's root:
 
@@ -94,6 +97,16 @@ Both clients draw the same session, so both see every keystroke either of you ty
 shared pane to the **narrowest** attached client, so a 120-column agterm tab and a 200-column Windows
 terminal both render at 120. Detaching the narrow one widens the other on its next redraw.
 
+Both tabs are titled with the session's status. The Claude Code Dashboard on the Windows machine
+writes it once and tmux passes it to every attached terminal, so the two stay in step. The Mac tab
+has `⇄` in front. That badge, and the picker opening the tab in `/`, keep the Mac's own dashboard
+from taking the tab for one of its sessions. A tab where you run `attach.sh` by hand from inside a
+project directory has only the badge, so the Mac dashboard can read it as its own session of that
+project.
+
+Until the dashboard first writes to a new session, its tabs show the path of the `claude.exe` it
+runs. If the dashboard stops, they keep the last status it wrote.
+
 ## Setting it up
 
 Run the installer on the Windows machine, from this repo's root:
@@ -110,10 +123,13 @@ leaving the holder as it found it.
 
 It writes `%USERPROFILE%\.wslconfig`, registers a hidden scheduled task called
 `ClaudeRemoteSessionHolder`, starts it, and then checks that the holder came up rather than assuming
-it. Re-run it after changing anything under this directory — in particular `holder.sh` and
-`run-hidden.py`, which run from copies outside the checkout and are refreshed only by the installer.
-They live outside it because a running script is an open file handle on Windows, and leaving either
-in place makes `git pull` on that machine fail while the holder is up.
+it. Re-run it after changing the installer itself, `holder.sh`, `run-hidden.py`, or what
+`holder.sh` uses from `lib.sh` — the keepalive session's name and the check for whether the holder
+is up. The holder and `run-hidden.py` run from copies outside the checkout, with `lib.sh` beside the
+holder's, and only the installer refreshes them. They live outside it because a running script is
+an open file handle on Windows, and leaving either in place makes `git pull` on that machine fail
+while the holder is up. Everything else here is read from the checkout on each run, so `git pull`
+is enough for a change to it, and re-running the installer for one kills every session.
 
 It also writes the `claude` function into every shell that has a profile. Git Bash, Windows
 PowerShell 5.1 and PowerShell 7 each read their own file and none of them is version-controlled, so
@@ -232,9 +248,11 @@ Every piece below exists because something simpler was measured not to work; the
   `remote` workspace.
 - **`lib.sh`** holds what more than one piece has to agree on: the config loader, the rule for naming
   a session, the keepalive session's name, the check for whether the holder is up, the read that
-  turns a session's attached clients into the machines they are sitting at, and the option that
-  keeps a pane whose command failed — without it a session created for an argument Claude Code
-  rejects disappears in the same instant, taking the error with it. The next `claude` in that
+  turns a session's attached clients into the machines they are sitting at, the command a new
+  session runs — resume the directory's conversation or start one, with Claude's own title writes
+  switched off — the attach itself, which decides how each terminal shows that title, and the
+  option that keeps a pane whose command failed — without it a session created for an argument
+  Claude Code rejects disappears in the same instant, taking the error with it. The next `claude` in that
   directory prints what the pane said, clears it, and starts a fresh session. Each is there
   because the alternative is two copies drifting — two scripts deriving a name from different inputs
   and disagreeing about it, or a rename that leaves three other places looking for a session nobody
