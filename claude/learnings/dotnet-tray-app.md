@@ -632,6 +632,32 @@ if (exactPath.StartsWith(metaDirFull, OrdinalIgnoreCase) && File.Exists(exactPat
 
 For custom rows (e.g. an icon + label checklist), derive the row height from `Font.Height` (DPI-correct) rather than a hard-coded pixel value, or descenders clip at higher scaling. Keep an `AutoScroll` panel as a fallback so content taller than the screen stays reachable instead of being cut off.
 
+## A form built in code needs suspended layout, or DPI scaling skips its controls
+
+A form written by hand rather than by the designer sets `AutoScaleDimensions = new SizeF(96F, 96F)` and `AutoScaleMode = AutoScaleMode.Dpi`, then adds its controls. Without `SuspendLayout()` first, the scaling pass runs while the form is still empty: afterwards `AutoScaleDimensions` already reads the monitor's DPI (144 at 150%), and every control added later keeps its 96-DPI pixel sizes while its font is 150%. The symptom is text that wraps early and boxes that look narrow for their font. Do what designer code does: `SuspendLayout()` before setting the scale properties, add every control, then `ResumeLayout(false); PerformLayout();`. Found 2026-09-24 in url-cleaner's confirm window, whose form width went from 476 px to 672 px at 150% with that one change.
+
+**Checking a form's layout without putting it on screen:** a throwaway console project (`net10.0-windows`, `UseWindowsForms`, `ApplicationHighDpiMode` set like the app's) can reference the app's exe project, construct the form, set `StartPosition = Manual`, `Location = new Point(-30000, -30000)` and `ShowInTaskbar = false`, `Show()` it, and save `form.DrawToBitmap(...)` to a PNG. Printing `DeviceDpi`, `AutoScaleDimensions` and `CurrentAutoScaleDimensions` before and after `Show()` is what exposed the trap above. The title bar renders inactive, which is an artifact of the method.
+
+## Tray balloons on Windows 11
+
+`NotifyIcon.ShowBalloonTip` still works on Windows 11, which shows the balloon as a toast, but it behaves differently from the documentation. All of this was observed 2026-09-24:
+
+- **Balloons queue.** A second balloon sent 0.7 s after the first appeared only once the first had gone, 3 to 5 seconds later. The documentation says a new balloon replaces the one showing. Combine what one event raises into a single balloon, or the later ones arrive stale.
+- **Under Do Not Disturb they vanish.** No banner is shown, and Windows 11 doesn't keep balloons in the notification center at all, so they are gone without a trace. `ShowBalloonTip` gives no sign of it.
+- **`SHQueryUserNotificationState` doesn't see Do Not Disturb.** It returned `QUNS_ACCEPTS_NOTIFICATIONS` while Do Not Disturb was on. The WinRT `ToastNotificationManager.GetDefault().NotificationMode` does: `PriorityOnly` under Do Not Disturb, `Unrestricted` otherwise. From PowerShell 5.1: `$null = [Windows.UI.Notifications.ToastNotificationManager, Windows.UI.Notifications, ContentType = WindowsRuntime]; [Windows.UI.Notifications.ToastNotificationManager]::GetDefault().NotificationMode`.
+- **Windows' notification database is no evidence either way.** Balloons don't appear in `%LOCALAPPDATA%\Microsoft\Windows\Notifications\wpndatabase.db`, whether they were shown or not.
+- **Log every balloon's text.** Under Do Not Disturb the log is the only record of what the user was told.
+- **Empty text throws.** `ShowBalloonTip` throws `ArgumentException` on empty or null text; an empty title is accepted. Validate the text before calling.
+
+## A tray app's window and the foreground
+
+A tray app is a background process, so Windows usually refuses it the foreground. Observed 2026-09-24 with a confirm window opened in response to `WM_CLIPBOARDUPDATE`:
+
+- **The first window after a copy in the browser came to the front and took the keyboard.**
+- **A later `Activate()` on the same window was refused**, when a re-copy brought it forward: `GetForegroundWindow()` wasn't the form, `FlashWindowEx` flashed the taskbar button, and typing stayed in the browser.
+- **Clicking one of the app's balloons first doesn't help.** The next `Activate()` was refused just the same.
+- **A `TopMost` window stays above the browser** when the browser is clicked, so it never ends up hidden behind it.
+
 ## SharpCompress: extracting a solid .7z
 
 For a **solid** `.7z` (e.g. GBE's `emu-win-release.7z`), iterating `archive.Entries` and calling `entry.WriteToDirectory(...)` per entry re-decompresses from the block start each time — O(n²), pathologically slow. Use the sequential reader instead:
