@@ -55,7 +55,11 @@ echo "Done."
 
 echo "=== Step 3: Deploying to install directory..."
 mkdir -p "$INSTALL_DIR"
-rm -f "$INSTALL_DIR"/*
+# Top-level files only. A subdirectory can hold what another repo installed here (plugins), and `rm` on
+# one fails, which under `set -e` aborts after the app's files are gone and before the new ones land.
+for entry in "$INSTALL_DIR"/*; do
+    [ -d "$entry" ] || rm -f "$entry"
+done
 cp -rf "$REPO_DIR/src/bin/publish"/* "$INSTALL_DIR/"
 if [ -f "$REPO_DIR/config/local.json" ]; then
     echo "  Applying config/local.json override..."
