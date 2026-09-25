@@ -72,7 +72,7 @@ When `claude.exe` runs in a pane of a WSL tmux server and the Windows Terminal t
 - Subcommands: `new-tab`, `split-pane`, `focus-tab`, `move-focus`, `move-pane`, `swap-pane`. **No `rename-tab`.**
 - `--title` only works at tab/pane *creation* time: `wt -w 0 nt --title "X"`.
 - `--suppressApplicationTitle` makes a title static so children can't overwrite it (this also blocks the AttachConsole approach above).
-- Active feature request: [microsoft/terminal#19887](https://github.com/microsoft/terminal/issues/19887) — independent per-tab custom titles. No public API yet.
+- [microsoft/terminal#19887](https://github.com/microsoft/terminal/issues/19887) asked for independent per-tab custom titles. Its reporter closed it on 2026-03-02 without a feature, accepting `--title` with `--suppressApplicationTitle` at creation time. No `wt.exe` verb or other public API sets or clears a running tab's custom name from outside; the AttachConsole route above changes the console title, which the tab shows only while no custom name or `--suppressApplicationTitle` pins it (see "A renamed tab stops following the title, permanently").
 
 ## Related: typing into the terminal
 

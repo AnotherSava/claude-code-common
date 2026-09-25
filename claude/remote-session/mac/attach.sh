@@ -5,7 +5,7 @@
 #
 # Safe to run while a Windows terminal is attached to the same session — tmux takes both clients at
 # once, which is the whole reason the design is tmux rather than `claude --bg` + `claude attach`.
-# Both clients then draw at the narrower one's width.
+# Both clients then draw at the size of whichever was used last (tmux's `window-size latest`).
 
 set -eu
 

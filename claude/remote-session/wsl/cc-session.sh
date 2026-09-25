@@ -56,7 +56,7 @@ fi
 
 # A detached session is created at tmux's 80x24 default, and the TUI draws itself once at that size.
 # Creating it wide means the first thing an attaching client sees is not a session laid out for a
-# terminal nobody is using; clients then clamp the pane down to the narrowest one attached.
+# terminal nobody is using; after that the window follows whichever attached client was used last.
 if ! tmux has-session -t "$session" 2>/dev/null; then
     remote_session_keep_failed_panes
     tmux new-session -d -s "$name" -x 200 -y 50 -c "$directory" "$(remote_session_resume_command "$CLAUDE_EXE")"

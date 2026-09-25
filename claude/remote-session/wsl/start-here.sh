@@ -92,7 +92,8 @@ fi
 # One session per directory, and one terminal per machine onto it. A session already running here is
 # joined, not refused — that is what tmux serving several clients at once is for, and it is how the
 # Mac and this box watch the same agent. Only a terminal on THIS machine is turned away, because a
-# second one here is two windows onto one pane, echoing each other and both clamped to the narrower.
+# second one here is two windows onto one pane, echoing each other at the size of whichever was used
+# last.
 #
 # A client that recorded no origin is turned away too. Its absence is not evidence of "somewhere
 # else": it is equally a client attached before this convention shipped, one attached by driving tmux

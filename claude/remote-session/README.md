@@ -50,9 +50,11 @@ one-per-directory rule below never stands in the way of updating.
 One session per directory, and one terminal per machine onto it. Running `claude` where a session is
 already going attaches to that session instead of starting a second conversation in the same
 project — including while the Mac is watching it, which is the pair of viewers the whole design is
-for. It refuses only when a terminal on this machine is already attached, which would be two windows
-onto one pane. Two directories that share a last name — `scheduler/docs` and `travel/docs` — are different sessions, because the name is
-built from the whole path below the projects root.
+for. It refuses when a terminal on this machine is already attached, which would be two windows
+onto one pane, and when an attached client recorded no machine, because that client could be a
+terminal here (see "When something is wrong"). Two directories that share a last name —
+`scheduler/docs` and `travel/docs` — are different sessions, because the name is built from the
+whole path below the projects root.
 
 Which machine a client is at is recorded by whatever attached it, and read back off that client's
 own process. Nothing infers it: measured against one local client and one from the Mac, every
@@ -94,8 +96,11 @@ re-running it reattaches to a session that is genuinely still alive on the other
 ### What the two terminals share
 
 Both clients draw the same session, so both see every keystroke either of you types. tmux sizes a
-shared pane to the **narrowest** attached client, so a 120-column agterm tab and a 200-column Windows
-terminal both render at 120. Detaching the narrow one widens the other on its next redraw.
+shared window to the client with the **most recent activity** (`window-size latest`, its default,
+which nothing here changes). Once a 120-column agterm tab attaches or is typed in, a 200-column
+Windows terminal also renders at 120; typing in the wider one widens the window again, and the
+narrow one then shows only part of it. When one client detaches, the window takes the size of the
+one that is left.
 
 Both tabs are titled with the session's status. The Claude Code Dashboard on the Windows machine
 writes it once and tmux passes it to every attached terminal, so the two stay in step. The Mac tab
@@ -134,21 +139,27 @@ is enough for a change to it, and re-running the installer for one kills every s
 It also writes the `claude` function into every shell that has a profile. Git Bash, Windows
 PowerShell 5.1 and PowerShell 7 each read their own file and none of them is version-controlled, so
 it builds the function from `config.secret.env` rather than leaving them to be kept in step by
-hand. It leaves a function that already calls `start-here.sh` alone, and prints the replacement for
-one that does anything else rather than overwriting it, since a profile holds plenty the installer
-did not write.
+hand. It leaves alone a function that already makes exactly this call (same distro and repo path),
+and prints the replacement for any other `claude` function rather than overwriting it, since a
+profile holds plenty the installer did not write.
 
-After the repo moves or the distro is renamed, that is the only part that has to run again — it
-touches neither the holder nor the scheduled task, so nothing running dies:
+Run that part on its own when a shell's `claude` function is missing or wrong — it touches neither
+the holder nor the scheduled task, so nothing running dies:
 
 ```powershell
 powershell -NoProfile -ExecutionPolicy Bypass -File claude\remote-session\windows\install-shells.ps1
 ```
 
-**Close your sessions before re-running it.** Re-registering the task stops the holder, and every
-session's `claude.exe` belongs to that holder's job object, so all of them are killed — the tmux
-server itself survives, which makes the loss easy to miss until you look for a session that is no
-longer there.
+After the repo moves or the distro is renamed, update `REPO_WSL_PATH` or `WSL_DISTRO` in
+`config.secret.env` and run `install.ps1` again, because the scheduled task names the distro and
+starts in the checkout's `windows` folder. Its first step finds each profile still calling the old
+path, prints the new function and stops before the task is touched; paste that function into each
+profile it names, then run `install.ps1` once more.
+
+**Close your sessions before re-running `install.ps1`.** Re-registering the task stops the holder,
+and every session's `claude.exe` belongs to that holder's job object, so all of them are killed —
+the tmux server itself survives, which makes the loss easy to miss until you look for a session
+that is no longer there.
 
 The Mac needs nothing installed. It needs SSH access to the Windows machine, which
 `claude/learnings/windows-openssh-over-tailscale.md` covers.
@@ -177,9 +188,9 @@ logged off and back on without it re-triggering. Start it:
 schtasks /run /tn ClaudeRemoteSessionHolder
 ```
 
-**Attaching says `no server running`.** Same cause, one layer down — the tmux server belongs to the
-holder. Starting the task brings it back. Sessions that were running are gone; they do not survive
-the holder.
+The check behind this message is whether the holder's tmux server is up, so seeing it means that
+server is gone, and every session that ran in it is gone too. Starting the task brings the server
+back, not the sessions.
 
 **The session vanished after a disconnect.** A session is only durable if the holder's tmux server
 created it. `attach.sh` and `attach.cmd` both refuse to start one any other way, so this means
@@ -240,8 +251,9 @@ Every piece below exists because something simpler was measured not to work; the
   attachable. Every shell on that machine calls it and nothing else, so no profile carries behaviour
   of its own that can drift from the rest.
 - **`windows/install-shells.ps1`** puts that call in each shell's profile. It builds the call from
-  the config, so a repo that moves or a distro that is renamed rewrites every profile from one
-  place.
+  the config, so after a repo move or a distro rename one run prints the new function for every
+  profile still holding the old one. It never overwrites an existing `claude` function: one without
+  the current call is reported, and the run stops.
 - **`mac/attach.sh`** and **`windows/attach.cmd`** are the two ways in, and
   **`mac/pick-session.sh`** is what the keystroke runs: it asks tmux on the far side which sessions
   exist, decorates them from the dashboard, opens agterm's picker, and creates the tab in the

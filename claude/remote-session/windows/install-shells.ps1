@@ -3,8 +3,8 @@
 #
 #     powershell -NoProfile -ExecutionPolicy Bypass -File install-shells.ps1
 #
-# install.ps1 runs this first. It is also the whole of what has to run after the repo moves or the
-# distro is renamed, and it touches neither the holder nor the scheduled task, so no session dies.
+# install.ps1 runs this first. Run on its own it touches neither the holder nor the scheduled task,
+# so no session dies.
 #
 # Windows has three shells here and each reads its own profile: Git Bash, Windows PowerShell 5.1 and
 # PowerShell 7 never share a file. Wiring them by hand is what put a stale function in one of the
@@ -32,8 +32,8 @@ foreach ($key in 'WSL_DISTRO', 'REPO_WSL_PATH') {
     }
 }
 
-# The call every shell makes, built from the config rather than repeated per profile: a repo that
-# moves or a distro that is renamed then rewrites all three from one place.
+# The call every shell makes, built from the config rather than repeated per profile: after a repo
+# move or a distro rename, one run prints the new call for every profile still holding the old one.
 $call = 'wsl -d {0} -- {1}/claude/remote-session/wsl/start-here.sh' -f $config['WSL_DISTRO'], $config['REPO_WSL_PATH']
 
 $rationale = @(
@@ -102,7 +102,7 @@ foreach ($shell in $shells) {
     }
     if ($hasDefinition) {
         $stale += $shell
-        Write-Host ("{0}: has a claude function that does NOT call start-here.sh - {1}" -f $shell.Name, $shell.Path)
+        Write-Host ("{0}: has a claude function without the current start-here.sh call - {1}" -f $shell.Name, $shell.Path)
         continue
     }
 
@@ -125,7 +125,7 @@ if ($stale.Count -gt 0) {
     Write-Host ''
     foreach ($shell in $stale) { (& $shell.Block $call $rationale) | ForEach-Object { Write-Host "  $_" } }
     Write-Host ''
-    throw 'a claude function this script did not write is in the way; nothing was overwritten'
+    throw 'a claude function without the current call is in the way; nothing was overwritten'
 }
 
 # A shell reads its profile once, at startup, so every terminal open right now still holds whatever

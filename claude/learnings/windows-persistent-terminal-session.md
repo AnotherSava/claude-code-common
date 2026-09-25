@@ -114,8 +114,10 @@ the script itself.
 ## `wslpath` loses its backslashes when it is handed a Windows path from PowerShell
 
 ```
-wslpath: D:projectsclaudeclauderemote-sessionwslholder.sh
+wslpath: C:pathtodotfilesclauderemote-sessionwslholder.sh
 ```
+
+That is `C:\path\to\dotfiles\claude\remote-session\wsl\holder.sh` with every separator removed.
 
 The path is consumed by PowerShell and `wsl.exe` argument parsing before `wslpath` ever sees it.
 Build the `/mnt/<drive>/…` form yourself from a configured value rather than converting a Windows
@@ -168,8 +170,10 @@ grep-driven reasoning.
   a hang — which makes it easy to mistake for a crash on the first client.
 - **tmux takes both.** Two simultaneous clients on one session, each on its own SSH connection, both
   `attached,focused`; neither was kicked.
-- **A shared pane is clamped to the smallest attached client.** With one client at 120 columns and
-  one at 200, both draw at 120.
+- **A shared window follows the client with the most recent activity** — `window-size latest`,
+  tmux 3.4's default. With one client at 120 columns and one at 200, both drew at 120, which that
+  rule gives when the narrow client was used last. By the manual, typing in the wider one widens the
+  window again and leaves the narrow client showing part of it; that direction was not measured.
 - **A detached session is created at tmux's 80x24 default** and a TUI draws itself once at that size.
   Pass `-x`/`-y` at creation so the first attaching client does not inherit a layout built for a
   terminal nobody is using.
@@ -232,7 +236,9 @@ successful:
   Attach without `exec` and print an empty `OSC 0` when tmux returns.
 - **Windows OpenSSH's ConPTY forwards the titles to the ssh client**, after first sending its own
   console title (`C:\WINDOWS\SYSTEM32\cmd.exe`). Measured in a private ConPTY harness driving the
-  same `cmd.exe /c wsl … tmux attach` the sshd runs, not on the Mac itself.
+  same `cmd.exe /c wsl … tmux attach` the sshd runs, then end to end from the Mac: an agterm tab
+  opened with the picker's command read `⇄ ◐ <task label>`. What arrives is the dashboard's status
+  glyph and task label, not the project name.
 - **tmux stores `.` and `:` in a session name as `_`.** A script that derives a name keeping them
   misses the session on every later `=name` lookup.
 
@@ -270,6 +276,5 @@ is no tmux on that machine to measure it with. Test it before relying on it.
 - Ctrl-C, bracketed paste and mouse reporting through the interop relay.
 - Whether an ssh-started `claude --bg` escapes the job object on a box with no daemon already
   running.
-- Whether a pane's title reaches an agterm tab end to end over Windows OpenSSH from the Mac, `⇄`
-  included, and whether the Mac's own dashboard then leaves that tab alone. The ConPTY leg was
-  measured in a local harness on the Windows machine only.
+- Whether the Mac's own dashboard leaves a badged remote tab opened in `/` alone. The title reaching
+  that tab was measured; what the dashboard then does with it was not.

@@ -20,7 +20,6 @@ All bash shells (Git Bash, WSL) should have these functions:
 
 ```bash
 claude() {
-  printf '\033]0;CC %s\a' "${PWD##*/}"
   export CLAUDE_CODE_DISABLE_TERMINAL_TITLE=1
   if [[ "$1" == "--new" ]]; then
     shift
@@ -37,9 +36,10 @@ claude() {
 
 - `claude` → resumes last conversation (`--continue`). Falls back to fresh session if none exists.
 - `claude --new` → fresh conversation.
-- Sets the Windows Terminal tab title to `CC <project-folder>` via OSC 0 escape. `CLAUDE_CODE_DISABLE_TERMINAL_TITLE=1` is required because Claude Code otherwise overwrites the title with `⠐ Claude Code` on every tick (see `windows-terminal-title.md`).
+- Exports `CLAUDE_CODE_DISABLE_TERMINAL_TITLE=1` so Claude's per-tick title writes (`⠐ Claude Code`) do not overwrite the title the dashboard puts on the tab (see `windows-terminal-title.md`). The wrapper writes no title of its own, because the dashboard owns it.
 - Screen clears on success; preserved on error so the message is readable.
-- **macOS:** drop the same function in `~/.zshrc` (zsh) or `~/.bash_profile` (bash). The OSC 0 escape sets the tab title in Terminal.app and iTerm2 too. The `CLAUDE_CODE_DISABLE_TERMINAL_TITLE=1` line is harmless on macOS — the per-tick overwrite that justifies it on Windows Terminal doesn't happen here, but the export is a no-op when the override doesn't trigger.
+- **macOS:** drop the same function in `~/.zshrc` (zsh) or `~/.bash_profile` (bash). The export matters there as well: the dashboard writes the title to the tab's tty, and Claude's per-tick writes would otherwise overwrite it.
+- **The Windows machine that runs the remote-session holder** is the exception: there Git Bash, Windows PowerShell 5.1 and PowerShell 7 each get the one-line `claude` that `claude/remote-session/windows/install-shells.ps1` writes, which hands off to `start-here.sh`, and the title switch-off travels inside the tmux pane's command. The installer does not touch WSL's `~/.bashrc`.
 
 ### `deploy` / `build` / `publish` / `cb` — project shortcuts
 
@@ -94,7 +94,6 @@ That `└` indent applies to the detected path too, and the shared module subtra
 
 ```powershell
 function claude {
-    $Host.UI.RawUI.WindowTitle = "CC $(Split-Path -Leaf (Get-Location))"
     $env:CLAUDE_CODE_DISABLE_TERMINAL_TITLE = "1"
     if ($args[0] -eq '--new') {
         & claude.cmd @($args[1..$args.Length])
@@ -106,7 +105,7 @@ function claude {
 }
 ```
 
-Same behavior as the bash version. PowerShell re-asserts its own title on each prompt render after Claude exits.
+Same behavior as the bash version. PowerShell re-asserts its own title on each prompt render after Claude exits. On the Windows machine that runs the remote-session holder, use the function `install-shells.ps1` writes instead.
 
 ## PowerShell `memo` wrapper
 
