@@ -364,13 +364,13 @@ scripts/             # dev/test scripts
 
 Windows-only projects (`net10.0-windows` with WinForms/WPF) require `windows-latest` runner. Workflow at `.github/workflows/build.yml`:
 
-**Build/test on every push and PR:**
+**Build/test on every push and PR**, installing the SDK that `global.json` pins rather than the newest `10.x`: analyzers ship with the compiler, so a newer feature band can fail a build the local one passed (see `dotnet-analyzers-and-format.md`):
 ```yaml
 runs-on: windows-latest
 steps:
   - uses: actions/checkout@v4
   - uses: actions/setup-dotnet@v4
-    with: { dotnet-version: 10.x }
+    with: { global-json-file: global.json }
   - run: dotnet restore
   - run: dotnet build -c Release --no-restore
   - run: dotnet test tests/ -c Release --no-restore
