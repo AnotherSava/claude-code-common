@@ -211,8 +211,8 @@ def choose(attachable: "list[str]", directories: "list[str]", status: "dict[str,
     return pick(browse, "Project to start")
 
 
-def existing_tab(project: str) -> "str | None":
-    """The id of a tab already attached to this project, if there is one.
+def existing_tab(project: str) -> "tuple[str, str] | None":
+    """The window id and session id of a tab already attached to this project, if there is one.
 
     Opening a second local client on the same tmux session is not an error, but it is never what was
     wanted: both draw the same thing, at the size of whichever was used last.
@@ -239,7 +239,7 @@ def existing_tab(project: str) -> "str | None":
                 for argument in session.get("foreground") or []:
                     words = argument.split()
                     if any(word.endswith("/cc-session.sh") and words[i + 1:i + 2] == [project] for i, word in enumerate(words)):
-                        return session.get("id")
+                        return window["id"], session["id"]
     return None
 
 
@@ -267,7 +267,15 @@ def main() -> int:
 
     already = existing_tab(project)
     if already:
-        agtermctl("session", "select", already)
+        window, session = already
+        # Selecting the session picks the tab inside its own window and leaves that window where it
+        # was, so a tab behind another window needs the window raised as well. The two commands take
+        # their id differently: `session select` only through --target, `window select` only
+        # positionally.
+        for command in (("session", "select", "--target", session), ("window", "select", window)):
+            result = agtermctl(*command)
+            if result.returncode != 0:
+                return fail(f"could not bring up the tab for {project}: {result.stderr.strip()}")
         return 0
 
     # No --name: an agterm name outranks the terminal title, and the title is where the session's

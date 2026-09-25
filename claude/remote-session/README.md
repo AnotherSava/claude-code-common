@@ -15,7 +15,8 @@ From the Mac, press **cmd+shift+r** in agterm. A fuzzy picker lists the Windows 
 sessions, each with its status and what it is working on; choosing one opens it as a tab in a
 workspace called `remote`, created on first use. The tab is titled with the session's status, as it
 is on the Windows machine, behind a `⇄` that marks it as remote. Picking a session that already has
-a tab selects that tab rather than opening a second client on it.
+a tab brings that tab forward, from whichever agterm window holds it, rather than opening a second
+client on it.
 
 To start something new, take the last row — **Start a project…** — which opens a second picker over
 the projects on that machine, so a name is completed rather than remembered. It is a second step

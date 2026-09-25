@@ -248,6 +248,24 @@ window would have been permanently invisible while a retry loop re-asked forever
 Anything genuinely per-window has the same shape: `idleMs` covers the projected
 window, and each window has its own selected session.
 
+### Selecting a session does not raise its window
+
+Bringing an existing tab into view takes two commands, and they disagree on how
+they take an id:
+
+```bash
+agtermctl session select --target <session-id>   # positional id: "Unexpected argument"
+agtermctl window select <window-id>              # --target: "Unknown option"
+```
+
+The first makes the tab the selected one *inside its own window* and leaves that
+window behind whatever is in front, so on its own it does nothing visible when
+the tab sits in a background window. Measured on the Mac 2026-09-24: after
+`session select --target`, `tree --window` showed the tab `active: true` while
+`window list` still had its window `active: false`; `window select` fixed that.
+The positional form of `session select` fails with a non-zero exit, so a caller
+that ignores the exit code gets no tab, no error and no duplicate — nothing at all.
+
 ## The sidebar's status glyph comes from whatever wrote the OSC title
 
 Nothing in agterm produces those marks. `displayName = customName ?? oscTitle ??
