@@ -13,3 +13,4 @@ When reporting *when* something happened on this machine — a log line, a commi
 - Keep UTC only where it is the point — comparing across machines, or when the user asked for it. Then label it `UTC` explicitly.
 - Relative phrasing ("3 minutes ago") sidesteps the whole problem and is often the better answer; see [[feedback_relative_timestamps]].
 - Applies to durations' endpoints too, not just instants — a window quoted as "12:45 to 12:46" has the same defect.
+- Interim narration counts as reporting: the progress lines written between tool calls are read against the screen as they arrive, so they convert too — not only the final answer. (Missed 2026-09-25: the answer used PDT while the progress notes quoted the raw log's UTC.)
