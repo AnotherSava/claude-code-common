@@ -66,7 +66,8 @@ survives, trim more and content goes. Capture twice over known backdrops and sol
 colour `C` at coverage `a` over backdrop `B` the screen shows `O = C*a + B*(1-a)`, so over black
 `O_k = C*a`, over white `O_w = C*a + 255*(1-a)`, giving `a = 1 - (O_w - O_k)/255` and `C = O_k / a`.
 Exact for any partial coverage; write it as a PNG with alpha and it composites correctly on a light
-page or a dark one.
+page or a dark one. The docs-relevance skill's `scripts/window-shot.ps1 -Method Alpha` implements
+it, `-Popup` included for the menu case below.
 
 **A known shape needs only one capture.** The solve above exists because both the colour and the
 coverage are unknown at a boundary pixel. When the subject is a shape you can *describe* — a rounded
