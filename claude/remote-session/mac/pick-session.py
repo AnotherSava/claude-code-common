@@ -28,6 +28,7 @@ posted as a desktop notification. Otherwise the chord does nothing and says noth
 
 import json
 import os
+import shlex
 import subprocess
 import sys
 import urllib.error
@@ -214,7 +215,10 @@ def existing_tab(project: str) -> "str | None":
     """The id of a tab already attached to this project, if there is one.
 
     Opening a second local client on the same tmux session is not an error, but it is never what was
-    wanted: both draw the same thing, and the pane is then clamped to the narrower of them.
+    wanted: both draw the same thing, at the size of whichever was used last.
+
+    A tab's foreground process is the ssh that attach.sh execs into, and the project is a word inside
+    its one remote-command argument, right after cc-session.sh — never an argument of its own.
     """
     result = agtermctl("tree", "--json")
     if result.returncode != 0:
@@ -222,9 +226,10 @@ def existing_tab(project: str) -> "str | None":
     tree = json.loads(result.stdout)["result"]["tree"]
     for workspace in tree.get("workspaces", []):
         for session in workspace.get("sessions", []):
-            foreground = session.get("foreground") or []
-            if any(argument.endswith("attach.sh") for argument in foreground) and project in foreground:
-                return session.get("id")
+            for argument in session.get("foreground") or []:
+                words = argument.split()
+                if any(word.endswith("/cc-session.sh") and words[i + 1:i + 2] == [project] for i, word in enumerate(words)):
+                    return session.get("id")
     return None
 
 
@@ -264,7 +269,7 @@ def main() -> int:
         "session", "new",
         "--workspace-name", WORKSPACE, "--create-workspace",
         "--cwd", "/",
-        "--command", f"{attach} {project}",
+        "--command", f"{shlex.quote(attach)} {shlex.quote(project)}",
         "--wait",
     )
     if result.returncode != 0:
