@@ -278,6 +278,7 @@ Cross-project preferences and feedback. Memory files live in `~/.claude/memory/`
 - [Surface the gap, don't fill it](~/.claude/memory/feedback_surface_the_gap_dont_fill_it.md) — never auto-fill a field a human must vouch for; leave it null, mark it, fill by hand
 - [Verify at the layer the user sees](~/.claude/memory/feedback_verify_at_the_user_visible_layer.md) — your write succeeding at every layer you own is not the outcome; read the value at the last consumer before saying it works
 - [Scratch lives in the project's tmp/](~/.claude/memory/feedback_scratch_lives_in_project_tmp.md) — file tools can't read $TEMP back, so previews and contact sheets go in the repo's gitignored tmp/
+- [Read-only review, then delete](~/.claude/memory/feedback_read_only_review_loop.md) — collect findings with no edits; answer them by removing something, not by adding a gate
 - [Peer register, not support](~/.claude/memory/feedback_peer_register_not_support.md) — write to another dev as a peer, not support-to-user; four concrete swaps
 - [Use the tool you built](~/.claude/memory/feedback_use_the_tool_you_built.md) — make the new instrument the ask, not a fallback; undo hand-done work so the tested path runs it instead
 - [Sort keys live in metadata, not the name](~/.claude/memory/feedback_sort_key_not_in_identifier.md) — an ordering baked into a filename costs a mass rename to change or extend; use a field

@@ -131,7 +131,7 @@
 - [Icon-scale colour separation](feedback_icon_colour_separation.md) — adjacent steps of a small scale separate on hue not shade, away from the opposite pole; render candidates at final size
 - [Scratch lives in the project's tmp/](feedback_scratch_lives_in_project_tmp.md) {always} — file tools can't read $TEMP back, so previews and contact sheets go in the repo's gitignored tmp/
 - [Audit existing instances](feedback_audit_existing_instances.md) — a skill's rules reach a repo only on scaffolding day; re-check an older one, and verify the deploy not the source
-- [Read-only review, then delete](feedback_read_only_review_loop.md) — collect findings with no edits; answer them by removing something, not by adding a gate
+- [Read-only review, then delete](feedback_read_only_review_loop.md) {always} — collect findings with no edits; answer them by removing something, not by adding a gate
 - [Telegram has no send confirmation](telegram_no_send_confirmation.md) — bots cannot read their own sent messages; duplicate-on-timeout is mitigable, never eliminable
 - [5h resets_at jitters +/-1min](usage_five_hour_resets_at_jitter.md) — never use it as a reset signal; detect a reset by a percentage drop
 - [Peer register, not support](feedback_peer_register_not_support.md) {always} — write to another dev as a peer, not support-to-user; four concrete swaps

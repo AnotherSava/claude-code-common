@@ -32,5 +32,10 @@ nothing moves under the reviewers mid-round.
   never-fires that no reviewer caught and a live probe found in minutes; running the thing
   settled in seconds what static review had been approximating for rounds.
 
+2026-09-25, url-cleaner: three review-then-fix rounds grew a path check into a 250-line analyzer,
+each round finding a fresh batch (16, 15, 4). This memory was not in the always-loaded set, so
+nothing stopped the loop until Oleg asked for a read-only round; that round found 15 more, and most
+of the fixes accepted from it were deletions.
+
 See [[feedback_instrument_first_fragile]] for the sibling rule about capturing a repro before
 shipping a speculative fix.
