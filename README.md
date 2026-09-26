@@ -362,6 +362,7 @@ Extracts durable knowledge from the current conversation and persists it to long
 - Re-checks every project-scoped finding against "would this help in another repo tomorrow?", promoting what is actually global and splitting what is only partly so
 - Audits already-stored project memories the same way, proposing promotions rather than performing them silently
 - Flags candidate skill updates and learnings worth distilling
+- Writes evidence taken from the user's own data (sites in their history, fares, account figures) in generalized form, since learnings and memory are committed to a public repo
 - Falls back to direct file reads when the gather-context helper is blocked by permissions
 
 ---
