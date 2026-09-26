@@ -167,6 +167,18 @@ A byte delta exactly equal to the line count is CRLF vs LF, not a content change
 git cat-file blob <sha> | openssl base64 -d | head -c 16 | xxd -p
 ```
 
+## Python scripts that edit files write CRLF
+
+Write edited text back with `Path.write_bytes(text.encode("utf-8"))` or `open(path, "w", newline="\n")`, never plain `write_text` — on Windows, text mode translates every `\n` to `\r\n`. A read-replace-write edit script therefore turns an LF file into an all-CRLF one while changing nothing visible, and nothing warns until `git diff` does. One change set on 2026-09-25 converted 14 files this way; under `core.autocrlf=input` the commit is still LF, but every diff floods with the CRLF warning and the working copies stay converted.
+
+To find and undo it, count per file and rewrite as bytes:
+
+```python
+b = p.read_bytes()
+if b.count(b"\r\n"):
+    p.write_bytes(b.replace(b"\r\n", b"\n"))
+```
+
 ## Key Insight
 
 The `eol=lf` setting only affects what git writes on checkout — it does not retroactively fix existing working copies. Files created or edited by Windows tools between checkouts will have CRLF until the next `git checkout` or manual conversion.
