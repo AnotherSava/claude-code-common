@@ -195,6 +195,17 @@
         ]
       }
     ],
+    "SubagentStop": [
+      {
+        "hooks": [
+          {
+            "type": "command",
+            "command": "python -S \"$CLAUDE_AI_AGENT_DASHBOARD/integrations/claude_hook.py\" idle",
+            "async": true
+          }
+        ]
+      }
+    ],
     "PreCompact": [
       {
         "hooks": [
