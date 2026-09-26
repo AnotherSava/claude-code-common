@@ -32,3 +32,10 @@ nothing enforcing it. The offer was "Memo that?"; the answer was "fix".
 - Extending a rule that other repos have already adopted is not a free edit — a stricter check is a
   new convention version, while an edit in place is only for detecting the same requirement more
   accurately. `claude/conventions/authoring.md` owns that split.
+- A defect sitting in a **different file** from the one you are editing is not a reason to offer
+  instead of fix. Measured 2026-09-26: an extension's options page reported "Chrome has recorded its
+  new title" the moment the tab it opened reached `complete`, without reading history back, so a visit
+  that lost the title race read exactly like one that won and a working rule looked broken for two
+  days. It was raised as "Memo it?" on the grounds that `options.js` was not the file being edited;
+  the answer was "why not just address it". What decides is whether the thing is a check the project
+  already runs, not which file it lives in.
