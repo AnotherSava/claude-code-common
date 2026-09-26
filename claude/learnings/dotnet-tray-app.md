@@ -158,7 +158,7 @@ private static void Validate(SettingsData settings)
 
 **Hot-reload**: Check `File.GetLastWriteTimeUtc()` on property access. Double-checked locking. On malformed/locked file, keep last good config without advancing the timestamp (so it'll retry).
 
-**UpdateConfigValue**: Read-modify-write with `Dictionary<string, JsonElement>`. Log warnings on failure (IOException, JsonException) — the setting won't persist but in-memory state still updates.
+**UpdateConfigValue**: Read-modify-write with `Dictionary<string, JsonElement>`. On failure throw a dedicated exception (e.g. `ConfigSaveException`, wrapping the `IOException`, `UnauthorizedAccessException` or `JsonException`) before the new value reaches memory, so memory always matches the file. Logging a warning and updating memory anyway lets the app report the setting saved and run on it, and it reverts silently on the next restart. Catch `UnauthorizedAccessException` alongside `IOException`: it is not a subclass, so a read-only config escapes an `IOException`-only catch. Throw rather than write when the existing file does not parse, since writing over it keeps only the keys being saved. Each caller reports the failure where the user acted: the settings dialog shows a message box and logs at Error, a background write logs at Warn and carries on. Worked example: `AppConfig.UpdateConfigValues` in the achievement-overlay repo.
 
 **Config file naming**: `config.json` next to the exe. CamelCase in JSON via `JsonNamingPolicy.CamelCase`.
 
@@ -205,7 +205,7 @@ Inherits `ApplicationContext`. Manages `NotifyIcon` with `ContextMenuStrip`.
 **Early exit fields**: Constructor has early `return` paths (config error, missing paths). Fields assigned after those paths use `= null!` to suppress CS8618 nullable warnings — the process exits before they'd be accessed.
 
 **Menu item patterns**:
-- **Checkbox with persist**: `CheckOnClick = true`, `CheckedChanged` → `UpdateConfigValue`
+- **Checkbox with persist**: `CheckOnClick = true`, `CheckedChanged` → `UpdateConfigValue`, revert on exception
 - **Checkbox session-only**: `CheckOnClick = true`, `CheckedChanged` → set in-memory flag
 - **Checkbox with registry**: `CheckedChanged` → `SetStartWithWindows()`, revert on exception
 - **Open config**: `Process.Start("explorer.exe", $"/select,\"{path}\"")`
