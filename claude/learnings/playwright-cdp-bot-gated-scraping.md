@@ -6,6 +6,13 @@ The problem: automating a site behind **Cloudflare** ("Verify you are human" / m
   automation fingerprints — Cloudflare/reCAPTCHA flag it and show a challenge.
 - Injection-based extensions (e.g. a DOM-injection MCP browser) time out entirely on heavy SPAs that never reach
   `document_idle` — they wait for an idle that never comes.
+- **A challenge page is the friendly symptom; the other one looks like a network fault.** `--headless=new`
+  against two consumer sites on 2026-09-26: one served Cloudflare's `Just a moment...`, the other refused at the
+  protocol level with `net::ERR_HTTP2_PROTOCOL_ERROR` and a `chrome-error://chromewebdata/` page, which reads as
+  DNS, TLS or a dropped connection rather than as a block. Same cause, and `curl` had already returned `403` for
+  that host, so the browser was never the variable. **Always navigate a control URL in the same session** —
+  `https://example.com/` loading normally is what separates "this harness is broken" from "this site refuses
+  this browser", and without it the first failure sends you debugging the harness.
 
 ## The technique: launch real Chrome yourself, then only *connect* over CDP
 
