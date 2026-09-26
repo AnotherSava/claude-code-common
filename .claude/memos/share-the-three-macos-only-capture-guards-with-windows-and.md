@@ -39,6 +39,15 @@ So: shared helper now; the port only if it later earns itself.
 3. `keep_raw`.
 4. `config_value`.
 
+STATUS, re-measured 2026-09-26 against both trees. Items 2 and 3 are done and item 1 — the only one that outlives this memo — is not, which is the reverse of the order above.
+
+- **Item 1 is still open.** Grep for `parity`, `both platforms` and `the other platform` across `skills/docs-relevance/` returns one hit, in an unrelated paragraph about contact-sheet links. Nothing in the skill gates adding a capture feature on the other platform having it.
+- **Item 2 is done** — the same afternoon this was captured. `Assert-Publishable` in tauri-dashboard's `capture/lib/dashboard.ps1` (7a12eca, 2026-09-13) pipes `/api/agents` into `dashboard.py assert-publishable` and throws on a non-zero exit, so one rule is enforced from both libs. It is called from `compact-mode-windows.ps1`, `history-window-windows.ps1` and `terminal-tabs-windows.ps1`. Worth knowing before trusting it: no capture through any of those three has run since, so the guard has never actually fired on Windows.
+- **Item 3 is done, and not where this memo expected.** Raw archiving went *skill*-side: `scripts/windows-capture.ps1` keeps each shot under `tmp/screenshot-raws` before post-processing, which is what let the tray-menu and work-intensity raws be re-framed on 2026-09-25 without re-capture.
+- **Item 4 is still open, and the divergence it names is now visible in the tree.** `compact-mode-windows.ps1` carries its own inline `Set-CompactMode`, a duplicate of the macOS `config_value`, and it reads the prior state as `$was = [bool]((...).compact_mode)` — so a config that never held the key restores as `compact_mode: false`, writing a setting the user never set. That is a milder failure than the `null` one this memo records (a `false` parses, where a `null` reverted every field to its default), but it is the same class and the same absent-key case. The fixture path is not a substitute: `Invoke-DashboardFixture` does stage config through the shared Python, but wholesale via `fixture-up`/`fixture-down`, which is a different operation from staging one key.
+
+The open question below is answered, by what the two finished items did rather than by a decision: they went opposite ways, and both correctly. The publishable guard stayed project-side, in tauri-dashboard's `capture/lib/dashboard.py`, with PowerShell shelling out to it — because the allowed *list* is project data. Raw archiving went into the skill, because keeping a shot before post-processing is machinery every project wants. So the split the paragraph guessed at holds, applied per item.
+
 Open, and better decided when the work starts than now: whether the shared module lands in this repo's `skills/docs-relevance/scripts/` (shared machinery, reaching every project) or in tauri-dashboard's `capture/lib/`. One reading is that the *mechanism* is skill machinery while the *list* is project data, so the function goes in the skill and takes the allowed set as an argument. That is a judgement, not a settled thing.
 
 ## The standing requirement
