@@ -86,3 +86,12 @@ DELETE FROM omni_box_shortcuts WHERE id = ?   -- select the ids in code, not wit
   reach them, so an API-driven cleanup always leaves a remainder.
 - **`urls` rows are unique URLs, not visits.** 704 distinct search URLs accounted for 912 visits, and only
   83 had ever been run twice — which is why a search-heavy history is far smaller than it feels.
+- **A redirect hop gets its own `urls` row, holding the title of whatever loaded at the end of the chain.** No
+  document is ever built at the redirecting address, so nothing there sets a title and no content script
+  registered for it runs — an extension cannot change that row at all, whatever it does. Measured 2026-09-26:
+  a site's bare host answers `301` to a page beneath it, and both rows hold that page's title with the same
+  `last_visit_time` to the second, so one visit wrote both. The trap for any readback is that the row exists and
+  looks current, so comparing it against a title you meant to write reports a lost race rather than an address
+  that can never carry one. Read where the tab actually landed (`chrome.tabs.get(id).url` after load) and
+  compare *that* row — and where the landed URL still matches your own match pattern, which a wildcard pattern
+  usually does, it is the deeper row that the work really happened in.
