@@ -47,13 +47,13 @@ Renaming the files a torrent seeds, or moving them, breaks it: libtorrent looks 
 | `save_path` | absolute path, **backslashes** on Windows |
 | `qBt-savePath` | the same path with **forward slashes** — qBittorrent's own copy, and the two must agree |
 | `mapped_files` | one relative path per file, in the torrent's file order; present only once a file was renamed |
-| `pieces` | **one byte per piece**, `1` = have, so a complete torrent is `b"\x01" * (len(info[b"pieces"]) // 20)` |
+| `pieces` | **one byte per piece**, `1` = have, so a complete v1 or hybrid torrent is `b"\x01" * (len(info[b"pieces"]) // 20)`; a v2-only torrent has no `info["pieces"]` |
 | `qBt-name` | the display name in the list, independent of `info["name"]` |
 | `file_priority` | one entry per file, so it needs resizing alongside `mapped_files` |
 
 - **Edits need the application stopped**, since it rewrites every `.fastresume` from memory on exit.
 - **Round-trip every file before trusting the encoder.** An encoder that reproduces all of `BT_backup` byte-identically is the cheap proof that a rewrite changes only the key you meant; Python dicts preserve insertion order, so decode-then-encode is faithful without sorting keys.
-- **Verify a remapping by piece hash, never by file size.** Sizes are what got you here — they match by construction, since size is how the candidates were found. Read the piece containing the start of each file and compare its SHA1 against `info["pieces"]`. Then prove the check can fail: swap two files in the mapping and confirm it reports a mismatch.
+- **Verify a remapping by piece hash, never by file size.** Sizes are what got you here — they match by construction, since size is how the candidates were found. Read the piece containing the start of each file and compare its SHA1 against `info["pieces"]`, which a v1 or hybrid torrent carries and a v2-only one does not. Then prove the check can fail: swap two files in the mapping and confirm it reports a mismatch.
 - **Match by size against an index of the whole library, then anchor on a directory.** Scanning global candidates for every file is quadratic and degenerates on a game repack with thousands of files, where zero-length and small files share sizes — one such run burned 21 minutes of CPU for 0.3 GB read. Take the largest file's matches, walk up as many levels as its relative path is deep to get the implied root, and match the rest only under that root, preferring an exact relative path, then a basename, then a size.
 - **A rejected resume is the benign failure**: libtorrent rechecks against `mapped_files` and finds the data, so a wrong `pieces` costs a recheck rather than a re-download. A wrong *mapping* is the expensive one, which is why the hash check is not optional.
 - **Confirm afterwards that nothing downloaded** — the process's write counter still at zero, no `*.!qB` files, no file under the target modified. `Restored torrent` in `logs/qbittorrent.log` with no matching `Failed to restore torrent` for the same name is what says the resume was accepted.
