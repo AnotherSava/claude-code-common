@@ -226,7 +226,7 @@ This matters most for `API Error: Connection closed mid-response. The response a
 
 Consequence for instruction files: a CLAUDE.md rule telling *Claude* to retry its own dropped turn can never fire, because by then the turn is over and the model is not running. The transcript does record it (`type: "assistant"`, `isApiErrorMessage: true`, `error: "server_error"`), so a watcher can detect and report it — it just cannot resume it. Only the subagent/workflow-agent case is retryable by the model, since those deaths come back as tool results.
 
-**Other useful events:** `PreCompact`/`PostCompact` (matcher `manual`/`auto`) for compaction boundaries; `PermissionRequest`/`PermissionDenied` (carry `tool_name`) for permission prompts; `Elicitation`/`ElicitationResult` for MCP user-input prompts; `SubagentStart`/`SubagentStop` (carry `agent_type`) for subagent activity; `SessionStart.source ∈ {startup, resume, clear, compact}`.
+**Other useful events:** `PreCompact`/`PostCompact` (matcher `manual`/`auto`) for compaction boundaries; `PermissionRequest` (carries `tool_name`) for permission dialogs and `PermissionDenied` for auto-mode classifier denials only (see Subagent permission prompts below); `Elicitation`/`ElicitationResult` for MCP user-input prompts; `SubagentStart`/`SubagentStop` (carry `agent_type`) for subagent activity; `SessionStart.source ∈ {startup, resume, clear, compact}`.
 
 ## User-gating tools and the buffered-write problem
 
@@ -250,6 +250,29 @@ The naive install — `PreToolUse` without a matcher — fires for every tool ca
 ```
 
 `PostToolUse` for the same tools usually doesn't need to be wired — once the user answers, the watcher sees the now-flushed `tool_result` and reverts to `working`; a later `Stop` carries the row to `done`.
+
+## Subagent permission prompts
+
+A subagent — a Task agent or a workflow's agent — raises tool-permission dialogs of its own, and they reach the **main** session's hooks. Treating one like the main agent's leaves a stale "blocked" state: the dialog closes, often by timing out, and no hook says so. Verified against the 2.1.281 binary and live transcripts, 2026-09-25.
+
+**Which events say a subagent sent them.** One builder assembles every hook's input and sets `agent_id` from the calling tool's context, so the field is present only where a tool context exists:
+
+- **`PermissionRequest` and `PreToolUse`** carry the subagent's `agent_id` (and `agent_type`); the main agent's carry none.
+- **`Notification`, `Elicitation`/`ElicitationResult` and `PreCompact`** never carry it. A subagent's instance of these is indistinguishable from the main agent's, so an absent `agent_id` identifies the main agent only on the first two events.
+- **`SubagentStop`** carries `agent_id` and `agent_transcript_path`, and fires for workflow agents too.
+
+**Nothing in the hook stream reports the dialog closing.** Pick the release signal from this list, not by assumption:
+
+- `PostToolUse` fires only after an *approved* call finishes; a denied, rejected or timed-out call never reaches it or `PostToolUseFailure`.
+- `PermissionDenied` fires only when the auto-mode classifier denies a call — a denial that never showed a dialog.
+- `Notification[permission_prompt]` follows the `PermissionRequest` 5–30s later while the dialog is still up (547 of 547 in one log), names no tool reliably, and sends nothing when the dialog closes.
+- The authoritative record is the gated call's `tool_result` in the subagent's own transcript, written for approval-then-run, user rejection, timeout and abort alike: `<main transcript minus .jsonl>/subagents/agent-<agent_id>.jsonl`, or `.../subagents/workflows/<run>/agent-<agent_id>.jsonl` for a workflow's agents. The main transcript stays quiet throughout, so a watcher tailing only it never sees the outcome.
+
+`PermissionRequest` input is `{tool_name, tool_input, permission_suggestions?, mcp_server?}` with **no `tool_use_id`**, so match the gated call in that transcript by tool name and input and by when it was issued. Once a turn has ended, a background agent's dialog usually has nobody to answer it: Claude Code's built-in dangerous-`rm` check, for one, denies it after 120s with an `is_error` result.
+
+Reference implementation: the Tauri dashboard's `subagent_gate.rs`, which overlays the block on the row's own state and releases it on that `tool_result`, on `SubagentStop`, or on a main `Stop` with no background work from the same session.
+
+To settle a hook schema question yourself, read it out of the binary: `grep -a -o 'hook_event_name:A("PermissionRequest").\{0,300\}' claude.exe` prints the event's input schema, and grepping for the event name with `hook_event_name:"` shows which call sites build it.
 
 ## Hook matchers scope by tool name; `if` scopes by argument
 
