@@ -233,6 +233,24 @@ pointer away afterwards with `SetCursorPos` does not clear it: the frame came ba
 in it. Park the pointer clear of where the window will open **before** opening it, and put it back
 afterwards.
 
+## An animated element has to be caught at a known phase
+
+A shutter lands anywhere in a CSS animation, so a pulsing badge comes out at whatever opacity that
+instant held — the first fixture-staged hero frame of the tauri dashboard caught both BLOCK pills at the
+dim end of a 1.6s pulse between opacity 1 and 0.45. Measure the element in the capture and retake
+until it reads near full, rather than hoping: find the pill's pixels by its colour, estimate its
+opacity from how far they sit from the backdrop, and accept the frame at 0.9 or more (it took three
+tries).
+
+- **ClearType fringes match a coloured pill on two channels, not three.** Subpixel text antialiasing
+  paints red and green fringes on ordinary text, and a pill-colour test on those channels alone counted
+  them, so every frame read as dim. Requiring all three channels to agree and ignoring clusters under
+  about 150 pixels left only the pills.
+- **Two animated elements share a phase only if they started a whole number of periods apart.** A CSS
+  animation starts when its element takes the class, so two rows that entered the pulsing state at
+  arbitrary moments pulse out of step and no single shutter catches both bright. Staging them 120s apart
+  (75 periods of 1.6s) put them in phase: the accepted frame read 0.91 and 0.98.
+
 ## A desktop-wide UI Automation search dies on one bad provider
 
 The obvious helper walks every descendant of the desktop root:
