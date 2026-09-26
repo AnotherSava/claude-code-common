@@ -293,6 +293,16 @@ an allowlist.
   own process tree suppresses the pid file entirely — so a session launched by a hook, or by a tool call,
   is invisible to every reader in this document.
 
+**Starting a session from an agent's Bash tool on Windows also inherits the agent's environment**, and a
+new Windows Terminal tab carries it over. Observed 2026-09-25 staging three sessions with
+`wt.exe -w new new-tab … cmd /k <launcher>.cmd` from Git Bash: the sessions started, took their prompts
+and went to WORK, but no turn ever completed and their hooks did not report the end. Two relaunches
+fixed it, so which variable was responsible was never isolated. What worked: a launcher `.cmd` that sets
+`HOME=%USERPROFILE%` (Git Bash exports `/c/Users/<name>`) and clears `CLAUDECODE`, every `CLAUDE_CODE_*`
+session variable, `CLAUDE_EFFORT`, `CLAUDE_PID`, `MSYSTEM` and `MSYS_NO_PATHCONV`; and running `wt.exe`
+without an `MSYS_NO_PATHCONV=1` prefix, which otherwise rides into the tab. Without that prefix Git Bash
+rewrites a bare `/k` into a drive path (`K:/`), so write it `cmd //k`.
+
 A session given a pty but no *visible* terminal still writes `kind: "interactive"`; `claude --bg`
 publishes an inbox too but under a different `kind`, which any reader filtering on `interactive` will
 drop.
