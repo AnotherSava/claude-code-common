@@ -681,6 +681,12 @@ if [ "$OK" = 0 ]; then
         echo "  The pages answered 200, which proves something is serving them, not that it is yours."
     fi
     [ -n "$DIRTY" ] && echo "  Nothing in git describes what is now running. Commit and publish again to make it reproducible."
+    # Say the status outright. The line above is a `[ … ] && echo`, so on a CLEAN publish — the overwhelmingly
+    # common case — its test is false, and as the script's last statement that false test becomes the exit
+    # status: every successful publish returned 1, identical to the deliberate failure below, so anything
+    # reading the status rather than the text read "PUBLISH OK" as a failure. Any trailing conditional added
+    # here would do it again; an explicit exit makes the success path immune.
+    exit 0
 else
     echo "PUBLISH FAILED — the stack is up but is not serving correctly."
     echo "  logs: ssh $SSH_HOST 'cd $COMPOSE_DIR && docker compose logs --tail 80 $APP_CONTAINER'"
