@@ -595,6 +595,17 @@ and revoking on that basis strips the permission the instant it is given, while 
 test each held pattern against a URL some rule wants). Granting needs a user gesture and revoking does not,
 so revocation is the half that cannot be undone without asking again — bias it toward doing nothing.
 
+**That normalization is a widening, not a tidy-up: "paths on origin patterns will be ignored."** Asking for
+`https://example.com/travel/flights` grants `https://example.com/*`, so the prompt reads *"Read and change your
+data on example.com"* and the extension afterwards really does hold every page on that host — worth saying out
+loud before a user clicks it, since the rule they wrote named one page. Scope the *script* rather than the
+permission: `registerContentScripts` honours the path, so it can run on the one page while the grant covers the
+origin. To see what is held rather than what was asked for, read
+`extensions.settings.<id>.granted_permissions.explicit_host` from the profile's **`Secure Preferences`** — not
+`Preferences`, where extension settings do not live. This works for an unpacked extension, unlike the manifest
+copy noted below; every entry is `/*`, which is what demonstrates the widening instead of assuming it. The file
+is written lazily, so a grant made seconds ago may not be in the copy on disk yet.
+
 `history` is allowed as an optional permission: its entry is `{APIPermissionID::kHistory, "history",
 APIPermissionInfo::kFlagRequiresManagementUIWarning}`, with no `kFlagCannotBeOptional`. The ones that cannot
 be optional include `debugger`, `mdns`, `tts`, `ttsEngine`, `wallpaper`, `fontSettings`,
