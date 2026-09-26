@@ -24,7 +24,7 @@ repo's shortcut on every machine, with no tracked file anywhere to sweep.
 
 ## Asserting the dependency in the caller's gate
 
-Put the check in the project's own commit gate. Three things decide whether it holds up:
+Put the check in the project's own commit gate. These decide whether it holds up:
 
 - **Read the reference list out of the source, never restate it.** Grep the call sites
   (`skill_script("…")`, and whatever the other platform's lib does inline) and resolve each
@@ -38,8 +38,19 @@ Put the check in the project's own commit gate. Three things decide whether it h
   home directory, so a runner fails every run. That makes it one of the rare checks
   deliberately absent from CI, which is worth a comment where it sits — the default assumption
   on reading a gate script is that everything in it mirrors a workflow.
+- **A library the caller loads is a dependency on names, not only on a path.** When the caller
+  dot-sources or imports a skill script instead of running it, the functions it calls, their
+  parameters and the types it uses are part of the dependency, and a path-only check passes
+  when any of them is renamed. The capture then fails at the call, which for the capture
+  library's `Invoke-WindowShot` comes after the pointer has moved and the window being
+  photographed has opened. Resolve those names in the gate as well;
+  `powershell-static-reference-check.md` covers how for PowerShell, and what no static check
+  can see.
 
-The worked example is `docs/screenshots/check-skill-scripts.py` in the tauri-dashboard repo.
+The worked examples are `docs/screenshots/check-skill-scripts.py` in the tauri-dashboard repo,
+which checks the paths its capture libs build, and the docs-relevance skill's own
+`scripts/check-capture-scripts.ps1`, which a project with Windows captures runs from its gate
+to resolve every name those captures take from the skill's PowerShell library.
 
 ## Sweeping the callers when you rename a skill
 
