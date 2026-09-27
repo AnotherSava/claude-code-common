@@ -232,44 +232,20 @@ than to when the work started is what makes "15 minutes" mean fifteen minutes of
 carrying the machine shut, instead of expiring two minutes after someone closes
 the lid thirteen minutes into a task.
 
-## Claude Code's own caffeinate does not cover a long turn
+## Claude Code's own caffeinate does nothing for a lid close
 
-A turn can die mid-stream with `API Error: Your computer went to sleep mid-response`, and nothing
-in the agent prevents it. Claude Code spawns `caffeinate -i -t 300` per session, renewed while the
-session is active — visible in `pmset -g assertions` as a `PreventUserIdleSystemSleep` owned by a
-`caffeinate` child of the `claude` process. The five-minute lease is not held continuously enough to
-protect a streaming turn. Measured 2026-09-24: the last assistant text written before one such death
-is stamped `17:04:20.522Z`, and `pmset -g log` records `Entering Sleep state due to 'Idle Sleep' …
-Using Batt` at `10:04:20 -0700` — the same second. Nine such deaths appear across seven projects'
-transcripts between 2026-08-23 and 2026-09-24.
+Claude Code's `caffeinate -i` is an idle-sleep assertion, so by the gate in "Why no power
+assertion works" it does nothing for a lid close. It can also lapse mid-turn, which sleeps
+the machine on battery. Its mechanism, the incidents, and why anything replacing it must
+be bounded on silence are in `macos-idle-sleep-diagnosis.md`, under "Claude Code's own
+inhibitor".
 
-It only happens on battery. Read the two timeouts with `pmset -g custom`: on these machines idle
-sleep is one minute on battery and disabled on AC, so a lapse in the lease sleeps the machine almost
-at once, and on the charger it cannot happen at all. Plugging in is the entire workaround.
-
-To find the incidents, grep the transcripts for the error and read the sleep reason beside it:
-
-```bash
-grep -rl "went to sleep mid-response" ~/.claude/projects/*/*.jsonl
-pmset -g log | grep -E "Entering Sleep state|Wake from"
-```
-
-Anything built to hold the assertion properly needs a bound, because a session that hangs with its
-process alive emits nothing and never leaves its working state — so a veto keyed on "any agent is
-busy" would hold forever. **Bound it on silence rather than on elapsed time.** Over 12,512 in-turn
-gaps sampled from 40 sessions (an assistant row to the next assistant row or tool result), the median
-is 1.4s, p99 is 81s, and 17 exceed ten minutes; the longest continuously-working stretch among the
-nine deaths above was 23.5 minutes. A cap on total hold therefore has to choose between bounding a
-hang and cutting a genuinely long turn, where a silence threshold bounds the first without touching
-the second — and re-arms by itself when a merely slow session emits again.
-
-Both halves exist in the dashboard project, as two modules that share one predicate. The
-`lid_awake.rs` module drives the `pmset disablesleep` lever above and ships `off`, because that
-lever is privileged and system-wide. Its sibling `idle_awake.rs` holds a plain
-`PreventUserIdleSystemSleep` assertion and ships **on**, because that one is neither. Both read
-`Status::is_live_work`, which is true for a session that is working or holding background work and
-deliberately **false** for one blocked on the user — an agent parked on a question makes no
-progress while the Mac sleeps, so it must hold nothing.
+The dashboard project has a module for each path, sharing one predicate,
+`Status::is_live_work`, which is false for a session blocked on the user. Its
+`lid_awake.rs` drives the `pmset disablesleep` lever above and ships `off`, because that
+lever is privileged and system-wide; its sibling `idle_awake.rs` holds a plain idle
+assertion and ships **on**, for the reasons under "Holding the idle assertion yourself"
+below.
 
 ## Holding the idle assertion yourself
 
