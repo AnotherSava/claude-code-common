@@ -89,6 +89,7 @@ When a problem resists the first attempt or two — especially browser/CSS quirk
 
 When asking the user to run a command manually (e.g. launching an app, system config):
 - **on Windows:** provide PowerShell syntax — not bash or cmd.
+- **A command meant for the `!` prefix is bash on every platform.** `!` runs in the same Git Bash as the Bash tool, so a PowerShell cmdlet fails there with `command not found` (2026-09-26: `Remove-Item` handed over for `!`). Give PowerShell only for a command they run in their own terminal.
 - **on macOS / Linux:** provide bash/zsh syntax.
 - **Never route a plaintext secret through the `!` prefix.** A command the user runs via `!` has its full text — the secret value included — recorded in the session transcript/logs. When a command must carry a secret value (`doppler secrets set KEY="…"`, an API key, a token, a DB URL), have them run it in a **separate terminal outside Claude Code**, or use the service's dashboard — never `!`. `--silent`-style flags hide command *output*, not the `!`-recorded *input*.
 
