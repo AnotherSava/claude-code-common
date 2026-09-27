@@ -64,3 +64,23 @@ The denial text says it: stop and explain, and let the user decide. Concretely:
   that needs a terminal outside the session.
 - **Mention the permission rule.** `Bash(ssh root@host:*)` in settings lifts it for future runs — while noting
   what else that rule would cover, which for a shared host is every destructive command on it.
+
+## The removal check is a separate gate, and no rule lifts it
+
+A denial that opens `Permission for this command was denied by a built-in Claude Code safety check, not by
+the user` comes from a check on `rm`, not from the classifier. No permission rule can allow it; only a person
+running the command can. Two triggers, measured 2026-09-26 in Git Bash on Windows:
+
+- **A target computed at run time.** `rm -f "$S"`, with `S` set from `git rev-parse --git-path ...`, was
+  refused because the variable could resolve to the repository root. A `${S:?}` guard does not help, since the
+  value is not empty. `rm -f /tmp/adopt-snapshot`, a literal absolute path, went through. A procedure written
+  for agents to follow therefore has to name what it deletes literally, or every agent following it is refused
+  at the cleanup step.
+- **A directory the session has adopted as its working directory.** A Bash call that `cd`s into a scratch
+  directory without a subshell moves the session there, and the harness reports a new primary working
+  directory. Removing that directory then failed with `Device or resource busy`, and the retry was refused as
+  removing a workspace directory. Set up probes inside `( cd ... )` so the scratch directory never becomes
+  the working directory and stays deletable.
+
+When the user has to run the removal, the `!` prefix runs Git Bash, not PowerShell, so hand it over in bash
+form: `rm -rf <literal path>`.
