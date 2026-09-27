@@ -920,6 +920,10 @@ Because the symlink lives outside the repo, it is the one setup step no `git clo
 
 Every invocation also passes `-S`, which skips `site` — the single largest slice of interpreter startup. **The cost is that `site-packages` is off `sys.path`, so every hook must stay stdlib-only.** All of them currently are. A hook needing a third-party package must drop `-S` on its own command line rather than for all of them.
 
+### Mouse reporting
+
+The same `env` block sets `CLAUDE_CODE_DISABLE_MOUSE=1`, which keeps a drag in the terminal a text selection instead of an event stream. Claude Code 2.1.283 asks the terminal for any-event mouse tracking where 2.1.251 asked for nothing, and a terminal honouring that request delivers the drag to Claude Code rather than highlighting anything — so ⌘C copies nothing, and ⌘-hover stops underlining links. Holding shift bypasses the capture for one drag; the variable removes the need to. Verified 2026-09-26 against 2.1.283 by a matched pair of sessions differing only in that variable. The probe that reads the mode, and the terminal-side switches that also turn it off, are in `claude/learnings/terminal-mouse-reporting-vs-selection.md`.
+
 ### Screenshot capture helper (macOS)
 
 The `docs-relevance` skill takes screenshots through a small helper rather than through the agent's own binary. macOS grants Screen Recording to a *binary*, and the agent's is version-named, so granting it there would both go stale on every update and hand whole-display access to every session forever. A purpose-built bundle at a fixed path is granted once and scoped to the one job. Build it once per machine:
