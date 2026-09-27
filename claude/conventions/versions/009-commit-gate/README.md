@@ -58,15 +58,25 @@ through the installed path rather than a checkout path, because only the dotfile
 `python3 claude/conventions/check.py .` instead. Wrap it in whatever the file uses to label and
 buffer a step; the bare line is enough where there is no such helper.
 
-Then put the other half to the user, in every repo that has not answered it:
+Then settle the other half with the user, in every repo that has not answered it. Take stock of what
+could gate a commit here first, naming each candidate's exact command and the file it came from:
+
+- the build, as the deploy script or publish workflow invokes it — the step that compiles or
+  bundles, not the one that ships;
+- the test suite and its runner;
+- any linter or formatter configuration;
+- the workflows under `.github/workflows/`;
+- any heavier verifier — a type check, a schema check, an integration harness.
+
+Read these rather than running them. The gate first runs in the checks below, once the user has
+chosen what goes in it. Then put the question with the inventory beside it:
 
 > What actually gates a commit here — a build, a lint, a test suite, a schema check — and does
 > `.claude/commit-checks.sh` run it? A file that exists but runs nothing is worse than none, because
 > `/commit` reports it green.
 
-A `test` script in a `package.json` is not evidence either way, in the direction that matters: it
-says a suite exists, never that the suite is what would have caught the last thing to break. That is
-why this asks rather than reads.
+The inventory informs the answer and does not replace it. A `test` script in a `package.json` says a
+suite exists, never that the suite is what would have caught the last thing to break.
 
 Six repos had a gate when this was written, and they are worth reading before answering for a repo
 that has none — landlord runs the whole suite its README points at, with `caddy` and `openssl`
@@ -79,9 +89,9 @@ Afterwards:
 
 - **Run `bash .claude/commit-checks.sh` and read what it prints.** The checker names every rule it
   took on and every rule it could not measure; a rule reported `UNMEASURED` is not a pass and is the
-  thing to settle before moving on. A step that skipped must say so out loud — the four web repos
-  print `SKIPPED` with the reason when the shared ingress linter is not on this machine — because a
-  skip that looks like a pass is the failure this whole file exists to avoid.
+  thing to settle before moving on. A step that skipped must say so out loud — a repo that runs the
+  shared ingress lint prints `SKIPPED` with the reason when that linter is not on this machine —
+  because a skip that looks like a pass is the failure this whole file exists to avoid.
 - **Break something the gate claims to cover, run it again, and confirm it exits non-zero.** A gate
   nobody has seen fail is one nobody has seen work.
 - **Compare the commands against what the deploy or the CI workflow actually runs, command by

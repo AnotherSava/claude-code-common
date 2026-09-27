@@ -114,7 +114,7 @@ The walk takes the pending versions in ascending order, one at a time:
 1. **It reads the README in full** before touching anything.
 2. **It checks the "When it does not apply" conditions against this repo**, settling each with the positive evidence the README names. A version that does not apply here is still decided: the number advances with nothing mutated.
 3. **Otherwise it performs the migration**, showing every mutation before it happens and applying it only on a yes.
-4. **A question the README puts to a human reaches you verbatim** — whether a repo wants a backlog at all, whether a missing LICENSE is deliberate. The agent does not answer those on your behalf.
+4. **It asks you, verbatim, any question the README puts to a human** — whether a repo wants a backlog at all, whether a missing LICENSE is deliberate — and lays out beside it what the repo holds that bears on it. The findings are evidence for your answer, not a substitute for it: the walk does not answer those questions on your behalf.
 5. **It checks whatever the README says to check afterwards.**
 6. **It advances the record by one.**
 

@@ -143,14 +143,20 @@ The engine enforces the order anyway: `adopt` takes only the current number plus
    that leave the same empty diff.
 
 4. **Do the migration.**
-   - **Where the README carries a question, put it to the user verbatim** — unedited, unsummarised,
-     nothing added but the repo's name if that is not already obvious. A question exists precisely
-     because no file can settle it, so a plausible answer read off the surrounding repo is the guess
-     `~/.claude/memory/feedback_surface_the_gap_dont_fill_it.md` forbids. If their answer amounts to
-     "not here", treat it as sub-step 2's no-op and say so — their reason is stored nowhere, so if it
-     would hold for every repo it belongs in that version's `## When it does not apply` or in a later
-     version, which is work in the dotfiles repo and its own session's task. Offer a memo for it.
-     If their answer is that it applies and they do not want it done, that is a §3 stop.
+   - **Where the README carries a question, take stock of what the repo holds that bears on it, then
+     put it to the user verbatim with those findings beside it.** Look wherever the README says to
+     look, and show what you found and where. The question itself stays unedited and unsummarised,
+     with nothing added but the repo's name if that is not already obvious. Ask it in plain text below
+     the findings, not through AskUserQuestion, whose box covers the text above it
+     (`~/.claude/memory/feedback_link_inside_the_question.md`). The findings are evidence, never an
+     answer: a question exists precisely because no file can settle it, so a plausible answer read off
+     the surrounding repo is the guess `~/.claude/memory/feedback_surface_the_gap_dont_fill_it.md`
+     forbids. The stock-take lets the user answer from what the repo actually has rather than from
+     memory. If their answer amounts to "not here", treat it as sub-step 2's no-op and say so — their
+     reason is stored nowhere, so if it would hold for every repo it belongs in that version's
+     `## When it does not apply` or in a later version, which is work in the dotfiles repo and its own
+     session's task. Offer a memo for it. If their answer is that it applies and they do not want it
+     done, that is a §3 stop.
    - **Where the folder carries an `apply.py`, run it** rather than doing the work by hand —
      `python ~/.claude/conventions/versions/<NNN-slug>/apply.py "<repo root>"`. It exists because the
      work is mechanical and tedious, it prints what it did, and it exits non-zero on any line it cannot

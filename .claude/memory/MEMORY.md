@@ -10,3 +10,4 @@
 - [Effort changes dirty this repo](effort-changes-dirty-this-repo.md) — `/effort` writes through the settings.json symlink into the tree; press `s` for session-only, and two effort keys can disagree
 - [Remote session diagnostics](remote-session-diagnostics.md) — "remote session" means the tmux feature, not Remote Control; the four read-only commands for its live state, and why an attach can work while the conversation is new
 - [Docs stay text-only](docs-stay-text-only.md) — no images here by choice (2026-09-24); `/docs-relevance` finds the same screenshot gap every run, don't re-raise it
+- [v9 stock-take is inventory only](v9-stocktake-inventory-only.md) — nothing runs before the commit-gate question; running candidates was rejected 2026-09-26, don't re-propose it
