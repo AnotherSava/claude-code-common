@@ -158,8 +158,10 @@ To tell "content actually changed" from "only the encoding changed", compare siz
 
 ```bash
 git cat-file blob <sha> | wc -c
-git cat-file blob <sha> | grep -c $'\r'
+git cat-file blob <sha> | tr -cd '\r' | wc -c
 ```
+
+Not `grep -c $'\r'`: Git Bash's grep strips CRs in text mode from piped input as well as from files, so plain grep prints 0 for a CRLF blob (measured 2026-09-27; `grep -U` counts it).
 
 A byte delta exactly equal to the line count is CRLF vs LF, not a content change. For transcrypt specifically, the 8-byte salt after the `Salted__` magic is derived by HMAC over the plaintext, so two blobs sharing a salt hold identical plaintext:
 

@@ -158,3 +158,27 @@ sidesteps quoting entirely, and it is the only approach that stayed reliable on 
 with literal escape text. Repeated failed `replace` calls also leave a file half-edited: check the
 region afterwards rather than assuming a no-op, since one such sequence left three stray lines that
 only surfaced as a syntax error two runs later.
+
+## Backslash-heavy code through a Python heredoc
+
+Python's own string-literal parsing bites any code that is mostly backslashes — C# verbatim strings,
+regex patterns, Windows paths — when a Python heredoc carries it as a literal, and it does so before
+`str.replace` ever sees the string. In a non-raw literal, `\1` becomes `\x01`, `\a` a bell, `\\` a
+single backslash, and `\s` or `\g` survive only as a `SyntaxWarning: invalid escape sequence`.
+Measured across one C# session: an `old` string holding `'\\'` matched nothing; a `new` string
+turned `@"\\nas\games"` into `@"\nas\games"` and was written; and a test line quoting
+`'...\1687950\achievements.json'`, meant to be deleted, matched nothing because its `\16` and `\a`
+decoded to control characters. Only the second raised a `SyntaxWarning` (for `\g`), and that warning
+was the only sign of the corrupted write; `\16` and `\a` are valid escapes and warn about nothing.
+An `assert s.count(old) == 1` before writing caught the other two, and it guards only the `old`
+side, never what `new` writes.
+
+- **Use the Edit tool** for a C# or regex edit that contains a backslash but no `\uXXXX` sequence.
+  Its strings reach the file without passing through Python's escape parsing, which a script's
+  literals cannot avoid. A line that holds a `\u` escape is still the case from the first section:
+  build it from the code point, as the second section shows.
+- When a script is the right tool (many files, a block deletion), **anchor on text with no
+  backslash in it** — cut by `s.index(marker)` or drop whole lines containing a marker — and never
+  retype the backslash-bearing lines at all.
+- Treat any `SyntaxWarning: invalid escape sequence` from a heredoc as a corrupted write until the
+  file shows otherwise.

@@ -99,6 +99,36 @@ refused loudly while `done` destroyed a file — same defect, two outcomes, one 
 A regression test for this has to close *onto* an existing mixed-case twin and assert the `-2`
 suffix. Asserting only that the write path refuses proves nothing about the move.
 
+## Windows: one file under two names, without `samefile`
+
+.NET has no `samefile`, and the obvious Win32 substitute, `GetFinalPathNameByHandleW`, is not one.
+It resolves junctions, symbolic links, 8.3 names and the `\\?\` prefix, but measured on Windows 11
+it still gives one file two names:
+
+- a **hard link** resolves to the name the handle was opened through, so two links to one file give
+  two different final paths;
+- a **loopback share** of a local folder (`\\localhost\D$\…`) resolves to `\\?\UNC\localhost\D$\…`,
+  never to `\\?\D:\…`.
+
+Its documentation adds that on a drive a third-party driver mounted without the Mount Manager, both
+`VOLUME_NAME_DOS` (flags 0) and `VOLUME_NAME_GUID` fail and only `VOLUME_NAME_NT` succeeds.
+
+What names the file rather than the path is its identity: `GetFileInformationByHandleEx` with
+`FileIdInfo` (class 18) returns `FILE_ID_INFO` — the volume serial number and a 128-bit file ID,
+which is the ReFS-safe form of the older 64-bit `nFileIndex` pair. Open the handle with `CreateFileW`
+and desired access `FILE_READ_ATTRIBUTES` (0x80), adding `FILE_FLAG_BACKUP_SEMANTICS` for a
+directory. An attributes-only open is not checked against share modes: measured, it succeeded and
+`FileIdInfo` answered while another handle held the file for writing with share mode 0, where a
+read-access open with every share flag failed with error 32. A .NET `FileStream` or
+`File.OpenHandle` always asks for at least read access, so an exclusive writer can refuse it. Treat a
+failure (a network redirector may not answer) as "unknown", not as "different".
+
+Testing it: a hard link (`CreateHardLinkW`) needs no elevation and is not a reparse point, so a test
+can make one; a junction or symbolic link made by a non-elevated process is one the OS can refuse
+to follow (WinError 448), and on Windows the `windows-link-guard.py` hook refuses a Bash command that
+creates one unless the shell is elevated. The `\\?\` spelling of a path is a no-link stand-in for
+"same folder, different string", though it never passes through a reparse point.
+
 ## The general rule
 
 Treat a path string as belonging to its producer. `git`, `realpath`, a symlink target, an editor's
