@@ -7,9 +7,20 @@ while building a production plugin.
 
 ## Project setup
 
-- **Tooling baseline**: Gradle 8.5+, JDK 17. The IntelliJ Platform Gradle
-  Plugin 2.x refuses older Gradle; target IntelliJ's bundled JBR 17+ for
-  build.
+- **Tooling baseline**: JDK 17, and Gradle 9.0+ from plugin 2.12 onward
+  (2.10–2.11 need 8.13+, 2.7.1–2.9 need 8.6+, 2.2–2.7.0 need 8.5+, per the
+  plugin's changelog); target IntelliJ's bundled JBR 17+ for build. Commit
+  the Gradle wrapper instead of relying on a system `gradle`: a machine whose
+  PATH still carries an 8.x Gradle fails before configuring anything, with
+  `IntelliJ Platform Gradle Plugin requires Gradle Gradle 9.0.0 and higher`.
+  Bootstrapping it from that older Gradle is covered under the upgrade chain
+  below.
+- **The `build` task does not produce the plugin zip.** `buildPlugin`
+  registers its archive on the `intellijPlatformDistribution` configuration,
+  and `assemble` depends only on `archives`, so neither `assemble` nor `build`
+  reaches it (checked on plugin 2.16.0 with Gradle 9.0.0). A commit gate or CI
+  job that should prove the installable artifact builds has to name it:
+  `./gradlew build buildPlugin`.
 - `plugins { id("org.jetbrains.intellij.platform") version "2.x" }` — the
   `.platform` flavor is the current one; the old `org.jetbrains.intellij`
   (1.x) is deprecated.
@@ -515,6 +526,32 @@ Error you see before the bump:
 
 That's an old plugin internal calling a Gradle 9 API. Bump the
 `intellij.platform` plugin version to 2.12+ (we used 2.16.0).
+
+### Generating the 9.x wrapper from an 8.x system Gradle
+
+Run `gradle wrapper` in an empty scratch directory, not in the project.
+Inside the project Gradle configures the build script first, the plugin
+refuses the old Gradle, and the `wrapper` task never runs.
+
+```sh
+mkdir scratch && cd scratch && touch settings.gradle
+gradle wrapper --gradle-version 9.0.0 --distribution-type bin
+```
+
+Copy `gradlew`, `gradlew.bat` and `gradle/wrapper/` into the project, then
+run `./gradlew wrapper` there so 9.0.0 regenerates the files itself, which
+also keeps them in line with a `wrapper { gradleVersion = ... }` block.
+
+Two things then decide whether the wrapper works on the other machines:
+
+- **Line endings.** Add a `.gitattributes` with `/gradlew text eol=lf`,
+  `*.bat text eol=crlf` and `*.jar binary`. A global `* text=auto eol=lf`
+  otherwise checks `gradlew.bat` out with LF, and cmd.exe misreads labels in
+  an LF-only batch file.
+- **The executable bit.** Stage `gradlew` with `git add --chmod=+x gradlew`
+  when committing from Windows. With `core.fileMode=false` a plain add
+  records `100644`, and `./gradlew` fails with `permission denied` on every
+  macOS or Linux checkout.
 
 ### foojay-resolver-convention 1.0.0+ for Gradle 9
 
