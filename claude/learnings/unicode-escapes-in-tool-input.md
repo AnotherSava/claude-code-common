@@ -97,6 +97,27 @@ Two defences, both cheap:
   flattens whitespace by design (correct, for one-line-per-entry) cannot warn you, so the write is
   the last moment the mistake is visible.
 
+## A `$'\r'` typed into a Bash command stops being a CR
+
+Probing CR counts on 2026-09-27, `grep -c $'\r'` and `grep -Uc $'\r'` typed into a Bash tool command
+both reported every line of a file that held no CR at all. The pattern that reached grep matched
+everything, so it was no longer a CR; the escape did not survive the trip from tool input to Git
+Bash. The same greps with the CR built from hex behaved correctly: 0 on the LF file, and on a CRLF
+file 0 for plain grep and 3 for `grep -U`.
+
+Build control bytes from hex whenever a probe depends on them, so no escape passes through the tool
+input at all:
+
+```bash
+cr=$(printf '0d' | xxd -r -p)                     # a CR in a variable
+printf '610d0a620d0a' | xxd -r -p > crlf.bin     # exact file bytes, newlines included
+xxd -p crlf.bin                                   # read back before trusting any count
+```
+
+Write newlines into the file the same way rather than into a variable: command substitution strips
+trailing newlines, so `nl=$(printf '0a' | xxd -r -p)` is empty and every "line" collapses into one.
+The read-back is what shows it.
+
 ## A NUL byte passes every compiler gate; only git notices
 
 The failures above are at least *visible* once you look at the bytes. U+0000 is the case where nothing looks at
