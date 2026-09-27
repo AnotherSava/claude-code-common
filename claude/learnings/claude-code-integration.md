@@ -272,7 +272,7 @@ A subagent — a Task agent or a workflow's agent — raises tool-permission dia
 
 Reference implementation: the Tauri dashboard's `subagent_gate.rs`, which overlays the block on the row's own state and releases it on that `tool_result`, on `SubagentStop`, or on a main `Stop` with no background work from the same session.
 
-To settle a hook schema question yourself, read it out of the binary: `grep -a -o 'hook_event_name:A("PermissionRequest").\{0,300\}' claude.exe` prints the event's input schema, and grepping for the event name with `hook_event_name:"` shows which call sites build it.
+To settle a hook schema question yourself, read it out of the binary: `grep -a -o 'hook_event_name:A("PermissionRequest").\{0,300\}' claude.exe` prints the event's input schema, and grepping for the event name with `hook_event_name:"` shows which call sites build it. The same works for any behaviour, but search for the code's shape, not a bare message: the first hits for a log string such as `Restarting sleep inhibitor` sit in the binary's string table, surrounded by other constants and no code, which is easy to misread as a binary with no readable source. Matching the call, `("Restarting sleep inhibitor` with the paren, or a method call such as `this.spawnInhibitor()`, lands in the class itself (measured 2026-09-26 on the Windows npm build, 2.1.283).
 
 ## Hook matchers scope by tool name; `if` scopes by argument
 
