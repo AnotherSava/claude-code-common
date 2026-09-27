@@ -215,3 +215,4 @@
 - [Don't open a sentence with code-formatted text](feedback_no_code_at_sentence_start.md) — in prose, lead with a real word; don't start a sentence or line with backtick-wrapped code when prose follows
 - [Link inside the question](feedback_link_inside_the_question.md) {always} — a choice that needs a page opened first gets the link in the question box or plain text; the box covers the text above it
 - [Commit gate contents](feedback_commit_gate_contents.md) — a repo's commit gate runs its build, lint and tests where each exists; draft from what's there, invent no linter
+- [Rate realism before hardening](feedback_realism_before_hardening.md) {always} — a rare edge case a review found, harmless or cheap to handle by hand, is reported and gets a warning or a doc line, not code

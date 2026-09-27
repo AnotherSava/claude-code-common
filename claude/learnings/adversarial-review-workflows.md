@@ -55,7 +55,7 @@ existed to find.**
 ## Give refuters a real bar, in both directions
 
 A refuter told only "try to refute this" refutes everything — it is the path of least resistance, and the
-output looks rigorous. Spell out what does *not* count as refutation:
+output looks rigorous. Spell out what counts as refutation, and that nothing else does:
 
 - the code genuinely does not do what the claim says
 - the state is unreachable through ordinary use
@@ -105,6 +105,44 @@ reduce the count, the artifact changes shape rather than getting another pass.* 
 script there was prose telling an agent to read the two lists side by side — the matching was a
 judgement about whether two texts describe the same thing, which is why no rule over strings ever
 settled it, and why each fix traded one blind spot for another.
+
+## A falling count can still be the wrong work: have them rate realism
+
+A count that falls overall is no proof the rounds are worth running. A finder constructs every
+scenario it can, a verifier confirms that the code mishandles it, and neither is asked whether anyone
+will ever be in it. Measured across eight fix-and-review rounds on one app: the lists left open ran
+seven, nine, eleven, five, six, five, two, then none, so the stopping rule above would have fired at
+rounds two, three and five. The fixes added about 2,500 lines of source and tests, and a later audit
+against the owner's standard — *rare, and harmless or cheap to handle by hand* — removed about a
+thousand of them again: a watcher retarget for a sub-second window, millisecond timestamps no
+emulator writes, junction detection for a warning line, calendar ranges for dates before 1900.
+
+So put the standard in the finder's prompt and give the verifier a realism lens as well as a
+correctness one: *who hits this — a known writer, a user report, a documented path — and what does
+it cost unhandled?* A confirmed defect with no one in it is a note, a log line or a sentence in the
+docs, not code. The audit that did the removal was the same shape as a review: area sweepers
+listing every scenario-specific branch with a realism rating, one skeptic arguing to keep each
+removal candidate, and a ranking. Its "keep" list, what prevented data loss, crashes, lost or
+duplicated output, or a leak of the user's own identity, is the part the fix rounds should have
+been limited to.
+
+## Fix agents between rounds: no builds, then one integrator
+
+Parallel fix agents on disjoint file groups in one working tree must not build: they share its build
+output directory, and concurrent builds into it collide (measured on a .NET app, where that was
+`bin/` and `obj/`). Give them no build step at all, then run a single integrator agent that builds
+with the real gate's flags, runs the tests, and repairs dangling references and tests that pinned
+removed behaviour — with an explicit rule never to restore removed logic unless a test proves a kept
+behaviour broke. Reviewers after it stay read-only, and parallel reviewers do not build or run the
+tests in the shared tree either, for the same reason: running the tests builds first. Hand them the
+integrator's build and test result instead. A reviewer that needs to execute something does it in
+its own scratch copy, as *Run the reference implementation against every real instance, not against
+a fixture* describes.
+
+Large per-group input — audit entries, file lists, notes — belongs in a gitignored JSON file that
+each agent reads by key, not in the Workflow `args`. Pasting tens of kilobytes into `args` is where a
+placeholder gets launched by mistake: one run went out with `"SEE_FILE"` standing in for every
+group's items and had to be stopped before its agents edited anything.
 
 ## Feed them what is already verified
 
