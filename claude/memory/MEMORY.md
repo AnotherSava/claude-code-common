@@ -210,6 +210,7 @@
 - [Route the output, don't ask for a paste](feedback_route_output_not_paste.md) {always} — a command only they can run gets `2>&1 | tee tmp/<name>.log`; I read it, clipboard is the fallback
 - [Fix the class, not the instance](feedback_fix_the_class_not_the_instance.md) {always} — a defect in one member of an already-enumerated set is a defect in the set; find the list and check all of it
 - [A gap in a gate is a fix, not a memo](feedback_gap_in_a_gate_is_a_fix.md) {always} — a blind spot in a check the project already runs gets that check extended; parking it re-files the same class every review
+- [Do it, don't offer a memo](feedback_do_it_dont_offer_a_memo.md) {always} — a concrete item settleable now gets done and reported; memos are for dropped ideas and work that cannot happen now
 - [A subagent calls the real function](feedback_subagent_calls_the_real_function.md) {always} — never restate production logic in a prompt; the reimplementation drops a filter and returns a confident wrong number with a method section attached
 - [Don't open a sentence with code-formatted text](feedback_no_code_at_sentence_start.md) — in prose, lead with a real word; don't start a sentence or line with backtick-wrapped code when prose follows
 - [Link inside the question](feedback_link_inside_the_question.md) {always} — a choice that needs a page opened first gets the link in the question box or plain text; the box covers the text above it
