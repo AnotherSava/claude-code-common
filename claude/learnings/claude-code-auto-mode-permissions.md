@@ -80,7 +80,9 @@ running the command can. Two triggers, measured 2026-09-26 in Git Bash on Window
   directory without a subshell moves the session there, and the harness reports a new primary working
   directory. Removing that directory then failed with `Device or resource busy`, and the retry was refused as
   removing a workspace directory. Set up probes inside `( cd ... )` so the scratch directory never becomes
-  the working directory and stays deletable.
+  the working directory and stays deletable. Where one already has, `cd` back out in a call of its own
+  first: once the harness reported the old working directory again, `rm -rf` of a second such probe went
+  through on 2026-09-27.
 
 When the user has to run the removal, the `!` prefix runs Git Bash, not PowerShell, so hand it over in bash
 form: `rm -rf <literal path>`.
