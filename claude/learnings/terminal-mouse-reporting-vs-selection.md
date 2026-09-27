@@ -39,9 +39,10 @@ The same day, 2.1.251 on macOS requested nothing while 2.1.283 on Windows reques
 `"tui": "fullscreen"` set in the settings.json both machines share. So the request arrives with a
 version rather than with a setting, and a terminal whose drag-select works today loses it at an update.
 
-Values in the `env` block of `settings.json` do reach the session's process environment — a shell inside
-it prints them. Whether they are read early enough to affect the TUI's mouse setup is a separate
-question, and exporting the variable into the process directly is the fallback that is known to work.
+The `env` block of `settings.json` is early enough, so the flag belongs there rather than in a launcher.
+Measured the same day on the Windows box: a session whose only source of the variable was the
+checked-out `settings.json` — no shell export, no `WSLENV` — reported `0,0,0`, where the identical
+command before that file carried the flag reported `1,1,1`.
 
 **Crossing WSL to a native Windows `claude.exe` needs `WSLENV`.** A variable exported in the WSL shell
 is not inherited by a Win32 child unless it is named there:
