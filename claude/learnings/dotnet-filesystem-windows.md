@@ -128,3 +128,23 @@ whole. The string overload of `GetPathRoot` is annotated nullable in .NET 10; th
 
 To check a BCL behaviour like this one without creating a project, `dotnet fsi probe.fsx` runs an F#
 script against the installed runtime in a few seconds.
+
+## Expanding variables truncates a path at a NUL, before `GetFullPath` can reject it
+
+On .NET 10 for Windows, `Path.GetFullPath` throws `ArgumentException` for an empty string, for a string
+of only spaces (`The path is empty.`), and for any path holding a NUL (`Null character in path.`). A
+tab-only string is not among them: it resolves to a name made of the tab under the current directory.
+Measured 2026-09-28 on runtime 10.0.12, calling `[IO.Path]::GetFullPath` from PowerShell 7.6.
+
+`Environment.ExpandEnvironmentVariables` drops everything from the first NUL on, whether or not the
+string holds a variable — it passes the string to Win32's `ExpandEnvironmentStrings`, which reads it as
+NUL-terminated. `C:\a<NUL>b\c` comes back as `C:\a`. A config reader that expands before parsing
+therefore never shows `GetFullPath` a NUL: an entry carrying one, which a JSON config can through a
+`\u0000` escape, resolves silently to the shorter path instead of failing. A `%VAR%` whose value is only
+spaces does reach `GetFullPath` and throws, and trimming the raw entry does not catch it, because the
+expansion runs after the trim.
+
+Neither exception names the input or where it came from — "The path is empty" for an entry that reads
+`%SPACES%`. Check a config value that is parsed as a path where the config is validated, after
+expansion, with an error naming the key and the entry; left to the first reader that parses it, the
+failure is a framework message through a stack trace.
