@@ -213,8 +213,11 @@ The page is **read-only**. It states the case; it does not collect the decision.
 per screenshot — before a capture, which frames to shoot; after one, keep, revert or re-capture — one
 question covering all of them, in the same shape as the policy question.
 
-`contact-sheet.html` beside this file is the working template — copy it, fill the marked slots, and
-open it in a browser before handing it over. These parts of it are not decoration:
+`contact-sheet.html` beside this file is the template, and `scripts/contact-sheet.py` builds every sheet
+from it: the page is derived from this manifest, the images, the raws and git, and the only part a
+person writes is a notes JSON of verdicts, proof and gaps, described in the script's docstring. Do not
+copy the template and fill it by hand. Open the built page in a browser before handing it over. These
+parts of it are not decoration:
 
 **A theme toggle in the nav, always visible.** Screenshots are judged against a page, and a
 documentation site can be light or dark. A per-image border claims to hold on both; a sheet rendered

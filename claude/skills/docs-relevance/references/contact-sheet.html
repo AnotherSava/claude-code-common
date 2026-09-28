@@ -1,5 +1,6 @@
-<!-- Contact-sheet template. Copy, fill the marked slots, write to
-     tmp/screenshot-contact-sheet-<date>.html in the repo and hand over the file:/// URL.
+<!-- Contact-sheet template. scripts/contact-sheet.py builds every sheet from it, copying its style,
+     script and nav head and reading the dot colours off its legend, so do not fill it by hand. An
+     element that script looks up by id has to stay, or the build refuses.
 
      Every part of this earned its place; see references/screenshot-manifest.md for the reasoning.
      The seven that are easiest to drop and most expensive to lose:
@@ -68,7 +69,7 @@
  .legend{font-size:11px;color:var(--muted);padding:0 .55rem .3rem;display:flex;flex-direction:column;gap:.25rem}
  .legend span{display:flex;align-items:center;gap:.4rem}
  .legend i{width:8px;height:8px;border-radius:50%;flex:0 0 8px}
- .legend i.fresh-key{border-radius:1px;width:3px;height:11px;background:#d29922}
+ .legend i.fresh-key{border-radius:1px;width:3px;height:11px;background:#d29922;flex:0 0 3px}
  nav .n{color:var(--muted);font-variant-numeric:tabular-nums;min-width:1.5em;text-align:right}
  nav .dot{width:8px;height:8px;border-radius:50%;flex:0 0 8px;align-self:center}
  nav hr{border:0;border-top:1px solid var(--line);margin:.55rem .4rem}
