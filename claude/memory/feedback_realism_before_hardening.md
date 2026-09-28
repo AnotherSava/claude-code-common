@@ -35,5 +35,15 @@ thousand of those lines again.
   still applies to a failure the user cannot notice and act on, and a case whose unhandled path
   would silently lose or corrupt core output is not harmless — it belongs in the code list above.
 
+**When review rounds stop shrinking, triage against practice before fixing.** On 2026-09-28 four
+adversarial rounds over the docs-relevance skill confirmed 9, 23, 21 and then 31 findings: each round
+reviewed code the previous fixes had added, so the count never converged. Checking each finding with
+the session that actually ran the tools, and against its transcript, sorted the 31 into real ones a
+committed frame or a real caller hits, cheap ones, and theoretical ones no caller reaches — one of
+whose proposed repairs would have broken a committed capture step. So after a second round that does
+not shrink, classify every finding as fix / theoretical / wrong against real callers, committed
+artifacts and the owning session's own record; fix the real ones, and memo the theoretical ones with
+their evidence instead of hardening against them.
+
 Related: [[feedback_complexity_may_be_self_imposed]], [[feedback_no_defensive_fallbacks]],
 [[feedback_check_the_limit_is_real]], [[feedback_loud_errors]].
