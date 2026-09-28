@@ -58,6 +58,16 @@ already reports from the image itself and which a stored copy can only drift fro
 companion recording whether a human chose the value, whose only job would have been to say which of
 two meanings `policy` was carrying — the reason `policy` is optional instead.
 
+## Where the raw captures live
+
+Every file in `files` that went through a frame step (`hairline.py`, `winframe.py`) has its raw — the
+capture as it was before the frame — at `raw/<name>` in this same directory, committed. The raw is
+what a later re-frame starts from, so trying a different border, radius or ring needs no re-capture on
+either machine. It is not listed in `files`: an entry names what the documentation embeds, and the raw
+is an input to producing that. Keep `raw/` out of the published site, and out of the image audit,
+which the skill's **Doc image files** pathspec already excludes. The contact sheet's pre-frame stage is
+read from it.
+
 ## What each policy permits
 
 - **absent** — the user has not decided. Behaves as `confirm`, and the run asks them to settle it.
@@ -165,8 +175,9 @@ person who has to choose can see them side by side; calling it a *report* invite
 the work was already done.
 
 Write it into the repo's own gitignored `tmp/` — `tmp/screenshot-contact-sheet-<date>.html` — so it stays
-out of the change set while remaining a file this skill can open again, and reference every image by an
-absolute `file:///` URL so the committed file, a saved original and a new capture all resolve. **Not
+out of the change set while remaining a file this skill can open again, and embed every image as a base64
+`data:` URI, so the page keeps rendering whatever happens to the files it was built from —
+`contact-sheet.html`'s header comment has the three ways a path breaks. **Not
 `$TEMP`:** the file tools refuse reads outside the working directories, so a sheet written there can be
 built and linked but never read back to check, which is the one thing it exists for. A project-local
 `tmp/` also needs no read grant and cannot collide with another repo's run. Put the saved originals in a
@@ -189,7 +200,8 @@ prose. Coverage gaps — features documented with no screenshot at all — are n
 one switches to that frame — showing a dozen screenshots on a page the reader can only scroll means
 being told about number 6 and then hunting for it. **All frames** stays available for reading straight
 down, because the argument for showing every frame is that they get compared. Colour each list entry by
-its verdict so the shape of the run is legible before anything is clicked.
+what happened to it this session, keyed to the legend, so the shape of the run is legible before
+anything is clicked.
 
 Every frame awaiting a decision carries **what a re-capture would need** — the session, the app state,
 the preconditions — beside the case for making it. The user is being asked to spend effort, not merely
@@ -202,7 +214,7 @@ per screenshot — before a capture, which frames to shoot; after one, keep, rev
 question covering all of them, in the same shape as the policy question.
 
 `contact-sheet.html` beside this file is the working template — copy it, fill the marked slots, and
-open it in a browser before handing it over. Four of its parts are not decoration:
+open it in a browser before handing it over. These parts of it are not decoration:
 
 **A theme toggle in the nav, always visible.** Screenshots are judged against a page, and a
 documentation site can be light or dark. A per-image border claims to hold on both; a sheet rendered
@@ -228,7 +240,7 @@ for k, c in enumerate(crops):
                 ((k%2)*(side+GAP), (k//2)*(side+GAP)))
 ```
 
-**Panel switching over scrolling**, with a numbered spine and a verdict-coloured dot per entry, so the
+**Panel switching over scrolling**, with a numbered spine and a dot per entry keyed to the legend, so the
 shape of the run reads before anything is clicked and "re-shoot 2 and 6" lands somewhere. Keep an
 **All frames** view for reading straight down, and bind ← / → to step the list.
 
@@ -256,6 +268,23 @@ written as a bare `.on { background: … }` paints every visible *section* that 
 through several revisions of a real sheet before anyone saw it, because the sheet was being validated
 by grepping the HTML for dangling image paths and never opened. Write `.badge.on` / `.badge.off`, and
 open the finished page in a browser — the one check that would have caught it.
+
+**Every framed file keeps its pre-frame stage, behind a "Show before framing" checkbox that starts
+unticked.** A file the frame step touched — `hairline.py`, `winframe.py` — is shown as it was before the
+frame as well as after it: the capture, the frame, and for a replacement the committed file before both.
+The framed file is what the reader approves, so the page opens on it, and the unframed stage is the
+evidence that the frame covered nothing and changed no pixel it should not have — which is only worth
+reading when that is the question. So the stage is always in the page, as figures marked
+`class="unframed"` in the corner grids and among the full images, and the checkbox in the nav, under the
+theme button, shows or hides every one of them at once. It is not persisted: each load starts with it
+off.
+
+**The previous version sits behind a second checkbox, "Show previous version", that starts ticked.**
+Every "before" figure — the committed file a replacement supersedes — is marked `class="before"`, in the
+corner grids and among the full images, and the checkbox shows or hides them all at once. A replacement
+is judged against what is published, so the page opens with that comparison in view; unticking it leaves
+only the new frames, which is how the set reads straight down under **All frames**. Not persisted either,
+so every load starts with it on.
 
 ## Where the file goes when there is no `docs/screenshots/`
 

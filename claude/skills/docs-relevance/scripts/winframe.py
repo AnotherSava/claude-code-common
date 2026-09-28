@@ -2,7 +2,7 @@
 """Draw the Windows 11 window frame onto a capture, the way DWM draws it.
 
     python winframe.py <png> [<png> ...] [--dpi N] [--kind window|menu] [--shadow none|STYLE]
-                       [--ring RRGGBB:ALPHA] [--cut SIDES] [--out PATH]
+                       [--ring RRGGBB:ALPHA] [--cut SIDES] [--grow] [--out PATH]
 
 A capture of a Windows window already carries DWM's frame, but not one that can be
 kept: its border is translucent, so it arrives mixed with whatever shadow and
@@ -49,8 +49,17 @@ display it was taken on. A PNG with neither is refused rather than guessed at.
 `--cut` names sides that are crop cuts rather than the window's own edges — a
 tab strip cut out of a terminal window. Those sides get the border drawn straight
 along them, and the corners they meet are square.
+
+`--grow` is for a capture that sits INSIDE the window's border, such as a crop
+taken just within it. The model puts the frame rect at the capture's edge, so on
+such a capture the border and the corner arcs would be drawn over content. Growing
+the canvas by the border thickness t on every side first puts the frame rect back
+where DWM had it: the content clip then falls on the capture's own extent, and the
+border lands in the new margin.
 """
 import sys
+import textwrap
+from itertools import takewhile
 from pathlib import Path
 
 import numpy as np
@@ -155,15 +164,21 @@ def _shadow(w, h, scale, style, radius):
     return map_coordinates(sh, [Y, X], order=1)
 
 
-def draw_frame(img: Image.Image, dpi: int, kind: str = "window", shadow=None, ring=None, cut=()) -> Image.Image:
+def draw_frame(img: Image.Image, dpi: int, kind: str = "window", shadow=None, ring=None, cut=(), grow: bool = False) -> Image.Image:
     """`img` with its frame drawn by the model: content kept inside DWM's clip, the ring and outside drawn."""
     scale = dpi / 96
+    t = (dpi + 48) // 96
+    if grow:
+        # The margin's own pixels are never read: content outside the clip is taken
+        # from the nearest pixel the clip covers fully, which is the capture itself.
+        grown = Image.new("RGBA", (img.width + 2 * t, img.height + 2 * t), (0, 0, 0, 0))
+        grown.paste(img.convert("RGBA"), (t, t))
+        img = grown
     rgba = np.asarray(img.convert("RGBA")).astype(float)
     h, w = rgba.shape[:2]
     radius = (8.0 if kind == "window" else 4.0) * scale
     k_outer = 8 if kind == "window" else 4
     k_clip = max(1, k_outer // 2)
-    t = (dpi + 48) // 96
     colour, alpha = ring or (WINDOW_RING if kind == "window" else MENU_RING)
 
     # Cut sides lie at the image edge like the others, but are straight and their
@@ -198,11 +213,21 @@ def draw_frame(img: Image.Image, dpi: int, kind: str = "window", shadow=None, ri
     return Image.fromarray(out, "RGBA")
 
 
+def _usage() -> str:
+    """The usage block from the docstring, through to the blank line after its continuation line."""
+    lines = __doc__.splitlines()
+    start = next(i for i, l in enumerate(lines) if l.strip().startswith("python winframe.py"))
+    return textwrap.dedent("\n".join(takewhile(str.strip, lines[start:])))
+
+
 def main(argv: list[str]) -> int:
     args = list(argv)
-    dpi, kind, shadow, ring, cut, out, files = None, "window", None, None, (), None, []
+    dpi, kind, shadow, ring, cut, grow, out, files = None, "window", None, None, (), False, None, []
     while args:
         a = args.pop(0)
+        if a in ("-h", "--help"):
+            print(_usage())
+            return 0
         if a == "--dpi":
             dpi = int(args.pop(0))
         elif a == "--kind":
@@ -224,12 +249,14 @@ def main(argv: list[str]) -> int:
             cut = tuple(s for s in args.pop(0).split(",") if s)
             if any(s not in SIDES for s in cut):
                 raise SystemExit(f"winframe: --cut takes sides from {', '.join(SIDES)}")
+        elif a == "--grow":
+            grow = True
         elif a == "--out":
             out = Path(args.pop(0))
         else:
             files.append(Path(a))
     if not files:
-        raise SystemExit(next(l.strip() for l in __doc__.splitlines() if l.strip().startswith("python winframe.py")))
+        raise SystemExit(_usage())
     if out and len(files) > 1:
         raise SystemExit("winframe: --out takes one input")
     for f in files:
@@ -238,10 +265,10 @@ def main(argv: list[str]) -> int:
         use = dpi or (round(file_dpi[0]) if file_dpi and file_dpi[0] > 1 else None)
         if not use:
             raise SystemExit(f"winframe: {f.name} records no DPI; pass --dpi. Nothing was written.")
-        framed = draw_frame(im, use, kind, shadow, ring, cut)
+        framed = draw_frame(im, use, kind, shadow, ring, cut, grow)
         target = out or f
         framed.save(target, icc_profile=im.info.get("icc_profile"), dpi=(use, use))
-        print(f"{target.name}: Windows {kind} frame drawn at {use} DPI, shadow {shadow or 'none'}{', ring ' + str(ring) if ring else ''}{', cut ' + ','.join(cut) if cut else ''}")
+        print(f"{target.name}: Windows {kind} frame drawn at {use} DPI, shadow {shadow or 'none'}{', ring ' + str(ring) if ring else ''}{', cut ' + ','.join(cut) if cut else ''}{f', grown {im.width}x{im.height} -> {framed.width}x{framed.height}' if grow else ''}")
     return 0
 
 

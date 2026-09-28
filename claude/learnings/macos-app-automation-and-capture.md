@@ -97,9 +97,13 @@ practice — a terminal mirrors its session name, so photographing a dashboard's
 A dark screenshot on a dark page has no visible boundary. macOS gives a
 *decorated* window a light ~`(189,189,189)` hairline and transparent rounded
 corners for free; an **undecorated** window has neither, and a region crop never
-does. Both are just alpha and a stroke — read the PNG, clip to a rounded path so
-the corners become transparent, stroke the same grey, write it back. No
-permission needed, so it belongs in a plain binary.
+does. Bordering one needs no permission, so it is post-processing on the saved
+PNG, and `hairline.py` in the docs-relevance skill does it — step 4 of that skill
+says which frame gets which treatment. A square crop or an opaque undecorated
+window gets a ring in a new margin outside it; a window whose alpha already has
+its shape gets an inward ring eroded from that alpha, never a drawn arc. Rounded
+corners are added only with `--radius`, and only for a subject whose corners are
+circular arcs; a macOS window's are not.
 
 Sample before assuming: `(0,0,0,0)` corners with a light top-edge pixel mean the
 window already brought its own, and stroking a square border over it will cut

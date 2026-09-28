@@ -90,6 +90,12 @@ The **`eXIf` block dies in both `sips` cases, and so does `cICP`**, whether or n
 survives — Pillow rebuilds the file from the pixels it holds and carries over only what it was
 handed.
 
+**The pixel density goes the same way.** Pillow reads `pHYs` into `info["dpi"]` — as floats,
+`(143.9926, 143.9926)` for a 144-dpi capture, because the chunk stores pixels per metre — and a
+save writes it back only when passed `dpi=im.info.get("dpi")`, which round-trips to the same chunk
+value and is a no-op when the source had none. A save without it drops the chunk, and anything
+that sizes a frame from the file's DPI then has nothing to read.
+
 So on macOS, run the `sips` colour step **after** anything that saves through Pillow, never before.
 That is not only about the sRGB row: the other rows keep their profile but still lose `eXIf`.
 

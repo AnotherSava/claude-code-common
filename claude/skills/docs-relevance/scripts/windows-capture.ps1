@@ -112,24 +112,29 @@ function Invoke-WindowShot {
 # capture to under one level RMS. It is Python so the macOS half of a project can
 # call the same one.
 #
-# THE RING IS LIGHTER THAN WINDOWS' AND THERE IS NO SHADOW, chosen by eye on
-# 2026-09-24. Windows' own border, rgba(117,117,117,0.40), reads 200 on a white
-# page and 55 on GitHub's dark one, where a README renders for a dark-mode reader.
-# rgba(146,146,146,0.69) reads 180 and 105 on every side. The shadow is left out
-# because it is what makes the bottom of a captured border darker than its top.
+# THE RING IS #BDBDBD, OPAQUE, AND THERE IS NO SHADOW. #BDBDBD is what hairline.py
+# strokes and what macOS draws round a decorated window, so a rounded Windows frame
+# sits beside a square hairlined crop, or another project's frame, as one set, on a
+# light page and a dark one alike. Windows' own border, rgba(117,117,117,0.40),
+# reads 55 on GitHub's dark page, where a README renders for a dark-mode reader --
+# too faint to be an edge. The shadow is left out because it is what makes the
+# bottom of a captured border darker than its top.
 #
 # -Kind menu gives a menu's own shape, 4 DIP corners, rather than a window's.
 # -Cut names the sides of a crop that are cuts rather than the window's edges: they
 # get the border straight along them and square corners.
+# -Grow is for a capture taken inside the window's border: the canvas grows by the
+# border thickness first, so the frame lands outside the content, not over it.
 #
 # The capture records its window's DPI in the PNG and winframe.py sizes the frame
 # from it. This runs once, on the raw capture; a copy of that raw is kept first.
-$WindowFrameRing = '929292:0.69'
+$WindowFrameRing = 'BDBDBD:1.0'
 function Add-WindowFrame {
     param(
         [Parameter(Mandatory = $true)][string]$Path,
         [ValidateSet('window', 'menu')][string]$Kind = 'window',
-        [ValidateSet('left', 'top', 'right', 'bottom')][string[]]$Cut = @()
+        [ValidateSet('left', 'top', 'right', 'bottom')][string[]]$Cut = @(),
+        [switch]$Grow
     )
     $winframe = Join-Path $PSScriptRoot 'winframe.py'
     $py = if (Get-Command python -ErrorAction SilentlyContinue) { 'python' }
@@ -139,23 +144,26 @@ function Add-WindowFrame {
     # so the command a failure tells you to run is the one that failed.
     $flags = @('--kind', $Kind, '--shadow', 'none', '--ring', $WindowFrameRing)
     if ($Cut.Count -gt 0) { $flags += @('--cut', ($Cut -join ',')) }
+    if ($Grow) { $flags += '--grow' }
     # KEEP THE RAW, and before anything can throw. The frame step rewrites the file
     # in place, so without a copy the only way to try a different frame is to take
     # the shot again -- which needs the app staged and the machine taken over. And a
     # caller that stages its file in a temp directory deletes it in `finally`, so a
     # guard that threw first would lose the capture outright. So the copy is made in
-    # %TEMP% first and only then moved to where it belongs: the gitignored tmp/ of
-    # the repo holding the script that called this. That repo is found from the
-    # caller, never from $Path, which may be that temp directory, and by walking up
-    # to .git rather than by asking git, which may be missing from PowerShell's PATH
-    # or refuse the repo as dubious ownership.
+    # %TEMP% first and only then moved to where it belongs: docs/screenshots/raw/,
+    # beside the manifest, in the repo holding the script that called this. It is
+    # committed with the frame, so re-framing works on any machine without a
+    # re-shoot. That repo is found from the caller, never from $Path, which may be
+    # that temp directory, and by walking up to .git rather than by asking git,
+    # which may be missing from PowerShell's PATH or refuse the repo as dubious
+    # ownership.
     $raw = Join-Path ([System.IO.Path]::GetTempPath()) "screenshot-raws\$(Split-Path -Leaf $Path)"
     New-Item -ItemType Directory -Force -Path (Split-Path -Parent $raw) | Out-Null
     Copy-Item -Force $Path $raw
     $root = $MyInvocation.PSScriptRoot
     while ($root -and -not (Test-Path (Join-Path $root '.git'))) { $root = Split-Path -Parent $root }
-    if (-not $root) { throw "Add-WindowFrame was called from outside a git repository, so there is no tmp/ to keep the raw of $Path in, and it has no frame. The capture is kept at $raw. Call it from a capture script under the repo's docs/screenshots/capture/." }
-    $raws = Join-Path $root 'tmp\screenshot-raws'
+    if (-not $root) { throw "Add-WindowFrame was called from outside a git repository, so there is no docs/screenshots/raw/ to keep the raw of $Path in, and it has no frame. The capture is kept at $raw. Call it from a capture script under the repo's docs/screenshots/capture/." }
+    $raws = Join-Path $root 'docs\screenshots\raw'
     New-Item -ItemType Directory -Force -Path $raws | Out-Null
     $kept = Join-Path $raws (Split-Path -Leaf $Path)
     Move-Item -Force $raw $kept

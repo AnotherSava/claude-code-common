@@ -215,8 +215,9 @@ lands at 640. That kills the obvious way to photograph the session sidebar as a
 pane beside it is still showing, and its content is a live conversation. Two
 consequences:
 
-- the sidebar has to be captured as a screen **region**, and rounded corners
-  added in post-processing — see `macos-app-automation-and-capture.md`;
+- the sidebar has to be captured as a screen **region** and framed in
+  post-processing, which gives a region crop a square ring outside it — see
+  `macos-app-automation-and-capture.md`;
 - `session scratch on` does **not** blank the pane for this purpose. It also
   forces the window wider (observed 1111pt), so it fights the resize as well.
 

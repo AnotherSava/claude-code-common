@@ -2,7 +2,7 @@
      tmp/screenshot-contact-sheet-<date>.html in the repo and hand over the file:/// URL.
 
      Every part of this earned its place; see references/screenshot-manifest.md for the reasoning.
-     The five that are easiest to drop and most expensive to lose:
+     The seven that are easiest to drop and most expensive to lose:
 
        1. THE THEME TOGGLE. A per-image border claims to work on a light page and a dark one. A
           sheet that renders one of them cannot test that claim, and the reader cannot either.
@@ -22,6 +22,17 @@
           badge as a bare `.on { background: … }` paints every visible section that colour, which
           went unnoticed through several revisions because the sheet was checked by grepping the
           HTML instead of opening it. Open it in a browser before handing it over.
+       6. THE "SHOW BEFORE FRAMING" TOGGLE. Every file the frame step touched (hairline.py,
+          winframe.py) carries its unframed stage — the capture as it was before the frame — as a
+          figure marked `class="unframed"`, in the corner grids and as a full image. It is always
+          in the sheet and hidden until the nav checkbox is ticked: the framed file is what is being
+          approved, and the unframed one is the evidence that the frame covered nothing. Not
+          persisted, so every load starts with it off.
+       7. THE "SHOW PREVIOUS VERSION" TOGGLE. Every "before" figure — the committed file a
+          replacement supersedes — is marked `class="before"`, in the corner grids and as a full
+          image, and a second nav checkbox shows or hides them all at once. It starts ticked, since
+          the comparison with what is published is what a replacement is judged by, and unticking
+          it leaves only the new frames for reading straight down. Not persisted either.
 
      EVERY `src` IS A BASE64 `data:` URI, never a path. SKILL.md requires it and this file used to
      contradict it with `file:///ABS/PATH/` placeholders, which is how a sheet gets built against
@@ -66,6 +77,14 @@
  #theme{width:100%;margin:0 0 .8rem;padding:.5rem;border:1px solid var(--line);border-radius:5px;
         background:var(--bg);color:var(--fg);font:600 12px system-ui;cursor:pointer}
  #theme:hover{background:var(--hover)}
+ #before-toggle,#unframed-toggle{display:flex;align-items:center;gap:.45rem;margin:0 .1rem .8rem;padding:.2rem .45rem;
+        font:600 12px system-ui;color:var(--fg);cursor:pointer}
+ /* The pre-frame stage is always in the sheet, and shown only on request — header comment, item 6. */
+ body:not(.show-unframed) .unframed{display:none}
+ /* The committed version a replacement supersedes, shown until the reader asks to hide it — item 7. */
+ body.hide-before .before{display:none}
+ /* The two checkboxes are one group: only the second carries the gap to the list below. */
+ #before-toggle{margin-bottom:.15rem}
  main{flex:1;min-width:0;padding:1.8rem 2.4rem;max-width:1250px}
  section{display:none} section.on{display:block}
  /* "All frames" means the frames: the intro is a page in its own right, reachable from the spine. */
@@ -80,7 +99,7 @@
  .proof{color:var(--muted);margin:.35rem 0 .8rem}
  .lede{background:var(--lede);border:1px solid var(--ledeb);padding:.9rem 1.1rem;border-radius:4px}
  .lede p{color:var(--fg)}
- .pair{display:flex;gap:1.5rem;align-items:flex-start;margin-bottom:1.2rem}
+ .pair{display:flex;flex-wrap:wrap;gap:1.5rem;align-items:flex-start;margin-bottom:1.2rem}
  figure{margin:0 0 1rem} figcaption{font:600 12px system-ui;color:var(--muted);margin-bottom:.4rem}
  /* No background on img: a transparent shot must composite on the real page colour, which is the
     property the theme toggle exists to test. */
@@ -93,17 +112,20 @@
 
 <nav>
   <button id="theme"></button>
+  <label id="before-toggle"><input type="checkbox" id="show-before" checked autocomplete="off">Show previous version</label>
+  <label id="unframed-toggle"><input type="checkbox" id="show-unframed" autocomplete="off">Show before framing</label>
   <a href="#all"><span class="n"></span>All frames</a>
   <a href="#intro"><span class="n"></span>Scope &amp; method</a>
   <div class="legend">
     <span><i style="background:#2da44e"></i>new this session</span>
     <span><i style="background:#0b6bcb"></i>re-captured or keyed</span>
     <span><i style="background:#8b949e"></i>border only</span>
+    <span><i style="background:transparent;border:1px solid var(--muted)"></i>left alone</span>
     <span><i class="fresh-key"></i>changed in the last pass</span>
   </div>
   <hr><div class="hd">ALL n FRAMES</div>
   <a href="#s1" class="fresh"><span class="n">1</span><span class="dot" style="background:#0b6bcb"></span>ID<span class="tag">new</span></a>
-  <a href="#s2"><span class="n">2</span><span class="dot" style="background:#c9a227"></span>ID</a>
+  <a href="#s2"><span class="n">2</span><span class="dot" style="background:transparent;border:1px solid var(--muted)"></span>ID</a>
 </nav>
 
 <main>
@@ -122,16 +144,20 @@
   <p class="meta">← / → step through · "All frames" reads straight down · the theme button tests the borders</p>
 </section>
 
-<!-- A frame that changed. Corner grids first: they carry the proof. -->
+<!-- A frame that changed. Corner grids first: they carry the proof. The unframed stage sits
+     between the committed file and the framed one, hidden until "Show before framing" is ticked. -->
 <section id="s1">
   <h2>1. ID <span class="badge on">replaced</span> <span class="badge fresh">updated this pass</span></h2>
   <p class="meta">file.png · W × H → W × H · hairline <code>#rrggbb</code></p>
   <p class="proof">PROOF — the literal that vanished and the commit, or the set shown only in part.</p>
   <p class="proof">All four corners at 6× nearest-neighbour, laid out as they sit in the frame.</p>
   <div class="pair">
-    <figure><figcaption>Before</figcaption><img class="px" src="data:image/png;base64,{{BASE64-BEFORE}}"></figure>
+    <figure class="before"><figcaption>Before</figcaption><img class="px" src="data:image/png;base64,{{BASE64-BEFORE}}"></figure>
+    <figure class="unframed"><figcaption>New capture, before framing</figcaption><img class="px" src="data:image/png;base64,{{BASE64-UNFRAMED}}"></figure>
     <figure><figcaption>After</figcaption><img class="px" src="data:image/png;base64,{{BASE64-AFTER}}"></figure>
   </div>
+  <figure class="before"><figcaption>Before</figcaption><img src="data:image/png;base64,{{BASE64-BEFORE-RESULT}}"></figure>
+  <figure class="unframed"><figcaption>New capture, before framing</figcaption><img src="data:image/png;base64,{{BASE64-UNFRAMED-RESULT}}"></figure>
   <figure><figcaption>Result</figcaption><img src="data:image/png;base64,{{BASE64-RESULT}}"></figure>
 </section>
 
@@ -163,5 +189,11 @@ try{localStorage.setItem('sheet-dark',d?'1':'0')}catch(e){}paint();}
 btn.onclick=function(){setTheme(!document.body.classList.contains('dark'))};
 var saved=null;try{saved=localStorage.getItem('sheet-dark')}catch(e){}
 setTheme(saved==='1');
+var before=document.getElementById('show-before');
+before.checked=true;
+before.onchange=function(){document.body.classList.toggle('hide-before',!before.checked)};
+var unframed=document.getElementById('show-unframed');
+unframed.checked=false;
+unframed.onchange=function(){document.body.classList.toggle('show-unframed',unframed.checked)};
 show(location.hash);
 </script>
