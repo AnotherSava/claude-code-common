@@ -189,6 +189,18 @@ CASES = (
                                              'pattern = "scheduler-notify.example.com"\n'}),
         "the wrangler file names no script, so there is nothing to check its hostnames against",
     ),
+    Case(
+        "screenshot-raws-unpublished",
+        Tree({"docs/_config.yml": "title: Docs\nexclude:\n  - plans/\n  # inputs to the frame step\n  - screenshots/raw/\n",
+              "docs/screenshots/raw/hero.png": b"\x89PNG raw\n"}),
+        Tree({"docs/_config.yml": "title: Docs\nexclude:\n  - plans/\n",
+              "docs/screenshots/raw/hero.png": b"\x89PNG raw\n"}),
+        # Outside a work tree git cannot say whether the raw is one it hides, so the rule cannot
+        # tell a published raw from a scratch file nobody commits.
+        Tree({"docs/_config.yml": "title: Docs\nexclude:\n  - plans/\n",
+              "docs/screenshots/raw/hero.png": b"\x89PNG raw\n"}, repo=False),
+        "outside a work tree, git cannot say whether the raw is one it hides",
+    ),
 )
 
 
