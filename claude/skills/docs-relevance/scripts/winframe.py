@@ -48,7 +48,10 @@ display it was taken on. A PNG with neither is refused rather than guessed at.
 
 `--cut` names sides that are crop cuts rather than the window's own edges — a
 tab strip cut out of a terminal window. Those sides get the border drawn straight
-along them, and the corners they meet are square.
+along them, and the corners they meet are square. Each cut side also grows by the
+border thickness t, so its border lands in a new margin outside the crop instead
+of over the crop's outermost content; an uncut side keeps the window's own frame
+rect at the capture's edge.
 
 `--grow` is for a capture that sits INSIDE the window's border, such as a crop
 taken just within it. The model puts the frame rect at the capture's edge, so on
@@ -168,11 +171,14 @@ def draw_frame(img: Image.Image, dpi: int, kind: str = "window", shadow=None, ri
     """`img` with its frame drawn by the model: content kept inside DWM's clip, the ring and outside drawn."""
     scale = dpi / 96
     t = (dpi + 48) // 96
-    if grow:
-        # The margin's own pixels are never read: content outside the clip is taken
-        # from the nearest pixel the clip covers fully, which is the capture itself.
-        grown = Image.new("RGBA", (img.width + 2 * t, img.height + 2 * t), (0, 0, 0, 0))
-        grown.paste(img.convert("RGBA"), (t, t))
+    # A cut side always grows by t, so its straight ring lands in a new margin rather
+    # than over the crop's outermost content; every side grows under `grow`. The
+    # margin's own pixels are never read: content outside the clip is taken from the
+    # nearest pixel the clip covers fully, which is the capture itself.
+    pad = {s: t if (grow or s in cut) else 0 for s in SIDES}
+    if any(pad.values()):
+        grown = Image.new("RGBA", (img.width + pad["left"] + pad["right"], img.height + pad["top"] + pad["bottom"]), (0, 0, 0, 0))
+        grown.paste(img.convert("RGBA"), (pad["left"], pad["top"]))
         img = grown
     rgba = np.asarray(img.convert("RGBA")).astype(float)
     h, w = rgba.shape[:2]
@@ -253,6 +259,8 @@ def main(argv: list[str]) -> int:
             grow = True
         elif a == "--out":
             out = Path(args.pop(0))
+        elif a.startswith("-"):
+            raise SystemExit(f"winframe: unknown option {a}\n{_usage()}")
         else:
             files.append(Path(a))
     if not files:
@@ -268,7 +276,7 @@ def main(argv: list[str]) -> int:
         framed = draw_frame(im, use, kind, shadow, ring, cut, grow)
         target = out or f
         framed.save(target, icc_profile=im.info.get("icc_profile"), dpi=(use, use))
-        print(f"{target.name}: Windows {kind} frame drawn at {use} DPI, shadow {shadow or 'none'}{', ring ' + str(ring) if ring else ''}{', cut ' + ','.join(cut) if cut else ''}{f', grown {im.width}x{im.height} -> {framed.width}x{framed.height}' if grow else ''}")
+        print(f"{target.name}: Windows {kind} frame drawn at {use} DPI, shadow {shadow or 'none'}{', ring ' + str(ring) if ring else ''}{', cut ' + ','.join(cut) if cut else ''}{f', grown {im.width}x{im.height} -> {framed.width}x{framed.height}' if framed.size != im.size else ''}")
     return 0
 
 

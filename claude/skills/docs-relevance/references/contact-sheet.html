@@ -10,7 +10,7 @@
        2. THE FOUR-CORNER GRIDS. A one-pixel change is invisible at page scale, and a defect can
           sit in any corner — sampling one and generalising is how a bad crop survives review.
        3. TWO TIME SCALES, NOT ONE. The dot says what happened to a frame across the whole session
-          (added / re-captured / touched only in passing); the amber bar and NEW tag say what moved
+          (added / re-captured / touched only in passing); the amber bar says what moved
           in the last pass alone. The reader needs both — one to see the shape of the work, one to
           know what to re-check. Give the dot a legend, and watch for it going uniform: a dot that
           ends up the same colour on every frame has stopped carrying information and wants
@@ -62,9 +62,6 @@
  nav a:hover{background:var(--hover)} nav a.on{background:var(--active);font-weight:600}
  /* Changed since the sheet was last written — see the header comment. */
  nav a.fresh{box-shadow:inset 3px 0 0 #d29922}
- nav .tag{margin-left:auto;font:700 9px system-ui;letter-spacing:.06em;text-transform:uppercase;
-          color:#8a6d1a;background:#fdf3d6;border-radius:3px;padding:.15em .35em}
- body.dark nav .tag{color:#f0d68a;background:#3a2f10}
  .badge.fresh{background:#d29922;color:#231a00}
  .legend{font-size:11px;color:var(--muted);padding:0 .55rem .3rem;display:flex;flex-direction:column;gap:.25rem}
  .legend span{display:flex;align-items:center;gap:.4rem}
@@ -125,7 +122,7 @@
     <span><i class="fresh-key"></i>changed in the last pass</span>
   </div>
   <hr><div class="hd">ALL n FRAMES</div>
-  <a href="#s1" class="fresh"><span class="n">1</span><span class="dot" style="background:#0b6bcb"></span>ID<span class="tag">new</span></a>
+  <a href="#s1" class="fresh"><span class="n">1</span><span class="dot" style="background:#0b6bcb"></span>ID</a>
   <a href="#s2"><span class="n">2</span><span class="dot" style="background:transparent;border:1px solid var(--muted)"></span>ID</a>
 </nav>
 

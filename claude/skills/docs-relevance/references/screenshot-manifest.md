@@ -234,14 +234,17 @@ follows the theme instead of needing a colour invented for it.
 
 ```python
 BOX, ZOOM, GAP = 40, 6, 14
-im = Image.open(src).convert("RGB"); w, h = im.size
+im = Image.open(src).convert("RGBA"); w, h = im.size   # RGBA, so a keyed corner stays transparent
 b = min(BOX, w // 2, h // 2); side = b * ZOOM
 crops = [im.crop((0,0,b,b)), im.crop((w-b,0,w,b)), im.crop((0,h-b,b,h)), im.crop((w-b,h-b,w,h))]
 sheet = Image.new("RGBA", (side*2+GAP, side*2+GAP), (0,0,0,0))
 for k, c in enumerate(crops):
-    sheet.paste(c.resize((side,side), Image.NEAREST).convert("RGBA"),
+    sheet.paste(c.resize((side,side), Image.NEAREST),
                 ((k%2)*(side+GAP), (k//2)*(side+GAP)))
 ```
+
+`contact-sheet.py` builds these as `corners()`; the snippet is for a page built by hand, for a picture
+outside a manifest.
 
 **Panel switching over scrolling**, with a numbered spine and a dot per entry keyed to the legend, so the
 shape of the run reads before anything is clicked and "re-shoot 2 and 6" lands somewhere. Keep an

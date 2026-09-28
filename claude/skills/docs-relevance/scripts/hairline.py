@@ -87,9 +87,8 @@ draws a 2px one that captures at alpha ~120-150 — leaves a crop with a real
 border on its uncut sides and nothing on the cut ones, and the two cannot be
 made to match. Writing colour
 alone leaves the native sides tinted by whatever is behind the page: measured on
-a cropped tab strip, all four sides agreed at ~162 on white while on a dark page
-the native two fell to 53 against a 46 background — invisible — and the stroked
-two sat at 162. Hardening the ring's alpha makes one border out of the four
+a cropped tab strip, the native two read ~162 on white but fell to 53 against a
+46 background on a dark page — invisible — while the stroked two read 189 on both. Hardening the ring's alpha makes one border out of the four
 sides at any page colour. It is a per-frame decision and belongs to the capture
 script that knows how the frame was taken; the DEFAULT IS OFF, because on a
 capture whose alpha is genuine coverage the same step would square off a rounded
@@ -483,7 +482,7 @@ def add_hairline(path: Path, color=COLOR, width: int = WIDTH, opaque: bool = Fal
     # winframe.py sizes a Windows frame from the DPI the capture recorded.
     out.save(path, icc_profile=im.info.get("icc_profile"), dpi=im.info.get("dpi"))
     how = f"added outside, {im.width}x{im.height} -> {out.width}x{out.height}" if outward else "traced from the alpha"
-    if radius:
+    if outward and radius:
         how += f", corners rounded to {radius}px" + (f" except on the cut {', '.join(cut)} side(s)" if cut else "")
     print(f"{path.name}: hairline #{color[0]:02x}{color[1]:02x}{color[2]:02x}, {width}px, {how}, all four edges{', replacing a translucent border' if opaque else ''}")
     return True
@@ -529,10 +528,14 @@ def main(argv: list[str]) -> int:
             if len(hexv) != 6:
                 raise SystemExit("hairline: --color wants RRGGBB")
             color = tuple(int(hexv[i:i + 2], 16) for i in (0, 2, 4))
+        elif a.startswith("-"):
+            raise SystemExit(f"hairline: unknown option {a}\n{_usage()}")
         else:
             files.append(Path(a))
     if not files:
         raise SystemExit(_usage())
+    if radius and opaque:
+        raise SystemExit("hairline: --radius rounds a fully opaque frame framed outward, and --opaque replaces a translucent border traced inward; pass one or the other. Nothing was written.")
     if check:
         bare = [f for f in files if not has_edge(Image.open(f).convert("RGBA"), color)]
         for f in files:

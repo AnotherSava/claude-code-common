@@ -24,8 +24,9 @@ one already published and only its edge moved. Anything else is re-captured. A l
 missing is an orphan, reported with its own dot rather than failing the build; a file an entry dropped
 since the base revision is named on that entry, and any page still citing a file that is gone is
 called DANGLING, whichever entry it belonged to. An entry's dot takes
-the strongest of its files' outcomes, orphan first, then re-captured, new, border, left alone; each
-file of a series carries its own outcome on its meta line. Every image the skill's doc-image pathspec
+the strongest of its files' outcomes, orphan first, then re-captured, new, border, left alone; an entry
+whose files are all border or left alone but which dropped a file since the base takes the dot of its
+own, "file dropped from the entry". Each file of a series carries its own outcome on its meta line. Every image the skill's doc-image pathspec
 finds that no entry lists is shown as unregistered.
 
 THE ONE THING A PERSON WRITES IS THE NOTES FILE: the verdicts in words, each frame's staleness proof
@@ -37,9 +38,11 @@ unknown key refused:
      "frames": {"<id or unregistered path>": {"verdict": "...", "dot": "<kind>", "proof": ["..."], "needs": "...", "standard": "..."}},
      "gaps": [{"page": "...", "section": "...", "shows": "...", "why": "...", "needs": "...", "frame": "<id, once captured>"}]}
 
-A dot is one of the derived kinds (recaptured, new, border, alone, orphan) or a key the notes' legend
-adds; a run that shows no change yet, the proposal written before any capture, uses that to tell stale
-from current. "standard" replaces the "Judged by" line, and an empty one drops it, as for a frame
+A dot is one of the derived kinds (recaptured, new, border, alone, orphan, dropped) or a key the notes'
+legend adds; a run that shows no change yet, the proposal written before any capture, uses that to tell
+stale from current. A notes dot with no notes verdict makes the verdict that dot's label, so the badge
+and the table never contradict the dot. A notes lede replaces only the derived paragraph on what the
+check can prove; the "Reversible" paragraph is always derived and appended after it. "standard" replaces the "Judged by" line, and an empty one drops it, as for a frame
 reported NOT CHECKED. Proof, lede and needs strings are HTML, so a sheet can carry <code> and <b>;
 everything else is escaped. A frame with no proof, and a gap or undecided frame with no re-capture
 recipe, says so on the page where it would be.
@@ -74,7 +77,8 @@ BOX, ZOOM, GAP = 40, 6, 14
 # The template legend's wording, which is how its colours are found.
 LEGEND = {"recaptured": "re-captured or keyed", "new": "new this session", "border": "border only", "alone": "left alone"}
 ORPHAN = ("orphan", "file missing", "#cf222e")
-VERDICTS = {"orphan": "file missing", "recaptured": "re-captured", "new": "new", "border": "border added", "alone": "unchanged"}
+DROPPED = ("dropped", "file dropped from the entry", "#8250df")
+VERDICTS = {"orphan": "file missing", "recaptured": "re-captured", "new": "new", "border": "border only", "alone": "unchanged"}
 RANK = ["orphan", "recaptured", "new", "border", "alone"]
 IMAGE_SPEC = [":/docs/*.png", ":/docs/*.jpg", ":/docs/*.jpeg", ":/docs/*.gif", ":/docs/*.webp", ":(top,exclude,glob)docs/**/raw/**"]
 EMBED = r"\]\([^)]+\.(png|jpg|jpeg|gif|webp)\)|src=.[^ >]+\.(png|jpg|jpeg|gif|webp)"
@@ -146,7 +150,10 @@ def corners(im: Image.Image) -> str:
 def ring(im: Image.Image) -> str:
     """The colour of the frame's outermost row at its middle: the ring the frame step drew."""
     r, g, b, a = im.convert("RGBA").getpixel((im.width // 2, 0))
-    return f"<code>#{r:02x}{g:02x}{b:02x}</code>" if a == 255 else "transparent at the edge"
+    if a == 0:
+        return "transparent at the edge"
+    hexed = f"<code>#{r:02x}{g:02x}{b:02x}</code>"
+    return hexed if a == 255 else f"{hexed} at alpha {a}"
 
 
 def open_image(data: bytes) -> Image.Image:
@@ -302,6 +309,8 @@ def main(argv: list[str]) -> int:
             raise SystemExit(f"contact-sheet: {repo.rel(p)} is not gitignored, so it would land in the next commit; add /tmp/ to .gitignore")
     if "--originals" in opts:
         originals = Path(opts["--originals"]).resolve()
+        if not originals.is_dir():
+            raise SystemExit(f"contact-sheet: --originals {opts['--originals']} is not a directory")
     else:
         saved = sorted((repo.root / "tmp").glob("screenshot-originals-*"))
         originals = saved[-1] if saved else None
@@ -338,11 +347,11 @@ def main(argv: list[str]) -> int:
     notes = json.loads(Path(opts["--notes"]).read_text(encoding="utf-8")) if "--notes" in opts else {}
     ids = {e["id"] for e in entries}
     changed = [x for x in opts.get("--changed", "").split(",") if x]
-    taken = {labels[k]: dots[k] for k in LEGEND} | {ORPHAN[1]: ORPHAN[2]}
+    taken = {labels[k]: dots[k] for k in LEGEND} | {ORPHAN[1]: ORPHAN[2], DROPPED[1]: DROPPED[2]}
     problems = check_notes(notes, ids, taken) + [f"--changed names {x!r}, which is not on the sheet" for x in changed if x not in ids]
     if problems:
         raise SystemExit("contact-sheet: " + "\n  ".join(["notes or flags do not match the sheet:"] + problems))
-    extra = [ORPHAN] + [(x["key"], x["label"], x["colour"]) for x in notes.get("legend", [])]
+    extra = [ORPHAN, DROPPED] + [(x["key"], x["label"], x["colour"]) for x in notes.get("legend", [])]
     for key, label, colour in extra:
         dots[key], labels[key] = colour, label
 
@@ -362,7 +371,7 @@ def main(argv: list[str]) -> int:
         derived = next(k for k in RANK if k in [f["kind"] for f in files])
         note = notes.get("frames", {}).get(e["id"], {})
         if dropped and derived in ("border", "alone"):
-            derived = "recaptured"
+            derived = "dropped"
         frames.append({"entry": e, "note": note, "files": files, "dot": note.get("dot", derived), "orphan": derived == "orphan", "dropped": dropped,
                        "pages": sorted({p for n in e["files"] for p in embedded.get(repo.rel(shots / n), ())})})
 
@@ -383,6 +392,8 @@ def main(argv: list[str]) -> int:
     def verdict(f: dict) -> str:
         if "verdict" in f["note"]:
             return f["note"]["verdict"]
+        if "dot" in f["note"]:
+            return labels[f["note"]["dot"]]
         if f["entry"].get("unregistered"):
             return "unregistered, policy undecided"
         kinds = [x["kind"] for x in f["files"]]
@@ -411,8 +422,8 @@ def main(argv: list[str]) -> int:
     head = nav_head[:anchor.start()] + legend_extra + nav_head[anchor.start():]
     nav = [head + f'<div class="hd">ALL {len(frames)} FRAMES</div>']
     for i, f in enumerate(frames, 1):
-        fresh, tag = (' class="fresh"', '<span class="tag">new</span>') if f["entry"]["id"] in marked else ("", "")
-        nav.append(f'  <a href="#s{i}"{fresh}><span class="n">{i}</span><span class="dot" style="background:{dots[f["dot"]]}"></span>{html.escape(f["entry"]["id"])}{tag}</a>')
+        fresh = ' class="fresh"' if f["entry"]["id"] in marked else ""
+        nav.append(f'  <a href="#s{i}"{fresh}><span class="n">{i}</span><span class="dot" style="background:{dots[f["dot"]]}"></span>{html.escape(f["entry"]["id"])}</a>')
     if gaps:
         nav.append(f'  <hr><div class="hd">{len(gaps)} COVERAGE GAPS</div>')
         nav += [f'  <a href="#g{i}"><span class="n">G{i}</span>{html.escape(gap_label(g))}</a>' for i, g in enumerate(gaps, 1)]
@@ -431,11 +442,12 @@ def main(argv: list[str]) -> int:
     if "git" in sources:
         undo.append(f"Every committed version is in git at {html.escape(repo.base_name)}; " + ("a tracked file reverts with <code>git checkout -- &lt;path&gt;</code>" if repo.base_name == "HEAD" else f"one comes back with <code>git checkout {html.escape(repo.base_name)} -- &lt;path&gt;</code>"))
     if "originals" in sources:
-        undo.append(f"The saved originals of files git never had are in <code>{html.escape(repo.rel(originals))}/</code>")
+        undo.append(f"The saved originals of files git never had are in <code>{html.escape(repo.rel(originals) if originals.is_relative_to(repo.root) else originals.as_posix())}/</code>")
     default_lede = ["<b>What this check can and cannot prove.</b> It reads text, so it can prove a shot stale and never prove one current, which is why every frame is shown."]
     if undo:
         default_lede.append("<b>Reversible.</b> " + ". ".join(undo) + ".")
-    lede = "".join(f"<p>{p}</p>" for p in notes.get("lede", default_lede))
+    # A notes lede replaces the derived reach paragraph; the Reversible one is always derived and appended.
+    lede = "".join(f"<p>{p}</p>" for p in notes.get("lede", default_lede[:1]) + default_lede[1:])
     dangling_note = "".join(f'<p class="proof"><b>DANGLING.</b> {html.escape(", ".join(sorted(pages)))} cite{"s" if len(pages) == 1 else ""} <code>{html.escape(path)}</code>, which is missing: a broken image on the published site.</p>\n  ' for path, pages in sorted(gone.items()))
     sections = [f'''<section id="intro" class="on">
   <h1>Documentation screenshots — {html.escape(repo.root.name)}</h1>
@@ -446,14 +458,16 @@ def main(argv: list[str]) -> int:
 </section>''']
     for i, f in enumerate(frames, 1):
         e, fid, note = f["entry"], f["entry"]["id"], f["note"]
-        badge = "on" if f["dot"] in ("recaptured", "new", "border") else "off"
+        badge = "on" if f["dot"] in ("recaptured", "new", "border", "dropped") else "off"
         fresh = ' <span class="badge fresh">updated this pass</span>' if fid in marked else ""
         body = [f'<h2>{i}. {html.escape(fid)} <span class="badge {badge}">{html.escape(verdict(f))}</span>{fresh}</h2>']
         if e.get("shows"):
             body.append(f'<p class="proof"><b>Shows.</b> {html.escape(e["shows"])}</p>')
         missing = {repo.rel(shots / x["name"]) for x in f["files"] if x["kind"] == "orphan"} | {repo.rel(shots / n) for n in f["dropped"]}
         dangling = sorted({p for m in missing if m in gone for p in gone[m]})
-        body.append(f'<p class="proof"><b>Embedded in.</b> {html.escape(", ".join(f["pages"]) or "no page")}'
+        if not f["pages"]:
+            print(f"contact-sheet: frame {i} ({fid}) has no citation the embed pattern matches; Liquid includes are not read, so confirm by hand", file=sys.stderr)
+        body.append(f'<p class="proof"><b>Embedded in.</b> {html.escape(", ".join(f["pages"]) or "no citation the embed pattern matches (Liquid includes are not read); confirm by hand")}'
                     + (f' — <b>DANGLING</b> in {html.escape(", ".join(dangling))}: the page cites a file that is missing' if dangling else "") + '</p>')
         if "standard" in note:
             standard = note["standard"]

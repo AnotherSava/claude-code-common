@@ -114,15 +114,16 @@ function Invoke-WindowShot {
 #
 # THE RING IS #BDBDBD, OPAQUE, AND THERE IS NO SHADOW. #BDBDBD is what hairline.py
 # strokes and what macOS draws round a decorated window, so a rounded Windows frame
-# sits beside a square hairlined crop, or another project's frame, as one set, on a
-# light page and a dark one alike. Windows' own border, rgba(117,117,117,0.40),
+# sits beside a square hairlined crop as one set, on a light page and a dark one
+# alike. Windows' own border, rgba(117,117,117,0.40),
 # reads 55 on GitHub's dark page, where a README renders for a dark-mode reader --
 # too faint to be an edge. The shadow is left out because it is what makes the
 # bottom of a captured border darker than its top.
 #
 # -Kind menu gives a menu's own shape, 4 DIP corners, rather than a window's.
 # -Cut names the sides of a crop that are cuts rather than the window's edges: they
-# get the border straight along them and square corners.
+# get the border straight along them, in a new margin outside the crop, and square
+# corners.
 # -Grow is for a capture taken inside the window's border: the canvas grows by the
 # border thickness first, so the frame lands outside the content, not over it.
 #
