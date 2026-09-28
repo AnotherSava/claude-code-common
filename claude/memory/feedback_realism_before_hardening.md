@@ -34,6 +34,13 @@ thousand of those lines again.
   to handle by hand gets a log line and a docs sentence without the in-UI error row. Loud surfacing
   still applies to a failure the user cannot notice and act on, and a case whose unhandled path
   would silently lose or corrupt core output is not harmless — it belongs in the code list above.
+- **A rare case may fail fast, but only with its explanation in the log.** Ending startup or
+  throwing on a rare bad input is acceptable when the log names what was wrong and where — the
+  setting and the entry, not a framework message through a stack trace. Check it by producing
+  the failure and reading the line. Seen 2026-09-28 in achievement-overlay: a path entry whose
+  variable expanded to spaces logged only `ArgumentException: The path is empty` through a
+  getter's stack; the user's bar was "fail fast is ok if log contains enough details to explain
+  it", and the check moved into config validation, which names both.
 
 **When review rounds stop shrinking, triage against practice before fixing.** On 2026-09-28 four
 adversarial rounds over the docs-relevance skill confirmed 9, 23, 21 and then 31 findings: each round
