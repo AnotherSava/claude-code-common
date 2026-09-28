@@ -27,3 +27,10 @@ another repo's run.
 - Committed text must still never reference these paths — see
   [[feedback_no_scratch_paths_in_committed_code]]. The directory is for artifacts, not for anything
   the repo's own prose points at.
+- **tmp/ holds artifacts, not tools.** A script used a second time, or one every repo would need,
+  moves out of tmp/ the first time it is reused: into the shared skill when it is generic, into the
+  repo when it is this project's. On 2026-09-27 a contact-sheet builder and its spec lived in tmp/
+  through a whole session of rebuilds and were lost when tmp/ was deleted. Asked why something used
+  for screenshots was not kept properly, the fix was a shared builder in the skill that derives the
+  sheet from what the repo already keeps, leaving only the review notes per run. See also
+  [[feedback_subagent_gets_its_own_scratch]].
