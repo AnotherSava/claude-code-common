@@ -130,6 +130,7 @@
 - [Config field fits its family](feedback_config_field_fits_its_family.md) — copy the siblings' placement and on/off idiom; split a default by build channel, since yours is a stranger's surprise
 - [Icon-scale colour separation](feedback_icon_colour_separation.md) — adjacent steps of a small scale separate on hue not shade, away from the opposite pole; render candidates at final size
 - [Scratch lives in the project's tmp/](feedback_scratch_lives_in_project_tmp.md) {always} — file tools can't read $TEMP back, so previews and contact sheets go in the repo's gitignored tmp/
+- [A subagent gets its own scratch dir](feedback_subagent_gets_its_own_scratch.md) — name tmp/<label>/ and forbid deleting anything else; "delete your scratch in tmp/" got the whole shared tmp/ rm -rf'd
 - [Audit existing instances](feedback_audit_existing_instances.md) — a skill's rules reach a repo only on scaffolding day; re-check an older one, and verify the deploy not the source
 - [Read-only review, then delete](feedback_read_only_review_loop.md) {always} — collect findings with no edits; answer them by removing something, not by adding a gate
 - [Telegram has no send confirmation](telegram_no_send_confirmation.md) — bots cannot read their own sent messages; duplicate-on-timeout is mitigable, never eliminable
@@ -216,3 +217,4 @@
 - [Link inside the question](feedback_link_inside_the_question.md) {always} — a choice that needs a page opened first gets the link in the question box or plain text; the box covers the text above it
 - [Commit gate contents](feedback_commit_gate_contents.md) — a repo's commit gate runs its build, lint and tests where each exists; draft from what's there, invent no linter
 - [Rate realism before hardening](feedback_realism_before_hardening.md) {always} — a rare edge case a review found, harmless or cheap to handle by hand, is reported and gets a warning or a doc line, not code
+- [Date split memos from the pickaxe](feedback_memo_split_dates_from_pickaxe.md) — v1 Path A split: recover each [x] close date with the pickaxe and offer dated done/ names
