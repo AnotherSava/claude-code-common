@@ -45,12 +45,16 @@ Fetch first, and do not run this on a branch behind its upstream: the work edits
    achievement-overlay's `docborder.py` or bga-assistant's `border.py` — add that copy before it,
    creating the directory when it is missing and failing loudly when the copy fails. A capture that
    frames only through `Add-WindowFrame` needs nothing: the shared function already writes there. A
-   capture with no frame step needs nothing either, because the committed file is its own raw. Afterwards run whatever the repo's commit gate
-   runs over its captures, `scripts/check-capture-scripts.ps1` included where the repo has Windows
-   captures.
+   capture with no frame step needs nothing either, because the committed file is its own raw.
+   Afterwards run whatever the repo's commit gate runs over its captures, including — on Windows,
+   from the repo root — `~/.claude/skills/docs-relevance/scripts/check-capture-scripts.ps1` where the
+   capture scripts dot-source the skill's `windows-capture.ps1`. Captures built on a library of their
+   own, as achievement-overlay's are, give it nothing to check, and it fails on them.
 3. **Bring over the raws this machine already holds.** Look in `tmp/screenshot-raws/` and
-   `tmp/raw/`. A raw belongs in the commit only when it is the capture its committed frame was made
-   from, and a leftover from an uncommitted re-shoot is not — so test each one before moving it:
+   `tmp/raw/`. A frame whose capture has no frame step (step 2) has no raw: leave its `tmp/` copy
+   where it is, however exactly it matches, and name it in the report. Otherwise a raw belongs in the
+   commit only when it is the capture its committed frame was made from, and a leftover from an
+   uncommitted re-shoot is not — so test each one before moving it:
    - a frame `hairline.py` grew outward is the raw with a ring of the stroke width round it, so the
      frame cropped by that width on every side equals the raw pixel for pixel, except inside the
      corner squares `--radius` clipped when the frame is rounded;
@@ -61,6 +65,7 @@ Fetch first, and do not run this on a branch behind its upstream: the work edits
      clip is the frame inset by the border thickness t = floor((dpi + 48) / 96) px on every side, 2 px
      at 144 DPI, with its corners rounded; under `--grow`, offset the frame by t on each axis first,
      after which the clip is the raw's own extent less its corner arcs.
+
    Move each raw that passes to `docs/screenshots/raw/<frame file name>`. Leave one that fails where
    it is and name it in the report; nothing is lost either way, since `tmp/` is gitignored and was
    never the record. The other machine's `tmp/` may hold raws too: name that in the report rather
@@ -69,8 +74,11 @@ Fetch first, and do not run this on a branch behind its upstream: the work edits
 
 Afterwards, `git status` should show the moved raws as new files under `docs/screenshots/raw/` and
 the edits to `docs/_config.yml` and the capture code. Once pushed, confirm the Pages build succeeded
-and that a raw's URL on the published site returns 404. A failed build keeps serving the previous
-deploy, which reads exactly like an exclusion that worked.
+and that a raw's URL on the published site returns 404. Probe a raw this commit added, beside its
+frame's URL, which must return 200. Where step 3 committed no raw, every URL under
+`screenshots/raw/` returns 404 whether the exclusion works or not, so report the site check as not
+covered and confirm the build only. A failed build keeps serving the previous deploy, which reads
+exactly like an exclusion that worked.
 
 ## When it does not apply
 

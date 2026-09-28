@@ -2,8 +2,9 @@
 
 An `exclude:` entry in `_config.yml` looks like a path pattern and is not quite one. GitHub Pages
 builds with Jekyll 3.10, which joins each entry onto the source directory with Ruby's `File.join`
-and then compares by prefix. `File.join` normalises nothing, so two spellings that read as
-equivalent behave differently, and one of them excludes nothing at all.
+and then matches a path when it starts with the result or when `File.fnmatch?` matches it as a glob —
+the second is what lets a `screenshots/raw/*` form work at all. `File.join` normalises nothing, so two
+spellings that read as equivalent behave differently, and one of them excludes nothing at all.
 
 Established 2026-09-27 by reading Jekyll 3.10.0's `glob_include?` and running the match in Ruby 3.3,
 with `docs/` as the source and a directory `screenshots/raw/` to keep off the site:

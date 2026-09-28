@@ -22,9 +22,10 @@ import _git
 CONFIG = "docs/_config.yml"
 RAW = "docs/screenshots/raw"
 # The entry, as Jekyll resolves it: relative to `docs/`, the source directory. Jekyll 3.10, which
-# GitHub Pages runs, joins each entry onto the source with File.join and compares by prefix, so a
-# leading `/` collapses harmlessly, `./` normalises nothing and matches nothing, and the bare
-# `screenshots/raw` also drops every published frame whose name begins `raw`.
+# GitHub Pages runs, joins each entry onto the source with File.join and matches a path that starts
+# with the result or that File.fnmatch? matches as a glob, so a leading `/` collapses harmlessly,
+# the `/*` and `/**` forms work through the glob, `./` normalises nothing and matches nothing, and
+# the bare `screenshots/raw` also drops every published frame whose name begins `raw`.
 ENTRY = "screenshots/raw"
 ACCEPTED = {f"{ENTRY}/", f"{ENTRY}/*", f"{ENTRY}/**"}
 
