@@ -108,3 +108,23 @@ Worth knowing so you don't code around it: the `Uri` constructor recognises the 
 percent-escapes `#` to `%23` rather than treating it as a fragment delimiter. `AbsoluteUri` comes back
 as `file:///C:/a%20%231/` with an empty `Fragment`, and `LocalPath` round-trips. Folder names
 containing `#` need no special handling when building a base URI.
+
+## A drive root keeps its separator, so `root + '\'` never matches under it
+
+`Path.TrimEndingDirectorySeparator(@"D:\")` returns `D:\` unchanged, and it has to: `D:` alone means the
+current directory on drive D, not its root. So the common "is `path` inside `root`" idiom —
+`path.StartsWith(root + Path.DirectorySeparatorChar)` after trimming both — builds the prefix `D:\\` for a
+drive root and matches nothing below it. Measured 2026-09-27: an existing games root of `D:\` failed to
+cover `D:\Persona 5 Royal`, so a planner that adds a game's parent when nothing covers it appended `D:\`
+to the config once per game. The same shape hides in a "StartsWith, then require a separator next" check
+(`D:\X` has `X` there) and in path-traversal guards built as `GetFullPath(base) + separator`, which also
+break the moment a base arrives already ending in one.
+
+Compare paths as a root plus a list of folder names instead: `Path.GetPathRoot(full.AsSpan())` for the
+root (`D:\`, `\\server\share`), the rest split on both separators with empty entries dropped. Containment
+is then "same root, and the folder's names are a prefix of the path's", compared case-insensitively. A
+drive root is simply an empty name list, and `C:\GamesOther` can't match `C:\Games` because names compare
+whole. The string overload of `GetPathRoot` is annotated nullable in .NET 10; the span overload is not.
+
+To check a BCL behaviour like this one without creating a project, `dotnet fsi probe.fsx` runs an F#
+script against the installed runtime in a few seconds.

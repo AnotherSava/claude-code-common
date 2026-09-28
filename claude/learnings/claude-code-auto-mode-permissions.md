@@ -27,6 +27,11 @@ Every one of those changes state, four on a production host. Creating a GitHub d
 patching a DNS record did not. So **do not generalise from one denial to a class** — and if you already have,
 say so when the next command in that "class" succeeds, because a wrong model gets repeated to other people.
 
+Approval in chat does not change a verdict. In another session (2026-09-27),
+`git push --force-with-lease=main:<old-sha> origin main` was denied after the user had approved the history
+rewrite and then the push itself. The user ran the identical command through `!` and it went through. A
+force-push to a published branch is worth planning as the user's own step from the start.
+
 ## A denial means the command did NOT run
 
 The check happens before execution. Nothing partial, nothing queued, no side effects.
