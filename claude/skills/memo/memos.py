@@ -393,6 +393,10 @@ def _move(memo: Memo, directory: str, prefix: str = "") -> str:
 def cmd_add(args: list[str]) -> None:
     title = _take_flag(args, "--title")
     platform = _take_flag(args, "--platform") or ""
+    # A leading flag left over is a mistyped or unknown option, refused rather than filed as prose:
+    # `add --help` would otherwise save a memo titled "--help".
+    if args and re.fullmatch(r"-h|--[A-Za-z][\w-]*", args[0]):
+        sys.exit(f"unknown option {args[0]!r} — usage: memos.py add [--title T] [--platform P] \"<text>\"")
     # Joined but never `.split()` — collapsing whitespace here once turned a memo quoting
     # `tr -d '\n'` into `tr -d ' '`, silently (see learnings/unicode-escapes-in-tool-input.md).
     memo = add(" ".join(args), title=title, platform=platform)

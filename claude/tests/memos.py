@@ -355,6 +355,12 @@ def main() -> int:
         check("a flag after the text is left in the memo",
               b.titles(), ["use --title to name a memo"])
 
+        # --- a leading flag nothing takes is refused, not filed ------------------------------------------
+        b = Backlog(stack)
+        check("add --help is refused", b.run("add", "--help")[0] != 0, True)
+        check("a mistyped leading flag is refused", b.run("add", "--titel", "Typo", "body")[0] != 0, True)
+        check("neither wrote a memo", b.titles(), [])
+
     if FAILURES:
         print(f"memos tests: {len(FAILURES)} case(s) failed\n")
         for failure in FAILURES:
