@@ -33,15 +33,16 @@ Ask the questions below only where the path does not decide.
 
 **Who the reader is and what they want the document for are the user's to tell you, not yours to infer.** Ask before drafting or rewriting, and do not start until the answers are specific. Every rule further down this file operates *within* those answers — get them wrong and a document can satisfy all of them and still be the wrong document.
 
-**Neither answer is a property of the file.** The same document serves a reader challenging the design, a reader operating the thing, and a reader extending it, and those three want different depths of the same material. A section that is noise this week is the whole point next week. So the questions get asked per piece of work, not once per document and never inherited from whoever wrote it last.
+**Neither answer is a property of the file.** The same document serves a reader challenging the design, a reader operating the thing, a reader extending it, and a reader who only wants to know what the thing is for — and each of them wants a different depth of the same material. A section that is noise this week is the whole point next week. So the questions get asked per piece of work, not once per document and never inherited from whoever wrote it last.
 
 Ask these, and ask them as questions rather than presenting a draft and waiting to be corrected:
 
 1. **Who opens this, and what has just happened to them?** A reader arrives mid-problem, not at the start of a story.
-2. **What are they trying to do with it?** The three common answers pull in different directions, and the topic does not decide between them:
+2. **What are they trying to do with it?** The common answers pull in different directions, and the topic does not decide between them:
+   - *Get the general idea* — wants what the thing is for and how it is laid out, and nothing else: the shortest of these, and the one most often written as one of the others by mistake. A returning author asking about their own project gives this answer, because they will read the code when they need the mechanism, so commands, reasoning and schemas are all noise.
    - *Judge the design* — wants the concepts and the reasoning, and treats mechanism as a distraction. Commands, schemas and internal interactions are noise here however correct they are.
    - *Operate it* — wants the commands, the failure modes and what to do about each.
-   - *Extend or maintain it* — wants the schemas, the contracts and the internals the other two want cut.
+   - *Extend or maintain it* — wants the schemas, the contracts and the internals the others want cut.
 3. **What do they already know?** This sets how much is assumed rather than explained, and it is the question most often skipped.
 4. **What is the one claim the document is making?** Everything that does not serve it is a candidate for deletion, however true.
 
