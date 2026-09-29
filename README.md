@@ -765,6 +765,8 @@ Prevents pushing commits that are Claude-attributed or not GPG-signed. Every new
 - `Co-Authored-By` trailers mentioning Claude or Anthropic
 - Missing good GPG signature (only `G` status passes)
 
+It also uploads Git LFS objects, because with `core.hooksPath` global the hook Git LFS would install never runs. Wherever the push can carry LFS content — the repo has a local LFS object store, or a pushed commit's `.gitattributes` names `filter=lfs` — it runs `git lfs pre-push`, and refuses the push if `git-lfs` is not on `PATH`. Everywhere else it skips the call, which would cost every push an SSH handshake and a locks request.
+
 **Global installation** is covered in the [Global Installation](#global-installation) section below.
 
 ---

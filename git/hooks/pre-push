@@ -1,33 +1,54 @@
 #!/usr/bin/env bash
 #
-# pre-push — reject commits that are Claude-attributed or unsigned.
+# pre-push — reject commits that are Claude-attributed or unsigned, then upload Git LFS objects.
 #
 # Checks every NEW commit (not yet on remote) for:
 #   1. Author/committer name or email containing "claude" or "anthropic"
 #   2. Co-Authored-By trailer mentioning "claude" or "anthropic"
 #   3. Missing good GPG signature (only "G" status passes)
 #
+# Git LFS installs its own hooks wherever core.hooksPath points, and stops at this non-LFS pre-push,
+# so no LFS hook runs anywhere and a push would send LFS pointers without their objects, silently.
+# So this hook calls `git lfs pre-push` itself, wherever the push can carry LFS content: the repo has a
+# local LFS object store, or a pushed commit's .gitattributes routes files through the LFS filter.
+# Anywhere else the call has nothing to check, and costs the push an SSH handshake and a locks
+# request (~/.claude/learnings/git-lfs-with-global-hookspath.md).
 
 set -euo pipefail
 
 CLAUDE_PATTERN="claude|anthropic"
 errors=0
+declares_lfs=0
+
+# The null object id is 40 zeros under SHA-1 and 64 under SHA-256; blank counts as null too.
+is_null() {
+    case "$1" in *[!0]*) return 1 ;; esac
+}
+
+# Git gives the refs on stdin once, and `git lfs pre-push` needs them as well.
+input=$(cat)
 
 while read -r local_ref local_sha remote_ref remote_sha; do
-    # Skip delete pushes
-    if [ "$local_sha" = "0000000000000000000000000000000000000000" ]; then
+    # Skip the blank line an empty push leaves, and delete pushes
+    if is_null "$local_sha"; then
         continue
     fi
 
-    # Determine range of new commits
-    if [ "$remote_sha" = "0000000000000000000000000000000000000000" ]; then
-        # New branch — check all commits not reachable from any remote branch
+    attributes=$(git cat-file -p "$local_sha:.gitattributes" 2>/dev/null || true)
+    case "$attributes" in *filter=lfs*) declares_lfs=1 ;; esac
+
+    # Determine range of new commits. A remote sha this clone has never fetched cannot bound a
+    # range, so check everything no remote-tracking branch holds, as for a new branch.
+    if is_null "$remote_sha" || ! git cat-file -e "$remote_sha^{commit}" 2>/dev/null; then
         range="$local_sha --not --remotes"
     else
         range="$remote_sha..$local_sha"
     fi
 
-    for commit in $(git rev-list $range); do
+    # Assigned first so a failing rev-list stops the push, rather than checking nothing and passing
+    commits=$(git rev-list $range)
+
+    for commit in $commits; do
         short=$(git rev-parse --short "$commit")
 
         # Check signature — only "G" (good) is acceptable
@@ -62,11 +83,19 @@ while read -r local_ref local_sha remote_ref remote_sha; do
             continue
         fi
     done
-done
+done <<< "$input"
 
 if [ "$errors" -gt 0 ]; then
     echo ""
     echo "Push blocked: $errors commit(s) failed validation."
     echo "All pushed commits must be GPG-signed and not attributed to Claude."
     exit 1
+fi
+
+if [ -n "$input" ] && { [ "$declares_lfs" = 1 ] || [ -d "$(git rev-parse --git-common-dir)/lfs/objects" ]; }; then
+    if ! command -v git-lfs >/dev/null 2>&1; then
+        echo "Push blocked: this push can carry Git LFS objects, but git-lfs is not on PATH to upload them."
+        exit 1
+    fi
+    printf '%s\n' "$input" | git lfs pre-push "$@"
 fi
