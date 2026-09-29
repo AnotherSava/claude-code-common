@@ -112,6 +112,12 @@ BRACES = re.compile(r"\{([^{}]*,[^{}]*)\}")
 SAFE_FORM = ("Ask for the keys you need with `git config --get <key>`, or list names only with "
              "`git config --list --name-only`.")
 
+# A key whose VALUE is the secret has no permitted read form, so SAFE_FORM would name the very
+# command being refused. Say what is available instead: presence, and answers derived without it.
+NO_READ_FORM = ("A key whose value is itself a secret has no safe read form — `--get` on it is this same "
+                "refusal. Confirm it is set with `git config --name-only --get-regexp '<prefix>'`, and "
+                "derive any other answer without materialising the value.")
+
 
 def is_secret(key: str) -> bool:
     return any(pattern.match(key.lower()) for pattern in SECRET_KEYS)
@@ -293,7 +299,8 @@ def refusal(command: str, depth: int = 0, outer_names_config: bool = False) -> s
             why = config_refusal(sub[1], names_config, names_listed, via_xargs)
             piped_quietly = cmd.sep == "|" and index + 1 < len(found) and quiet_consumer(argvs[index + 1])
             if why and not (piped_quietly and "lists every value" in why):
-                return f"`{shown}` is refused because {why}. {SAFE_FORM}"
+                tail = NO_READ_FORM if "which is a secret" in why else SAFE_FORM
+                return f"`{shown}` is refused because {why}. {tail}"
         if sub and sub[0] == "var" and any(a in ("-l", "--list") for a in sub[1]):
             return f"`{shown}` is refused because `git var -l` lists every git config value too. {SAFE_FORM}"
         if tool_name(argv[0]) == "transcrypt" and any(a == "--display" or re.fullmatch(r"-[a-zA-Z]*d[a-zA-Z]*", a) for a in argv[1:]):
