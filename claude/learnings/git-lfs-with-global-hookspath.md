@@ -25,6 +25,21 @@ git lfs push --all origin <branch>
 
 `--all` is what makes it work after the ref has been pushed. Without it, `git lfs push origin <branch>` printed nothing and exited 0, because it skips objects reachable from remote refs it believes are already pushed. For known objects, `git lfs push --object-id origin <oid>...` takes several oids at once. List them with `git lfs ls-files --long --all`: without `--all` it shows only the versions in `HEAD`, so a file the pushed range changed twice leaves its older object unlisted.
 
+### History pushed before the hook fix
+
+Adding the call to the hook uploads objects only for commits pushed from then on. Every LFS object a
+repo pushed before that is still missing on the server, so after adopting the hook, run the repair
+above once in every repo that stores LFS content. The first symptom is a fresh clone. Measured
+2026-09-29 on a repo whose model files were pushed before the fix:
+
+- The clone printed `Object does not exist on the server: [404]`, `smudge filter lfs failed` and
+  `Clone succeeded, but checkout failed`, and left an empty index, so `git status` listed every
+  tracked file as a staged deletion (`D `).
+- A transcrypt init on that tree then failed as well. That is a consequence of the empty index, not
+  a second fault.
+- `git lfs fetch origin <branch>` in the broken clone got a 404 for every object at the tip, while
+  the working clone still held all of them locally.
+
 ## Checking that the server has the object
 
 Ask the LFS batch API. It needs no auth on a public repo, and it is the only check here that answered correctly:
