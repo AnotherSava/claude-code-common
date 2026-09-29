@@ -104,6 +104,10 @@ handled. Drop a candidate when:
 - a later step of this skill already owns it: `/commit` runs the remote sync check, `/reflect`,
   `/clean-code`, `/docs-relevance` and the confidentiality scan, so none of those is ever a
   finding here, however live it looks in the transcript
+- the other machine's own `/commit` will surface it — an untracked file in that machine's clone of
+  this repo is listed in its next commit's **Uncommitted changes** and bundled by the plan-file rule,
+  so a wrap-up here adds nothing. Raised as an `answer` on 2026-09-28 (an archived plan left
+  untracked on the Mac) and dropped once the user pointed at that commit.
 - it is not this session's unfinished business. A true, routable observation about another repo
   — or about another machine's per-machine configuration — is not a finding here just because
   you said it once. Narrowing a concern the user has already corrected and re-presenting the
