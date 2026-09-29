@@ -68,14 +68,23 @@ three times out of three, in direct violation of a prompt saying *return ONLY a 
 code fence*. The same model under `--effort` did not do it. Strip a leading fence and any leading prose
 before parsing, whatever the prompt says.
 
-## The prompt goes in as `argv`, so there is a hard size cliff
+## Send the prompt on stdin, or argv gives you a hard size cliff
 
 `claude -p "<prompt>"` passes the whole document as a command-line argument, and the OS argument limit ends
 the run with `spawn E2BIG` — an error naming neither the cause nor the fix. Measured: fine at 100k characters,
 dead at 130k.
 
-Pipe the prompt on stdin instead. If you must keep `argv`, cap the document and say so in the error, because
-the failure mode is a hard stop rather than a truncation.
+**`claude -p` with no prompt beside it reads one from stdin**, so the fix is removing the argument rather than
+adding a flag:
+
+```js
+spawn('claude', ['-p', '--output-format', 'json', '--model', model], …)  // then write the prompt to child.stdin
+```
+
+Verified in production rather than reasoned about: the document that took 16.0s through argv took 15.2s
+through stdin, same segment count and same identifiers. A pipe has no argv limit, so the cliff is gone rather
+than moved. If you must keep argv, cap the document and say so in the error, because the failure mode is a
+hard stop rather than a truncation.
 
 ## A ~17k-token agent harness ships on every call
 
