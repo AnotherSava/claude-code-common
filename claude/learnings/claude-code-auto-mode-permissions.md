@@ -40,9 +40,52 @@ one line, joined by `&&` and `;`, ran. The work was identical; only whether the 
 changed. A heredoc hands the tool one `bash` invocation whose body is data, so `bash` is what gets judged.
 
 Unwrapping is the opposite of reshaping a command to slip past — it shows the classifier what the wrapper
-hid. Say so when it turns out to be the cause, because the alternative reading travels: a skill warning
-that "auto mode can refuse `transcrypt`" sends the next session to ask its user for a `Bash(transcrypt:*)`
-rule against an obstacle that was never there.
+hid. Say so when it turns out to be the cause, and unwrap before asking for a permission rule, since the
+rule is the more expensive answer and one of these obstacles was never there.
+
+**It does not explain every `transcrypt` denial, and `--rekey` is where it breaks down.** Three sessions on
+this machine report incompatible results from 2026-09-29. One was refused three times — inside a `set -x`
+block, as a plain multi-line sequence, and alone as the only command on the line — then succeeded on a later
+invocation. A second was refused with nothing wrapping it. A third ran it unblocked *inside a bash heredoc*,
+the shape the section above identifies as the problem. So the wrapper is not the discriminator for this
+subcommand. `transcrypt --list` and `--version` were refused in none of the three.
+
+**A `Bash(transcrypt:*)` rule is not the remedy, however plausible it reads.** In the session that recovered,
+the user was asked for exactly that rule and agreed — and no settings file on this machine grants transcrypt
+anything. Verified 2026-09-29 from a second session: `~/.claude/settings.json` carries `defaultMode: auto`
+and two `Read(...)` entries, `~/.claude/settings.local.json` does not exist, nor does that project's
+`.claude/settings.local.json`, and the dotfiles repo's own local settings hold two `Bash(grep …)` rules and
+nothing else. The single `transcrypt` string in the user settings is a PreToolUse hook matcher.
+
+Three routes could have granted it, and each is closed by something measured rather than argued:
+
+- A Bash **"Yes, and don't ask again"** saves to `.claude/settings.local.json` at the git repository root and
+  lasts "permanently per repository and command". That file is absent in the session's own repo — and present
+  in the dotfiles repo, holding an unrelated `Bash(grep *)`, which is what the route looks like when taken.
+- A rule added through **`/permissions`** "follows the row for the settings file you save it to". No settings
+  file changed.
+- A prompt can offer an option that **allows the action for the rest of the session** and is written to no
+  file. A classifier denial arrives with no prompt at all, so nothing was offering it.
+
+So the grant nobody can find is most likely a grant that never happened: the classifier's verdict on one
+unchanged command is not stable across invocations. The alternative is an action outside the session that
+nobody observed, and neither is something a rule can encode.
+
+**That is an observation, not a licence to retry.** The harness instruction is that a denied call means the
+user declined it and the response is to adjust rather than re-issue, and it carves out no exception for the
+auto-mode case where no person ever saw the command. Nor is the instability established well enough to build
+a step on: the unobserved-action reading fits the same evidence. What it does change is what a denial entitles
+you to *say*. It is a verdict on this invocation in this session, so report "refused here" rather than "the
+tool is blocked", and never carry a refusal in one clone over to another.
+
+Every surviving explanation is session-local, which is the part that changes what other sessions should do:
+nothing that unblocked one session carries to the next, survives a `/clear`, or reaches another project. A
+rekey still pending elsewhere gains nothing from a rekey that succeeded here.
+
+A classifier denial arrives with **no permission prompt attached**, so there is nothing to approve into and
+waiting for one is a stall. Where a bare, unwrapped single command is still refused, hand it to the user as
+their own step — see "What to do with a real denial" below — rather than reaching for a permission rule
+whose effect on this command nobody has measured.
 
 ## A denial means the command did NOT run
 
