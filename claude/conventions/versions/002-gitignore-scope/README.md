@@ -28,8 +28,9 @@ string `~/.gitignore`, which no `open()` resolves, so anything that hard-coded t
 skipped `expanduser` would happen to work here and fail the moment either changed.
 
 Two kinds of line go under the second half, and nothing else does: a **duplicate** — the same entry,
-after stripping a leading `**/`, appears in the global file, and either the `.gitignore` sits at the
-repo root or the pattern floats — and a **bare `scripts/` line**, which supersedes the global file's
+after stripping a leading `**/` or `/` and anchored the same way, appears in the global file, either
+the `.gitignore` sits at the repo root or the pattern floats, and no `!` line comes before it in that
+file — and a **bare `scripts/` line**, which supersedes the global file's
 root-anchored wrapper entries with a pattern matching at any depth, hiding the repo's own committed
 scripts as well. One repo tracks `scripts/package.ts` under exactly such a line.
 

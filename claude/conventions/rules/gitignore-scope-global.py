@@ -15,8 +15,8 @@ every repo as unanswerable.
 Two shapes are reported, and everything else is left alone.
 
 **A duplicate.** The global file carries an entry with the same body *and the same anchoring* — and
-either the `.gitignore` sits at the repo root, or the pattern floats. Both clauses keep a real file
-covered. The anchoring half is why `**/config/deploy.env` is never read as a copy of the global
+either the `.gitignore` sits at the repo root, or the pattern floats — and no `!` line comes before
+it in the same file. Every clause keeps a real file covered. The anchoring half is why `**/config/deploy.env` is never read as a copy of the global
 file's `config/deploy.env`: one floats to every depth and the other is anchored to each repo's
 root, so the global entry does not reach a `web/config/deploy.env` the project line hides. The
 second clause is what keeps a nested file safe: `config/deploy.env` in `web/.gitignore` is anchored
@@ -27,9 +27,9 @@ such difference.
 pattern that floats, and it hides that repo's own committed scripts as well — one repo tracks
 `scripts/package.ts` under exactly such a line.
 
-Anchoring is deliberately out of scope. Both sides are re-read from disk on every run, so a later
-change to the global excludes file is picked up here rather than frozen into whatever was true the
-day a repo adopted.
+Whether a project's own lines are anchored as they should be is a separate question this rule does
+not ask. Both sides are re-read from disk on every run, so a later change to the global excludes
+file is picked up here rather than frozen into whatever was true the day a repo adopted.
 """
 
 import os
@@ -90,8 +90,17 @@ def read_lines(path: str, shown: str) -> list[str]:
 
 
 def normalise(entry: str) -> str:
-    """A gitignore entry reduced to the body two rules have to share before anything else matches."""
-    return entry[3:] if entry.startswith("**/") else entry
+    """A gitignore entry reduced to the body two rules have to share before anything else matches.
+
+    A leading `**/` and a leading `/` are both spellings of anchoring rather than part of the body,
+    and `floats` keeps what they said. So `/.claude/settings.local.json` and the global file's
+    `.claude/settings.local.json` share a body and are one rule: the mid-string slash anchors the
+    second to the repo root exactly as the leading one anchors the first.
+    """
+    for prefix in ("**/", "/"):
+        if entry.startswith(prefix):
+            return entry[len(prefix):]
+    return entry
 
 
 def floats(pattern: str) -> bool:
@@ -160,14 +169,20 @@ def targets_in(root: str, source: str, known: Globals) -> list[Target]:
     # a missing excludes file would leave nothing to compare against and every line looking fine.
     if not os.path.exists(path):
         return found
+    # A project .gitignore outranks the global file, so once a `!` line re-includes a path the global
+    # entry never reaches it, and a later line that repeats the global entry is what hides it again.
+    # Past the first negation no line is called a duplicate, since deleting one could un-ignore a file.
+    negated = False
     for line_no, line in enumerate(read_lines(path, source), 1):
         text = line.strip()
         if not text or text.startswith("#"):
             continue
-        if text == BARE_SCRIPTS:
+        if text.startswith("!"):
+            negated = True
+        elif text == BARE_SCRIPTS:
             found.append(Target(source, line_no, line, "floats over the global file's root-anchored "
                                                        "wrapper entries and hides committed scripts too"))
-        elif same_rule(text) in known.entries and (at_root or floats(text)):
+        elif not negated and same_rule(text) in known.entries and (at_root or floats(text)):
             found.append(Target(source, line_no, line, "duplicates an entry in the global excludes file, "
                                                        "and belongs there rather than here"))
     return found

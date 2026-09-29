@@ -110,8 +110,13 @@ CASES = (
     ),
     Case(
         "gitignore-scope-global",
-        Tree({".gitignore": "/dist/\n/node_modules/\n"}, committed=True),
-        Tree({".gitignore": ".idea/\n"}, committed=True),
+        # Lines sharing a body with a global entry that must still not be reported: `**/config/deploy.env`
+        # floats where the global entry is anchored, `local.env` floats where the global `/local.env` is
+        # anchored, and `/config/deploy.env` follows a negation the global entry cannot outrank.
+        Tree({".gitignore": "/dist/\n**/config/deploy.env\nlocal.env\nconfig/*\n!config/*.env\n"
+                            "/config/deploy.env\n"}, committed=True),
+        # Spelled with the leading slash the global entry lacks, which is still the same rule.
+        Tree({".gitignore": "/config/deploy.env\n"}, committed=True),
         Tree({".gitignore": ".idea/\n"}, repo=False),
         "it is outside a work tree, so git will not say which .gitignore files this repo commits",
     ),
@@ -312,7 +317,7 @@ def sandbox_git(base: str) -> dict[str, str | None]:
     global excludes file, and every `check-ignore` call consults it — so without this the answers
     depend on whose machine the gate runs on, and the one repo whose `.gitignore` happens to repeat a
     line of the user's own global file would decide whether this passes. The global file written here
-    carries two entries, which is what the violating tree for that rule is built to duplicate.
+    carries the entries the violating tree for that rule is built to duplicate.
     """
     config, excludes = os.path.join(base, "gitconfig"), os.path.join(base, "global-excludes")
     # Forward slashes: a backslash opens an escape inside a git config value, so a Windows path
@@ -320,7 +325,7 @@ def sandbox_git(base: str) -> dict[str, str | None]:
     with open(config, "w", encoding="utf-8", newline="\n") as handle:
         handle.write("[core]\n\texcludesfile = " + excludes.replace("\\", "/") + "\n")
     with open(excludes, "w", encoding="utf-8", newline="\n") as handle:
-        handle.write(".idea/\nThumbs.db\n")
+        handle.write(".idea/\nThumbs.db\nconfig/deploy.env\n/local.env\n")
     before = {name: os.environ.get(name) for name in ("GIT_CONFIG_GLOBAL", "GIT_CONFIG_NOSYSTEM")}
     os.environ["GIT_CONFIG_GLOBAL"] = config
     os.environ["GIT_CONFIG_NOSYSTEM"] = "1"
