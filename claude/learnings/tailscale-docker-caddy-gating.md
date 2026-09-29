@@ -169,6 +169,35 @@ published to the public Certificate Transparency logs.
 is a useful property: a client that wrongly believes it is on the tailnet fails at DNS in milliseconds rather than
 hanging on a TCP connect to an unroutable 100.x address, so "guess, then fall back" is a viable strategy.
 
+### Serving one file at a path, and why macOS needs a port instead
+
+A target can be a file rather than a port, which is what hands a generated report to every tailnet device without a
+web server. `--set-path` puts it beside whatever else the node serves instead of taking the whole root:
+
+```bash
+tailscale serve --bg --yes --set-path=/report.html /path/to/report.html   # a file (Windows, Linux)
+tailscale serve --bg --yes --set-path=/report.html 8787                   # a local port (everywhere)
+tailscale serve --set-path=/report.html off                               # undo just this path
+```
+
+**The macOS App Store build refuses the file form**, and `tailscale serve reset` is not the undo above:
+
+- Path serving answers `error: failed apply web serve: Path serving is not supported on macOS due to sandbox
+  restrictions.` and points at the open-source `tailscaled` distribution. Proxying a local port works on every
+  variant, so a one-file loopback server behind the proxy is the portable shape — measured on 1.102.1.
+- **A refused config prints `error:` on stdout and still exits 0.** Checking `returncode` alone reports the macOS
+  refusal above as a success, so read the output text too.
+- `reset` clears *every* served path on that node, so on a machine already serving something else (a media server on
+  `/`, say) it takes that down as well. Only `--set-path=<p> off` is scoped to the one path.
+
+Two things bite once it is serving:
+
+- **The path is stripped before forwarding.** A request for `/report.html` arrives at the backend as `GET /`, so a
+  port-proxied server must answer any path rather than matching the one it was mapped at.
+- **The config outlives what it points at.** It lives in `tailscaled` and survives reboots, while a backing process
+  does not — so after a reboot the URL answers 502 while every local check still passes. Verify by fetching the URL
+  and comparing what comes back against the file, which is the only check at the layer a click lands on.
+
 ## Gating inside the app instead of at the proxy
 
 When the *application* (not Caddy) has to decide whether a request came over the tailnet, it reads

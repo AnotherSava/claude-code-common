@@ -6,7 +6,8 @@ description: >-
   open issues, or convention versions still to adopt, merged across this machine
   and its peer, with branch, counts, age of the oldest pending work, how far
   behind /adopt each clone is, and a one-line summary per working machine. Prints a box
-  table and writes a self-contained HTML report. Each run fetches every repo's
+  table and publishes a self-contained HTML report at a tailnet URL that opens on
+  either machine. Each run fetches every repo's
   origin on both machines so the counts reflect the current remote.
   TRIGGER when: user asks "/github-status", wants a cross-project overview of
   their repos, "which repos have unpushed commits", "what's new on remotes",
@@ -200,7 +201,8 @@ is refused the same way.
 - If a description contains a character awkward for a single-quoted heredoc (a literal backslash, or
   the `JSON` end marker), write the object to a file and pass `--descriptions <path>` instead.
 
-This prints the final table and writes the HTML report, then prints its path as a `file:///` link.
+This prints the final table, writes the HTML report, publishes it on the tailnet, and prints the one
+link that reaches it.
 
 ## 4. Hand it over
 
@@ -208,9 +210,15 @@ The user sees exactly two things:
 
 1. **The final table**, pasted verbatim from the `--report` output. It is already width-bounded and
    aligned — do not hand-draw it, and do not show the step 2 table with its placeholders.
-2. **The report**, as a Markdown link built from the `file:///` URL the script printed, e.g.
-   `[Open the report](file:///Users/…/tmp/github-status.html)`. A path is something to read; this file
-   is meant to be opened.
+2. **The report**, as a Markdown link wrapping the URL the script printed, verbatim, e.g.
+   `[Open the report](https://<this machine>.<tailnet>.ts.net/github-status.html)`. A path is something
+   to read; this file is meant to be opened.
+
+Hand over the URL the script gave and no other. It prints the tailnet one when the report was
+published and a `file:///` path when it could not be, having said why on stderr — so substituting one
+for the other either breaks the link or hides a failure. Do not add the local path beside the tailnet
+URL: two links for one report is a choice the user then has to make, and the local one is the one that
+does not open on the other machine.
 
 Do not paste the machine summary separately (the report carries it in its column headers), and do not
 paste the detail sections at all.
@@ -304,10 +312,32 @@ paste the detail sections at all.
   every other entry — on the peer that erasure is total, since a clean clone there contributes no
   entry at all. The peer's merge runs on the peer, because this side holds no copy of the entries it
   would need to compose the union.
+- **The report is published on the tailnet, so the one link printed opens on either machine.** A
+  `file:///` path cannot: the two machines' projects roots share no path, so a link that opens on one
+  names nothing on the other. `tailscale serve` publishes the rendered file at
+  `https://<this machine>.<tailnet>.ts.net/github-status.html`, which needs no new service and no new
+  credential — Tailscale is already up on both machines with HTTPS certificates issued — and reaches
+  the phone as well. **The URL names whichever machine ran the scan, and it answers only while that
+  machine is awake**; a scan run from the laptop gives a link that dies when the lid closes, and the
+  next run from either machine republishes. Only that one file is reachable through it: the state file
+  and the description cache beside it are not, and `/`, `/__ping` and every other path return 404.
+- **How it is published differs by platform, and the URL does not.** Windows and Linux serve the file
+  directly, with no process involved. macOS refuses that — the sandboxed App Store build answers "Path
+  serving is not supported on macOS due to sandbox restrictions" — so there the file goes through
+  `serve-report.py`, a loopback server on port 8787 that serves exactly that one file and re-reads it
+  per request. It is spawned detached with both streams into `tmp/github-status-serve.log`, so it
+  outlives the run and cannot print into whatever terminal the user has hours later; it does not
+  survive a reboot, and the next run starts it again. Every step is idempotent and the URL is verified
+  by fetching it before being printed — the serve config outlives whatever it points at, so a stale one
+  answers 502 while every local check passes. Any failure prints its reason to stderr and falls back to
+  the `file:///` path; `--no-serve` skips publishing entirely. To unpublish by hand, run
+  `tailscale serve --set-path=/github-status.html off` — `tailscale serve reset` would clear every
+  other served path on that machine too.
 - **Artifacts go in the gitignored `tmp/` of each machine's own dotfiles clone**, as
-  `github-status.html`, `github-status-state.json` and `github-status-descriptions.json` — the last of
-  these on both machines, the first two only where the report was run. The filenames are stable, so an
-  open browser tab reloads onto the new report. Override with `--html` / `--state` / `--cache`. A
+  `github-status.html`, `github-status-state.json`, `github-status-descriptions.json` and
+  `github-status-serve.log` — the cache on both machines, the rest only where the report was run. The
+  filenames are stable, so an open browser tab reloads onto the new report. Override with
+  `--html` / `--state` / `--cache`. A
   scoped run adds `repo-status-<owner>-<repo>-state.json` and writes no HTML at all; it shares the
   description cache above, which is the one artifact the two runs have in common, and `--html` is
   refused rather than ignored.

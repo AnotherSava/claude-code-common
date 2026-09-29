@@ -409,7 +409,7 @@ Closes out a section of work. Before anything is committed it re-reads the curre
 
 ### GitHub Status
 
-Cross-machine overview of all your GitHub-owned local clones — branch, behind/ahead counts, uncommitted file/line totals, oldest pending work, open issues, how far behind [`/adopt`](#adopt) each clone is, and a description synthesized from the pending changes for each machine that has any. Prints a box table and writes a self-contained HTML report.
+Cross-machine overview of all your GitHub-owned local clones — branch, behind/ahead counts, uncommitted file/line totals, oldest pending work, open issues, how far behind [`/adopt`](#adopt) each clone is, and a description synthesized from the pending changes for each machine that has any. Prints a box table and publishes a self-contained HTML report on the tailnet, so the one link it hands over opens on either machine.
 
 **Command:** `/github-status`
 
@@ -425,6 +425,7 @@ Cross-machine overview of all your GitHub-owned local clones — branch, behind/
 - **Describes each clone once, not once per run** — a description is reused whenever the work behind it is byte-identical, judged by a content digest of the pending state rather than a modification date, which a deleted file leaves none of. Each machine caches only its own clones and resolves them during the scan, so the peer's answers ride back inside its snapshot and a report run from either machine starts warm; `--no-cache` crosses the hop to refresh both. The scan itself is never cached — its cost is the per-repo fetch and `gh issue list`, and both ask the remote something no local state can answer
 - Degrades loudly when the peer is unreachable: the SSH error is named once in the summary and the report header, and the table falls back to the single-machine shape rather than quietly dropping half the picture
 - Writes an HTML report to the repo's gitignored `tmp/` — one full-width block per project with the machines side by side in a column each, named once in a sticky header carrying their OS, projects root and scan age, so a column's position is what attributes its contents
+- **Publishes the report on the tailnet**, so the one link handed over opens on either machine and on the phone — the two machines' projects roots share no path, so a `file:///` link opens on only one of them. `tailscale serve` needs no new service and no new credential; the URL names whichever machine ran the scan and answers while that machine is awake, and any failure falls back to the local path with its reason on stderr
 - Recomputes every interval in the page rather than baking it in, so a report left open or reopened tomorrow still reads correctly; exact timestamps sit on hover
 - Reports uncommitted-file lists and unpushed-commit subjects for the clones still awaiting a description, so Claude reads only the work that actually moved
 - **Scopes to one repo with `--repo`**, which is what [`/repo-status`](#repo-status) invokes — the peer is told the slug too, so both ends scan one repo; the scoped run renders a block per machine instead of this table, writes no HTML, and merges the description cache rather than rebuilding it
