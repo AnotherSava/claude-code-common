@@ -129,6 +129,20 @@ whole. The string overload of `GetPathRoot` is annotated nullable in .NET 10; th
 To check a BCL behaviour like this one without creating a project, `dotnet fsi probe.fsx` runs an F#
 script against the installed runtime in a few seconds.
 
+## A root has no name of its own, and `GetFileName` returns an empty string for it
+
+The usual way to get a folder's own name, `Path.GetFileName(path.TrimEnd('\\', '/'))`, returns an empty
+string for a drive root, because trimming turns `D:\` into `D:`, whose file name is empty. It does the
+same for a share root, where the whole of `\\server\share` is root. Measured 2026-09-28 on runtime
+10.0.12. Code that then searches or labels by that name goes ahead with an empty string and reports
+nothing: a Steam store search with an empty term lists the whole catalogue, so the first AppID on the
+page belongs to an unrelated game. Take the last name from the root-plus-names parse above instead. It
+is null at a root, which leaves each call site to decide what a root means.
+
+To try a root case in a running app without a spare drive, `subst X: <folder>` mounts any folder as the
+root of drive `X:`, and `subst X: /D` removes it. From Git Bash, write the switch as `//D`, which worked
+there on 2026-09-28. MSYS may rewrite an argument that starts with a single `/` as a path.
+
 ## Expanding variables truncates a path at a NUL, before `GetFullPath` can reject it
 
 On .NET 10 for Windows, `Path.GetFullPath` throws `ArgumentException` for an empty string, for a string
