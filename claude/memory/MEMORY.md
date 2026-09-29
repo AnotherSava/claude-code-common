@@ -172,6 +172,7 @@
 - [Check a destination is not published](feedback_check_destination_visibility.md) {always} — check `gh repo view --json isPrivate` AND `git check-ignore` before moving anything to a shared repo; then redact live-data figures from what goes in
 - [Rotate, don't abandon](feedback_rotate_dont_abandon.md) {always} — a leaked credential makes one value worthless, not the access; propose replacing it, say what survives, verify the old one is dead
 - [Never dump a secret-bearing config section](feedback_never_dump_secret_bearing_config.md) {always} — to check a setting, print only the named keys or masked values; a printed notifications block once leaked a bot token
+- [Classify a dumped secret file first](feedback_classify_before_rotating.md) — committed coordinates need no rotation or scrub; measure reach first
 - ["Not run" must not look like "passed"](feedback_not_run_is_not_pass.md) {always} — a check that can't tell success from never-ran turns an open problem into a closed-looking one; probe the precondition, assert the artifact, print NOT COVERED
 - [Sampling a level misses an edge](feedback_sample_level_miss_edge.md) {always} — polling "is it in state X" can't catch "did X happen"; a shorter interval narrows the blind window and never closes it — get an event, or state the limit
 - [Startup is not a poll](feedback_startup_is_not_a_poll.md) {always} — a startup-only concern gets bounded retry-until-*answered*, not a timer; count the recurrence before defending it, and check what the "cheap" gate calls
