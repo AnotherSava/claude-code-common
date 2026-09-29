@@ -57,6 +57,41 @@
             "type": "command",
             "command": "python -S \"$HOME/.claude/hooks/windows-link-guard.py\"",
             "if": "Bash(mklink *)"
+          },
+          {
+            "type": "command",
+            "command": "python -S \"$HOME/.claude/hooks/secret-print-guard.py\"",
+            "if": "Bash(*config*)",
+            "timeout": 5
+          },
+          {
+            "type": "command",
+            "command": "python -S \"$HOME/.claude/hooks/secret-print-guard.py\"",
+            "if": "Bash(*transcrypt*)",
+            "timeout": 5
+          },
+          {
+            "type": "command",
+            "command": "python -S \"$HOME/.claude/hooks/secret-print-guard.py\"",
+            "if": "Bash(*var -l*)",
+            "timeout": 5
+          },
+          {
+            "type": "command",
+            "command": "python -S \"$HOME/.claude/hooks/secret-print-guard.py\"",
+            "if": "Bash(*var --list*)",
+            "timeout": 5
+          }
+        ]
+      },
+      {
+        "matcher": "^Read$",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "python -S \"$HOME/.claude/hooks/secret-print-guard.py\"",
+            "if": "Read(//**/.git/config)",
+            "timeout": 5
           }
         ]
       }

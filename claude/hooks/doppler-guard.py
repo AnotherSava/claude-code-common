@@ -24,6 +24,8 @@ import json
 import re
 import sys
 
+from _shell import command_argv, commands, nested_scripts, tool_name
+
 REMINDER = (
     "Doppler is involved here. Before writing a project/config or running the command, "
     "verify against the `/doppler` skill (~/.claude/skills/doppler/SKILL.md) — don't guess, and "
@@ -46,84 +48,35 @@ REMINDER = (
 # `doppler secrets set`/`delete` print the whole secrets table (every value) after the
 # operation unless silenced — the classic transcript leak. Require --silent on both.
 #
-# ANCHORED TO COMMAND POSITION, and that is a fix rather than a refinement. Matching the verb
+# JUDGED IN COMMAND POSITION, and that is a fix rather than a refinement. Matching the verb
 # anywhere in the line blocked `grep "doppler secrets set" docs/`, a `sed` range over the same
 # text, and this file's own test payloads — three times in twenty minutes while editing these
 # very docs. So the class it blocked hardest was documenting and auditing the rule it enforces,
-# which is both useless and the moment you can least afford a hard block. A real invocation is
-# always in command position: line start, or after `;` `&&` `||` `|` or a newline, optionally
-# behind env assignments (`FOO=bar doppler secrets set …`).
-_SEGMENT_START = r"(?:^|[;\n]|&&|\|\||\|)"
-_ASSIGNMENTS = r"(?:\s*[A-Za-z_][A-Za-z0-9_]*=\S*)*"
-_SETDEL = re.compile(
-    rf"{_SEGMENT_START}{_ASSIGNMENTS}\s*doppler\s+secrets\s+(?:set|delete)\b", re.IGNORECASE)
-
-# Where the command segment containing a match ends — the next unquoted separator.
-_SEGMENT_END = re.compile(r"[;\n]|&&|\|\||\|")
-
-# `doppler secrets set --help` prints usage, not the secrets table, so --silent is beside the
-# point there. Match the flag only as its own token, so a value that happens to contain
-# `--help` (`doppler secrets set FLAG="--help"`) still gets the block.
-_HELP = re.compile(r"(?:^|\s)-(?:h|-help)(?:\s|$)")
+# which is both useless and the moment you can least afford a hard block. `_shell` tokenizes the
+# command the way bash does and yields each simple command it would run — inside loops,
+# subshells and `$( … )` too — and never one made of quoted text, a comment or a heredoc body.
 
 
-_HEREDOC = re.compile(r"<<-?\s*(['\"]?)(\w+)\1")
-
-
-def _mask_quoted(text: str) -> str:
-    """Same-length copy with quoted spans and heredoc BODIES blanked, so indices still line up.
-
-    Two ways a line can look like a command and not be one, and the anchor alone catches neither:
-
-    - **Quoting.** `echo "a; doppler secrets set X=1"` has a separator and a verb inside a string
-      literal; a naive split reads that as a real command.
-    - **Heredoc bodies.** A newline is a segment separator, so every line of `cat <<EOF … EOF` is
-      in command position — which makes writing documentation *about* these commands trip the
-      block, and that is precisely how this file's own guidance gets written.
-
-    Blanking both means only shell-significant characters can start a segment, while the return
-    stays index-compatible with the original so the caller can slice the real text.
-
-    Heredocs go FIRST, and that order is itself the fix rather than a preference: masking quotes
-    first blanks the marker in the near-universal `<<'EOF'` form, so the heredoc is never found and
-    its whole body stays live. Doing bodies first also means an apostrophe inside one — `don't` in
-    a sentence being written to a file — cannot unbalance the quote scan that follows.
-    """
-    masked = text
-    for match in _HEREDOC.finditer(text):
-        body = masked.find("\n", match.end())
-        if body == -1:
-            continue
-        marker, cursor = match.group(2), body + 1
-        for line in masked[cursor:].split("\n"):
-            if line.strip() == marker:
-                break
-            masked = masked[:cursor] + " " * len(line) + masked[cursor + len(line):]
-            cursor += len(line) + 1
-
-    out, quote = list(masked), None
-    for i, ch in enumerate(masked):
-        if quote is None and ch in "\"'":
-            quote = ch
-        elif quote is not None:
-            out[i] = " "
-            if ch == quote:
-                quote, out[i] = None, ch
-    return "".join(out)
-
-
-def unsilenced_write(command: str) -> bool:
+def unsilenced_write(command: str, depth: int = 0) -> bool:
     """Does this command run `doppler secrets set/delete` without `--silent`?
 
-    Judged PER SEGMENT. Checking `"--silent" not in command` over the whole line let a flag
+    Judged PER COMMAND. Checking `"--silent" not in command` over the whole line let a flag
     belonging to some *other* command exempt a genuinely unsafe write — `doppler secrets set A=b
     && echo done --silent` passed, and so did any compound whose later half happened to carry it.
+    `--help` prints usage rather than the table, so it is exempt, but only as a word of its own:
+    `doppler secrets set FLAG="--help"` still sets a secret. A command sent to another shell —
+    over ssh, through `bash -c`, on a heredoc — is judged the same way.
     """
-    masked = _mask_quoted(command)
-    for match in _SETDEL.finditer(masked):
-        end = _SEGMENT_END.search(masked, match.end())
-        segment = command[match.start():end.start() if end else len(command)]
-        if "--silent" not in segment and not _HELP.search(segment):
+    for found in commands(command):
+        argv = command_argv(found.argv)
+        if depth < 3 and any(unsilenced_write(script, depth + 1) for script in nested_scripts(argv, found.stdin)):
+            return True
+        if len(argv) < 3 or tool_name(argv[0]) != "doppler":
+            continue
+        if argv[1].lower() != "secrets" or argv[2].lower() not in ("set", "delete"):
+            continue
+        silent = any(a == "--silent" or a.startswith("--silent=") for a in argv)
+        if not silent and not any(a in ("-h", "--help") for a in argv):
             return True
     return False
 
@@ -141,7 +94,9 @@ def main() -> int:
         return 0  # never break a tool call on a parse hiccup
     if not isinstance(data, dict):
         return 0  # valid JSON of the wrong shape is still nothing to act on
-    tool_input = data.get("tool_input") or {}
+    tool_input = data.get("tool_input")
+    if not isinstance(tool_input, dict):
+        return 0  # a malformed payload is nothing to act on, and must not raise
     command = tool_input.get("command")
     blob = "\n".join(
         v for k in ("command", "content", "new_string", "old_string", "file_path")

@@ -708,7 +708,7 @@ A `PreToolUse` backstop on `Bash`, `Write`, and `Edit`. Hook matchers scope by t
 When it matches, it does two things:
 
 - **Injects the conventions** — a condensed reminder citing the [Doppler](#doppler) skill, so a wrong project or config gets corrected at the moment of the command even if the skill was never invoked.
-- **Denies a `doppler secrets set`/`delete` that omits `--silent`** — without it Doppler prints the full secrets table, every value included, into the transcript. The deny inspects only the Bash `command`, so prose or docs that merely mention the command still get the reminder rather than a block, and a bare `-h`/`--help` is exempt since usage output carries no values.
+- **Denies a `doppler secrets set`/`delete` that omits `--silent`** — without it Doppler prints the full secrets table, every value included, into the transcript. The deny inspects only the Bash `command`, so prose or docs that merely mention the command still get the reminder rather than a block, and a bare `-h`/`--help` is exempt since usage output carries no values. It judges each command bash would run, read through `claude/hooks/_shell.py`, which it shares with the [Secret Print Guard](#secret-print-guard). So a write inside a loop or a subshell, or sent over `ssh`, is caught too, while a commit message or a heredoc describing one is not.
 
 ---
 
@@ -721,6 +721,20 @@ Windows does not follow a reparse point created by a non-administrator — Redir
 A `PreToolUse` on `Bash`, gated by four `if` patterns — `powershell *ItemType*`, `pwsh *ItemType*`, `cmd *` and `mklink *` — so an ordinary command never starts the interpreter. It exits silently off Windows, and on a command that merely names the verbs rather than running them, since `grep -rn "New-Item -ItemType Junction"` is not an invocation. Otherwise it asks PowerShell whether this shell is elevated and, when the answer is no or unobtainable, blocks with exit 2, quoting the command it saw and naming the elevated form to run instead.
 
 The `if` gate is best-effort and fails open — a command the harness cannot decompose reaches the script whatever the pattern says — so the script's own match is what decides, never the gate. It also only ever sees what Claude runs: a link made by hand in a terminal is caught later instead, by [Install Check](#install-check) for the ones under `~/.claude` and by the `memory-cache-linked` rule for each repo's own cache.
+
+---
+
+### Secret Print Guard
+
+**File:** `claude/hooks/secret-print-guard.py`
+
+A printed secret has left the machine, and the only remedy is rotating it. This refuses the Bash commands known to print a repository's git config, where a transcrypt repo keeps its passphrase as `transcrypt.password`, each with the form that answers the same question safely: `git config --list` in any spelling, `git var -l`, a `--get-regexp` whose pattern reaches a secret key, a read of a secret key by name, `transcrypt --display`, any reader or redirection taking `.git/config` as a file (directly, or through a loop variable, `xargs` or `find -exec`), and the Read tool on that file. `git config --get <key>`, `git config --list --name-only` and `--global` listings run as normal.
+
+A `PreToolUse` on `Bash`, gated by the `if` patterns `*config*`, `*transcrypt*`, `*var -l*` and `*var --list*`, and on `Read`, gated by `Read(//**/.git/config)`, all with a 5-second timeout, so a call that matches none of them never starts the interpreter. The script judges the simple commands bash would run, which `claude/hooks/_shell.py` finds by tokenizing the way bash does. It shares that module with the [Doppler Guard](#doppler-guard). It sees commands inside loops, subshells, `$( … )` (also within double quotes), process substitution, unquoted heredocs, wrappers such as `xargs`, and scripts handed to another shell: `ssh host '…'`, `bash -c '…'`, `eval`, a heredoc fed to `ssh` or `bash`, `find -exec`. It never takes quoted text, a comment or a quoted heredoc's body for a command, so a grep for these commands, or a commit message describing them, runs.
+
+It is a net rather than a wall, and its docstring lists what it cannot see. The two limits that matter most are a script that loads a config and prints part of it, and a recursive search from a repository root such as `grep -rn password .`, which reads `.git/config` without naming it; the `feedback_never_dump_secret_bearing_config` memory covers both. Nor does it see a skill's `!` Context command, which runs when the skill loads, before any hook. `claude/tests/bash-guards.py` runs every one of those through the guard at commit time instead. The `/transcrypt` skill printed the shared passphrase that way on every load until the same day the guard was written.
+
+**Tests:** `python claude/tests/bash-guards.py` — exit 0 when every pinned decision of this guard and the [Doppler Guard](#doppler-guard) holds, and no skill's Context command would be refused, 1 otherwise.
 
 ---
 
@@ -765,7 +779,9 @@ Prevents pushing commits that are Claude-attributed or not GPG-signed. Every new
 - `Co-Authored-By` trailers mentioning Claude or Anthropic
 - Missing good GPG signature (only `G` status passes)
 
-It also uploads Git LFS objects, because with `core.hooksPath` global the hook Git LFS would install never runs. Wherever the push can carry LFS content — the repo has a local LFS object store, or a pushed commit's `.gitattributes` names `filter=lfs` — it runs `git lfs pre-push`, and refuses the push if `git-lfs` is not on `PATH`. Everywhere else it skips the call, which would cost every push an SSH handshake and a locks request.
+It also uploads Git LFS objects, because with `core.hooksPath` global the hook Git LFS would install never runs. Wherever the push can carry LFS content — the repo has a local LFS object store, `lfs.storage` moves that store elsewhere, or a pushed commit's root `.gitattributes` names `filter=lfs` — it runs `git lfs pre-push`, and refuses the push if `git-lfs` is not on `PATH`. Everywhere else it skips the call, which would cost every push an SSH handshake and a locks request.
+
+**Tests:** `bash claude/tests/pre-push-hook.sh [hook]` — exit 0 when every case behaves, 1 otherwise. Most cases are real pushes to bare repos on disk, sealed from this machine's git config and signing key; where git-lfs or SHA-256 support is missing, those cases are counted as NOT COVERED rather than passed.
 
 **Global installation** is covered in the [Global Installation](#global-installation) section below.
 

@@ -127,12 +127,14 @@ The file stores escaped quotes as literal `"`, which defeats exact-string editin
 programmatically, then `json.loads` the result **before** writing it back — a syntax error here
 breaks every hook at once.
 
-**A hook change takes effect without a relaunch.** Measured 2026-09-18: a `PreToolUse` entry
-written into a project's `.claude/settings.local.json` fired on the very next Bash call of the same
-session. This line claimed the opposite, which sends anyone testing a new hook off to restart for
-nothing — and it is the same fact §8.5 rests on, that the first bad save is already in force. What
-was measured is the project-level file; whether the user-level `settings.json` reloads the same way
-is untested, so prove it fires rather than assuming either way.
+**A hook change takes effect without a relaunch, though not always on the very next call.**
+Measured 2026-09-18: a `PreToolUse` entry written into a project's `.claude/settings.local.json`
+fired on the next Bash call of the same session. Measured 2026-09-28 on the user-level
+`settings.json`: a new `^Read$` entry and a new `if` filter did not fire on calls made seconds
+after the write, and both fired when the same calls were repeated about a minute later. So no
+restart is needed, which is the same fact §8.5 rests on, that the first bad save is already in
+force. But a live test run straight after the write proves nothing either way: repeat a miss
+before believing it.
 
 ## 8. Verify
 
@@ -188,6 +190,16 @@ dated line here rather than leaving it in a session transcript.
   and on `;`/`||` compounds, and fired anyway on a `&&` brace group wrapping a multi-line
   `python3 -c "…"`. So `if` buys a real reduction and never a guarantee — budget for occasional
   spawns on complex commands, and reach for `permissions.deny` when the requirement is a hard block.
+- **2026-09-28** — `if` patterns match a *subcommand* of a compound, and a leading `*` works. Measured
+  live with `secret-print-guard.py`: `"Bash(git *config*)"` fired on `cd <dir> && git config --local
+  --list; echo after`, and `"Bash(*.git/config*)"` on `echo start; grep -n password <dir>/.git/config`.
+  A guard need not be gated on whatever command a compound happens to start with.
+- **2026-09-28** — A guard on Bash text does not cover the other routes to the same content. The
+  Read tool printed `.git/config` with the Bash guard in place, until a `^Read$` entry with
+  `"if": "Read(//**/.git/config)"` refused it. A skill's `!` Context command runs when the skill
+  loads, before any hook, and `/transcrypt`'s had printed the passphrase on every load for
+  months. So a secret guard also needs the other tools' matchers, and a commit-time check that runs
+  every skill's Context commands through it (`claude/tests/bash-guards.py`).
 - **2026-08-21** — A malformed command in a blocking `PreToolUse` hook matched on
   `^(Bash|Write|Edit)$` disables all three mutation tools at once, leaving no way to repair
   `settings.json` from inside the session — the user has to run a shell command. The JSON-parses

@@ -77,6 +77,18 @@ run "python baseline" python3 claude/tests/python-baseline.py
 # site serving a neighbour's application with every conventional check green.
 run "ingress-lint.py" python3 claude/tests/ingress-lint.py
 
+# The global pre-push hook, which every push on both machines runs and which nothing else tests. A
+# review of one change to it found three defects, each of which let a push through that it existed
+# to stop or stopped one it had no reason to. Most cases are a real push to a bare repo on disk, and
+# the whole run is sealed from this machine's git config and signing key.
+run "pre-push hook" bash claude/tests/pre-push-hook.sh
+
+# The PreToolUse guards that read Bash commands, and the shared module that finds command position
+# for them. A guard that refuses too little leaks a secret into the transcript; one that refuses too
+# much blocks writing about the thing it guards, which is how the Doppler guard's first version
+# failed three times in twenty minutes.
+run "bash guards" python3 claude/tests/bash-guards.py
+
 # The global memory index. `claude/memory/MEMORY.md` is authored; CLAUDE.md's list is generated from
 # it, and CLAUDE.md is injected into every session on both machines. Hand-maintaining the two is what
 # this replaced: they had drifted to 68 entries against 141, sharing 16, and nothing said so. The
