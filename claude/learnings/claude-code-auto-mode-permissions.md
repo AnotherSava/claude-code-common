@@ -32,6 +32,18 @@ Approval in chat does not change a verdict. In another session (2026-09-27),
 rewrite and then the push itself. The user ran the identical command through `!` and it went through. A
 force-push to a published branch is worth planning as the user's own step from the start.
 
+## A heredoc wrapper can be the thing that is denied
+
+Write the sequence plainly before concluding that any tool in it is refused. Measured 2026-09-29:
+`bash <<'BASH' … BASH` carrying a four-line transcrypt unlock was denied, and the same four commands on
+one line, joined by `&&` and `;`, ran. The work was identical; only whether the classifier could read it
+changed. A heredoc hands the tool one `bash` invocation whose body is data, so `bash` is what gets judged.
+
+Unwrapping is the opposite of reshaping a command to slip past — it shows the classifier what the wrapper
+hid. Say so when it turns out to be the cause, because the alternative reading travels: a skill warning
+that "auto mode can refuse `transcrypt`" sends the next session to ask its user for a `Bash(transcrypt:*)`
+rule against an obstacle that was never there.
+
 ## A denial means the command did NOT run
 
 The check happens before execution. Nothing partial, nothing queued, no side effects.
