@@ -38,6 +38,12 @@ repo instead. It set a local `core.hooksPath` that switched off the signature an
 `commit.gpgsign=false` and a throwaway identity. Then it made an unsigned commit sweeping up every
 pending change. Its `git push origin master` failed only because the branch was `main`.
 
+When the artifact guards against something dangerous, forbid reviewers to *do* the dangerous thing
+and have them test the guard's decision instead. For a guard against printing a secret, each agent
+piped JSON payloads into the hook script and never ran a real config listing. Three later rounds of 33 to 36
+agents each ran with no incident, and a payload is also the only test that proves the decision
+rather than the environment it happened to run in.
+
 After any workflow whose agents ran git, check the reviewed repo before trusting it:
 `git status -sb`, `git reflog -3`, and `git config --local --get-regexp '^(core\.hookspath|user\.|commit\.gpgsign)'`.
 Ask for those keys by name, since a transcrypt repo's full config listing includes its passphrase.
@@ -122,6 +128,16 @@ reduce the count, the artifact changes shape rather than getting another pass.* 
 script there was prose telling an agent to read the two lists side by side — the matching was a
 judgement about whether two texts describe the same thing, which is why no rule over strings ever
 settled it, and why each fix traded one blind spot for another.
+
+Measured again 2026-09-28, on a PreToolUse guard reading Bash commands: 28 confirmed, then 29, while
+the command reader approximated the shell with a mask-and-split pass that every nesting (a `$( … )`
+inside double quotes, a heredoc inside that) broke in a new way. Replacing it with a tokenizer that
+follows bash's own rules removed that class in one change. The third round still confirmed 33, but
+their makeup had changed: 15 realistic ones on genuinely new surface, one of them outside Bash
+altogether (the Read tool), and 18 rated unlikely, all bash corner cases. That makeup is the signal
+to stop. A text guard over a Turing-complete shell is a net rather than a wall, so the long tail is
+its documented limits, and the structural fix was to take the secret out of reach, not another
+round.
 
 ## A falling count can still be the wrong work: have them rate realism
 
