@@ -548,6 +548,39 @@ Any command that signals "found nothing" through exit status is unsafe in the B 
 match), `diff` and `cmp` (1 = differs), `test`. Reach for `if`/`else` whenever B's failure is a
 legitimate outcome rather than an error.
 
+## Two per-line loops that report zero rather than failing
+
+A repo sweep counting crypt-marked files reported zero for repos that had them. Both constructs below
+produce an empty iteration, and an empty iteration is indistinguishable from an empty input — so the
+result reads as a measurement of "nothing here" rather than as a loop that never ran.
+
+**`printf '%s'` drops the last line.** With no trailing newline the final `read` returns non-zero and
+its body is skipped, so a one-item list iterates zero times:
+
+```sh
+list=$(printf 'one\ntwo\nthree')                                  # no trailing newline
+printf '%s' "$list"   | while IFS= read -r f; do echo "$f"; done  # one, two
+printf '%s\n' "$list" | while IFS= read -r f; do echo "$f"; done  # one, two, three
+```
+
+Measured 2026-09-29 on zsh 5.9 and bash 3.2.57; it is `read`'s behaviour, not a shell difference.
+Write `printf '%s\n'` every time — the extra newline on input that already ends in one costs an empty
+final `read`, which the loop skips anyway.
+
+**A missing `mapfile` leaves the array empty and the status clean.** The table above says to avoid it
+on macOS; what it does not say is the shape of the failure. The builtin's absence goes to stderr while
+the array stays empty, and the script's exit status belongs to whatever ran next:
+
+```
+$ /bin/bash -c 'mapfile -t arr < <(printf "a\nb\n"); echo "count=${#arr[@]}"'
+/bin/bash: mapfile: command not found
+count=0                                    # and the -c exits 0
+```
+
+Both are `~/.claude/memory/feedback_not_run_is_not_pass.md` in a shell loop. Print the per-item count
+beside each verdict: a sweep that reports a number per repo shows the zeroes, while one that reports
+only totals shows a plausible sum.
+
 ## `timeout` does not exist on macOS
 
 `timeout <n> <cmd>` is GNU coreutils. Linux and Git-Bash-on-Windows both have it; stock macOS has
