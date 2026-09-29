@@ -219,3 +219,4 @@
 - [Commit gate contents](feedback_commit_gate_contents.md) — a repo's commit gate runs its build, lint and tests where each exists; draft from what's there, invent no linter
 - [Rate realism before hardening](feedback_realism_before_hardening.md) {always} — a rare edge case a review found, harmless or cheap to handle by hand, is reported and gets a warning or a doc line, not code
 - [Date split memos from the pickaxe](feedback_memo_split_dates_from_pickaxe.md) — v1 Path A split: recover each [x] close date with the pickaxe and offer dated done/ names
+- [Re-measure before concluding](feedback_remeasure_before_concluding.md) — shared state other sessions are changing goes stale in minutes; re-measure in the turn that states the verdict
