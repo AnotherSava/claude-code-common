@@ -49,6 +49,11 @@ another path's attributes (`git hash-object --path=<other> <file>`) is not a con
 matching neither side, which reads as a difference that is not there. And renaming a tracked secret re-encrypts
 it wholesale, so the rename lands as a full-content change containing no content change at all.
 
+**Run the helper with the shell's cwd inside the repo being checked.** Transcrypt resolves its password with
+`git config`, so a helper started from another checkout silently uses *that* checkout's key. Measured 2026-09-28
+during a key rotation: a survey run from the dotfiles checkout reported four repos as mismatched, and the clean
+filter had returned empty output, hashing to the empty blob `e69de29`, instead of failing.
+
 Run that command under **bash**. The string `git config` hands back contains nested `""$(...)""` quoting, and
 zsh evaluates it differently — producing empty output and exit 0, the same silent, secret-free-looking result
 as the `%f` trap, for an unrelated reason. Two shells, one indistinguishable false pass.

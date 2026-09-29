@@ -71,6 +71,26 @@ works for `git status -z`, `git diff --name-only -z`, `git ls-tree -z`.
 spaces, so it is not enough on its own. Prefer `-z` whenever the output is parsed rather
 than shown to a human.
 
+## Feeding paths back in: text-mode stdin appends `\r` on Windows
+
+Hand paths to a `--stdin` command (`check-attr`, `check-ignore`) as bytes, NUL-separated, never
+through `text=True`. On Windows, Python's text-mode stdin writes every `\n` as `\r\n`, and git
+reads the `\r` as part of the path. Nothing fails. Each lookup quietly runs against a name that
+does not exist, and whether the answer changes depends on the pattern: a glob such as
+`*.secret.*` still matches `x.secret.md\r`, while an exact path such as `config/publish.env`
+never matches `config/publish.env\r`. Measured 2026-09-28: a survey of which repos hold
+transcrypt-encrypted files reported one repo as having none, when it held one encrypted by that
+exact path. Its own session caught the error before the wrong advice was acted on.
+
+    files = subprocess.run(["git", "ls-files", "-z"], capture_output=True).stdout
+    out = subprocess.run(["git", "check-attr", "-z", "--stdin", "filter"],
+                         input=files, capture_output=True).stdout.split(b"\0")
+    # -z output is path, attribute, value, repeated
+    crypt = [out[i] for i in range(0, len(out) - 2, 3) if out[i + 2] == b"crypt"]
+
+The tell, had anything been looking: `check-attr` echoes the path back quoted, with the `\r`
+visible, whenever a path carries one.
+
 ## Display tip
 
 When echoing porcelain back to a human, replace the X/Y spaces with a
