@@ -11,7 +11,7 @@ Audit modified files for dead code, duplication, naming conventions, and import 
 ## Context
 - Uncommitted changes: !`git status --short`
 - Diff summary: !`git diff --stat $(git rev-parse -q --verify HEAD || echo 4b825dc642cb6eb9a060e54bf8d69288fbee4904)`
-- Full diff: !`git diff $(git rev-parse -q --verify HEAD || echo 4b825dc642cb6eb9a060e54bf8d69288fbee4904)`
+- Full diff: !`git diff --no-textconv $(git rev-parse -q --verify HEAD || echo 4b825dc642cb6eb9a060e54bf8d69288fbee4904)`
 
 ## Process
 

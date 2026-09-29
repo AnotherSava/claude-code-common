@@ -14,7 +14,7 @@ Analyze progress logs and commits to produce a summary covering implementation, 
 - Unpushed commits: !`git log @{upstream}..HEAD --oneline 2>/dev/null || git log origin/main..HEAD --oneline`
 - Unpushed commit details: !`git log @{upstream}..HEAD --format="%h %s%n%b---" 2>/dev/null || git log origin/main..HEAD --format="%h %s%n%b---"`
 - Changed files: !`git diff @{upstream}..HEAD --stat 2>/dev/null || git diff origin/main..HEAD --stat`
-- Full diff: !`git diff @{upstream}..HEAD 2>/dev/null || git diff origin/main..HEAD`
+- Full diff: !`git diff --no-textconv @{upstream}..HEAD 2>/dev/null || git diff --no-textconv origin/main..HEAD`
 - Working tree status: !`git status --short`
 - Latest plan: !`R=$(git rev-parse --show-toplevel 2>/dev/null || pwd) && ls -t "$R/docs/plans/completed/" 2>/dev/null | head -1`
 - Progress logs: !`R=$(git rev-parse --show-toplevel 2>/dev/null || pwd) && ls -t "$R/.ralphex/progress/" 2>/dev/null | head -5`

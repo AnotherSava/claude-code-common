@@ -19,7 +19,7 @@ Read `~/.claude/skills/shared/bash-rules.md` for bash command constraints.
 - Remote ahead by: !`git fetch origin --quiet 2>/dev/null || true; git rev-list --count HEAD..@{upstream} 2>/dev/null || echo "n/a"`
 - Uncommitted changes: !`git status --short`
 - Diff summary: !`git diff --stat $(git rev-parse -q --verify HEAD || echo 4b825dc642cb6eb9a060e54bf8d69288fbee4904)`
-- Full diff: !`git diff $(git rev-parse -q --verify HEAD || echo 4b825dc642cb6eb9a060e54bf8d69288fbee4904)`
+- Full diff: !`git diff --no-textconv $(git rev-parse -q --verify HEAD || echo 4b825dc642cb6eb9a060e54bf8d69288fbee4904)`
 - Recent commits: !`git log --oneline -10 2>/dev/null || echo "(no commits yet)"`
 - Open issues: !`gh issue list --repo "$(git remote get-url origin 2>/dev/null | sed -E 's#^.*github\.com[:/]##; s#\.git$##; s#/$##')" --state open --limit 30 2>/dev/null || echo "n/a"`
 - Pending memos: !`python ~/.claude/skills/memo/memos.py list --width 120 2>&1 || echo "(the backlog could not be read — the line above says why; it is NOT an empty backlog)"`
