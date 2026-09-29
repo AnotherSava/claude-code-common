@@ -12,6 +12,8 @@ warning: in the working copy of 'file', CRLF will be replaced by LF the next tim
 
 This warning appears on every `git diff` or `git add` until the working copies are normalized.
 
+The same warning appears for a path with a clean filter whose working copy holds no CR at all. Git runs the filter first and warns about CRs in its output, still calling that the working copy, so normalizing the file on disk changes nothing. A transcrypt secret on Windows does this on every `git diff` and `git add`, because the mingw openssl writes CRLF base64: measured 2026-09-29, `git ls-files --eol` reported `w/lf` and the plaintext held 0 CRs while the filter's output held 35, one per base64 line. Under `text=auto eol=lf` the blob is stored LF regardless (see "Filters Run Before eol Normalization" below), so the warning needs no fix there. Read `w/` in `git ls-files --eol` before converting anything.
+
 ## Git Config Settings
 
 Two global settings control line-ending behavior:
