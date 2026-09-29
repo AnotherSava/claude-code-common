@@ -622,3 +622,39 @@ aborts on it, so a script that also runs from Linux or Git Bash breaks, whereas 
 ignored. And verify by **counting files at the destination**, not by reading the transfer's output — the
 litter is invisible to a sender that reports success, and `git status` on the receiving checkout is what
 surfaced it.
+
+## `grep` and `/usr/bin/grep` can be different programs with opposite defaults
+
+A search for non-text bytes answers "no match" on a file that provably contains them — exit 1, nothing on
+stderr. The `A && B || C` idiom above then reports a constant rather than a measurement, and which constant
+depends on which `grep` the shell resolved.
+
+Measured 2026-09-29 on this Mac against 64 bytes of `/dev/urandom` that contain bytes in `0x00`–`0x08` and
+fail a UTF-8 decode:
+
+| on that file | `grep` (ugrep 7.8.4) | `/usr/bin/grep` (BSD grep 2.6.0-FreeBSD) |
+|---|---|---|
+| `-q '[^[:print:][:space:]]'` | exit 1 — no match | exit 0 — match |
+| same plus `-a` | exit 0 — match | exit 0 — match |
+| `-P` | supported, via PCRE2 | `invalid option -- P`, exit 2 |
+
+**Pass `-a` (or `--binary-files=text`) whenever the pattern can only match in a file grep would call
+binary.** ugrep skips those files by default, so a detector aimed at non-text content declines to read
+exactly the files it exists for. BSD grep does not skip them, so the same script is right on one and wrong
+on the other with no diagnostic either way.
+
+**Do not reach for `-P` in anything that runs on more than one machine.** It works wherever ugrep shadows
+the system grep and exits 2 on a stock one, and under `2>/dev/null` that exit is silent and falls into the
+`|| C` branch — the check then reports its else-answer with nothing on stderr to contradict it.
+
+Where the question is "is this file text", ask it directly instead of through a pattern:
+
+```bash
+python3 -c 'import sys,pathlib
+try: pathlib.Path(sys.argv[1]).read_bytes().decode("utf-8"); print("text")
+except UnicodeDecodeError: print("binary")' "$f"
+```
+
+The case: a guard that had to prove two files held no recoverable plaintext before a credential flush
+overwrote them. It reported both as readable text while they were stale-key garbage. It failed towards
+caution that time, and the same construct fails the other way whenever the safe branch is the `&&` one.
