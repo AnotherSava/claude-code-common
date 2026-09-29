@@ -84,3 +84,21 @@ the token saving as a tiebreaker.
 
 There is no middle setting. "Claude may invoke it only when explicitly asked" does not exist — the
 fields are binary, so the choice is between an agent that can never run it and one that may decide to.
+
+## A skill fix reaches sessions only when the dotfiles tree is pulled
+
+Every global skill under `~/.claude/skills/` is a symlink into the dotfiles checkout, so the body a
+session loads is whatever that working tree holds — in every project, not only in the dotfiles repo. A
+fix pushed from the other machine therefore changes nothing here until somebody pulls, and the stale
+version does not announce itself: the skill runs, prints its usual output, and reproduces the bug.
+
+Measured 2026-09-29. Commit `da523f6` put `--no-textconv` on the Context diff line of `commit`,
+`clean-code`, `docs-relevance` and `pr-prepare`, stopping a `diff=crypt` textconv from printing
+transcrypt files as plaintext into the transcript. A session in another repo hit that leak the same
+day with the fix already on origin, because this machine's checkout was still at `3ff6f81`.
+
+Nothing at session start measures it. The `SessionStart` hooks check that the symlinks exist and that
+the repo's convention number is current; neither fetches, so a tree weeks behind origin reports as
+healthy. The check that would catch it is the one in `CLAUDE.md`'s Git Workflow — `git fetch` then
+`git log --oneline HEAD..@{upstream}` — run **in the dotfiles repo**, which a session working anywhere
+else has no reason to open.
