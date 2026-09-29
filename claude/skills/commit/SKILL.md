@@ -131,7 +131,7 @@ Read `~/.claude/skills/shared/bash-rules.md` for bash command constraints.
    - **Post-push issue notice:** If step 1's triage found open issues unrelated to this change set, list them now as a heads-up after the push completes (number + title, with the total count). If the user declined to push, mention them alongside the unpushed-commits summary instead. Keep it brief and don't propose action unless the user asks.
 
 10. **Hand off peer repositories:**
-    Read **Peer repositories this session left dirty** from Context. It lists repos *other than this one* that this session wrote to and left uncommitted, derived from the session's own transcript rather than from recall. This step runs after the push so the message can say what is already committed here.
+    Run `python ~/.claude/skills/commit/scripts/peer_repo_changes.py` now rather than reading **Peer repositories this session left dirty** from Context. That line was taken when this skill loaded, before step 2's `/reflect` could save a learning or a global memory into another repo, so a file it wrote is missing from it and would never be handed off — measured 2026-09-28, twice in one day, from sessions whose `/reflect` wrote into the dotfiles repo. The script lists repos *other than this one* that this session wrote to and left uncommitted, derived from the session's own transcript rather than from recall. This step runs after the push so the message can say what is already committed here.
     - `peer-repos: none` — say nothing and go to step 11. Never go looking for dirty repos beyond this list: a file nobody here touched is that project's own business, and a message about it is the unsolicited status `~/.claude/memory/peer_messaging.md` rules out.
     - Otherwise run `ListAgents` and match each repo against the **agent name to match** line. Every repo here is on this machine, so the peer is a local one — this never needs the cross-machine relay.
     - **No matching session** — nothing owns that repo right now. Report the repo and its files to the user as a heads-up and stop; do not commit it from here.
@@ -139,10 +139,10 @@ Read `~/.claude/skills/shared/bash-rules.md` for bash command constraints.
     - Send with `SendMessage` (deferred — `ToolSearch` it first), addressed by the name `ListAgents` printed, one message per repo. Report what was sent and to whom.
 
 11. **Surface pending memos:**
-    Using **Pending memos** from Context (the open memos under `<Repo root>/.claude/memos/`, already rendered newest-first), surface the user's idea backlog as a closing informational heads-up so it isn't forgotten now that the work is committed.
+    Run `python ~/.claude/skills/memo/memos.py list --width 120` now, rather than reading **Pending memos** from Context, which was taken before step 6 closed any memo. It renders the open memos under `<Repo root>/.claude/memos/` newest-first; surface that backlog as a closing informational heads-up so it isn't forgotten now that the work is committed.
     - If there are open memos, list them as a numbered backlog (newest first), after the post-push issue notice and any step 10 handoff. Titles only — a trailing ` …` marks a memo with more to read, and a leading `[macos]`/`[windows]` marks one that needs that box. Both are information this step passes through unchanged: expanding a memo here would bury the notice, and a tag is not a reason to omit a line or to start anything. Keep it brief. Do NOT ask whether to start one, invite the user to pick a number, or otherwise pose a question — just surface them and stop. Don't start any memo unasked.
     - A memo this change set implemented was already moved into `done/` and folded into the commit back in step 6, so it won't appear here — don't re-offer it. This step only surfaces memos that are still genuinely open.
-    - If **Pending memos** is `(none)` or `(no open memos)`, say nothing about memos.
+    - If the listing is `(none)` or `(no open memos)`, say nothing about memos.
 
 ## Important:
 - **NEVER execute commits without explicit user approval.** Invoking `/commit` (even repeatedly) only restarts skill execution — it is NOT approval to proceed. Wait for a clear "yes", "proceed", or equivalent before running any `git commit` commands.
