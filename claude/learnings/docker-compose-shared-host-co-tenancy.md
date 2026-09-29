@@ -146,6 +146,15 @@ docker rm -f <container>            # the old container belongs to the now-renam
 docker compose up -d --no-deps <new-service-name>
 ```
 
+**The `rm` has to come first when the old service had no `container_name`.** A rename that gives a service the
+name its container already carried makes the next `up` abort on `Conflict. The container name … is already in
+use`, which is safe. A service that never set `container_name` ran as the derived `<project>-<service>-1`, which
+the renamed service does not reuse, so nothing conflicts: a plain `docker compose up -d` — which is what the
+shared publish script runs — starts the renamed service beside the old container and only warns about orphans.
+The old one keeps running, still answering to its old aliases. For a database service that means two servers
+opening the same named volume, since the volume is keyed by the project and not the service. Remove every old
+container before the first `up` after the rename, or make that one `up -d --remove-orphans`.
+
 **Do that recreate immediately, because until it happens the OLD name still resolves.** A running container
 keeps the aliases it was created with; editing the compose file changes what the *next* container answers to
 and nothing about the one already up. So every consumer still dialing the old name keeps working, the rename

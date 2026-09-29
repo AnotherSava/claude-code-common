@@ -68,7 +68,12 @@ Afterwards:
   wherever `container_name` was set before — compose reads that container as an orphan of the old
   service and refuses to reuse the name, and the publish aborts on `Conflict. The container name
   "/<name>" is already in use`. That abort is safe: compose stops before starting anything, so the
-  stack goes on serving what it was serving. Recreating the one service rather than the whole stack
+  stack goes on serving what it was serving. **A service that never set `container_name` has no such
+  stop, so for it the removal is the only protection.** Its container runs as the derived
+  `<project>-<service>-1`, which the renamed service does not reuse, so a plain `docker compose up -d`
+  — what the shared publish script runs — starts the renamed service beside the old container and
+  only warns about orphans. For a database that means two servers opening one named volume. Remove
+  every old container first, or make that one `up -d --remove-orphans`. Recreating the one service rather than the whole stack
   also keeps one-shot siblings like a migration step from re-running. Volumes are named after the
   compose *project*, so renaming a service keeps the data — renaming the project does not, and that
   is a different and unsafe edit.
