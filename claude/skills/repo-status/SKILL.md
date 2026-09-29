@@ -69,7 +69,10 @@ Four things follow from that shape:
   them), the age of the oldest pending work, and the convention gap. A machine that was not
   reached says so with its error; one with no clone says `no clone here`.
 - **Unknown is distinguished from zero.** `gh` failing to answer prints `open issues unknown`
-  in the title rather than nothing, which would assert a zero nobody checked.
+  in the title rather than nothing, which would assert a zero nobody checked. A failed `git
+  fetch` is the same case and says `fetch failed (remote unmeasured)` in place of the inbound
+  count: the tracking ref was never updated, so the `0` it would have printed is the answer a
+  current clone gives and says nothing about the remote.
 - **Nothing is written but the terminal** — no HTML for one repo. The only file is a state
   file under the repo's own name, which `--report` reads; `--html` is refused, not ignored.
 

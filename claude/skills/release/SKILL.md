@@ -15,13 +15,16 @@ Tag the current `main` commit as `vX.Y.Z` and let the project's CI workflow buil
 Both counts below carry their own `git fetch`, and the repetition is deliberate: `!` lines are not
 evaluated in the order they are written, so a standalone fetch line guarantees nothing to the lines
 under it, and a stale `0` here is what clears a release that should stop. A second fetch of the same
-ref is a no-op. See `~/.claude/learnings/skill-context-evaluator.md`.
+ref is a no-op. A fetch that fails prints `FETCH-FAILED` ahead of its count, and the count is then
+against a ref nothing updated: stop and re-fetch rather than releasing on it, because the `0` it
+produces is indistinguishable from the `0` that means current. See
+`~/.claude/learnings/skill-context-evaluator.md`.
 
 - Repo root: !`git rev-parse --show-toplevel 2>/dev/null || pwd`
 - Working tree clean?: !`git status --porcelain`
 - Current branch: !`git branch --show-current`
-- Unmerged remote commits: !`git fetch origin main 2>/dev/null || true; git rev-list HEAD..origin/main --count 2>/dev/null || echo 0`
-- Unpushed local commits: !`git fetch origin main 2>/dev/null || true; git rev-list origin/main..HEAD --count 2>/dev/null || echo 0`
+- Unmerged remote commits: !`git fetch origin main 2>/dev/null || echo FETCH-FAILED; git rev-list HEAD..origin/main --count 2>/dev/null || echo 0`
+- Unpushed local commits: !`git fetch origin main 2>/dev/null || echo FETCH-FAILED; git rev-list origin/main..HEAD --count 2>/dev/null || echo 0`
 - Latest tag: !`git describe --tags --abbrev=0 2>/dev/null || echo "(none)"`
 - Repo: !`gh repo view --json nameWithOwner --jq .nameWithOwner 2>/dev/null || echo unknown`
 
@@ -61,7 +64,7 @@ Run **all** of these checks (do not skip any) and **stop with an error** if any 
 Universal:
 - Working tree must be clean (**Working tree clean?** empty)
 - Must be on `main` (**Current branch** = `main`)
-- Local main must be in sync with remote (**Unmerged remote commits** = 0 AND **Unpushed local commits** = 0)
+- Local main must be in sync with remote (**Unmerged remote commits** = 0 AND **Unpushed local commits** = 0), and neither may carry `FETCH-FAILED` — a zero under that marker is unmeasured, not in sync
 
 Stack-specific:
 - **Chrome extension**: **Manifest version** must equal **Package version**

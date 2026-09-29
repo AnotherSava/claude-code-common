@@ -299,8 +299,15 @@ def find_repos(root: Path, depth: int) -> list[Path]:
     return repos
 
 
-def fetch_one(repo: Path) -> None:
-    """Run `git fetch --quiet` in one repo. Swallow failures (offline, dead remote, stalled).
+def fetch_one(repo: Path) -> bool:
+    """Run `git fetch --quiet` in one repo. Return whether it succeeded.
+
+    A failure here does not abort the scan (offline, dead remote, stalled), but it
+    is reported rather than swallowed: every count this scan draws from
+    `@{upstream}` afterwards is against a remote-tracking ref nothing updated, and
+    a frozen ref yields `behind: 0` — arithmetically true, and identical to the
+    answer a current clone gives. One such scan described a repo as it had stood
+    twelve days and 29 commits earlier.
 
     The timeout has to be caught, not just set: subprocess.run *raises*
     TimeoutExpired rather than returning non-zero, and one stalled remote out of
@@ -309,16 +316,18 @@ def fetch_one(repo: Path) -> None:
     read.
     """
     try:
-        subprocess.run(["git", "-C", str(repo), "fetch", "--quiet"], capture_output=True, timeout=30)
+        proc = subprocess.run(["git", "-C", str(repo), "fetch", "--quiet"], capture_output=True, timeout=30)
+        return proc.returncode == 0
     except (OSError, subprocess.SubprocessError):
-        pass
+        return False
 
 
-def fetch_all(repos: list[Path]) -> None:
+def fetch_all(repos: list[Path]) -> set[Path]:
+    """Fetch every repo in parallel. Return the ones whose fetch failed."""
     if not repos:
-        return
+        return set()
     with ThreadPoolExecutor(max_workers=min(16, len(repos))) as ex:
-        list(ex.map(fetch_one, repos))
+        return {repo for repo, ok in zip(repos, ex.map(fetch_one, repos)) if not ok}
 
 
 def pull_one(repo: Path) -> bool:
@@ -556,6 +565,10 @@ class RepoState:
     # Defaulted, like `conventions` below, so a state file written before this field existed still
     # loads under `--report`; an empty digest never matches a cached one, so it re-describes.
     work_digest: str = ""
+    # Whether this clone's `git fetch` failed. `behind` is then counted against a ref nothing
+    # updated, so it is unmeasured rather than zero, and the report says `?` instead of a number.
+    # Defaulted like the fields below it, so an older state file still loads under `--report`.
+    fetch_failed: bool = False
     # The description that clone's own machine already holds for exactly this digest, looked up there
     # during the scan and empty when it holds none. Resolved on the machine that owns the clone, so a
     # repo only the peer has still arrives described — it rides back inside the snapshot like every
@@ -569,8 +582,13 @@ class RepoState:
     @property
     def has_work(self) -> bool:
         """Anything git has to report about this clone — what puts it in the table.
+
+        A failed fetch counts, and it is the one term here that is not work: without it a clone
+        whose fetch died and whose tree is clean drops out of the table entirely, which reads as
+        up to date — the same lie the `?` in its REMOTE cell exists to prevent.
+
         Deliberately excludes the convention gap, which the table asks about separately."""
-        return bool(self.uncommitted or self.unpushed or self.behind)
+        return bool(self.uncommitted or self.unpushed or self.behind or self.fetch_failed)
 
     @property
     def has_own_work(self) -> bool:
@@ -764,10 +782,15 @@ def scan_machine(name: str, projects_root: Path, github_user: str, depth: int) -
     """Fetch, read, auto-pull and issue-count every owned repo on this machine."""
     owned = discover_owned(projects_root, github_user, depth)
     print(f"[{name}] fetching {len(owned)} repos...", file=sys.stderr)
-    fetch_all([repo for repo, _, _ in owned])
+    stale = fetch_all([repo for repo, _, _ in owned])
+    if stale:
+        print(f"[{name}] fetch failed in {len(stale)} repo(s); their remote counts are unmeasured",
+              file=sys.stderr)
 
     states = {slug: collect_state(repo, rel) for repo, rel, slug in owned}
     by_slug = {slug: repo for repo, _, slug in owned}
+    for repo, _, slug in owned:
+        states[slug].fetch_failed = repo in stale
 
     # Each machine answers for its own clones, so the digest is compared here, where it was
     # computed, rather than by whoever collates the two. A repo the peer alone has therefore
@@ -1066,7 +1089,9 @@ def build_groups(rows: list[RepoRow], reached: list[str]) -> list[DisplayGroup]:
                 cells["branch"] = state.branch
             if state.unpushed:
                 cells["unpushed"] = str(state.unpushed)
-            if state.behind:
+            if state.fetch_failed:
+                cells["remote"] = "?"
+            elif state.behind:
                 cells["remote"] = f"{state.behind} ✓" if state.pulled else str(state.behind)
             cells["local"] = format_local(state.uncommitted, state.lines_added, state.lines_deleted)
             if state.oldest_epoch:
@@ -1371,7 +1396,9 @@ def metric_html(state: RepoState, now: float) -> str:
         parts.append(f'<span class="m">on <b>{esc(state.branch)}</b></span>')
     if state.unpushed:
         parts.append(f'<span class="m"><b>{state.unpushed}</b> ahead</span>')
-    if state.behind:
+    if state.fetch_failed:
+        parts.append('<span class="m">fetch failed — <b>remote unmeasured</b></span>')
+    elif state.behind:
         parts.append(f'<span class="m"><b>{state.behind}</b> {"pulled" if state.pulled else "behind"}</span>')
     if state.uncommitted:
         lines = ""
@@ -1756,7 +1783,9 @@ def machine_facts(state: RepoState) -> list[str]:
         facts.append(f"{state.uncommitted} uncommitted" + (f" ({lines})" if lines else ""))
     if state.unpushed:
         facts.append(f"{state.unpushed} unpushed")
-    if state.behind:
+    if state.fetch_failed:
+        facts.append("fetch failed (remote unmeasured)")
+    elif state.behind:
         facts.append(f"{state.behind} inbound{' (pulled)' if state.pulled else ''}")
     if state.oldest_epoch:
         facts.append(f"oldest {compact_age(time.time() - state.oldest_epoch)} ago")

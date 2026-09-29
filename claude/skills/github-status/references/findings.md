@@ -118,9 +118,13 @@ fetches origin per repo in parallel before reading, so both reflect the current 
 
 Branches with no upstream report zero for both and appear only if they have uncommitted changes.
 
-If the network is down or a remote is dead, fetches fail silently and the displayed counts fall back
-to whatever the local tracking refs already knew. No error is surfaced — the script always exits 0 on
-fetch failure, since one bad remote shouldn't kill the report.
+If the network is down or a remote is dead, the fetch fails and the script still exits 0 — one bad
+remote shouldn't kill the report. What it does not do is let the failure pass for an answer: that
+clone's `fetch_failed` is set, its REMOTE cell reads `?`, and `has_work` counts it so the repo stays
+in the table even with a clean tree. Falling back to whatever the tracking ref already knew is the
+trap, because a frozen ref counts `behind: 0` — arithmetically true, and identical to the answer a
+current clone gives. One scan built on that shape reported a repo as it had stood 29 commits and
+twelve days earlier, and only a direct object test disproved it.
 
 `behind` is deliberately **not** zeroed after an auto-pull. The pre-pull count is what the ✓ marker
 annotates, so the run that pulls four commits says "4 pulled" rather than showing nothing where four

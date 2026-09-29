@@ -91,7 +91,9 @@ Output has three parts:
    - **BRANCH** shows only for a machine on something other than `main`/`master`.
    - **UNPUSHED** — commits in `@{upstream}..HEAD`.
    - **REMOTE** — commits in `HEAD..@{upstream}`. A trailing `✓` (e.g. `4 ✓`) means the script
-     auto-pulled them; the count shown is the pre-pull one. Auto-pull runs on **both** machines, only
+     auto-pulled them; the count shown is the pre-pull one. A `?` means that clone's fetch failed,
+     so the count would have been against a tracking ref nothing updated — unmeasured rather than
+     zero, and the repo is kept in the table on that alone. Auto-pull runs on **both** machines, only
      where that clone has no uncommitted changes, and `--ff-only` means a diverged branch fails safe
      and keeps its count without the `✓`.
    - **LOCAL** — `N (+A/-D)`, the porcelain entry count with the line-level diff. Either side of
@@ -241,8 +243,10 @@ paste the detail sections at all.
 - **Hard exclusions**: `notion` and `claude-mermaid-fix`. To change the list, edit the `EXCLUDED` set
   at the top of `scripts/repos-status.py`.
 - **Fetches every run, on both machines.** `git fetch --quiet` per repo in parallel (max 16 workers,
-  30s timeout each). Failures are swallowed — a dead remote or an offline machine just means the
-  displayed counts fall back to whatever the local tracking refs already knew.
+  30s timeout each). A failure does not abort the scan, but it is never silent: that clone's REMOTE
+  cell reads `?` rather than a count taken from a tracking ref nothing updated, and the run prints
+  how many repos it happened in. A frozen ref answers `behind: 0`, which is indistinguishable from a
+  clone that is genuinely current — one such scan reported a repo as it had stood 29 commits earlier.
 - **Auto-pulls clean repos on both machines.** After collecting state, `git pull --ff-only --quiet`
   runs in parallel for every repo that is behind and has no uncommitted changes. `--ff-only`
   guarantees no merge commits — a diverged branch fails safely and stays unpulled.
