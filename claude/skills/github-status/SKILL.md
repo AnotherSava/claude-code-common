@@ -250,6 +250,10 @@ paste the detail sections at all.
 - **Auto-pulls clean repos on both machines.** After collecting state, `git pull --ff-only --quiet`
   runs in parallel for every repo that is behind and has no uncommitted changes. `--ff-only`
   guarantees no merge commits — a diverged branch fails safely and stays unpulled.
+- **Refuses an argument it does not recognise**, exiting 2 with the usage list, and `--help` prints
+  that list without scanning. Because the no-argument run is the full scan above, a lenient parser
+  turns any typo or guessed flag into a two-machine fetch-and-pull nobody asked for — which is what
+  probing this script for `--help` used to do.
 - **The report is one full-width block per project, machines side by side in a column each.** The
   machine is named once, in a sticky column header that also carries its OS, projects root, repo count
   and scan age — so the page header holds no machine cards and the columns stay labelled as a long

@@ -1652,6 +1652,44 @@ def config_value(config: Path, key: str) -> str | None:
     return None
 
 
+# Every flag main() reads. A run with no flags at all is the fleet scan, and that scan fetches
+# every repo on both machines and fast-forwards the clean ones — so an argument this script does
+# not understand must stop it rather than fall through to that default. It used to fall through:
+# `--help` is not handled anywhere below, and probing for it performed a full two-machine scan
+# with its pulls. A typo or a guessed `--dry-run` did the same, silently.
+KNOWN_FLAGS = {
+    "--cache": "directory holding the description cache",
+    "--descriptions": "file to read descriptions from, instead of stdin (with --report)",
+    "--html": "where to write the fleet report (refused with --repo)",
+    "--json": "peer mode: scan this machine and print the snapshot to stdout",
+    "--no-cache": "ignore cached descriptions and re-resolve them on both machines",
+    "--no-serve": "write the report but do not publish it on the tailnet",
+    "--repo": "scope the scan to one repo, by path or OWNER/REPO",
+    "--report": "re-read the last scan's state file instead of scanning again",
+    "--state": "where to read or write the scan's state file",
+    "--width": "render at this terminal width",
+}
+
+
+def print_usage() -> None:
+    print("usage: repos-status.py [options]\n\nWith no options, scans every owned repo on this "
+          "machine and its peer, fetching each one and fast-forwarding the clean ones.\n")
+    for flag, blurb in sorted(KNOWN_FLAGS.items()):
+        print(f"  {flag:<16} {blurb}")
+
+
+def reject_unknown_flags(argv: list[str]) -> str | None:
+    """Return the first argument that looks like a flag and is not one. None when all are known.
+
+    Only tokens starting with `-` are judged: a value always follows its own flag, and
+    `flag_value` already refuses to read one that starts with `-`.
+    """
+    for arg in argv:
+        if arg.startswith("-") and arg not in KNOWN_FLAGS:
+            return arg
+    return None
+
+
 def flag_value(argv: list[str], name: str) -> str | None:
     if name in argv:
         i = argv.index(name)
@@ -2331,6 +2369,15 @@ def main() -> int:
             stream.reconfigure(encoding="utf-8")
 
     argv = sys.argv[1:]
+
+    if "--help" in argv or "-h" in argv:
+        print_usage()
+        return 0
+    if unknown := reject_unknown_flags(argv):
+        print(f"ERROR: unknown option {unknown}", file=sys.stderr)
+        print_usage()
+        return 2
+
     config = config_file()
 
     # Explicit width: `--width N` overrides detection/config for this run (the
