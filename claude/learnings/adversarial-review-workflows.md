@@ -25,6 +25,23 @@ Two things make the round land better:
   as guilty until proven innocent. Round four of that feature was scoped as an audit *of the
   fixes* rather than a fresh sweep, and it was the first to return no blocking findings.
 
+## Give each agent its own scratch directory, and name the repo in every git command
+
+Read-only does not hold once agents run experiments. Give every agent a scratch path of its own,
+built from its label or index rather than shared by a dimension; forbid `rm -rf` outside it; and
+require `git -C <absolute path>` instead of `cd`. Each Bash call starts in the reviewed repo, so a
+`cd` that fails leaves every command after it running there.
+
+Measured 2026-09-28: the verifiers of one dimension shared a scratch root, and one deleted it while
+a sibling was mid-test. The sibling's next `cd` failed, and its scratch commands ran in the reviewed
+repo instead. It set a local `core.hooksPath` that switched off the signature and attribution gate,
+`commit.gpgsign=false` and a throwaway identity. Then it made an unsigned commit sweeping up every
+pending change. Its `git push origin master` failed only because the branch was `main`.
+
+After any workflow whose agents ran git, check the reviewed repo before trusting it:
+`git status -sb`, `git reflog -3`, and `git config --local --get-regexp '^(core\.hookspath|user\.|commit\.gpgsign)'`.
+Ask for those keys by name, since a transcrypt repo's full config listing includes its passphrase.
+
 ## Never gate the verify stage on the finder's own severity rating
 
 The bug that cost the most:
