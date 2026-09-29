@@ -170,6 +170,40 @@ path you typed. Two different failures follow, and neither says "your glob was w
 Quote the path (`'…/[slug]/page.tsx'`) or escape the brackets. Worth a habit: any path
 with `[`, `?` or `*` in it gets single-quoted, even when it looks literal.
 
+**A colon after a parameter starts a zsh history modifier**, so `"$rev:$path"` — the shape
+of every git rev spec — expands to a different string. bash passes the colon through:
+
+```sh
+REV=HEAD
+"$REV:config/x"     # bash: HEAD:config/x   zsh: /usr/bin/HEADonfig/x
+"$REV:tests/x"      # bash: HEAD:tests/x    zsh: HEADests/x
+"${REV}:config/x"   # both: HEAD:config/x
+```
+
+The modifier is the path's first letter, so the directory you name decides whether the line
+works. Measured 2026-09-29 on zsh 5.9 with `REV=HEAD`:
+
+| first segment | modifier | zsh produces |
+| --- | --- | --- |
+| `config/` | `:c` command path | `/usr/bin/HEADonfig/x` |
+| `app/`, `assets/` | `:a` absolute path | cwd + `/HEADpp/x` |
+| `hooks/` | `:h` dirname | `.ooks/x` |
+| `lib/` | `:l` lowercase | `headib/x` |
+| `tests/` | `:t` basename | `HEADests/x` |
+| `utils/` | `:u` uppercase | `HEADtils/x` |
+| `e2e/` | `:e` extension | `2e/x` |
+| `src/`, `scripts/` | `:s` substitute | `bad substitution` |
+| `docs/`, `README.md` | none | the string you typed |
+
+Only `:s` errors. The rest yield a rev spec naming nothing, so `git cat-file -p` writes
+`Not a valid object name` to stderr and exits non-zero — and a pipeline reports its *last*
+command's status, so whatever reads the output fails on empty input and that failure is what
+`&&` and `||` see. A key-rotation check written this way reported that a file would not
+decrypt under a key that opens it; the sweep which contradicted it happened to spell `HEAD:`
+literally, with no parameter before the colon.
+
+Brace the parameter in every rev spec — `"${REV}:${F}"` — or run the block under bash.
+
 **`case … ) ;;` inside `$( … )` is a parse error in bash** (not in zsh):
 
 ```sh
