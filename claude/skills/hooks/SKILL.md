@@ -194,6 +194,15 @@ dated line here rather than leaving it in a session transcript.
   live with `secret-print-guard.py`: `"Bash(git *config*)"` fired on `cd <dir> && git config --local
   --list; echo after`, and `"Bash(*.git/config*)"` on `echo start; grep -n password <dir>/.git/config`.
   A guard need not be gated on whatever command a compound happens to start with.
+- **2026-09-29** — `if` patterns cannot see a heredoc, neither its body nor its `<<` operator. Measured
+  live: `"Bash(*doppler*)"` fired on `echo doppler` but not on `bash <<'EOF'` whose body alone said
+  `doppler`. `"Bash(*<<*)"` never fired on a heredoc command, while the same guard's `*config*` filter
+  refused the plain listing. So a guard that has to judge scripts fed to `bash` or `ssh` on a
+  heredoc must be registered without `if`, and pays an interpreter start on every call of that tool.
+- **2026-09-29** — Auto mode can refuse an edit to a `hooks` entry in `settings.json` as
+  Self-Modification, and not consistently. Of two near-identical additions of an `if` entry, made in
+  the same turn, one was denied and one went through. Treat a denial as the user's decision to make,
+  not something to retry through another route, and say which registration change is still pending.
 - **2026-09-28** — A guard on Bash text does not cover the other routes to the same content. The
   Read tool printed `.git/config` with the Bash guard in place, until a `^Read$` entry with
   `"if": "Read(//**/.git/config)"` refused it. A skill's `!` Context command runs when the skill

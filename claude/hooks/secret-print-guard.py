@@ -34,6 +34,10 @@ What it cannot see:
   `.git/config` among everything else without naming it (the Grep tool skips `.git`);
 - a relative path from inside the git dir (`cd .git && cat config`), and a script piped into a
   shell (`… | bash`);
+- a script fed on a heredoc, such as `bash <<'EOF'` or `ssh host <<'EOF'` wrapping a listing,
+  unless the command line itself also matches a filter. The `if` patterns see neither a heredoc
+  body nor its `<<`: measured 2026-09-29, `Bash(*<<*)` never fired on one. So the heredoc handling
+  below runs only when some other part of the command started the guard;
 - bash constructs `_shell` reads as plain words — arithmetic contents, `case` patterns inside a
   substitution, `${ … }` operators, escaped nested backticks;
 - a skill's `!` Context command, which runs when the skill loads, before any hook; the commit gate
@@ -42,8 +46,8 @@ For those the memory is the only guard.
 
 Registered in settings.json on `^Bash$` behind `if` filters for `*config*`, `*transcrypt*`,
 `*var -l*` and `*var --list*`, and on `^Read$` behind `Read(//**/.git/config)`; a call that
-matches none starts no process. The filters fail open on commands the harness cannot decompose,
-so the command text is re-read here rather than trusted.
+matches none starts no process. The filters fail open on commands the harness cannot decompose
+and never see a heredoc body, so the command text is re-read here rather than trusted.
 """
 
 from __future__ import annotations

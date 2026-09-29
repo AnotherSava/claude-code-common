@@ -19,6 +19,10 @@ matcher scopes by tool *name* only, so the argument-level filtering happens belo
 any Bash command, or Write/Edit content/path, that mentions Doppler *anywhere*
 matches (not just a leading `doppler ...` verb). Silent (exit 0, no output) when
 Doppler isn't involved.
+
+It carries no `if` filter, at the cost of one interpreter start per Bash call. An `if` pattern sees
+neither a heredoc body nor its `<<` operator (measured 2026-09-29), so `Bash(*doppler*)` would never
+start this guard for a `doppler secrets set` inside `ssh host <<'EOF'`, which it refuses below.
 """
 import json
 import re
