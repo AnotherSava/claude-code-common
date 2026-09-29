@@ -207,7 +207,10 @@ git rev-parse HEAD:<path>    # committed — differs iff there is real ciphertex
 **3. Any `git reset HEAD` throws the staging away.** Several flows unstage everything early as a hygiene step,
 and that silently undoes what rekey staged — leaving a tree that looks clean while the repo still holds
 old-key ciphertext. Recovery is a plain `git add <path>`, because the *key* change persists in `.git/config`
-even though the index was reset, so the clean filter re-encrypts under the new credentials.
+even though the index was reset, so the clean filter re-encrypts under the new credentials. On Windows with
+git 2.39, a scratch repo measured the same day did not look clean: `git status` listed each file as ` M` after
+the reset, with or without a pause first. A signal that differs by machine is no signal at all, so compare the
+blobs as in point 2 rather than reading the status either way.
 
 That recovery is safe rather than lucky, and the reason is worth stating: transcrypt derives each file's salt
 by HMAC over `<filename>:<password>` and the content, so the ciphertext is **deterministic**. Re-adding an

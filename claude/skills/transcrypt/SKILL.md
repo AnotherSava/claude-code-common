@@ -2,10 +2,10 @@
 name: transcrypt
 description: >-
   Encrypt files in a git repo with transcrypt using the shared Doppler-stored passphrase, or unlock
-  (decrypt) an already-encrypted repo after a fresh clone. Designated files stay plaintext in the working
-  tree but are stored encrypted in git history.
+  (decrypt) an already-encrypted repo after a fresh clone, or rotate the shared passphrase across repos.
+  Designated files stay plaintext in the working tree but are stored encrypted in git history.
   TRIGGER when: the user wants to commit a file encrypted, protect a sensitive committed doc, set up
-  transcrypt in a repo, or decrypt/unlock secret files after cloning.
+  transcrypt in a repo, decrypt/unlock secret files after cloning, or rotate/rekey the shared key.
   DO NOT TRIGGER when: the secret is an env-style credential (API key, token, password) that belongs in
   Doppler/`.env`, not a committed file.
 allowed-tools: Bash(command -v transcrypt:*), Bash(transcrypt:*), Bash(curl:*), Bash(chmod:*), Bash(hash:*), Bash(git:*), Bash(doppler secrets get:*), Bash(mv:*), Bash(test:*), Bash(grep:*), Bash(printf:*), Bash(head:*), Read, Write, Edit
@@ -131,6 +131,8 @@ From Context and the user's request:
 - **Unlock after clone** — **encrypt attribute** shows `crypt` but **this repo's transcrypt config** is
   `NOT-CONFIGURED` (secret files read as ciphertext locally) → do **B**.
 - **Setup only** — the user wants transcrypt ready with no file yet → run A step 1, then stop.
+- **Rotate the key** — the shared passphrase leaked or must change, or a rotation is under way and this
+  repo has not followed it yet → do **C**.
 
 ## A — Encrypt a file
 
@@ -186,10 +188,81 @@ Secret files read as ciphertext because transcrypt isn't configured on this mach
 sequence above; transcrypt decrypts every `*.secret.*` file in place. Confirm with
 `head -1 <a .secret file>` (readable plaintext).
 
+## C — Rotate the key
+
+One passphrase encrypts every repo, so a rotation reaches all of them. The new key is generated once. Then, in each
+repo holding encrypted files, exactly one clone rekeys and pushes, and every other clone of that repo follows the
+rekey rather than repeating it. Blobs already in history stay encrypted under the old key. A rotation protects what
+is committed from then on, and anyone holding the old key can still read what history holds.
+
+1. **Find a set-up clone of every repo first.** A rekey decrypts with the current key, so it runs only in a clone
+   that already has it. A fresh clone, or a flushed one, cannot rekey. Each set-up clone keeps its own copy of the
+   key in `.git/config`, so the old key survives there after Doppler moves on. In a set-up clone, `transcrypt --list`
+   names the repo's encrypted files. A repo that is set up but holds none needs no rekey: run step 6 in each of its
+   clones, minus the pull, so that the next file it encrypts uses the new key.
+2. **Generate the new key into Doppler.** Do this only when the user has asked for a rotation, and run it from a
+   directory Doppler is scoped to. The key goes in on stdin and is checked by comparison, never printed:
+   ```
+   NEW=$(openssl rand -hex 32) && [ ${#NEW} -eq 64 ] && printf '%s' "$NEW" | doppler secrets set TRANSCRYPT_KEY -p tools -c prd --silent && BACK=$(doppler secrets get TRANSCRYPT_KEY -p tools -c prd --plain) && if [ "$NEW" = "$BACK" ]; then echo "stored and read back: match (len ${#BACK})"; else echo "MISMATCH (stored len ${#BACK})"; fi; unset NEW BACK
+   ```
+3. **Rekey in the set-up clone**, on a clean tree that is up to date with its remote:
+   ```
+   git config core.hooksPath "$(git rev-parse --path-format=absolute --git-common-dir)/hooks"
+   transcrypt --rekey -c aes-256-cbc -p "$(doppler secrets get TRANSCRYPT_KEY --project tools --config prd --plain)" -y
+   git config --unset core.hooksPath
+   SHIM=$(sh ~/.claude/skills/transcrypt/scripts/ensure-openssl-shim.sh) || SHIM=
+   [ -n "$SHIM" ] && git config --local transcrypt.openssl-path "$SHIM" || echo "shim not wired: openssl-path left as transcrypt init wrote it" >&2
+   ```
+   The bracket and the shim wiring are there for the reasons given under the shared-key sequence. A rekey saves
+   its configuration through the same code as init, so it rewrites the helper hooks and `transcrypt.openssl-path`
+   too. It re-encrypts every encrypted file and stages it, so each one reads `M `.
+4. **Verify from the index, not from a diff:**
+   ```
+   C="$(git rev-parse --git-common-dir)/crypt/transcrypt"
+   echo "$(transcrypt --list | wc -l) encrypted files"
+   transcrypt --list | while IFS= read -r F; do
+     [ "$(git rev-parse ":$F")" != "$(git rev-parse "HEAD:$F")" ] || echo "not rekeyed: $F"
+     [ "$(git cat-file -p ":$F" | head -c 10)" = U2FsdGVkX1 ] || echo "not ciphertext: $F"
+     git cat-file -p ":$F" | "$C" smudge context=default "$F" | cmp -s - "$F" || echo "round-trip differs: $F"
+   done
+   ```
+   Silence under the count means every file passed, and a count of 0 means nothing was checked. Do not judge the
+   rekey by `git diff`. The crypt textconv decrypts the new blob and prints the old one raw, so a plain `git diff`
+   emits the file's plaintext, and `--stat` reports `0 insertions(+), 0 deletions(-)`, which looks like a change
+   with nothing in it. To see the ciphertext, use `git diff --no-textconv`. The mechanism is in
+   `~/.claude/learnings/transcrypt-verify-before-commit.md`, under verifying a rekey.
+5. **Commit the rekey on its own and push it.** Any `git reset HEAD` throws the rekey's staging away, and
+   `/commit` runs one in its Context. Re-stage each encrypted file with a plain `git add` before the commit. The
+   ciphertext is deterministic, so that reproduces the identical blob. Run the loop again: it reports
+   `not rekeyed` until the staging is back.
+6. **In every other clone of that repo, flush, then pull, then set up.** Start from a clean tree with nothing
+   unpushed:
+   ```
+   transcrypt --flush-credentials -y
+   git pull --ff-only
+   ```
+   Then run the shared-key sequence above, which now reads the new key, and confirm as in B. The flush removes the
+   old key and the filter, and checks the encrypted files out as ciphertext, so the pull brings in the new
+   ciphertext without decrypting it.
+7. **A clone that pulled before flushing** decrypts the new ciphertext with its old key. Its encrypted files then
+   read ` M` and hold garbage. Do not commit or stash that ` M`, because the working copy is not the file's
+   content. Neither obvious fix works. `transcrypt --flush-credentials` refuses with `the repo is dirty`, and
+   `git checkout -- <file>` decrypts with the old key again. Drop the filter so that the files check out as raw
+   ciphertext, then flush:
+   ```
+   git config --remove-section filter.crypt
+   transcrypt --list | while IFS= read -r F; do git checkout -- "$F"; done
+   transcrypt --flush-credentials -y
+   ```
+   Then run the shared-key sequence. This was reproduced on 2026-09-29 with fake keys in a scratch repo. Step 6's
+   order ended on a clean tree with readable plaintext. Pulling first ended where this step starts, and this
+   recovery ended clean.
+
 ## Out of scope
 
 - Do **not** commit or push — staging + verify only; `/commit` owns the commit.
-- Do **not** generate a new passphrase — always the Doppler `TRANSCRYPT_KEY`.
+- Do **not** generate a new passphrase — always the Doppler `TRANSCRYPT_KEY`. The one exception is mode C, and only
+  when the user has asked for a rotation.
 - Do **not** put env-style secrets (keys, tokens, passwords) in committed files — those belong in Doppler.
 - Do **not** work around a classifier denial on executing transcrypt — ask the user to approve or allowlist.
 - Do **not** run `transcrypt init` in a DEPLOY CHECKOUT — a server's clone of the repo, a CI workspace, or
