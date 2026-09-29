@@ -109,6 +109,34 @@ The strongest single assertion is a round-trip — decrypt the stored blob and d
 git cat-file -p HEAD:<path> | "$CRYPT_DIR/transcrypt" smudge context=default | diff - <path>
 ```
 
+It proves the stored blob and the working tree agree under whatever key the clone holds. It says nothing about
+whether that key is the right one, as the next section shows.
+
+## A wrong key passes the round trip
+
+Measured 2026-09-29, on a scratch repo unlocked with the wrong key, the round trip above passed. `openssl enc -d`
+writes its partial output before the padding check fails, and transcrypt's smudge then appends the raw
+ciphertext (`… 2>/dev/null || cat "$tempfile"`). So the working-tree file holds garbage followed by
+`U2FsdGVkX1…`. Smudging the blob again reproduces the same bytes, and the diff comes out empty. It does not start
+with `U2FsdGVkX1` either, so a prefix check reads it as decrypted.
+
+Four signals did catch it. `git status` listed the file as ` M`, init printed `please check your password`,
+re-cleaning the file no longer reproduced the stored blob, and openssl exited 1. To ask which key a blob is
+under, decrypt it with the candidate key and assert openssl's exit status, never its output:
+
+```bash
+K="$(doppler secrets get TRANSCRYPT_KEY --project tools --config prd --plain)"
+git cat-file -p HEAD:<path> | ENC_PASS="$K" openssl enc -d -aes-256-cbc -md MD5 -pass env:ENC_PASS -a >/dev/null 2>&1 && echo "Doppler key: <path>" || echo "NOT the Doppler key: <path>"
+unset K
+```
+
+Scored on output instead, a key-rotation sweep read the one repo still on the old key as decrypted: 1609 bytes
+of output with exit 1. A wrong key can also pass the padding check by chance, roughly once in 256 files.
+Where the clone is set up, compare the decrypted output with the working copy too, by replacing `>/dev/null`
+with `| cmp -s - <path>`. A clean `git status` is another signal. Being set up and holding encrypted files
+says nothing about which key the blobs are under. The same sweep first reported four repos as unrotated on that
+basis, when all four were done.
+
 ## A prepped repo on an un-initialised machine commits plaintext
 
 Steps 1 and 2 being independent has a consequence worth stating on its own, because it is the state of **every
@@ -218,7 +246,9 @@ unchanged file under an unchanged key reproduces the identical blob — verified
 reset and after. A rekey is therefore idempotent and re-stageable, and a blob that comes back *different* on a
 re-add means one of those three inputs moved.
 
-The assertion that settles all three is the round trip, which also proves the new key is the right one:
+The assertion that settles all three is the round trip. It proves the staged blob decrypts under the key the
+clone now holds, which after a rekey is the key passed to it. On its own it cannot tell a right key from a wrong
+one, as "A wrong key passes the round trip" above shows:
 
 ```bash
 git cat-file -p :<path> | "$(git rev-parse --git-common-dir)/crypt/transcrypt" smudge context=default | diff - <path>
