@@ -43,6 +43,8 @@ Output columns: `i/<index-eol>  w/<working-eol>  attr/<attributes>  <filename>`
 
 Do not count CRs with plain `grep -c` in Git Bash. Its GNU grep 3.0 reads files in text mode and strips the CR, so a CR-at-end-of-line pattern reports 0 on a CRLF file; `grep -U` counts it correctly (measured 2026-09-25). A count claiming *every* line of a file is CRLF is the opposite symptom: the CR never reached grep and the pattern collapsed to `$`, which matches every line. For a definitive answer read `w/` above, or count the bytes (`b"\r\n" in data`).
 
+Pass `-b` to `sed -i` on a CRLF file in Git Bash. Its GNU sed 4.9 also reads in text mode, so any in-place edit rewrites every line of the file as LF, not just the line it touched: `sed -i '$d'` on `a\r\nb\r\nc\r\n` leaves `a\nb\n`, while `sed -b -i '$d'` leaves `a\r\nb\r\n` (measured 2026-09-28). An append-then-`sed -i '$d'` probe therefore restores the content and not the bytes. Whether git notices depends on the index: on an `i/lf` file (`git ls-files --eol`) under `core.autocrlf=input` it does not, so neither does `git diff`, while on an `i/crlf` file every line shows as changed and `git add` stages a whole-file line-ending change. Compare against a copy with `cmp` in both cases.
+
 ## Fixing Existing Working Copies
 
 Even with correct git config, existing working copies keep their CRLF until explicitly converted. Converting all tracked files in-place:
