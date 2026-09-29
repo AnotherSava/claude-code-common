@@ -131,11 +131,32 @@ unset K
 ```
 
 Scored on output instead, a key-rotation sweep read the one repo still on the old key as decrypted: 1609 bytes
-of output with exit 1. A wrong key can also pass the padding check by chance, roughly once in 256 files.
+of output with exit 1. Two sessions wrote that bug independently the same day, the second scoring `[ -n "$out" ]`
+on a pipeline ending in `head -c 200` — which discards the status a second time — so treat it as the reflex the
+check has to be written against, not as one slip. A wrong key can also pass the padding check by chance, roughly
+once in 256 files.
 Where the clone is set up, compare the decrypted output with the working copy too, by replacing `>/dev/null`
 with `| cmp -s - <path>`. A clean `git status` is another signal. Being set up and holding encrypted files
 says nothing about which key the blobs are under. The same sweep first reported four repos as unrotated on that
 basis, when all four were done.
+
+### Asking the same question with no key material
+
+Where the clone is configured, the clean filter answers it without a passphrase ever reaching a variable.
+Ciphertext is deterministic over `<filename>:<password>` and the content, so re-cleaning the working-tree file
+reproduces the stored blob exactly when the two are under the same key:
+
+```bash
+CRYPT_DIR="$(git rev-parse --git-common-dir)/crypt"
+[ "$("$CRYPT_DIR/transcrypt" clean context=default "$F" < "$F" | git hash-object --stdin)" = "$(git rev-parse "HEAD:${F}")" ] \
+  && echo "blob is under this clone's key" || echo "blob is under some other key"
+```
+
+Prefer it wherever the clone is set up: `secret-print-guard` refuses `transcrypt --display` and any `git config`
+read that would expose `transcrypt.password`, so a check built around the clone's own passphrase has nowhere to
+get it, while this one never asks. Its reach stops at the clone, though — it says the blob and the working tree
+agree under whatever key is configured here, and nothing about *which* key that is. To name the key, the openssl
+form above is the only one that does it, because it supplies the candidate itself.
 
 ## A prepped repo on an un-initialised machine commits plaintext
 
