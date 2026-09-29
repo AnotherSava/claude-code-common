@@ -20,7 +20,7 @@ in `.gitattributes` (e.g. `notes.secret.md`, `config.secret.json`).
 
 ## Context
 - transcrypt installed: !`command -v transcrypt >/dev/null 2>&1 && echo INSTALLED || echo MISSING`
-- this repo's transcrypt config: !`git config --get-regexp '^transcrypt\.' 2>/dev/null || echo NOT-CONFIGURED`
+- this repo's transcrypt config: !`git config --name-only --get-regexp '^transcrypt\.' 2>/dev/null || echo NOT-CONFIGURED`
 - encrypt attribute in .gitattributes: !`test -f .gitattributes && grep -i crypt .gitattributes || echo NONE`
 - working tree: !`git status --short 2>/dev/null || echo "(not a git repo)"`
 - openssl shim wired: !`git config --get transcrypt.openssl-path 2>/dev/null || echo "none — expect the 'deprecated key derivation' warning on git commands; see that section"`
@@ -63,6 +63,13 @@ empty password — capture the key into a variable before changing directories i
 
 Init also refuses on a **dirty tree** — if a tracked file is modified, stash just it first
 (`git stash push <file>`), init, then `git stash pop`. Untracked files don't block it.
+
+**Init writes the passphrase into `.git/config` in plaintext, as `transcrypt.password`**, so never print
+that file or list it: `git config --list`, `cat .git/config`, a Read of it and `transcrypt --display` all
+show the key, and `hooks/secret-print-guard.py` refuses each of them. It cannot be moved out through
+`include.path`: transcrypt reads it with `git config --get --local`, and git ignores includes when a
+single scope is named. To check whether a repo is set up, list names only:
+`git config --name-only --get-regexp '^transcrypt\.'`.
 
 **Init in a repo that ALREADY has encrypted files decrypts them, and may leave them permanently modified.**
 That is mode B happening as a side effect, and it is expected. What is not obvious: transcrypt may then
