@@ -175,6 +175,60 @@ which turns every future checkout there into a hard failure unless the key is pr
 passphrase decrypts every transcrypted file in every repo, so it must never sit on a public-facing host. The
 safe state looks accidental and is correct; leave it.
 
+## Verifying a rekey, where every ordinary signal reads wrong
+
+`transcrypt --rekey` re-encrypts the marked files under new credentials, stages them, and prints `*** COMMIT
+THESE CHANGES RIGHT AWAY! ***`. Three things about the state it leaves behind mislead in sequence, measured
+2026-09-29 on transcrypt 2.3.3-pre after a shared-passphrase rotation.
+
+**1. `git diff` shows ciphertext on one side and plaintext on the other.** `diff=crypt` installs a textconv and
+git runs it on *both* blobs, but only one of them decrypts: the new blob opens under the key now configured,
+while the old blob cannot be read at all, so git prints it raw. The diff therefore reads as the whole file
+having changed from binary noise into plaintext, which looks like the encryption was torn off. It is an artifact
+of the key change and nothing else. It also means **any tool that probes `git diff` emits the file's plaintext**
+into wherever that probe's output goes — worth knowing before running a rekey inside a flow that captures diffs.
+
+**2. The summary looks exactly like a phantom modification.** Because the plaintext is byte-identical by design,
+`--stat` reports:
+
+```
+config/publish.env | Bin 2840 -> 2840 bytes
+1 file changed, 0 insertions(+), 0 deletions(-)
+```
+
+A rule that reads "changed path, no insertions, no deletions" as a stale stat cache will diagnose this as
+nothing to commit. The honest discriminator is the blob, not the diff:
+
+```bash
+git rev-parse :<path>        # staged
+git rev-parse HEAD:<path>    # committed — differs iff there is real ciphertext to commit
+```
+
+**3. Any `git reset HEAD` throws the staging away.** Several flows unstage everything early as a hygiene step,
+and that silently undoes what rekey staged — leaving a tree that looks clean while the repo still holds
+old-key ciphertext. Recovery is a plain `git add <path>`, because the *key* change persists in `.git/config`
+even though the index was reset, so the clean filter re-encrypts under the new credentials.
+
+That recovery is safe rather than lucky, and the reason is worth stating: transcrypt derives each file's salt
+by HMAC over `<filename>:<password>` and the content, so the ciphertext is **deterministic**. Re-adding an
+unchanged file under an unchanged key reproduces the identical blob — verified, the same short sha before the
+reset and after. A rekey is therefore idempotent and re-stageable, and a blob that comes back *different* on a
+re-add means one of those three inputs moved.
+
+The assertion that settles all three is the round trip, which also proves the new key is the right one:
+
+```bash
+git cat-file -p :<path> | "$(git rev-parse --git-common-dir)/crypt/transcrypt" smudge context=default | diff - <path>
+```
+
+Finally, `--rekey` **rewrites `transcrypt.openssl-path`** exactly as `init` does, so any openssl shim has to be
+rewired afterwards or every subsequent `git status` resumes printing the deprecated-KDF warning. The value it
+writes is the built-in default `openssl` rather than the path configured before, because `save_configuration`
+skips its already-configured guard on a rekey and goes on to write the same keys `init` writes. One helper,
+`is_salt_prefix_workaround_required`, does reload a configured path, but every call site wraps it in a command
+substitution, so that assignment dies with the subshell; `--upgrade` is the only mode that reads the old value
+back and restores it.
+
 ## The general lesson
 
 A "no secrets found" result is only as good as the thing you searched. When a verification greps for something

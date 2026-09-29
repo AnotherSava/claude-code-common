@@ -42,8 +42,8 @@ SHIM=$(sh ~/.claude/skills/transcrypt/scripts/ensure-openssl-shim.sh) || SHIM=
 The shim wiring at the end silences OpenSSL's `deprecated key derivation` warning, which every crypt filter otherwise
 prints on `git status`, `git add` and `git diff` for the life of the repo. It is part of the sequence rather
 than an optional extra because the warning is pure noise that has already crowded out the result of a real
-check, and because **`transcrypt init` rewrites `transcrypt.openssl-path`** — so anything that re-inits has
-to re-apply it anyway. The helper is idempotent, writes the shim next to `transcrypt` only when it is
+check, and because **`init` and `--rekey` both rewrite `transcrypt.openssl-path`** — so anything that re-inits
+or rekeys has to re-apply it anyway. The helper is idempotent, writes the shim next to `transcrypt` only when it is
 missing or the real openssl has moved, and prints the path it wired. See the warning's own section below
 for why the shim redirects rather than fixing the KDF.
 
@@ -320,12 +320,18 @@ smudge and textconv (lines 290, 315, 332) — each resolving it as
 `fatal: <file>: clean filter 'crypt' failed`.
 
 Two more sites settle *why* the key is infrastructure rather than an optional tweak — it is **written**
-unconditionally in two places, `723` (init) and `1535` (rekey):
+unconditionally in two places: `save_configuration` (line 723), which both `init` and `--rekey` reach, and the
+`--set-openssl-path=` argument handler (line 1535):
 
 ```
 229   read,  falls back        290/315/332   read, NO fallback  (clean, smudge, textconv)
-1021  read,  falls back        723/1535      WRITE
+1021  read,  falls back        723/1535      WRITE  (save_configuration, --set-openssl-path)
 ```
+
+**Re-wire the shim after every `--rekey`, not only after an init.** A rekey reaches that same write and puts
+the built-in `openssl` default there, discarding the configured path; `--upgrade` is the only mode that reads
+the old value back. The mechanism is in `~/.claude/learnings/transcrypt-verify-before-commit.md`, under
+verifying a rekey.
 
 So a repo cannot arrive at an *unset* key by itself; only a hand `--unset` gets it there. It can arrive at an
 **empty** one by itself, from an unguarded `git config … "$(generator)"` whose generator died, which is why the
