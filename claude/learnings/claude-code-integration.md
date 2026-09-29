@@ -43,7 +43,7 @@ Always pass `async: true` so the hook POST doesn't block Claude's turn.
 | `SessionEnd` | Session exits (`/exit` or window close) | `clear` (remove row) |
 | `PostToolUse` (matcher: `ExitPlanMode`) | User approved a plan | trigger plan-archival side effects |
 
-Also worth knowing about: `PreToolUse` (needed for user-gating tools like `AskUserQuestion` / `ExitPlanMode` — see "User-gating tools and the buffered-write problem" below) and `SubagentStop` (rarely needed).
+Also worth knowing about: `PreToolUse` (needed for user-gating tools like `AskUserQuestion` / `ExitPlanMode` — see "User-gating tools in the transcript" below) and `SubagentStop` (rarely needed).
 
 ## Hook stdin payload
 
@@ -228,16 +228,19 @@ Consequence for instruction files: a CLAUDE.md rule telling *Claude* to retry it
 
 **Other useful events:** `PreCompact`/`PostCompact` (matcher `manual`/`auto`) for compaction boundaries; `PermissionRequest` (carries `tool_name`) for permission dialogs and `PermissionDenied` for auto-mode classifier denials only (see Subagent permission prompts below); `Elicitation`/`ElicitationResult` for MCP user-input prompts; `SubagentStart`/`SubagentStop` (carry `agent_type`) for subagent activity; `SessionStart.source ∈ {startup, resume, clear, compact}`.
 
-## User-gating tools and the buffered-write problem
+## User-gating tools in the transcript
 
-Claude Code buffers the assistant message containing certain client-side tool_use blocks until the matching tool_result is ready. The blocks are not flushed to the JSONL transcript while the user is being prompted. Confirmed cases (Claude Code 2.1.x):
+Two built-in tools pause the turn on the user:
 
-- `AskUserQuestion` — interactive UI prompt with selectable options. Sample transcripts showed 9-min and 38-min gaps between the tool_use and tool_result timestamps.
+- `AskUserQuestion` — interactive UI prompt with selectable options.
 - `ExitPlanMode` — plan acceptance gate.
 
+The call's `tool_use` line reaches the JSONL transcript while the prompt is still on screen, and its `tool_result` follows only when the user answers; gaps of tens of minutes are ordinary. Across 160 `AskUserQuestion` calls on 2.1.235–2.1.283 every one wrote its `tool_result`, and nothing conversational was written between the call and its result. An Esc on the prompt writes the `tool_result` with `is_error` and, 1–7 ms later, `[Request interrupted by user for tool use]`, and fires no hook.
+
 Implications:
-- Transcript watchers cannot detect these calls in flight. A "find unresolved X tool_use" probe will never fire — the file is silent during the wait.
-- The only timely signal is `PreToolUse`, which runs before Claude Code renders the prompt.
+- Nothing in the transcript marks the call as waiting on the user, so `PreToolUse`, which runs before Claude Code renders the prompt, is the only timely signal that one is on screen.
+- A watcher that reads a trailing `tool_use` as "the agent is working" must exclude these tools until their `tool_result` lands; counting one as activity flips a row showing the question back to working within about a second of `PreToolUse`.
+- The Esc pair is the only record that a prompt was dismissed, so a watcher reverting cancelled turns has to accept a row blocked on the prompt, not only a working one.
 
 The naive install — `PreToolUse` without a matcher — fires for every tool call and forks the hook script per call. Use a regex matcher to scope it:
 
@@ -523,6 +526,8 @@ The trap is that this daemon is **shared**. One daemon hosted three sessions at 
 ```json
 {"pid":93331,"sessionId":"…","cwd":"…/printlab","kind":"interactive","name":"printlab-ab","parkedJobId":"e80ec97f"}
 ```
+
+The record also carries `status` and `statusUpdatedAt`. `status` is not only `idle`/`busy`: on 2.1.283 a session parked on an `AskUserQuestion` read `"status":"waiting","waitingFor":"input needed"`, stamped the same second the question appeared. So a reader mapping only `idle`/`busy` misfiles the one state that means "blocked on the user".
 
 `kind` is `"interactive"` (owns a terminal) or `"bg"` (does not). Take the interactive record whose cwd matches, and `ps -o tty=` its pid — no ancestor walk, and it is immune to the daemon because it never looks at parents. Two guards: resolve only when exactly **one** interactive session claims that cwd (a `--fork-session --resume` migration leaves two, with two tabs and no way to choose), and confirm the pid is still a live `claude` image, which defeats pid reuse off one process-table snapshot. Same data, documented and read-only but ~20s per call because it spawns a process: `claude agents --json`.
 
