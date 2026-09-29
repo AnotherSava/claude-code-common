@@ -13,6 +13,7 @@ The shape generalises past caches: a renderer that also writes a manifest, a rep
 
 **How to apply:**
 - Read the command's own `Modes:` block, `--help`, or `main()` for what it writes, before using it as a probe.
+- **`--help` is not automatically safe.** A script that hand-rolls its argv (`"--flag" in sys.argv`) never rejects what it does not recognise, so `--help` falls straight through to the default run. Measured 2026-09-29 on this same `repos-status.py`: probing for `--help` performed the full two-machine scan and fast-forwarded every clean clone. Read `main()` instead, or use a flag you have already confirmed the tool parses.
 - Prefer calling the pure part directly — import the renderer — or point the command at throwaway output paths. Here `--cache`, `--state` and `--html` all existed and would have cost nothing.
 - Where the tool offers no such flag, snapshot what it writes first, so the probe is reversible.
 - Feeding a write-through command empty input is the dangerous case, because "write what I was given" and "write nothing" are the same call.
