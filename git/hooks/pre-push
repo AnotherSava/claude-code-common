@@ -10,7 +10,8 @@
 # Git LFS installs its own hooks wherever core.hooksPath points, and stops at this non-LFS pre-push,
 # so no LFS hook runs anywhere and a push would send LFS pointers without their objects, silently.
 # So this hook calls `git lfs pre-push` itself, wherever the push can carry LFS content: the repo has a
-# local LFS object store, or a pushed commit's .gitattributes routes files through the LFS filter.
+# local LFS object store, `lfs.storage` moves that store elsewhere, or a pushed commit's root
+# .gitattributes routes files through the LFS filter.
 # Anywhere else the call has nothing to check, and costs the push an SSH handshake and a locks
 # request (~/.claude/learnings/git-lfs-with-global-hookspath.md).
 
@@ -92,7 +93,8 @@ if [ "$errors" -gt 0 ]; then
     exit 1
 fi
 
-if [ -n "$input" ] && { [ "$declares_lfs" = 1 ] || [ -d "$(git rev-parse --git-common-dir)/lfs/objects" ]; }; then
+if [ -n "$input" ] && { [ "$declares_lfs" = 1 ] || [ -d "$(git rev-parse --git-common-dir)/lfs/objects" ] ||
+    git config --get lfs.storage >/dev/null; }; then
     if ! command -v git-lfs >/dev/null 2>&1; then
         echo "Push blocked: this push can carry Git LFS objects, but git-lfs is not on PATH to upload them."
         exit 1
