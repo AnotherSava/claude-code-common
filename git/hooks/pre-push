@@ -17,6 +17,12 @@
 
 set -euo pipefail
 
+# A refusal prints several lines, and a caller that stops reading early (`git push 2>&1 | head -1`)
+# kills a shell with SIGPIPE at its next write. Git for Windows reads a hook killed by a signal as
+# success and pushes anyway. With the signal ignored, that write fails instead, and `set -e` ends the
+# script there with a non-zero status, which blocks the push.
+trap '' PIPE
+
 CLAUDE_PATTERN="claude|anthropic"
 errors=0
 declares_lfs=0

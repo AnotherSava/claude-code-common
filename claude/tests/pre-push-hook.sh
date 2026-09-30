@@ -82,6 +82,12 @@ echo a > "$T/plain/a.txt"; commit "$T/plain" a; git -C "$T/plain" remote add ori
 check "$(push "$T/plain" -u origin main)" 0 "signed push"
 echo u > "$T/plain/u.txt"; commit "$T/plain" u --no-gpg-sign
 check "$(push "$T/plain" origin main)" 1 "unsigned commit rejected"; undo
+# Git for Windows reads a hook killed by SIGPIPE as success, and a caller cutting the refusal short
+# (`| head -1`) is what sends it; two unsigned commits give the hook writes to make after that
+echo u2 > "$T/plain/u2.txt"; commit "$T/plain" u2 --no-gpg-sign; echo u3 > "$T/plain/u3.txt"; commit "$T/plain" u3 --no-gpg-sign
+before=$(git -C "$T/plain.git" rev-parse main); git -C "$T/plain" push -q origin main 2>&1 | head -1 >/dev/null
+check "$(git -C "$T/plain.git" rev-parse main)" "$before" "a refusal read only in part through a pipe still blocks the push"
+git -C "$T/plain" reset -q --hard HEAD~2; git -C "$T/plain.git" update-ref refs/heads/main "$before"
 echo v > "$T/plain/v.txt"; GIT_AUTHOR_NAME=Claude GIT_AUTHOR_EMAIL=noreply@anthropic.com commit "$T/plain" v
 check "$(push "$T/plain" origin main)" 1 "Claude author rejected"; undo
 echo w > "$T/plain/w.txt"; commit "$T/plain" "w" --trailer "Co-Authored-By: Claude <noreply@anthropic.com>"
