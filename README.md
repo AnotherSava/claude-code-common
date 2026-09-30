@@ -126,6 +126,7 @@ Brings the branch up to date with its upstream when the working tree is dirty â€
 - Reads its procedure from `@{upstream}` when the repo being pulled is this one, since a behind checkout's documentation is behind by the same commits
 - Proposes a rebase on a diverged branch rather than running one, and will not commit or push
 - Runs when a session on the other machine asks for it: `/commit` there sends that request after each push
+- Tells the local dashboard when a run left nothing to come back to, so a session asked to pull by a peer stops reading as though it holds work â€” not sent after a conflict, a question put to the user, or a failed fetch, each of which is something to return to
 
 ---
 

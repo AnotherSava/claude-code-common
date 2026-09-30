@@ -38,14 +38,15 @@ class PeerUnmeasured(Exception):
     """The other machine could not be looked at, which is not the same as nobody being there."""
 
 
-def _dashboard_url() -> str:
+def dashboard_url() -> str:
+    """The local dashboard's base URL. Public because `session_clean.py` posts to the same one."""
     return os.environ.get("TAURI_DASHBOARD_URL", DEFAULT_DASHBOARD).rstrip("/")
 
 
 def _request(path: str, body: dict | None = None) -> dict:
     data = None if body is None else json.dumps(body).encode("utf-8")
     headers = {"Content-Type": "application/json"} if data else {}
-    with urllib.request.urlopen(urllib.request.Request(_dashboard_url() + path, data=data, headers=headers), timeout=120) as response:
+    with urllib.request.urlopen(urllib.request.Request(dashboard_url() + path, data=data, headers=headers), timeout=120) as response:
         return json.load(response)
 
 
@@ -60,7 +61,7 @@ def peer_devices() -> list[str]:
     try:
         roster = _request("/api/agents")
     except (urllib.error.URLError, OSError, ValueError) as exc:
-        raise PeerUnmeasured(f"the dashboard at {_dashboard_url()} did not answer ({exc})") from exc
+        raise PeerUnmeasured(f"the dashboard at {dashboard_url()} did not answer ({exc})") from exc
     if not roster.get("sync_listening"):
         raise PeerUnmeasured("this dashboard is not syncing with a peer")
     devices = [p["device"] for p in roster.get("peers", [])]

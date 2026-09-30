@@ -1,7 +1,7 @@
 ---
 name: pull
 description: Bring this branch up to date with its upstream when the tree may be dirty — fast-forward, moving aside only local edits that collide. TRIGGER when: asked to pull or sync, or a session on the other machine asks for it after a push. DO NOT TRIGGER for a diverged branch or for committing.
-allowed-tools: AskUserQuestion, Read, Grep, Bash(git fetch:*), Bash(git rev-parse:*), Bash(git rev-list:*), Bash(git log:*), Bash(git diff:*), Bash(git status:*), Bash(git show:*), Bash(git ls-files:*), Bash(git cat-file:*), Bash(git stash:*), Bash(git merge:*), Bash(git add:*), Bash(git reset:*)
+allowed-tools: AskUserQuestion, Read, Grep, Bash(git fetch:*), Bash(git rev-parse:*), Bash(git rev-list:*), Bash(git log:*), Bash(git diff:*), Bash(git status:*), Bash(git show:*), Bash(git ls-files:*), Bash(git cat-file:*), Bash(git stash:*), Bash(git merge:*), Bash(git add:*), Bash(git reset:*), Bash(python3 ~/.claude/skills/shared/session_clean.py:*), Bash(python ~/.claude/skills/shared/session_clean.py:*)
 ---
 
 # Pull remote changes
@@ -29,9 +29,9 @@ The reference for every branch below is `~/.claude/learnings/git-stash-pull-safe
    git diff --name-status HEAD @{upstream} 2>/dev/null || echo NONE
    ```
    In order they are **Behind and ahead counts**, **Incoming commits** and **Incoming files**. Then stop wherever one of these holds:
-   - **Upstream** is `NO-UPSTREAM` — this branch tracks nothing. Say so and stop.
-   - **Fetch** is `FETCH-FAILED` — report its text verbatim and stop, because every count below is then stale.
-   - **Behind and ahead counts** reads `0` on the left — already current. Say so and stop. Do not stash, merge, or touch the tree to confirm it.
+   - **Upstream** is `NO-UPSTREAM` — this branch tracks nothing. Say so, signal per step 10, and stop.
+   - **Fetch** is `FETCH-FAILED` — report its text verbatim and stop, because every count below is then stale. Do not signal: an unmeasured remote is a real thing to come back to.
+   - **Behind and ahead counts** reads `0` on the left — already current. Say so, signal per step 10, and stop. Do not stash, merge, or touch the tree to confirm it.
 
 2. **Read the reference before acting.** Normally that is `~/.claude/learnings/git-stash-pull-safety.md` through the Read tool. When the repo being pulled *is* the dotfiles repo — it has `claude/learnings/` at its root — read the upstream copy instead, `git show @{upstream}:claude/learnings/git-stash-pull-safety.md`, because a behind checkout's documentation is behind by the same commits and this pull is what would fix it.
 
@@ -75,6 +75,14 @@ The reference for every branch below is `~/.claude/learnings/git-stash-pull-safe
    - Read the `A` rows of **Incoming files** against the existing filenames on the same subject — a pull that adds a file duplicating one already in the tree passes every other check.
 
 9. **Report**: how many commits came in and what they were, what moved aside and came back, what conflicted and how it was resolved, and anything left for the user to decide.
+
+10. **Say that this run left nothing to come back to**, where that is true, so the dashboard can rest the row instead of showing it as holding work:
+    ```
+    python3 ~/.claude/skills/shared/session_clean.py
+    ```
+    Use `python` on Windows. Run it when step 9's last two clauses are both empty — nothing conflicted and nothing is left for the user — or at whichever step 1 stop sent you here. Do **not** run it after a conflict you resolved, a question you put to the user, or `FETCH-FAILED`; each of those is something to return to.
+
+    Do not condition it on how the turn started. This skill cannot tell a relayed request from a typed one, and the dashboard can, so it applies that test on its side. The command prints nothing and always exits 0, including where no dashboard is listening — an absent signal is read as "not clean", which is the safe direction. The dashboard also cancels the signal if the turn goes on to do anything else, so a pull that is followed by real work needs nothing undone here.
 
 ## Out of scope
 - Do NOT commit or push — that is `/commit`
