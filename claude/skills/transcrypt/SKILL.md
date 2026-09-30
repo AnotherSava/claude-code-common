@@ -39,6 +39,16 @@ SHIM=$(sh ~/.claude/skills/transcrypt/scripts/ensure-openssl-shim.sh) || SHIM=
 [ -n "$SHIM" ] && git config --local transcrypt.openssl-path "$SHIM" || echo "shim not wired: openssl-path left as transcrypt init wrote it" >&2
 ```
 
+**Run it as plain lines, not wrapped in a `bash <<'EOF'` heredoc.** On 2026-09-29 auto mode denied this
+sequence in heredoc form and allowed the same commands written plainly, so a denial of the wrapped form is
+about the heredoc, not about transcrypt, and the classifier notes under Step 0 and mode C do not explain it.
+
+**Run the `--unset` line even when the transcrypt line fails or is refused.** A
+local `core.hooksPath` left behind points git at `.git/hooks`, where at most transcrypt's own helper runs,
+and switches the global hook off in that repo without a word — its `publish.env` check and its
+whole-shape ciphertext check included; the helper reads only a file's first eight bytes. Afterwards
+`git config --local --get core.hooksPath` must print nothing; never chain the three lines with `&&`.
+
 The shim wiring at the end silences OpenSSL's `deprecated key derivation` warning, which every crypt filter otherwise
 prints on `git status`, `git add` and `git diff` for the life of the repo. It is part of the sequence rather
 than an optional extra because the warning is pure noise that has already crowded out the result of a real
@@ -123,9 +133,11 @@ exists on some machines without being on PATH, leaving a downloaded file nothing
 ```
 D=$(for d in ~/.local/bin ~/bin /usr/local/bin; do case ":$PATH:" in *":$d:"*) echo "$d"; break;; esac; done)
 curl -fsSL https://raw.githubusercontent.com/elasticdog/transcrypt/main/transcrypt -o "$D/transcrypt" && chmod +x "$D/transcrypt" && hash -r
-``` **Classifier caveat:** the auto-mode classifier may
-block *executing* transcrypt the first time (it's a fetched script). If blocked, ask the user to approve the
-permission prompt or add a `Bash(transcrypt:*)` rule to their settings — do **not** work around the denial.
+```
+
+**Classifier caveat:** the auto-mode classifier may block *executing* transcrypt the first time (it is a
+fetched script). A classifier refusal carries no permission prompt to approve, and no allow rule is a
+verified remedy (see mode C step 3). Take the refusal to the user — do **not** work around the denial.
 
 ## Pick the mode
 
@@ -223,17 +235,19 @@ from then on, and anyone holding the old key can still read what history holds.
    ```
 3. **Rekey in the set-up clone**, on a clean tree that is up to date with its remote:
    ```
-   git config core.hooksPath "$(git rev-parse --path-format=absolute --git-common-dir)/hooks"
    transcrypt --rekey -c aes-256-cbc -p "$(doppler secrets get TRANSCRYPT_KEY --project tools --config prd --plain)" -y
-   git config --unset core.hooksPath
    SHIM=$(sh ~/.claude/skills/transcrypt/scripts/ensure-openssl-shim.sh) || SHIM=
    [ -n "$SHIM" ] && git config --local transcrypt.openssl-path "$SHIM" || echo "shim not wired: openssl-path left as transcrypt init wrote it" >&2
    ```
-   The bracket and the shim wiring are there for the reasons given under the shared-key sequence. A rekey saves
-   its configuration through the same code as init, so it rewrites the helper hooks and `transcrypt.openssl-path`
-   too. It re-encrypts every encrypted file and stages it, so each one reads `M `. Auto mode can refuse
-   `transcrypt --rekey` outright, with no prompt. It did on one of the two machines in the 2026-09-29 rotation. Take
-   that to the user, since an allow rule such as `Bash(transcrypt:*)` is theirs to add, and do not route around it.
+   The shim wiring is there for the reason given under the shared-key sequence: a rekey saves its
+   configuration through the same code as init, so it rewrites the helper script and `transcrypt.openssl-path`
+   too. It skips the helper hooks, so it needs no `core.hooksPath` bracket. It re-encrypts every encrypted file and stages it, so each one reads `M `. Auto mode can refuse
+   `transcrypt --rekey` outright, with no prompt. In the 2026-09-29 rotation it refused in some clones and ran
+   in others, and in one clone ran after earlier refusals, with nothing written to any settings file. This
+   skill's own `allowed-tools` lists `Bash(transcrypt:*)` while it is loaded, but the sequence also runs
+   `sh`, which that list does not cover. No grant was found, so the verdict on an unchanged command is not stable,
+   and a refusal in one clone predicts nothing about another. Take the refusal to the user and do not route
+   around it. An allow rule such as `Bash(transcrypt:*)` is not a verified remedy.
 4. **Verify from the index, not from a diff:**
    ```
    C="$(git rev-parse --git-common-dir)/crypt/transcrypt"
@@ -291,7 +305,7 @@ from then on, and anyone holding the old key can still read what history holds.
 - Do **not** generate a new passphrase — always the Doppler `TRANSCRYPT_KEY`. The one exception is mode C, and only
   when the user has asked for a rotation.
 - Do **not** put env-style secrets (keys, tokens, passwords) in committed files — those belong in Doppler.
-- Do **not** work around a classifier denial on executing transcrypt — ask the user to approve or allowlist.
+- Do **not** work around a classifier denial on executing transcrypt — take it to the user.
 - Do **not** run `transcrypt init` in a DEPLOY CHECKOUT — a server's clone of the repo, a CI workspace, or
   anything reconciled by `git reset --hard`. Init sets `filter.crypt.required=true`, which turns every future
   checkout there into a **hard failure** without the key; and the key must never be on such a box, because it
@@ -302,12 +316,34 @@ from then on, and anyone holding the old key can still read what history holds.
 
 ## Pre-commit safety net (already global)
 
-A guarded transcrypt pre-commit hook is installed globally (`~/.git-hooks/pre-commit` via
-`core.hooksPath`, tracked in the dotfiles repo). It blocks committing a `*.secret.*` file that lacks the
-encrypted "Salted" magic, and no-ops in non-transcrypt repos. So **ignore transcrypt's "manually install
-the pre-commit script" message** if you ever see it — the global hook already covers every repo; no
-per-repo hook install is needed. The `core.hooksPath` bracket in the shared-key section keeps transcrypt's
-own copy inside `.git/hooks/`, so that message should not appear at all.
+A pre-commit hook is installed globally (`~/.git-hooks/pre-commit` via `core.hooksPath`, tracked in the
+dotfiles repo). Its ciphertext check refuses a commit while any file marked `filter=crypt` sits in the index
+as anything but transcrypt's output, and does nothing in a repo that marks no file. In every clone it
+checks each blob's whole shape, not its first bytes: transcrypt's own check reads eight bytes, and its
+clean filter passes a file that already opens with the magic through unchanged, so ciphertext with a line
+appended would satisfy both. In a clone that is not unlocked — never set up, or flushed — the hook's
+reading is the only check: git ignores the unconfigured filter there, so a secret rewritten before mode B
+stages as plaintext, and the working copy is the ciphertext itself. Where the clone is unlocked,
+transcrypt's check runs after the hook's, so plaintext already in history gets the hook's warning to
+rewrite it and rotate the value. Its reach stops here:
+
+- Rebase, `am`, cherry-pick, revert and a merge that needs no resolution (a pull included) commit without
+  running pre-commit, so a plaintext secret they carry in is refused at the next ordinary commit, not at
+  the one that made it.
+- A repo-local `core.hooksPath` replaces the global one, so the hook does not run in that repo at all —
+  which is why the shared-key bracket must always reach its `--unset` line.
+- The hook's own reading covers the default context only, in every clone. A file marked `crypt-<name>`
+  gets transcrypt's eight-byte check where the clone is unlocked and no check where it is not. This skill
+  never creates a named context.
+- Text appended after a ciphertext whose last line is already full passes when it is itself base64 of
+  whole AES blocks — `openssl rand -base64 16`, `32` or `48` output, say — unless a line of it is all hex.
+- Which files are marked comes from the working tree's `.gitattributes`, as for `git add`, so an unstaged
+  edit that drops a file's marking hides that file from the check.
+
+So **ignore transcrypt's "manually install the pre-commit script" message** if you ever see it — the
+global hook covers every repo that does not override `core.hooksPath`; no per-repo hook install is needed.
+The `core.hooksPath` bracket in the shared-key section keeps transcrypt's own copy inside `.git/hooks/`,
+so that message should not appear at all.
 
 ## A secret file that is permanently modified — suspect line endings first
 

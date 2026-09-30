@@ -3,7 +3,24 @@
 #
 # Both must be a NO-OP in repos they do not concern, because this hook runs for EVERY repo on the
 # machine — a guard that fires where it does not apply is one that gets disabled, and disabling it
-# removes the case where it did apply.
+# removes the case where it did apply. Neither loops over every staged name in the shell, which reads
+# a pipe one byte at a time: that turned a 30,000-file commit from 0.3 s into 30 s. Each asks git for
+# only the paths it could act on, through pathspec magic. Check 2's `:(attr:filter=crypt)` still has
+# git evaluate attributes for every index entry, a cost that grows with entries times attribute rules:
+# lost in the noise at a few thousand entries, about half a second at 200,000 (measured on Windows).
+# Transcrypt's own check pays the same in every unlocked repo.
+#
+# That magic is the hook's own, so the caller's pathspec mode must not reach it. `git
+# --literal-pathspecs`, which Magit passes by default, exports GIT_LITERAL_PATHSPECS to this hook, and
+# under it `:(attr:filter=crypt)` is a file name that matches nothing, so both checks would pass
+# everything.
+unset GIT_LITERAL_PATHSPECS GIT_GLOB_PATHSPECS GIT_NOGLOB_PATHSPECS GIT_ICASE_PATHSPECS
+
+# A refusal prints several lines, and a caller that stops reading early (`git commit 2>&1 | head -1`)
+# kills a shell with SIGPIPE at its next write. Git for Windows reads a hook killed by a signal as
+# success and makes the commit — the plaintext goes in under a screen that says "refusing". With the
+# signal ignored, a write to a closed pipe just fails and the refusal's `exit 1` still runs.
+trap '' PIPE
 
 # ── 1. config/publish.env must be encrypted before it can be committed ───────────────────────────
 #
@@ -15,34 +32,152 @@
 #
 # The fix is to version it encrypted. This guard is the half that cannot be forgotten: the skill can
 # only protect files it writes, so a config copied from a sibling repo or edited by hand needs
-# something mechanical. The check is STRUCTURAL — is the path marked `filter=crypt` — not a content
-# sniff, so it cannot be fooled by a file that merely looks encrypted. transcrypt's own pre_commit
-# below then enforces that a marked file is actually ciphertext.
+# something mechanical. The check is STRUCTURAL — is the path marked for transcrypt, in the default
+# context or a named one — not a content sniff, so it cannot be fooled by a file that merely looks
+# encrypted. Check 2 below then enforces that a marked file is actually ciphertext, though its own
+# reading covers the default context alone: a `crypt-<name>` file gets only transcrypt's eight-byte
+# check, and only in an unlocked clone.
 #
 # Deliberately ONLY publish.env. `.env` as a class is the wrong unit: `host.env` in the landlord repo
 # is committed plaintext on purpose (non-secret facts, one source for two consumers), while its
 # sibling rendered `.env` carries secret values and must never be committed. Same suffix, opposite
 # handling — the filename cannot carry that decision, so judgement stays in /commit's confidentiality
 # step and only the one decided path is enforced here.
-STAGED=$(git diff --cached --name-only --diff-filter=AM 2>/dev/null | grep -E '(^|/)config/publish\.env$' || true)
-for path in $STAGED; do
-    if ! git check-attr filter -- "$path" 2>/dev/null | grep -q 'filter: crypt'; then
-        echo "pre-commit: refusing to commit $path in plaintext." >&2
-        echo "  It is versioned so every machine gets the same copy, and encrypted so the box name," >&2
-        echo "  paths and container names do not enter a repo that may one day be public." >&2
-        echo "  This repo has no crypt filter for that path. Set it up with /transcrypt, or add:" >&2
-        echo "      echo 'config/publish.env filter=crypt diff=crypt merge=crypt' >> .gitattributes" >&2
-        echo "  and run transcrypt init. To commit anyway: git commit --no-verify (say why in the message)." >&2
+#
+# Only what this commit stages is read, so a publish.env carried in by a command that skips
+# pre-commit (see check 2) is not refused later. The paths are read NUL-separated, so a name holding
+# a newline or a non-ASCII character reaches the loop as git stores it rather than C-quoted. A rename
+# and a typechange count as well as an add: `git mv` can move a plaintext file onto the path, and
+# replacing a committed symlink with a regular file puts plaintext where a link was. When git itself
+# fails, the fallback sends a full empty triple after whatever it printed, and the loop refuses on it
+# rather than reading the failure as nothing staged.
+while IFS= read -r -d '' path && IFS= read -r -d '' _ && IFS= read -r -d '' filter; do
+    if [ -z "$path" ]; then
+        echo "pre-commit: could not list the staged publish.env paths, so none was checked." >&2
         exit 1
     fi
-done
+    case "$filter" in crypt | crypt-*) continue ;; esac
+    echo "pre-commit: refusing to commit $path unmarked for encryption." >&2
+    echo "  Mark it for encryption, then run transcrypt init (/transcrypt does both):" >&2
+    echo "      echo '**/config/publish.env filter=crypt diff=crypt merge=crypt text=auto eol=lf' >> .gitattributes" >&2
+    echo "  It is versioned so every machine gets the same copy, and encrypted so the box name," >&2
+    echo "  paths and container names do not enter a repo that may one day be public." >&2
+    echo "  To commit anyway: git commit --no-verify (say why in the message)." >&2
+    exit 1
+done < <(set -o pipefail; git diff --cached --name-only -z --diff-filter=ACMRT -- ':(glob)**/config/publish.env' | git check-attr -z --stdin filter || printf '\0\0\0\0\0\0')
 
 # ── 2. a file marked filter=crypt must actually be ciphertext ────────────────────────────────────
 #
-# transcrypt's own check: fails the commit if a secret file is staged WITHOUT the encrypted "Salted"
-# magic — the last line of defense against leaking a plaintext *.secret.md. Guarded on the per-repo
-# transcrypt copy so it stays a no-op where transcrypt is not configured.
+# Fails the commit if a marked file sits in the index as anything but transcrypt's output — the last
+# line of defense against leaking a plaintext *.secret.md.
+#
+# The hook reads the index itself, in every clone. In one never unlocked, or one whose credentials
+# were flushed (which keeps transcrypt's per-repo copy but drops the filter), git ignores the
+# attribute and stages whatever the file holds, and the working copy of a secret there IS its
+# ciphertext, so an append is the likeliest edit of all. In an unlocked clone the clean filter
+# passes any file that already opens with the magic through unchanged, so the same append stages
+# verbatim there too.
+#
+# Where the clone is unlocked (the crypt filter configured and the per-repo copy present),
+# transcrypt's own pre_commit runs as well, after this reading; the vendored transcrypt greps this
+# file for that call, so it stays. It reads only a file's first eight bytes, but it covers a file
+# marked for a named context, which `:(attr:filter=crypt)` cannot match. Run first, its refusal of
+# plaintext already in HEAD would replace the history warning below with its own remedy, `git rm
+# --cached` then `git add`, which commits over the leak without a word about history.
+#
+# The whole blob is held to what transcrypt writes, `openssl enc -a` output: it opens with the
+# "Salted__" magic, every line is base64 and 64 characters long except the last, which is at most
+# 64, `=` padding comes only at the very end, and the decoded length is whole AES blocks. Text
+# appended to real ciphertext breaks one of those unless the last line was already full and what is
+# appended is itself base64 of whole AES blocks — `openssl rand -base64 16`, `32` or `48` output among
+# it — which no shape can tell from ciphertext. An all-hex line is refused as well, which covers the
+# commonest bare token; openssl's output practically never is one.
+#
+# Like transcrypt's, the check reads every marked file in the index, not only the ones this commit
+# touches: rebase, am, cherry-pick, revert and a merge that needs no resolution (a pull included)
+# commit without running pre-commit, so a plaintext secret they carry in is refused at the next
+# ordinary commit rather than never. Each marked file that passes costs two cat-file calls, which
+# assumes a handful per repo, not hundreds. Which files are marked comes from the working tree's
+# .gitattributes, as it does for `git add`, so an unstaged edit that drops a marking hides that file.
+#
+# An empty file is never encrypted and passes. A symlink stores its target's path and passes the
+# hook's own reading while it is a real symlink or unchanged from HEAD; where the clone is unlocked,
+# transcrypt's check still refuses one that checks out as a plain file. One that differs from HEAD
+# without being a real symlink is read like any other file: on Windows without core.symlinks it
+# checks out as a plain file, and overwriting that file keeps the symlink mode. The HEAD exemption
+# does not look at content, so plaintext that entered history in symlink mode is not refused later;
+# that matters only in a repo that marks a symlink for encryption at all.
 RELATIVE_GIT_DIR=$(git rev-parse --git-common-dir 2>/dev/null || printf '')
 CRYPT_DIR=$(git config transcrypt.crypt-dir 2>/dev/null || printf '%s/crypt' "${RELATIVE_GIT_DIR}")
-[ -x "${CRYPT_DIR}/transcrypt" ] || exit 0
-"${CRYPT_DIR}/transcrypt" pre_commit
+unlocked=
+if [ -x "${CRYPT_DIR}/transcrypt" ] && git config --get filter.crypt.clean >/dev/null 2>&1; then
+    unlocked=1
+fi
+is_ciphertext() {
+    LC_ALL=C awk '{ sub(/\r$/, "") }
+        NR == 1 && substr($0, 1, 8) != "U2FsdGVk" { bad = 1 }
+        short || padded || length($0) > 64 || !/^[A-Za-z0-9+\/]+=*$/ || /^[0-9A-Fa-f]+$/ { bad = 1 }
+        /=/ { padded = 1 }
+        length($0) != 64 { short = 1 }
+        { chars += length($0); last = $0 }
+        END { pad = length(last); sub(/=+$/, "", last); pad -= length(last); exit bad || (chars / 4 * 3 - pad) % 16 }'
+}
+opens_with_magic() { [ "$(git cat-file blob "$1" 2>/dev/null | head -c 8 | LC_ALL=C tr -d '\000')" = U2FsdGVk ]; }
+# HEAD's entry for a path as "mode type oid", or nothing where HEAD does not have it
+head_entry() { git ls-tree HEAD -- ":(literal)$1" 2>/dev/null | head -n 1 | cut -f1; }
+while IFS= read -r -d '' entry; do
+    if [ -z "$entry" ]; then
+        echo "pre-commit: could not list the files marked filter=crypt, so none was checked." >&2
+        exit 1
+    fi
+    path=${entry#*$'\t'}
+    set -- ${entry%%$'\t'*}
+    mode=$1 oid=$2
+    if [ "$mode" = 120000 ]; then
+        [ -L "$path" ] && continue
+        set -- $(head_entry "$path")
+        [ "${1-}" = 120000 ] && [ "${3-}" = "$oid" ] && continue
+    fi
+    size=$(git cat-file -s "$oid" 2>/dev/null)
+    if [ -z "$size" ]; then
+        echo "pre-commit: could not read the staged copy of $path, which is marked filter=crypt." >&2
+        exit 1
+    fi
+    [ "$size" = 0 ] && continue
+    git cat-file blob "$oid" 2>/dev/null | is_ciphertext && continue
+    set -- $(head_entry "$path")
+    if [ -n "${3-}" ] && [ "$1" != 120000 ] && [ "$(git cat-file -s "$3" 2>/dev/null)" != 0 ] && ! git cat-file blob "$3" 2>/dev/null | is_ciphertext; then
+        echo "pre-commit: refusing to commit: HEAD already holds $path unencrypted, though it is marked filter=crypt." >&2
+        if opens_with_magic "$3"; then
+            echo "  HEAD's copy is ciphertext with text added. Find the last commit where it was still whole" >&2
+            echo "  (git log --oneline -- <the file>), run git restore --source=<that commit> --staged --worktree" >&2
+            echo "  -- <the file>, unlock the clone with /transcrypt if it is not, and make the edit in the" >&2
+            echo "  decrypted file. Transcrypt passes a file that opens with its magic through unchanged, so" >&2
+            echo "  staging HEAD's copy again would not encrypt what was added." >&2
+        else
+            echo "  Unlock the clone with /transcrypt if it is not (it may warn 'please check your password')," >&2
+            echo "  then run git add --renormalize -- <the file> so it is staged encrypted." >&2
+        fi
+        echo "  History still holds the plaintext: rewrite the commit that brought it in if it is unpushed," >&2
+        echo "  and rotate the value if it was pushed." >&2
+        exit 1
+    fi
+    echo "pre-commit: refusing to commit $path, which is not ciphertext though it is marked filter=crypt." >&2
+    if opens_with_magic "$oid"; then
+        echo "  Text was added to its ciphertext. Take it out again (git restore --source=HEAD --staged" >&2
+        echo "  --worktree -- <the file> where HEAD has it), unlock the clone with /transcrypt if it is not, and" >&2
+        echo "  make the edit in the decrypted file: transcrypt passes a file that already opens with its magic" >&2
+        echo "  through unchanged, so staging this one again would not encrypt what was added. If the file as" >&2
+        echo "  written opens with U2FsdGVk itself, transcrypt can never encrypt it: change its first bytes." >&2
+    elif [ -n "$unlocked" ]; then
+        echo "  It was staged around the crypt filter. Stage it again through the filter:" >&2
+        echo "      git add --renormalize -- <the file>" >&2
+    else
+        echo "  Unlock the clone with /transcrypt, which covers a tree that is already dirty, then stage the" >&2
+        echo "  file again. This clone has no crypt filter set up, so git staged the file as it reads here." >&2
+    fi
+    exit 1
+done < <(git ls-files -s -z -- ':(attr:filter=crypt)' || printf '\0\0')
+if [ -n "$unlocked" ]; then
+    "${CRYPT_DIR}/transcrypt" pre_commit || exit
+fi

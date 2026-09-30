@@ -794,8 +794,10 @@ It also uploads Git LFS objects, because with `core.hooksPath` global the hook G
 
 Two independent checks, ordered by cost. Because `core.hooksPath` is global this hook runs for every repo on the machine, so each check has to be inert where it doesn't apply — one that fires wrongly is one that gets disabled, and disabling it removes the case where it did apply.
 
-- **`config/publish.env` must be marked for encryption before it can be committed.** That file names the box, its paths, the container to watch and the vhost to install. No credential — which is exactly what made it easy to commit by accident. It is versioned rather than ignored, because per-machine copies drifted: one tenant was left pointing at a path another had deleted. The check is *structural* — does the path resolve to `filter=crypt` — so it can't be fooled by a file that merely looks encrypted, and it refuses with instructions rather than leaking. This half is **not** a no-op in a repo without transcrypt: staging that path anywhere tells you to set it up. Only that one path is enforced; `.env` as a class is the wrong unit, since a plaintext `host.env` and a secret-carrying rendered `.env` share a suffix and need opposite handling.
-- **A file marked `filter=crypt` must actually be ciphertext.** Transcrypt's own check, made portable: in a repo configured for [encrypted memory](#encrypted-memory-secretmd) it blocks a commit if a `*.secret.md` is staged without the encrypted "Salted" magic — the last guard against a plaintext leak. This half guards on the per-repo transcrypt copy and **is** a no-op where transcrypt isn't configured.
+- **`config/publish.env` must be marked for encryption before it can be committed.** That file names the box, its paths, the container to watch and the vhost to install. No credential — which is exactly what made it easy to commit by accident. It is versioned rather than ignored, because per-machine copies drifted: one tenant was left pointing at a path another had deleted. The check is *structural* — is the path marked for transcrypt, `filter=crypt` or a named context's `crypt-<name>` — so it can't be fooled by a file that merely looks encrypted, and it refuses with instructions rather than leaking. This half is **not** a no-op in a repo without transcrypt: staging that path anywhere tells you to set it up. Only that one path is enforced; `.env` as a class is the wrong unit, since a plaintext `host.env` and a secret-carrying rendered `.env` share a suffix and need opposite handling.
+- **A file marked `filter=crypt` must actually be ciphertext.** It refuses a commit while any marked file in the index is anything but transcrypt's output — the last guard against a plaintext leak such as a `*.secret.md` from [encrypted memory](#encrypted-memory-secretmd) — and does nothing in a repo that marks no file. The hook reads the index itself in every clone and checks each blob's whole shape against what `openssl enc -a` writes, because transcrypt's own check reads a file's first eight bytes and its clean filter passes a file that already opens with the magic through unchanged, so ciphertext with a line appended would satisfy both. In a clone never unlocked, or one whose credentials were flushed, that reading is the only check: git ignores the unconfigured filter and stages a rewritten secret as plaintext, and the working copy there *is* the ciphertext, so an append is the likeliest edit. Where the clone is unlocked, transcrypt's check runs after the hook's reading, so plaintext already in history gets the hook's warning to rewrite it and rotate the value rather than transcrypt's re-stage advice. The hook's reading covers the default context only; a file marked for a named context gets transcrypt's check alone, and only where the clone is unlocked. It reads the whole index rather than this commit's files: rebase, `am`, cherry-pick, revert and a merge that needs no resolution commit without running pre-commit, so a leak they carry in is refused at the next ordinary commit.
+
+**Tests:** `bash claude/tests/pre-commit-hook.sh [hook]` — exit 0 when every case behaves, 1 otherwise. Each case runs in a scratch repo sealed from this machine's git config, and a refusal counts only when the output carries the refusing check's own words; the unlocked cases, and the real-symlink case, are counted as NOT COVERED where transcrypt cannot initialise or the machine cannot make a symlink.
 
 ---
 
@@ -1009,8 +1011,8 @@ as opaque blobs to anyone without it.
 
 - **Mechanism:** [transcrypt](https://github.com/elasticdog/transcrypt) (vendored
   at `claude/scripts/transcrypt`) wires Git clean/smudge filters. `.gitattributes`
-  marks `claude/memory/*.secret.md filter=crypt`, so those files are ciphertext in
-  every commit and plaintext only locally.
+  marks every `*.secret.*` file `filter=crypt`, wherever it sits in the repo, so those
+  files are ciphertext in every commit and plaintext only locally.
 - **Key:** a symmetric passphrase kept in Doppler (a `TRANSCRYPT_KEY` secret) — not
   in this repo. The committed index entry for an encrypted memo is deliberately
   generic, so even the description gives nothing away.
@@ -1028,8 +1030,8 @@ The portable `pre-commit` (installed globally via `core.hooksPath`) already chai
 the shared, committed `git/hooks/` — no leftover, no manual cleanup. (This is a
 local patch to the vendored `transcrypt`; re-apply it if you re-vendor upstream.)
 
-Until then, `*.secret.md` files read as encrypted blobs. Add more by naming them
-`*.secret.md`; the attribute pattern encrypts them automatically.
+Until then, `*.secret.*` files read as encrypted blobs. Add more by naming them
+`*.secret.<ext>`; the attribute pattern encrypts them automatically.
 
 ## License
 

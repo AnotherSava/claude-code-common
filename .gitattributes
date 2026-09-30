@@ -3,6 +3,6 @@
 # replace it with `-text`, and do not drop it to match upstream's bare line — upstream has no Windows story.
 #
 # The pattern is the `*.secret.*` naming convention rather than a path, so a secret file added
-# anywhere in the repo is covered the moment it is named — and a file that forgets the marker is
-# stopped by the global pre-commit hook rather than leaking past a rule nobody remembered to extend.
+# anywhere in the repo is covered the moment it is named. The name is all that marks it: a file that
+# forgets the marker gets no filter and commits as plaintext, and no hook can tell it from any other.
 *.secret.* filter=crypt diff=crypt merge=crypt text=auto eol=lf

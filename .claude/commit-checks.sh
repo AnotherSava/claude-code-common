@@ -83,6 +83,13 @@ run "ingress-lint.py" python3 claude/tests/ingress-lint.py
 # the whole run is sealed from this machine's git config and signing key.
 run "pre-push hook" bash claude/tests/pre-push-hook.sh
 
+# The global pre-commit hook, the last thing between a transcrypt secret and a plaintext commit. The
+# case it most needs to cover is a clone not yet unlocked, where git ignores the crypt filter and a
+# secret rewritten there stages as it reads — which a check gated on transcrypt being set up misses.
+# Each case runs in a sealed scratch repo, and a refusal counts only when it carries the refusing
+# check's own words.
+run "pre-commit hook" bash claude/tests/pre-commit-hook.sh
+
 # The PreToolUse guards that read Bash commands, and the shared module that finds command position
 # for them. A guard that refuses too little leaks a secret into the transcript; one that refuses too
 # much blocks writing about the thing it guards, which is how the Doppler guard's first version
