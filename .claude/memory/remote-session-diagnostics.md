@@ -28,7 +28,7 @@ Four commands answered every question in the 2026-09-22 diagnosis:
 
 - `curl -s http://127.0.0.1:9077/api/agents` — whether a session for that project exists on the
   Windows device at all, with its status and label. Remote rows are namespaced (`CHROME/<project>`);
-  [[peer_messaging]] has what the fields are worth.
+  the `peer` skill's "Find the session" step has what the fields are worth.
 - `ssh "$REMOTE_USER@$REMOTE_HOST" "wsl -d $WSL_DISTRO -- tmux ls"` — the attachable sessions, and
   **when each was created**. That timestamp is what separates "the attach joined something already
   running" from "the attach created it", which no other source answers.

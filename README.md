@@ -92,6 +92,7 @@ Analyzes changes and generates atomic Conventional Commit messages.
 - Presents a full plan for approval before executing any commits
 - GPG-signs all commits, never adds AI attribution
 - Asks the live session that owns a peer repository to commit work this session left there, scoped to repos it actually wrote to
+- After a push, asks the session working on the same repo on the other machine to run `/pull` (see [Peer](#peer))
 
 ---
 
@@ -124,7 +125,7 @@ Brings the branch up to date with its upstream when the working tree is dirty â€
 - Verifies against the stash commit as a baseline, then checks the two failure modes that produce no conflict at all: one document asserting the same thing twice, and an incoming file duplicating one already in the tree
 - Reads its procedure from `@{upstream}` when the repo being pulled is this one, since a behind checkout's documentation is behind by the same commits
 - Proposes a rebase on a diverged branch rather than running one, and will not commit or push
-- Runs only when you type it â€” `disable-model-invocation: true` stops Claude starting it, even when asked directly
+- Runs when a session on the other machine asks for it: `/commit` there sends that request after each push
 
 ---
 
@@ -401,9 +402,24 @@ Closes out a section of work. Before anything is committed it re-reads the curre
 - Keeps every word both sides said and discards tool traffic; prose is a small fraction of a transcript (82 KB of a 3.5 MB session, measured), so no keyword heuristic has to decide which findings are allowed to surface
 - Restores answers given through question prompts, which carry direction that often appears nowhere else in the session
 - Checks each candidate against the current working tree before presenting it, dropping whatever is already settled: a later message, an existing memo, an earlier `/wrap-up`, or a step of the commit flow that owns it
-- Gates the commit: every finding is answered now, memo'd for later, or dropped, and nothing is committed until the list is disposed of
+- Gates the commit: every finding is answered now, memo'd for later, pinged to the session that owns it, or dropped, and nothing is committed until the list is disposed of
 - Routes work only the other machine can do to the live session there rather than parking it as a memo, and holds that message until the push when the peer has to pull this session's work before it can act
 - Hands the rest to `/commit` (remote sync, reflect, clean-code, documentation, confidentiality scan, push), then recommends the `/clear` that scopes the next wrap-up to exactly one section
+
+---
+
+### Peer
+
+Finds, messages and routes work to other Claude Code sessions, on this machine or on the other one, and settles what arrives from them. When a message is worth sending is the `peer_messaging` memory's call; this skill is how it is sent.
+
+**Command:** `/peer`
+
+**Features:**
+- Reaches sessions on this machine through `ListAgents` and `SendMessage`, and sessions on the other machine through the Claude Code Dashboard relay
+- Sends cross-machine with one shared client, `skills/shared/peer_relay.py`, which addresses the project on the peer and lets the peer's dashboard resolve the session
+- Reports each relay receipt literally, keeping "written" apart from "delivered" and "not sent" apart from "nobody there"
+- Explains each relay refusal code and what to do about it
+- Covers the receiving side: requests to act, commit handoffs, routed learnings and relayed approvals
 
 ---
 

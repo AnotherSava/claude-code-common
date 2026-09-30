@@ -197,7 +197,7 @@ looks exactly like success from every angle available here.
 
 - Do NOT delete a bucket, a key, or a snapshot, or run `forget`/`prune` by hand — see the boundary in
   `references/b2-provisioning.md`
-- Do NOT touch another project's bucket, key, lifecycle rule or units; route the finding to that project
+- Do NOT touch another project's bucket, key, lifecycle rule or units; route the finding to that project's session (the `peer` skill)
 - Do NOT put `B2_MASTER_KEY` on any box
 - Do NOT restore over live data as part of a drill
 - Do NOT commit a credential value, encrypted or otherwise

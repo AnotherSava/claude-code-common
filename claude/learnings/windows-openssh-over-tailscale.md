@@ -174,7 +174,7 @@ Two consequences, and the second is the expensive one:
   the symptom — a 300 s timeout reported as the far end being unreachable — looks exactly like a real
   network or auth failure. Nothing on the machine can tell you otherwise. Get a process with a real
   console there to run the probe: the user's own shell, or the Claude session already running on that
-  box via [[peer_messaging]]'s dashboard relay. Then have it write to a file you read back over SSH,
+  box, reached through the `peer` skill. Then have it write to a file you read back over SSH,
   per [[feedback_route_output_not_paste]].
 
 ## Nothing you start here outlives the connection

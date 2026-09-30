@@ -177,7 +177,7 @@ def on_prompt(payload: dict) -> None:
         context += (
             " This memo is tagged for the other platform, so the work it names cannot be finished on this "
             "machine. Do whatever part of it is portable here, then route the rest to the live session on "
-            "that box as described in `~/.claude/memory/peer_messaging.md` — leaving it in the backlog just "
+            "that box through the `peer` skill — leaving it in the backlog just "
             "defers it to whoever next reads it, on whichever machine they happen to be on. Close it only "
             "if the portable part was the whole memo."
         )

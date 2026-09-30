@@ -93,5 +93,5 @@ The tell is offering to add a wrapper, a hook or a setting so that **the machine
 differently. Sleep, notifications, the tray, the clipboard, cross-session state — each of those
 surfaces already has an owner among these projects, and the gap is usually a default rather than a
 missing feature. Ask which project owns the surface before designing anything, and message that
-session; `ListAgents` names the live ones. See [[feedback_check_live_sibling_session]] and
-[[peer_messaging]].
+session on whichever machine it runs, as the `peer` skill describes. See
+[[feedback_check_live_sibling_session]] and [[peer_messaging]].

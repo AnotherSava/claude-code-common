@@ -18,8 +18,7 @@ duplicates that work and then competes with it. Claude's internal session name i
 environment is set — and leaves naming and titling alone. The specific temptation this rules out is
 reaching for `--name "${PWD##*/}"` so sibling agents can address the session by a stable name:
 cross-machine addressing goes through the dashboard, which keys on the project directory rather than
-on that name. See [[dashboard_agent_roster]] for what it does key on, and [[peer_messaging]] for
-reaching a session once it is found.
+on that name. The `peer` skill covers what it keys on and how to reach a session once it is found.
 
 A wrapper may still carry the dashboard's title to a terminal that would otherwise lose it, since
 that serves the dashboard rather than competing with it. `remote_session_attach` in

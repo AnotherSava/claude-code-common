@@ -102,3 +102,8 @@ the repo's convention number is current; neither fetches, so a tree weeks behind
 healthy. The check that would catch it is the one in `CLAUDE.md`'s Git Workflow — `git fetch` then
 `git log --oneline HEAD..@{upstream}` — run **in the dotfiles repo**, which a session working anywhere
 else has no reason to open.
+
+`/commit` narrows the gap from the other side: after each push it asks the session working on the same
+repo on the other machine to run `/pull` (`skills/commit/scripts/notify_peer_pull.py`). A push made
+while no dotfiles session is live over there, or whose request came back refused or `NOT SENT`, still
+waits for someone to pull by hand.

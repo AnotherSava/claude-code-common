@@ -36,7 +36,7 @@ session that followed one and a session that broke it, so there is nothing for a
   first, research before asking.
 - **Research before trial-and-error** — read `~/.claude/learnings/` before diagnosing *and* before
   writing, and search the web rather than iterating blindly.
-- **Git workflow** — never commit or push unasked, surface a cross-repo change without committing it,
+- **Git workflow** — never commit or push unasked, report a cross-repo write to the session that owns that repo when you make it and commit it only through `/commit` step 10,
   check the remote after an idle gap, prefer `git status --short`.
 - **Bash conventions** — forward slashes on Windows, no `cd` drift across calls, never route a plaintext
   secret through the `!` prefix, no `python -c`.

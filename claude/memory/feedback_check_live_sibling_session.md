@@ -15,15 +15,10 @@ Editing those files from a second session risks clobbering work in flight, and
 you have none of the context the other session built up.
 
 **How to check** — on 2026-07-31 an "align the elements" request for the BGA
-compact header arrived in the tauri-dashboard session:
-
-1. Grep the dashboard's own `widget.jsonl` (in its app-data dir) for the target
-   repo's chat_id and read the last few lines. A recent `classify` line carries
-   a timestamp and that turn's closing message, so it shows both *whether* an
-   agent is active there and *what* it just did — the tool reporting on its own
-   siblings. See [[debug_state_transitions_via_widget_jsonl]].
-2. `git -C <repo> status --short` — uncommitted and untracked files show what it
-   is mid-flight on.
+compact header arrived in the tauri-dashboard session. Find the session the
+instruction fits and see what it is mid-way through, as the `peer` skill's
+"Find the session" step describes (`ListAgents`, the dashboard roster, its
+`widget.jsonl`, and `git status` in that repo).
 
 Then name the session it belongs in rather than acting. Offer to do it from the
 current session only once the other one is confirmed parked.

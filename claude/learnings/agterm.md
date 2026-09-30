@@ -57,7 +57,8 @@ Enters — strip them (`tr -d '\n'`) and send one long line. The bundled skill c
 cross-session channel — `ListAgents` / `SendMessage`, delivered over a per-session socket — so a
 Claude → Claude message needs no typing, no `\r`, and no pane read-back, and it reports
 delivered / held / refused back to the sender. Verified 2026-08-30; see
-`claude-code-cross-session-messaging.md`. The typing route above remains the answer only for driving a
+`claude-code-cross-session-messaging.md`, and the `peer` skill for reaching a session on the other
+machine, which goes through the dashboard relay rather than a pane over SSH. The typing route above remains the answer only for driving a
 program that is *not* a Claude Code session.
 
 ## The OSC title *is* the session name, and agterm never writes one itself

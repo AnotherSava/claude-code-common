@@ -204,6 +204,10 @@ There is **no** peer-to-peer or LAN path: zero `tailscale` strings in the bundle
 AF_UNIX / named pipe only. Sessions in different containers, or WSL2 vs native Windows on one box,
 cannot reach each other — different home directories, different socket types.
 
+These machines do not use this route: `CLAUDE_CODE_DISABLE_NONESSENTIAL_TRAFFIC=1` turns Remote Control
+messaging off, so cross-machine messages go through the Claude Code Dashboard relay instead, sent with
+`skills/shared/peer_relay.py` (see the `peer` skill).
+
 ### `no_such_session` does not mean the session is gone
 
 Where a relay routes by **project id**, that id is derived per session and is not stable across a
@@ -233,6 +237,9 @@ outbound message is written and receipted normally, and the failure surfaces one
 the other agent's transcript, where you cannot see it. `ListAgents` names are the address for
 `SendMessage` on the same machine and are **not** interchangeable with the relay's, so derive the
 relay's from the relay (`/api/agents`) rather than from the roster you already have on screen.
+`peer_relay.py` builds both from this clone's directory name, which holds only while the peer's clone
+sits under the same name and derives the same id; on a `no_such_session`, `/api/agents` is still the
+check.
 
 Two traps from the same exchange:
 
@@ -311,3 +318,6 @@ drop.
 
 - `claude-code-integration.md` — hook payloads, transcript entry types, state classification.
 - `agterm.md` — the keystroke-typing approach this supersedes for Claude ↔ Claude.
+- The `peer` skill — how to find, message and route work to a session on either machine, and
+  `skills/shared/peer_relay.py`, the one client for the dashboard relay. [[peer_messaging]] — when a
+  message is worth sending.
