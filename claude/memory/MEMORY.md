@@ -223,3 +223,4 @@
 - [Rate realism before hardening](feedback_realism_before_hardening.md) {always} — a rare edge case a review found, harmless or cheap to handle by hand, is reported and gets a warning or a doc line, not code
 - [Date split memos from the pickaxe](feedback_memo_split_dates_from_pickaxe.md) — v1 Path A split: recover each [x] close date with the pickaxe and offer dated done/ names
 - [Re-measure before concluding](feedback_remeasure_before_concluding.md) — shared state other sessions are changing goes stale in minutes; re-measure in the turn that states the verdict
+- [Issue replies lead with the feature](feedback_issue_reply_feature_first.md) — tell a reporter what they get, not the mechanism; a reason goes in the example or brackets

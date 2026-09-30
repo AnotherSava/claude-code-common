@@ -154,11 +154,32 @@ Working automated path: the **Firecrawl API** — a hosted scraper that solves C
 
 `GetSchemaForGame` accepts `l=<language>` using Steam's own codes (`russian`, `schinese`, `brazilian`, …). Measured on appid 812140 (AC Odyssey), 2026-09-03: 31 calls in 4.1 s, and **14** of the 31 languages are genuinely localised. The other 17 return the English strings **silently** — no error, no marker — so detect support by diffing the *whole* schema against the English one rather than per entry, since an individual string legitimately matches when it is a proper noun.
 
-The redaction itself is **language-invariant**. All 31 hidden achievements come back with `description: ""` in every one of the 14 localised languages, and `https://steamcommunity.com/stats/<APPID>/achievements/?l=<language>` redacts exactly the same set. This is Steam policy rather than a missing parameter: no first-party source carries hidden-achievement descriptions in any language.
+The redaction is **language-invariant** in `GetSchemaForGame` and on `https://steamcommunity.com/stats/<APPID>/achievements/?l=<language>`: all 31 hidden achievements come back with `description: ""` in every one of the 14 localised languages.
 
-SteamDB is the only source that has them, and it serves them **English only**. Scraped via Firecrawl 2026-09-03, `https://steamdb.info/app/812140/stats/?l=russian` returns markdown byte-identical to the unparameterised page with **zero Cyrillic characters**, and the page carries no language control at all — its "Russian" strings are currency names in the price table.
+**`IPlayerService/GetGameAchievements/v1` does not redact.** `GET https://api.steampowered.com/IPlayerService/GetGameAchievements/v1/?appid=<APPID>&language=<language>` needs no key, and its `localized_desc` carries the text of hidden achievements too: 31 of 31 for AC Odyssey in both `english` and `russian` (2026-09-29), 26 of 26 for The Witcher 3. `language` is required; without it the reply is `{"response":{}}`. That makes it a first-party, localised source for hidden descriptions, which the SteamDB path above is not.
 
-So anything fetching multi-language achievement text has a hard ceiling: it localises the visible achievements and nothing else — 62 of Odyssey's 93. Popups for such a game come out mixed, and UI promising full localisation will read as a bug. Say so at the point of the promise.
+SteamDB serves them **English only**. Scraped via Firecrawl 2026-09-03, `https://steamdb.info/app/812140/stats/?l=russian` returns markdown byte-identical to the unparameterised page with **zero Cyrillic characters**, and the page carries no language control at all — its "Russian" strings are currency names in the price table.
+
+So a tool fetching multi-language text from `GetSchemaForGame` or SteamDB localises the visible achievements only (62 of Odyssey's 93); `GetGameAchievements` is the way past that ceiling.
+
+## Achievement progress: how GBE counts it, and where the bindings come from
+
+A **progress achievement** ("destroy 25 ships") is bound to a stat. GBE counts it only when its `achievements.json` entry carries `"progress": {"min_val": "0", "max_val": "25", "value": {"operation": "statvalue", "operand1": "<stat>"}}` **and** that stat is defined in `steam_settings/stats.json`. With `stats.json` absent and `allow_unknown_stats` at its default (off), `set_stat_internal` rejects every stat, so progress never moves and an achievement unlocked only through its stat never unlocks. Then, on every stat increase below max, GBE rewrites `GSE Saves/<appid>/achievements.json` with `progress`/`max_progress` (integers); at load it seeds `progress: min, max_progress: max` for every bound entry; on unlock it leaves progress at the last value below max.
+
+Two format traps (gbe_fork `dev`, 2026-09-29):
+- An empty `min_val` makes the load-time `std::stoul("")` throw, so the seeded `progress`/`max_progress` never appear. Write `"0"`.
+- `parse_stats` reads `stats.json`'s `default` and `global` with `value(..., std::string)`, which throws on a JSON number and silently skips the stat. Write them as strings.
+
+`GetSchemaForGame` lists achievements and stats separately and never says which stat drives which achievement; SteamDB's stats page shows the same two tables (its `--ach-progress` CSS value is the global unlock rate). Sources that do:
+
+| Source | Gives | Needs |
+|---|---|---|
+| `IPlayerService/GetGameAchievements/v1?appid=&language=english` | `progress_type: 1` plus `min_progress_int`/`max_progress_int` per progress achievement; **no stat name** | nothing, not even a key |
+| `https://emulator.servegame.com/games-infos-data/steam/<appid>/achievements_db.json` + `stats_db.json` (Nemirtingas; the GitHub repo `Nemirtingas/games-infos-datas` froze 2026-05-15 and has no licence) | `stats_thresholds: [{stat_name, min_val, max_val}]` and stat types/defaults (defaults as numbers) | nothing; personal dynamic-DNS host, 404 for unknown games |
+| `<SteamPath>/appcache/stats/UserGameStatsSchema_<appid>.bin` (binary KeyValues; `SteamPath` from `HKCU\Software\Valve\Steam`) | the full blob, progress blocks in GBE's exact shape at `<appid>/stats/<id>/bits/<n>/progress`; `min_val` may be string, int or `""` | the game run once under real Steam on that machine |
+| CM `ClientGetUserStats` (what `generate_emu_config` uses; request names any owner's SteamID64) | the same blob for any game | a real Steam login; anonymous gets no reply |
+
+Checked against the cache on three games with progress achievements (11/11, 21/21, 88/89 — the odd one binds to an undefined stat) and three without (0). A Steam Community profile page (`/profiles/<id>/stats/<appid>/?tab=achievements`) also shows `0 / 25` bars anonymously for any profile, adding nothing over `GetGameAchievements`.
 
 ## Windows Defender flags GBE binaries as PUA
 
