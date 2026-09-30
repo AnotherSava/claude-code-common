@@ -9,5 +9,5 @@
 - [Untracked checklists block the split](untracked-checklists-block-the-split.md) — two repos hold an uncommitted `.claude/memos.md`; commit it before `/adopt` runs there or v1 destroys every marker
 - [Effort changes dirty this repo](effort-changes-dirty-this-repo.md) — `/effort` writes through the settings.json symlink into the tree; press `s` for session-only, and two effort keys can disagree
 - [Remote session diagnostics](remote-session-diagnostics.md) — "remote session" means the tmux feature, not Remote Control; the four read-only commands for its live state, and why an attach can work while the conversation is new
-- [Docs stay text-only](docs-stay-text-only.md) — no images here by choice (2026-09-24); `/docs-relevance` finds the same screenshot gap every run, don't re-raise it
+- [Docs stay text-only](docs-stay-text-only.md) — why there are no images here (2026-09-24); the instruction itself is in `CLAUDE.md`, where `/docs-relevance` reads it
 - [v9 stock-take is inventory only](v9-stocktake-inventory-only.md) — nothing runs before the commit-gate question; running candidates was rejected 2026-09-26, don't re-propose it
