@@ -176,7 +176,7 @@ def main() -> int:
             continue
         reported += 1
         print(f"peer-repos: {os.path.basename(root)}  ({root})")
-        print(f"  agent name to match in ListAgents: {os.path.basename(root)}")
+        print(f"  ListAgents name prefix: {os.path.basename(root)}")
         for path in sorted(outstanding):
             print(f"  uncommitted: {os.path.relpath(path, root)}")
         others = len(dirty) - len(outstanding)

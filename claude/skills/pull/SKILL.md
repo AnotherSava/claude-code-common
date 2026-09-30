@@ -1,7 +1,6 @@
 ---
 name: pull
-description: Bring this branch up to date with its upstream — fetch, judge whether the local edits collide with the incoming commits, move aside only what must move, fast-forward, and resolve what the restore turns up.
-disable-model-invocation: true
+description: Bring this branch up to date with its upstream when the tree may be dirty — fast-forward, moving aside only local edits that collide. TRIGGER when: asked to pull or sync, or a session on the other machine asks for it after a push. DO NOT TRIGGER for a diverged branch or for committing.
 allowed-tools: AskUserQuestion, Read, Grep, Bash(git fetch:*), Bash(git rev-parse:*), Bash(git rev-list:*), Bash(git log:*), Bash(git diff:*), Bash(git status:*), Bash(git show:*), Bash(git ls-files:*), Bash(git cat-file:*), Bash(git stash:*), Bash(git merge:*), Bash(git add:*), Bash(git reset:*)
 ---
 
@@ -12,6 +11,8 @@ Sync this branch with its upstream and settle whatever the sync turns up. A dirt
 Read `~/.claude/skills/shared/bash-rules.md` for bash command constraints.
 
 The reference for every branch below is `~/.claude/learnings/git-stash-pull-safety.md`: it carries the recipes, the verification baselines, and the failure modes that produce no conflict at all. This file is the decision procedure, that one is the depth. Follow its section when a step names it rather than re-deriving a recipe it already holds.
+
+**When a message asked for this run** — `/commit` on the other machine sends one after each push — the message is a claim, but this skill re-measures its premise in step 1: if nothing is inbound, say so and stop. Send no reply unless something needs the sender's attention; the `peer` skill covers anything the message asks beyond the pull.
 
 ## Context
 - Fetch: !`git fetch -q 2>&1 || echo FETCH-FAILED`
