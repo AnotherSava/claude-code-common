@@ -149,7 +149,9 @@
 - [Read upward from the match](feedback_read_upward_from_the_match.md) {always} — a grep shows what follows a definition, never what precedes it; read above it before calling a value unexplained or a list unaudited
 - [Mark the container, not every item](feedback_mark_the_container_not_every_item.md) {always} — a scope marker says where the work must happen, not that every item inside is bound; don't withhold it because one part is portable
 - [Show the artifact with the ask](feedback_show_the_artifact_with_the_ask.md) {always} — a choice between specific artifacts gets the passage that decides each, not only your one-line reading of them
+- [Build the variant sheet, don't iterate](feedback_variant_sheet_for_visual_choices.md) {always} — second tweak to a colour/spacing means one HTML page of every candidate in real context, not another deploy
 - [A fixture must exceed the cap](feedback_fixture_must_exceed_the_cap.md) {always} — sized below a threshold it never reaches the branch and still reports success; count the caps before picking the size
+- [Drive the transition in tests](feedback_drive_the_transition_in_tests.md) {always} — constructing the object at the state under test leaves the read field at its default, which is usually the value that hides the bug
 - [User GitHub account](user_github_account.md) {always} — handle is `AnotherSava`; use to filter "my repos" vs third-party clones
 - [Where supplied screenshots land](user_screenshot_location.md) {always} — "see the screenshot" with nothing attached means the newest PNG in `~/Desktop`, or `~/CropStage` on Windows; go look first
 - [Memos go through the wrapper and the skill](user_memo_access_paths.md) — `memo` calls only `add`/`list`, everything else comes via `/memo`; `memos.py` is never typed by hand, so weight wrapper and SKILL.md over CLI ergonomics
@@ -199,6 +201,7 @@
 - [Warnings lead with the instruction](feedback_warning_leads_with_instruction.md) {always} — what to do first, why second, and the reason must be one the reader couldn't supply themselves
 - [Fix the part, not the whole](feedback_fix_the_part_not_the_whole.md) {always} — an objection to one sentence is not licence to delete the construct around it
 - [Complexity may be self-imposed](feedback_complexity_may_be_self_imposed.md) {always} — check a constraint is real before designing around it; judge a subagent's design against what the user actually asked for
+- [Check the record before building an observer](feedback_record_before_observer.md) {always} — a definition phrased "after X happens" is an event the system already receives; find where it arrives before designing a poll
 - [Minimal UI chrome](feedback_minimal_ui_chrome.md) {always} — no duplicate state signals, no field help text, no card blurbs; icon over text button; state in a badge, never a placeholder
 - [Redrawn icons keep the original's identity](feedback_redrawn_icons_keep_identity.md) {always} — keep the frame/facets that identify a host's component; drop only what smudges at icon size, and go bigger before going plainer
 - [Empty state names the filter](feedback_empty_state_names_the_filter.md) {always} — say what the filter hid, never that nothing happened; "show everything" is one click away and disproves it
@@ -225,3 +228,4 @@
 - [Re-measure before concluding](feedback_remeasure_before_concluding.md) — shared state other sessions are changing goes stale in minutes; re-measure in the turn that states the verdict
 - [Issue replies lead with the feature](feedback_issue_reply_feature_first.md) — tell a reporter what they get, not the mechanism; a reason goes in the example or brackets
 - [Ask reporters only what they can answer](feedback_issue_reply_questions.md) — no questionnaire; scope is ours, close with "feedback and questions welcome"
+- [Amend the published comment](feedback_amend_the_published_comment.md) — a correction edits the text it corrects; a stacked follow-up leaves the wrong version as the one most people read
