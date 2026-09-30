@@ -378,6 +378,15 @@ steps:
 
 **Release on version tags** (`v*`): Publish self-contained (single exe) and framework-dependent variants, package as zips, create GitHub Release with `gh release create --generate-notes`. The release job runs on `ubuntu-latest` (just downloads artifacts and calls `gh`), only the build job needs Windows.
 
+**Zip the framework-dependent publish folder whole, never a list of file names.** Unlike the single-file build, the framework-dependent publish leaves each NuGet dependency as a loose DLL beside the app. A `Compress-Archive -Path app.exe, app.dll, app.deps.json, …` list written before the first package was added silently drops it: the zip still starts, the tray app runs, and the host throws `FileNotFoundException: Could not load file or assembly '<Package>'` only when a method using that package is first JIT-compiled. One project shipped seven releases that way, with its setup wizard's 7z extract broken for every framework-dependent user. Package the folder minus symbols instead:
+
+```powershell
+Get-ChildItem publish/framework-dependent -Exclude *.pdb |
+  Compress-Archive -DestinationPath "publish/App-$version-framework-dependent-win-x64.zip"
+```
+
+To check a shipped zip without clicking through the UI, load its DLL into PowerShell 7 (which runs on current .NET, e.g. .NET 10 for pwsh 7.6) and invoke the method that uses the package by reflection, with arguments that fail harmlessly: `[Reflection.Assembly]::LoadFrom(...)`, then `GetMethod('<Name>', 'NonPublic,Static').Invoke(...)`. A missing DLL surfaces as the `FileNotFoundException` naming the assembly; with the DLL copied in, the same call fails further on (e.g. `DirectoryNotFoundException` for a bogus path), which is the control showing the probe reached the dependency.
+
 **Version from tag**: Strip `v` prefix from tag name:
 ```yaml
 - if: startsWith(github.ref, 'refs/tags/v')
