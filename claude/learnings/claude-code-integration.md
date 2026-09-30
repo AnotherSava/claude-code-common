@@ -277,6 +277,12 @@ Reference implementation: the Tauri dashboard's `subagent_gate.rs`, which overla
 
 To settle a hook schema question yourself, read it out of the binary: `grep -a -o 'hook_event_name:A("PermissionRequest").\{0,300\}' claude.exe` prints the event's input schema, and grepping for the event name with `hook_event_name:"` shows which call sites build it. The same works for any behaviour, but search for the code's shape, not a bare message: the first hits for a log string such as `Restarting sleep inhibitor` sit in the binary's string table, surrounded by other constants and no code, which is easy to misread as a binary with no readable source. Matching the call, `("Restarting sleep inhibitor` with the paren, or a method call such as `this.spawnInhibitor()`, lands in the class itself (measured 2026-09-26 on the Windows npm build, 2.1.283).
 
+Three things make a reading from one binary a claim about only that binary, and each is silent:
+
+- **Count the call sites; do not stop at the first.** A `find`-style search returns one offset, and a schema is routinely built in more than one place. `UserPromptSubmit` has exactly two builders that differ only in their bindings — `prompt:r` with the session's own id, `prompt:e` with `r.session.id` — so a fix or a defect found at one says nothing about the other. Loop the search to exhaustion and report the count.
+- **A minified binding is not portable between builds.** Quoting `prompt:M.prompt,source:M.source` as evidence reads like a stable literal and is not: the same construct is `prompt:B.prompt,source:B.source` one release later, so the quote returns zero matches on the newer binary and the claim looks refuted. Match the shape with a pattern over the identifier, and if a literal must be quoted, say which build it came from.
+- **The two machines are usually on different versions**, and the newer one is not necessarily the one you are typing on. The install shapes differ too: a native Mach-O under `~/.local/share/claude/versions/<ver>` here, an npm `bin/claude.exe` under `%APPDATA%/npm/node_modules/@anthropic-ai/claude-code/` on the Windows box. Measured 2026-09-30: 2.1.251 against 2.1.285, a 34-release gap, and a finding written up from the older one alone had to be amended after publication.
+
 ## Hook matchers scope by tool name; `if` scopes by argument
 
 The `matcher` is tested against the **tool name** (`Bash`, `Edit`, a regex over names). Argument-level
