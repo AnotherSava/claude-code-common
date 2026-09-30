@@ -691,3 +691,39 @@ except UnicodeDecodeError: print("binary")' "$f"
 The case: a guard that had to prove two files held no recoverable plaintext before a credential flush
 overwrote them. It reported both as readable text while they were stale-key garbage. It failed towards
 caution that time, and the same construct fails the other way whenever the safe branch is the `&&` one.
+
+## `tee` into a gitignored directory makes a gate fail on every machine but yours
+
+Adding a log to a check step is a one-line change that passes locally and breaks for everyone else:
+
+```bash
+set -euo pipefail                       # near the top of most gate scripts
+...
+cargo test --lib 2>&1 | tee tmp/test.log   # tmp/ is gitignored
+```
+
+A gitignored scratch directory exists on no fresh clone and does not survive `git clean -xdf`, so
+`tee` dies with `No such file or directory`, `pipefail` promotes that to the pipeline's status, and
+`set -e` aborts. One `mkdir -p tmp` before the pipe is the whole fix, and it is not optional.
+
+Three things make this worse than an ordinary missing-directory error:
+
+- **The failure is attributed to the wrong step.** It surfaces after the step's own banner and after
+  the command printed its success, so the visible transcript is a green test summary followed by a
+  red gate. Anyone reading it concludes the suite failed.
+- **`pipefail` is usually already on**, set once at the top of the script. A local `set -o pipefail`
+  beside the new pipe is then a no-op, and — the real damage — a matching `set +o pipefail` after it
+  does not "restore" anything: it disables the option for **every remaining command in the script**.
+  If you did not turn it on, do not turn it off.
+- **The change is invisible to the gate it modifies.** A gate cannot validate an edit to itself: it
+  passes on the machine where the scratch directory happens to exist already. Reproduce it in an
+  empty directory instead, which takes one line:
+
+```bash
+cd "$(mktemp -d)" && bash -c 'set -euo pipefail; echo hi | tee tmp/x.log; echo NOT_REACHED'
+# tee: tmp/x.log: No such file or directory   (exit 1, NOT_REACHED never prints)
+```
+
+Same shape for any scratch path a script writes to rather than reads: a coverage file, a profile
+dump, a captured diff. The directory is part of the dependency, and only a tracked file in it — or a
+`mkdir -p` — makes it exist for anyone else.
