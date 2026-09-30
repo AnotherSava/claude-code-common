@@ -60,7 +60,7 @@ session that followed one and a session that broke it, so there is nothing for a
 - **Consulting the official Anthropic plugin and skill repositories** before reinventing one.
 - **The preamble's authoring rules** — ask clarifying questions before implementing, never add
   self-promoting attribution, use a fenced code block rather than a blockquote for text meant to be
-  copied, hand over an HTML artifact as a `file:///` link, and mark what the user must replace with a
+  copied, hand over anything meant to be opened as a tailnet URL rather than `file:///` or `localhost`, and mark what the user must replace with a
   `{{placeholder}}`.
 - **Resolving a symlink before writing through it** — Write and Edit refuse to write through the
   `~/.claude/` links, so the real target path is found with `readlink` first.

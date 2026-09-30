@@ -322,28 +322,27 @@ paste the detail sections at all.
   would need to compose the union.
 - **The report is published on the tailnet, so the one link printed opens on either machine.** A
   `file:///` path cannot: the two machines' projects roots share no path, so a link that opens on one
-  names nothing on the other. `tailscale serve` publishes the rendered file at
-  `https://<this machine>.<tailnet>.ts.net/github-status.html`, which needs no new service and no new
-  credential — Tailscale is already up on both machines with HTTPS certificates issued — and reaches
-  the phone as well. **The URL names whichever machine ran the scan, and it answers only while that
-  machine is awake**; a scan run from the laptop gives a link that dies when the lid closes, and the
-  next run from either machine republishes. Only that one file is reachable through it: the state file
-  and the description cache beside it are not, and `/`, `/__ping` and every other path return 404.
-- **How it is published differs by platform, and the URL does not.** Windows and Linux serve the file
-  directly, with no process involved. macOS refuses that — the sandboxed App Store build answers "Path
-  serving is not supported on macOS due to sandbox restrictions" — so there the file goes through
-  `serve-report.py`, a loopback server on port 8787 that serves exactly that one file and re-reads it
-  per request. It is spawned detached with both streams into `tmp/github-status-serve.log`, so it
-  outlives the run and cannot print into whatever terminal the user has hours later; it does not
-  survive a reboot, and the next run starts it again. Every step is idempotent and the URL is verified
-  by fetching it before being printed — the serve config outlives whatever it points at, so a stale one
-  answers 502 while every local check passes. Any failure prints its reason to stderr and falls back to
-  the `file:///` path; `--no-serve` skips publishing entirely. To unpublish by hand, run
-  `tailscale serve --set-path=/github-status.html off` — `tailscale serve reset` would clear every
-  other served path on that machine too.
+  names nothing on the other. The report is published at
+  `https://<this machine>.<tailnet>.ts.net/github-status.html`, which reaches the phone as well.
+  **The URL names whichever machine ran the scan, and it answers only while that machine is awake**;
+  a scan run from the laptop gives a link that dies when the lid closes, and the next run from either
+  machine republishes. Only the report is reachable through it: the state file and the description
+  cache beside it are not.
+- **Publishing goes through the shared `~/.claude/skills/shared/tailnet_publish.py`**, the module
+  every file handed to the user goes through. `publish_report()` calls it with the path
+  `github-status.html` rather than the module's repo-relative default, so the address stays
+  stable. The module owns the mechanics — a detached loopback server on 127.0.0.1:8788, one
+  `tailscale serve --set-path` entry per published file, and verifying the URL by fetching it and
+  comparing bytes before it is printed; its log is `~/.claude/tailnet-publish/server.log`. Any failure
+  prints its reason to stderr and falls back to the `file:///` path; `--no-serve` skips publishing
+  entirely. To unpublish by hand, run
+  `python ~/.claude/skills/shared/tailnet_publish.py unpublish github-status.html`, or
+  `tailscale serve --set-path=/github-status.html off` — never `tailscale serve reset`, which clears
+  every other served path on that machine too. From Git Bash, prefix the `tailscale` form with
+  `MSYS_NO_PATHCONV=1`, or the leading-slash path is rewritten into a Windows path first.
 - **Artifacts go in the gitignored `tmp/` of each machine's own dotfiles clone**, as
-  `github-status.html`, `github-status-state.json`, `github-status-descriptions.json` and
-  `github-status-serve.log` — the cache on both machines, the rest only where the report was run. The
+  `github-status.html`, `github-status-state.json` and `github-status-descriptions.json` — the cache
+  on both machines, the rest only where the report was run. The
   filenames are stable, so an open browser tab reloads onto the new report. Override with
   `--html` / `--state` / `--cache`. A
   scoped run adds `repo-status-<owner>-<repo>-state.json` and writes no HTML at all; it shares the

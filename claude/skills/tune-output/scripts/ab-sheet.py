@@ -4,7 +4,9 @@
 
 Reads <out-dir>/prompts.json and the N.A.md / N.B.md arm files written by
 ab-run.sh, shuffles each pair's arms into Left/Right independently, and writes
-compare.html plus key.json.
+compare.html plus key.json, then publishes compare.html on the tailnet and prints
+its URL. Only that one file is published: it embeds every arm's text, and key.json
+stays unreachable from the URL.
 
 The shuffle is seeded from os.urandom and recorded only in key.json, which this
 script never prints. So whoever runs it does not learn the mapping by running it
@@ -16,6 +18,10 @@ import json
 import os
 import random
 import sys
+from pathlib import Path
+
+sys.path.insert(0, str(Path(__file__).resolve().parent.parent.parent / "shared"))
+from tailnet_publish import publish  # noqa: E402  (needs the path entry above)
 
 FAIL_MARKERS = ("ARM A FAILED", "ARM B FAILED", "RETURNED NOTHING")
 
@@ -138,7 +144,11 @@ def main() -> None:
     open(path, "w", encoding="utf-8").write(PAGE.format(n=len(sections), nav=nav, body=body))
 
     print(f"wrote {path} ({len(sections)} pairs)")
-    print(f"link:  file:///{path.replace(os.sep, '/').lstrip('/')}")
+    url = publish(Path(path))
+    if url:
+        print(f"link:  {url}")
+    else:
+        print(f"link:  {Path(path).resolve().as_uri()}  (not published: reason above)")
     if flagged:
         print(f"WARNING: failed runs in pair(s): {', '.join(flagged)} -- re-run before judging")
 

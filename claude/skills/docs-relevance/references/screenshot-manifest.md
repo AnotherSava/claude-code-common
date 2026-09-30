@@ -181,9 +181,10 @@ out of the change set while remaining a file this skill can open again, and embe
 `$TEMP`:** the file tools refuse reads outside the working directories, so a sheet written there can be
 built and linked but never read back to check, which is the one thing it exists for. A project-local
 `tmp/` also needs no read grant and cannot collide with another repo's run. Put the saved originals in a
-sibling directory under the same `tmp/`. Give the user the page itself as a `file:///` URL too, on its own line
-and nothing else on it: a Windows path with backslashes is not clickable, and the point of the page is
-that it opens.
+sibling directory under the same `tmp/`. Give the user the page itself as the tailnet URL `contact-sheet.py`
+prints, on its own line and nothing else on it: a Windows path with backslashes is not clickable, a
+`file:///` link opens only on the machine that wrote it, and the point of the page is that it opens.
+Where publishing failed, the script prints the `file:///` URL instead, and it goes out with the reason.
 
 **Show every screenshot, not only the ones in question** — anything replaced as a before/after pair,
 and every other one as the picture that is currently committed. A verdict of "unchanged" or "not

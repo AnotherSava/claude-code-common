@@ -1,16 +1,13 @@
 ---
 created: 2026-09-29 13:22:32
-platform: macos
 ---
 
-# The github-status report server does not survive a reboot on macOS
+# The tailnet publish server does not survive a reboot
 
-On macOS the tailnet report URL is backed by serve-report.py, a detached loopback server on 127.0.0.1:8787 that tailscale serve proxies. The tailscale serve config itself lives in tailscaled and survives a reboot; the Python process does not, so after a reboot the published URL — `https://<this machine>.<tailnet>.ts.net/github-status.html` — answers 502 until the next /github-status run spawns the server again.
+Every tailnet URL handed over — the github-status report at `https://<this machine>.<tailnet>.ts.net/github-status.html`, and every file published with tailnet_publish.py — is backed by one detached loopback server on 127.0.0.1:8788 that `tailscale serve` proxies. This holds on both machines: the macOS App Store Tailscale build refuses path serving ("Path serving is not supported on macOS due to sandbox restrictions"), and Windows refuses it to a non-admin shell ("must be a Windows local admin to serve a path or Unix socket"). The serve config lives in tailscaled and survives a reboot; the Python process does not, so after a reboot every published URL answers 502 until the next publish spawns the server again.
 
-Windows and Linux are unaffected: they serve the file path directly with no process involved. This is macOS-only because the sandboxed App Store Tailscale build refuses path serving outright ("Path serving is not supported on macOS due to sandbox restrictions").
+Decide whether to close it or accept it. A per-platform autostart (a launchd LaunchAgent with KeepAlive on macOS, a logon scheduled task on Windows) would make the URLs answer across reboots. Against that: most published files are reports that go stale within hours, so a link answering after a reboot mostly serves a stale file, and every run that hands a URL over republishes it anyway. Accepting it costs nothing as long as a URL is always handed over fresh from a publish, which is how github-status and the CLAUDE.md rule hand it over today. The case for closing it is a link the user reopens days later, such as a contact sheet.
 
-Decide whether to close it or accept it. A launchd LaunchAgent with KeepAlive would make the URL answer across reboots without a scan. Against that: the file it serves goes stale within hours (fetch counts, ages, convention gaps all move), so a link that answers after a reboot mostly serves a stale report, and every /github-status run republishes anyway. Accepting it costs nothing as long as the URL is always handed over fresh from a run, which is how the skill hands it over today.
+The other route is the file form of `tailscale serve`, which needs no process: on macOS it takes the open-source tailscaled distribution, on Windows an elevated shell. Neither fits an agent's normal shell on both machines, so the loopback server stays the shared shape either way.
 
-The other route, if it is worth closing, is the open-source tailscaled distribution on macOS, which permits path serving and would remove the loopback server entirely — that is a bigger change to how Tailscale is installed on this box.
-
-Files: claude/skills/github-status/scripts/serve-report.py, and publish_report() in claude/skills/github-status/scripts/repos-status.py.
+Files: claude/skills/shared/tailnet_publish.py (server log at ~/.claude/tailnet-publish/server.log), and publish_report() in claude/skills/github-status/scripts/repos-status.py.

@@ -92,8 +92,10 @@ already there. Never run the baseline arm config-less: that measures the candida
 flatters it. See `references/ab-harness.md` for the prompt-selection rules, the trap cases, and what the
 numbers can and cannot support.
 
-Hand the user the sheet as a `file:///` link and let them call each pair before you read `key.json`. Their read
-is the measurement; yours is commentary.
+The script publishes the sheet on the tailnet and prints its URL on the `link:` line. Hand that URL over verbatim,
+and let the user call each pair before you read `key.json`. Their read is the measurement; yours is commentary.
+When publishing fails, the `link:` line falls back to a `file:///` link and the `NOTE:` above it gives the reason;
+hand over both, the reason included. Only `compare.html` is published — `key.json` is never reachable from the URL.
 
 ### 6. Apply, then record
 

@@ -11,4 +11,4 @@ When the user has to look at something before they can answer — a contact shee
 
 **Why:** the question box is modal in practice — the user reads it and answers it, and what scrolled above it is not part of what they see.
 
-**How to apply:** when a question depends on an artifact to open, put the `file:///` link in the question text or an option's description, or skip the tool and ask in plain text with the link in the closing paragraph. Related: [[feedback_show_the_artifact_with_the_ask]], [[feedback_image_report_always]].
+**How to apply:** when a question depends on an artifact to open, put the tailnet link (from `~/.claude/skills/shared/tailnet_publish.py`) in the question text or an option's description, or skip the tool and ask in plain text with the link in the closing paragraph. Related: [[feedback_show_the_artifact_with_the_ask]], [[feedback_image_report_always]].

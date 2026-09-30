@@ -11,6 +11,8 @@
 #   DEV_CMD=<command that starts the server; default 'npm run dev'>
 #   DEV_PRESTART_CMD=<optional command run from the repo root between stopping the old server and
 #                     starting the new one; empty means no pre-start step>
+#   DEV_TAILNET=<no for a project whose origin is pinned to localhost (an API key, an OAuth redirect,
+#                a CORS allowlist); anything else publishes the server on the tailnet>
 #
 # Stops whatever holds the port, runs DEV_PRESTART_CMD if one is configured, then relaunches DEV_CMD
 # detached so the server outlives this command and the Claude session. Logs go to
@@ -33,6 +35,7 @@ DEV_DIR="$(getval DEV_DIR)";  DEV_DIR="${DEV_DIR:-.}"
 DEV_PORT="$(getval DEV_PORT)"; DEV_PORT="${DEV_PORT:-3000}"
 DEV_CMD="$(getval DEV_CMD)";  DEV_CMD="${DEV_CMD:-npm run dev}"
 DEV_PRESTART_CMD="$(getval DEV_PRESTART_CMD)"
+DEV_TAILNET="$(getval DEV_TAILNET)"
 
 RUN_DIR="$REPO_DIR/$DEV_DIR"
 LOG="$RUN_DIR/dev-server.log"
@@ -108,8 +111,20 @@ for _ in $(seq 1 40); do
         [ "$PRESTART_RC" -ne 0 ] && echo "  !! pre-start step FAILED earlier (exit $PRESTART_RC) — this server is running on unsynced state"
         # Last line, and only on success: the address is the point of the whole command, and a port number
         # alone is not it — someone still has to assemble the URL before they can look at the thing. Printed
-        # by the script rather than left to whoever reports the run, so it cannot be omitted.
-        echo "  open: http://localhost:$DEV_PORT"
+        # by the script rather than left to whoever reports the run, so it cannot be omitted. It is the
+        # tailnet address, so the link opens on every machine the user has; the server keeps its loopback
+        # bind and Tailscale fronts it. A project pinned to a localhost origin keeps localhost, because the
+        # tailnet name would fail its key or redirect check.
+        if [ "$DEV_TAILNET" = "no" ]; then
+            echo "  open: http://localhost:$DEV_PORT  (this machine only: DEV_TAILNET=no)"
+        else
+            PY=python3; [ "$OS" = "win" ] && PY=python
+            if URL="$("$PY" "$(dirname "${BASH_SOURCE[0]}")/../../shared/tailnet_publish.py" publish-port "$DEV_PORT")"; then
+                echo "  open: $URL"
+            else
+                echo "  open: http://localhost:$DEV_PORT  (this machine only: not published, reason above)"
+            fi
+        fi
         exit 0
     fi
     printf "."; sleep 1

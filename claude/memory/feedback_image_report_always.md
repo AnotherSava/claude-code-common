@@ -7,7 +7,8 @@ metadata:
 
 Any time a reply reports on images or screenshots — what changed, what is stale, what was captured,
 cropped, keyed or bordered, or what a comparison shows — **build the HTML contact sheet and hand over
-its `file:///` URL.** For documentation screenshots in a repo with a `screenshots.json`, build it with
+its tailnet URL**, published with `~/.claude/skills/shared/tailnet_publish.py` so it opens on either
+machine. For documentation screenshots in a repo with a `screenshots.json`, build it with
 `~/.claude/skills/docs-relevance/scripts/contact-sheet.py`, which derives the page from the repo and
 needs only a notes file written by hand. For any other picture — an icon, a candidate in `tmp/`, a
 screenshot the user supplied — build the page from the parts of
@@ -37,5 +38,6 @@ catchable in prose.
 than duplicate it. Show every image, not just the ones that changed. Include the theme toggle so
 claims about light and dark are testable, and magnified corner crops whenever the change is smaller
 than the eye can find at page scale. Open the finished page in a browser before linking it — the
-check that catches what grepping the HTML cannot. See [[user_screenshot_location]] for where
+check that catches what grepping the HTML cannot. When publishing fails, the `file:///` link goes out
+with the helper's stated reason beside it, never alone. See [[user_screenshot_location]] for where
 user-supplied images arrive.

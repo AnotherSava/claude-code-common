@@ -90,20 +90,16 @@ from __future__ import annotations
 
 import hashlib
 import html
-import http.client
 import importlib.util
 import json
 import os
 import re
-import shutil
 import socket
 import subprocess
 import sys
 import tempfile
 import textwrap
 import time
-import urllib.error
-import urllib.request
 from collections.abc import Iterable
 from concurrent.futures import ThreadPoolExecutor
 from dataclasses import asdict, dataclass, field, fields
@@ -2162,201 +2158,21 @@ def apply_descriptions(rows: list[RepoRow], text: str, reached: list[str]) -> No
 
 
 # ── publishing the report on the tailnet ──────────────────────────────────────
-#
-# A `file:///` link only opens on the machine that rendered it, and the two
-# machines' projects roots share no path — `/Users/<user>/Projects` against
-# `D:/projects` — so no file path can name the report on both. A tailnet URL can,
-# and Tailscale is already up on both machines with HTTPS certs issued, so
-# publishing costs no new service and no new credential.
-#
-# The URL names whichever machine ran the scan, and it answers only while that
-# machine is awake. That is the accepted cost of the shape: a laptop asleep means
-# a dead link until it wakes, and the fallback below keeps the local path usable
-# in the meantime.
-
-SERVE_PORT = 8787
-SERVE_URL_PATH = "/github-status.html"
-SERVE_MARKER = "X-Github-Status-Serve"
-
-
-def tailscale_cli() -> str | None:
-    """The tailscale binary. A GUI install puts it nowhere on PATH, so the bundle
-    locations are tried first and `which` is the fallback for a package install."""
-    for candidate in ("/Applications/Tailscale.app/Contents/MacOS/Tailscale",
-                      r"C:\Program Files\Tailscale\tailscale.exe",
-                      "/usr/bin/tailscale", "/usr/local/bin/tailscale", "/opt/homebrew/bin/tailscale"):
-        if Path(candidate).exists():
-            return candidate
-    return shutil.which("tailscale")
-
-
-def tailnet_origin(cli: str) -> str | None:
-    """`https://<this node>.<tailnet>.ts.net`, or None if it cannot be served.
-
-    Both halves are required. Without a DNSName this node has no MagicDNS name to
-    be reached by, and without CertDomains the tailnet has HTTPS certificates
-    disabled, leaving `tailscale serve` nothing to terminate TLS with — it would
-    accept the config and then fail every request.
-    """
-    try:
-        r = subprocess.run([cli, "status", "--json"], capture_output=True,
-                           encoding="utf-8", errors="replace", timeout=15)
-    except (OSError, subprocess.TimeoutExpired):
-        return None
-    if r.returncode != 0:
-        return None
-    try:
-        data = json.loads(r.stdout)
-    except json.JSONDecodeError:
-        return None
-    name = (data.get("Self") or {}).get("DNSName", "").rstrip(".")
-    return f"https://{name}" if name and data.get("CertDomains") else None
-
-
-def probe_loopback() -> tuple[str, str | None]:
-    """What holds SERVE_PORT: `free`, `ours` with the file it serves, or `other`.
-
-    Telling `ours` from `other` is why serve-report.py answers /__ping with a
-    marker header at all. Spawning a second server onto a port something else
-    already holds would fail invisibly — the bind error goes to a log nobody
-    reads — and the proxy would publish that other program to the tailnet.
-    """
-    conn = http.client.HTTPConnection("127.0.0.1", SERVE_PORT, timeout=2)
-    try:
-        conn.request("GET", "/__ping")
-        response = conn.getresponse()
-        response.read()
-        marker = response.getheader(SERVE_MARKER)
-        return ("ours", marker) if marker else ("other", None)
-    except (OSError, http.client.HTTPException):
-        return ("free", None)
-    finally:
-        conn.close()
-
-
-def start_loopback(html_path: Path) -> bool:
-    """Spawn the loopback server detached, and wait for it to answer.
-
-    Detached because it has to outlive this process — the link is meant to be
-    clickable long after the report is rendered — with both streams into a log
-    file so a server complaining hours from now cannot surface in whatever
-    terminal the user is using by then. Windows gets CREATE_NO_WINDOW so no
-    console flashes onto the desktop.
-    """
-    script = skill_dir() / "scripts" / "serve-report.py"
-    if not script.exists():
-        print(f"NOTE: {script.name} is missing, so the report was not published.", file=sys.stderr)
-        return False
-    log = tmp_dir() / "github-status-serve.log"
-    log.parent.mkdir(parents=True, exist_ok=True)
-    detach: dict[str, object] = ({"creationflags": subprocess.DETACHED_PROCESS | subprocess.CREATE_NO_WINDOW}
-                                 if sys.platform == "win32" else {"start_new_session": True})
-    try:
-        with log.open("ab") as fh:
-            subprocess.Popen([sys.executable, str(script), "--file", str(html_path), "--port", str(SERVE_PORT)],
-                             stdin=subprocess.DEVNULL, stdout=fh, stderr=fh, **detach)
-    except OSError as exc:
-        print(f"NOTE: could not start {script.name}: {exc}", file=sys.stderr)
-        return False
-    for _ in range(25):
-        time.sleep(0.2)
-        if probe_loopback()[0] == "ours":
-            return True
-    print(f"NOTE: {script.name} did not answer on port {SERVE_PORT} — see {log.name}.", file=sys.stderr)
-    return False
-
-
-def tailscale_serve(cli: str, target: str) -> bool:
-    """Point the tailnet path at `target`, which is a file or a local port.
-
-    Re-applied on every run rather than only when absent: the config lives in
-    tailscaled and survives reboots, so the one thing worth guarding against is
-    it having been cleared or repointed since, which costs one idempotent call.
-    """
-    try:
-        r = subprocess.run([cli, "serve", "--bg", "--yes", f"--set-path={SERVE_URL_PATH}", target],
-                           capture_output=True, encoding="utf-8", errors="replace", timeout=30)
-    except (OSError, subprocess.TimeoutExpired):
-        return False
-    # The CLI reports a refused config on stdout with a zero exit status — the macOS
-    # sandbox refusal is exactly this shape — so the text has to be read as well.
-    return r.returncode == 0 and "error:" not in (r.stdout + r.stderr).lower()
-
-
-def fetch_matches(url: str, html_path: Path) -> bool:
-    """Does the published URL actually return this report?
-
-    The serve config outlives whatever it points at: a cleared path, a dead
-    loopback server or a stale port all leave every local check passing while the
-    URL answers 502. Reading it back over the tailnet is the only check at the
-    layer the user's click lands on.
-    """
-    try:
-        with urllib.request.urlopen(url, timeout=20) as response:
-            return response.status == 200 and len(response.read()) == html_path.stat().st_size
-    except (urllib.error.URLError, OSError, ValueError):
-        return False
-
-
-def serves_this_report(reported: str | None, html_path: Path) -> bool:
-    """Is the file the running server named the same file as `html_path`?
-
-    Comparing the two strings is wrong, because they come from different producers: the
-    server resolved its argument through the ~/.claude/skills symlink, whose stored target
-    spells the projects directory in a different case than git and the filesystem do, and a
-    case-insensitive volume keeps both working. So `==` answers no for one file and the
-    publish declines for no reason. Identity is st_dev/st_ino — see
-    learnings/comparing-paths-symlinks-and-case.md. A path that no longer exists is not this
-    report, which is the one case samefile cannot answer.
-    """
-    if not reported:
-        return False
-    try:
-        return os.path.samefile(reported, html_path)
-    except OSError:
-        return False
 
 
 def publish_report(html_path: Path) -> str | None:
     """Publish the report at a stable tailnet URL and return it, else None.
 
-    Two shapes, in order of what they cost to keep alive. Serving the file
-    directly needs no process at all, and is what Windows and Linux use. macOS
-    refuses it — the sandboxed App Store build answers "Path serving is not
-    supported on macOS due to sandbox restrictions" — so there the file is
-    published through a loopback server instead. Both expose exactly one file and
-    produce the same URL, so which one ran is not something a caller has to know.
+    The mechanics — the loopback server, the serve path, verifying by fetching — live in
+    `skills/shared/tailnet_publish.py`, shared with every other file handed over. The path stays
+    the bare `/github-status.html` rather than the module's repo-relative default so a
+    bookmarked report keeps its address. Imported here rather than at the top for the reason
+    `target_width` gives: the peer runs this script from stdin, and never publishes.
     """
-    cli = tailscale_cli()
-    if not cli:
-        print("NOTE: no tailscale binary found, so the report was not published.", file=sys.stderr)
-        return None
-    origin = tailnet_origin(cli)
-    if not origin:
-        print("NOTE: this node has no MagicDNS name with HTTPS certificates, so the report "
-              "was not published.", file=sys.stderr)
-        return None
-    url = origin + SERVE_URL_PATH
+    sys.path.insert(0, str(skill_dir().parent / "shared"))
+    from tailnet_publish import publish  # inline: see above
 
-    if tailscale_serve(cli, str(html_path)) and fetch_matches(url, html_path):
-        return url
-
-    held, serving = probe_loopback()
-    if held == "other":
-        print(f"NOTE: 127.0.0.1:{SERVE_PORT} is held by something else, so the report was "
-              "not published.", file=sys.stderr)
-        return None
-    if held == "free" and not start_loopback(html_path):
-        return None
-    if held == "ours" and not serves_this_report(serving, html_path):
-        print(f"NOTE: the loopback server is serving {serving}, not this report — stop it to "
-              "republish.", file=sys.stderr)
-        return None
-    if tailscale_serve(cli, str(SERVE_PORT)) and fetch_matches(url, html_path):
-        return url
-    print(f"NOTE: {url} did not return this report, so the local path is given instead.",
-          file=sys.stderr)
-    return None
+    return publish(html_path, "github-status.html")
 
 
 def main() -> int:

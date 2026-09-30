@@ -5,7 +5,9 @@
 
 Run from anywhere in the repo. The manifest is found by name (screenshots.json, exactly one) unless
 given; the page goes to tmp/screenshot-contact-sheet-<date>.html, which must be gitignored along with
-the sidecar beside it, and its file:/// URL is printed on a line of its own.
+the sidecar beside it. The page is then published on the tailnet through skills/shared/tailnet_publish.py
+and its URL printed on a line of its own, so the one link opens on either machine; when publishing
+fails, the helper's NOTE goes to stderr with the reason and the page's file:/// URL is printed instead.
 
 WHAT THE SHEET SHOWS IS DERIVED FROM WHAT THE REPO KEEPS. The frames, what each shows, how it is
 captured and the standard it is judged by come from the manifest. Each file's stages come from three
@@ -71,6 +73,9 @@ import urllib.parse
 from pathlib import Path
 
 from PIL import Image
+
+sys.path.insert(0, str(Path(__file__).resolve().parent.parent.parent / "shared"))
+from tailnet_publish import publish  # noqa: E402  (the shared module lives beside this skill, not on sys.path)
 
 TEMPLATE = Path(__file__).resolve().parent.parent / "references" / "contact-sheet.html"
 BOX, ZOOM, GAP = 40, 6, 14
@@ -531,7 +536,10 @@ def main(argv: list[str]) -> int:
     out.parent.mkdir(parents=True, exist_ok=True)
     out.write_text(page, encoding="utf-8", newline="\n")
     sidecar.write_text(json.dumps({"hashes": hashes, "marked": sorted(marked_files)}, indent=1) + "\n", encoding="utf-8", newline="\n")
-    print(out.as_uri())
+    url = publish(out)
+    if url is None:
+        print("contact-sheet: the sheet was not published, so the link below opens only on this machine", file=sys.stderr)
+    print(url or out.as_uri())
     print(f"{len(frames)} frames ({len(unregistered)} unregistered), {changed_count} changed {against}, {len(marked)} marked as updated, {len(gaps)} gaps", file=sys.stderr)
     return 0
 
