@@ -413,7 +413,7 @@ class Handler(BaseHTTPRequestHandler):
         pass
 
 
-def _serve() -> int:
+def _run_server() -> int:
     """Loopback only: the tailnet reaches this through `tailscale serve` or not at all."""
     server = ThreadingHTTPServer(("127.0.0.1", PUBLISH_PORT), Handler)
     server.daemon_threads = True
@@ -584,7 +584,7 @@ def main() -> int:
     args = ap.parse_args()
 
     if args.cmd == "serve":
-        return _serve()
+        return _run_server()
     if args.cmd == "list":
         for path, file in sorted(_read_registry().items()):
             print(f"/{path}  ->  {file}{'' if Path(file).exists() else '  (missing)'}")
