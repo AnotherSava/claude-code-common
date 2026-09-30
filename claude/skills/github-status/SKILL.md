@@ -212,8 +212,8 @@ The user sees exactly two things:
 
 1. **The final table**, pasted verbatim from the `--report` output. It is already width-bounded and
    aligned — do not hand-draw it, and do not show the step 2 table with its placeholders.
-2. **The report**, as a Markdown link wrapping the URL the script printed, verbatim, e.g.
-   `[Open the report](https://<this machine>.<tailnet>.ts.net/github-status.html)`. A path is something
+2. **The report**, as a Markdown link wrapping the URL the script printed, verbatim —
+   `[Open the report](<the URL from the script's last line>)`. A path is something
    to read; this file is meant to be opened.
 
 Hand over the URL the script gave and no other. It prints the tailnet one when the report was
@@ -322,8 +322,8 @@ paste the detail sections at all.
   would need to compose the union.
 - **The report is published on the tailnet, so the one link printed opens on either machine.** A
   `file:///` path cannot: the two machines' projects roots share no path, so a link that opens on one
-  names nothing on the other. The report is published at
-  `https://<this machine>.<tailnet>.ts.net/github-status.html`, which reaches the phone as well.
+  names nothing on the other. The report is published under the path `github-status.html`,
+  and the tailnet URL that reaches it reaches the phone as well.
   **The URL names whichever machine ran the scan, and it answers only while that machine is awake**;
   a scan run from the laptop gives a link that dies when the lid closes, and the next run from either
   machine republishes. Only the report is reachable through it: the state file and the description
