@@ -140,6 +140,7 @@
 - [Sort keys live in metadata, not the name](feedback_sort_key_not_in_identifier.md) {always} — an ordering baked into a filename costs a mass rename to change or extend; use a field
 - [Keep your half of the task](feedback_keep_your_half.md) {always} — hand back only what needs a human; reading the log and saying what it shows stays mine
 - [Message a sibling agent](peer_messaging.md) {always} — `ListAgents` + `SendMessage` reach the other projects' live sessions and need no approval to send; a message starts a real turn there, so never send one to chat, confirm or thank. An empty `ListAgents` means local-only, not unreachable — cross-machine goes through the dashboard relay.
+- [Verify the conclusion, not the quotes](feedback_verify_peer_conclusions.md) {always} — a peer's evidence and its inference fail independently; re-derive it
 - [Dashboard agent roster](dashboard_agent_roster.md) — `GET /api/agents` says what sessions run on either machine, with status; an empty answer needs `sync_listening` checked first
 - [Dashboard owns session names](feedback_dashboard_owns_session_names.md) — a `claude` wrapper sets behaviour, never `--name` or a title of its own; forwarding the dashboard's is fine
 - [Sweep the old wording](feedback_sweep_the_old_wording.md) {always} — retiring a rule: grep the old behaviour's words, not the new rule's, then check the lists and gate enumerations that encode it with no words at all
