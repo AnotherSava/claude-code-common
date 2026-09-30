@@ -170,8 +170,43 @@ This defeats the obvious pair of pre-commit guards. A structural check ("is the 
 passes, because the attribute is committed. A content check guarded on the per-repo transcrypt copy existing
 (`[ -x .git/crypt/transcrypt ] || exit 0`) no-ops, because that copy is exactly what a fresh clone lacks. The
 two together look like defence in depth and have a shared blind spot. Make the content check unconditional —
-if a staged path resolves to `filter=crypt`, assert the staged blob starts with `U2FsdGVkX1`, whether or not
-transcrypt is installed in that clone.
+if a staged path resolves to `filter=crypt`, assert the staged blob has ciphertext's whole shape, whether or not
+transcrypt is installed in that clone. A prefix alone is not enough; the next section says why.
+
+## A prefix check passes ciphertext with a line appended
+
+"Starts with `U2FsdGVkX1`" is the check transcrypt uses and the one the section above reaches for, and an
+append defeats it in every clone. In a clone that is not unlocked, the working copy of a secret *is* its
+ciphertext, so `echo KEY=value >> x.secret.env` keeps the first bytes and stages verbatim. In an unlocked clone
+the same append survives, because transcrypt's clean filter passes any input that already opens with the magic
+through unchanged (`git_clean`: `if [[ $firstbytes == "U2FsdGVk" ]]; then cat`) — a file restored from
+ciphertext, edited and re-staged is committed with the edit in plaintext. Transcrypt's own `pre_commit` reads
+the first eight bytes through `$( )`, which strips leading newlines too, so plaintext that opens with blank lines
+reads as an empty file and passes.
+
+What `openssl enc -a` writes is a stricter shape, and checking all of it closes most of the gap:
+
+- the first line opens with `U2FsdGVk`;
+- every line is `[A-Za-z0-9+/]`, with `=` padding only at the very end;
+- every line but the last is exactly 64 characters, and the last is at most 64;
+- the decoded length (characters × 3/4, less the padding) is whole 16-byte blocks — the 16-byte salt header
+  plus AES-CBC output — so the last line is always 24 characters ending `==`, 44 ending `=`, or a full 64.
+
+What still passes is text appended after a full last line that is itself base64 of whole blocks
+(`openssl rand -base64 16`, `32` or `48`), which no shape can tell from ciphertext. Refusing any all-hex line
+catches the commonest bare token, at a false-positive rate near 2^-98 per real line. Measured 2026-09-29 on
+OpenSSL 1.1.1 and LibreSSL 3.3.6: every real blob in both machines' repos, and 300 fresh outputs on each, pass;
+none passes with a word or a 64-character hex token appended. The dotfiles repo's `git/hooks/pre-commit`
+implements it as `is_ciphertext`.
+
+Two states read differently from how they look:
+
+- **`--flush-credentials` keeps `.git/crypt/transcrypt` and drops the filter config.** The copy existing does
+  not mean the clone is unlocked; gate on `git config --get filter.crypt.clean`. Handing a flushed clone to
+  transcrypt's own check prints its remedy — `git rm --cached`, then `git add` — which with no filter configured
+  stages the same plaintext again.
+- **`--rekey` returns before `save_helper_hooks`**, so it writes no helper hooks and needs no `core.hooksPath`
+  bracket around it.
 
 ## The migration's first symptom is a refused pull, not a decryption problem
 

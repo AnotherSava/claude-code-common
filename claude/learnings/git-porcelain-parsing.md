@@ -133,3 +133,33 @@ matching-mode call returned in 13 ms where the expanded one took 1571 ms.
 
 So: `--ignored=matching` to learn which files a *rule* hides, `--ignored` when a directory-level
 answer is enough, and `-uall` only when you genuinely need every path.
+
+## Let pathspec magic choose the paths, and neutralise the caller's pathspec mode
+
+A script that needs only some of the index — files carrying an attribute, files at one path at any depth —
+should have git select them rather than looping over every name in the shell. A shell loop reads a pipe one
+byte per syscall, and in a pre-commit hook that turned a 30,000-file commit from 0.3 s into 30 s on Windows.
+The selections that did the work:
+
+```bash
+git ls-files -s -z -- ':(attr:filter=crypt)'     # "mode oid stage<TAB>path" for every entry the attribute marks
+git diff --cached --name-only -z -- ':(glob)**/config/publish.env'   # `**/` matches the root path too
+git ls-tree HEAD -- ":(literal)$path"            # HEAD's "mode type oid" for exactly this name, or nothing
+```
+
+`attr:` reads `.gitattributes` from the working tree, as `git add` does, so an unstaged edit changes what it
+selects. It matches one value exactly: `filter=crypt` does not match `filter=crypt-ops`.
+
+**The caller's environment can switch all of it off.** `git --literal-pathspecs`, which Magit passes by default,
+exports `GIT_LITERAL_PATHSPECS=1` to every child, hooks included, and under it `:(attr:filter=crypt)` is a file
+name that matches nothing — so a check built on it passes everything, silently. A script that relies on magic
+starts with:
+
+```bash
+unset GIT_LITERAL_PATHSPECS GIT_GLOB_PATHSPECS GIT_NOGLOB_PATHSPECS GIT_ICASE_PATHSPECS
+```
+
+Two smaller traps sit in the same place. A name opening with `:` reads as magic unless it is wrapped in
+`:(literal)`, so `ls-tree HEAD -- ":x.env"` finds `x.env`. And a pathspec-limited `git diff --cached` pairs
+renames only within the pathspec, so a file moved in from outside it shows as `A`, while `--diff-filter=ACMR`
+leaves out `T`, the typechange that replacing a committed symlink with a regular file produces.

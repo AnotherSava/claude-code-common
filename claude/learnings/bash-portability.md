@@ -727,3 +727,18 @@ cd "$(mktemp -d)" && bash -c 'set -euo pipefail; echo hi | tee tmp/x.log; echo N
 Same shape for any scratch path a script writes to rather than reads: a coverage file, a profile
 dump, a captured diff. The directory is part of the dependency, and only a tracked file in it — or a
 `mkdir -p` — makes it exist for anyone else.
+
+## Small differences between the Mac's userland and Git Bash's
+
+Each of these made a test pass on one machine and prove nothing, or fail for a reason unrelated to its subject:
+
+- **Git Bash's awk strips `\r` on input; the Mac's does not.** `printf 'AAAA\r\n' | awk '{ print length($0) }'`
+  prints 4 on Git Bash and 5 on macOS. An awk program that strips CR itself behaves the same on both, but a test
+  that removes the strip only fails on the Mac.
+- **BSD `head` rejects `-c 0`** (`head: illegal byte count -- 0`); GNU `head` prints nothing.
+- **Only bash 4.4 and later warn about a NUL in `$( )`** (`warning: command substitution: ignored null byte in
+  input`). Every version drops the NUL, but `/bin/bash` 3.2 does it silently, so a test asserting the warning is
+  gone cannot fail on the Mac. `tr -d '\000'` inside the substitution removes the warning without changing the
+  compared string.
+- **A non-interactive `ssh` session on the Mac has no Homebrew on `PATH`**, so `gpg` and anything else under
+  `/opt/homebrew/bin` reads as missing. Prefix the remote command with `export PATH=/opt/homebrew/bin:$PATH;`.
