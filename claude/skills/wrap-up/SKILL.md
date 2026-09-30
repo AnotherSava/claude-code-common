@@ -9,7 +9,7 @@ description: >-
   or wrap up the current section of work.
   DO NOT TRIGGER when: the user only wants to commit (use /commit), to park a single
   idea (/memo), or to persist durable knowledge (/reflect).
-allowed-tools: Bash(python ~/.claude/skills/wrap-up/scripts/session_scan.py:*), Bash(python ~/.claude/skills/memo/memos.py:*), Bash(git rev-parse:*), Bash(git status:*), Bash(git log:*), Read, Edit, Write, Glob, Grep, Skill
+allowed-tools: Bash(python ~/.claude/skills/wrap-up/scripts/session_scan.py:*), Bash(python ~/.claude/skills/memo/memos.py:*), Bash(git rev-parse:*), Bash(git status:*), Bash(git log:*), Bash(python ~/.claude/skills/shared/peer_relay.py:*), Bash(python3 ~/.claude/skills/shared/peer_relay.py:*), ListAgents, ToolSearch, SendMessage, Read, Edit, Write, Glob, Grep, Skill
 ---
 
 # Wrap Up
@@ -145,7 +145,7 @@ per complaint, this one removes a finding that would otherwise keep coming back.
 **Work only another machine can do is a routed ping, not a `memo`.** The backlog is for work
 nobody is going to do yet, not for work this machine cannot do: a memo defers it to whoever next
 reads it, on whichever box they happen to be on, while the machine that can act has a live session
-reachable through the dashboard relay. Offered as a memo and corrected on 2026-09-13 and again on
+reachable through the `peer` skill. Offered as a memo and corrected on 2026-09-13 and again on
 2026-09-15, so recommend the ping.
 
 **A finding another repo's session has to decide is routed too, even where this machine could act.**
@@ -163,9 +163,10 @@ already the right home.
 **Then sequence the send, because routing it is only half the decision.** A ping whose action
 depends on this side's work — a commit to pull, a change still uncommitted here — waits for step
 7's push; one the peer can act on immediately goes out in step 6 with the rest of the dispositions.
-Say in the finding which of the two it is, since that is what the user is agreeing to.
-`~/.claude/memory/peer_messaging.md` owns the rest, including why the wait matters; do not restate
-it here.
+Say in the finding which session it goes to and which of the two it is, since that is what the
+user is agreeing to.
+`~/.claude/memory/peer_messaging.md` owns the rest, including why the wait matters, and the `peer`
+skill owns how the message is sent; do not restate either here.
 
 ```
 **Concerns passed over**
@@ -176,11 +177,11 @@ it here.
    Recommend: answer now (one command, and the commit depends on it).
 ```
 
-Close with the disposition prompt, exactly three choices:
+Close with the disposition prompt, exactly four choices:
 
 ```
 Reply `recommended` to take every suggestion as marked, or override per item:
-`answer 2`, `memo 3 5`, `drop 1`. Anything you do not name keeps its recommendation.
+`answer 2`, `memo 3 5`, `ping 4`, `drop 1`. Anything you do not name keeps its recommendation.
 ```
 
 Then stop and wait. This is a gate: nothing is committed until the list is disposed of.
@@ -198,6 +199,13 @@ Then stop and wait. This is a gate: nothing is committed until the list is dispo
   ("fix the thing we discussed") will be unreadable in three weeks. Title it as a sentence that
   names the thing and the change — it is the only line that shows up in every later listing —
   and put the evidence, the reproduction and the reasoning in the body, which has no length limit.
+- **ping** sends the item to the session that owns it, found and reached as the `peer` skill
+  describes — `SendMessage` on this machine, `peer_relay.py send --project <project>` for the
+  other one. Write the message to stand on its own under that skill's "What goes in the message".
+  A ping the peer can act on now goes out here. One that depends on this side's work waits for
+  the push in step 7; say so in this step's report. When no session for that project is live, or
+  the send is refused, `NOT SENT` or `unknown`, report it and ask whether to memo the item
+  instead — never let a ping that did not go out read as routed.
 - **drop** means do nothing at all: no memo, no work, no argument, no raising it again later in
   the same run.
 - **A memo number read in step 5 may be stale by step 6.** The listing is positional and
@@ -215,6 +223,10 @@ Run `/commit`. It owns the rest: the remote sync check, `/reflect` for durable k
 closing memo list. Honor its gates, and do not duplicate its work here. In particular, leave
 the remote alone: syncing a branch whose tree is dirty has a specific safe order that `/commit`
 step 1 already encodes, and doing it early here would only get it wrong differently.
+
+Once `/commit`'s push succeeds, send the pings step 6 held for it, and report each receipt. If
+the push was declined or failed, send none of them: say which pings are still held, since the
+work they point at is not on the remote.
 
 If the tree is clean and step 6 changed nothing, there may be nothing to commit. Run `/commit`
 anyway: reflection can produce files worth committing, and that skill stops on its own if the
@@ -249,6 +261,7 @@ work throws away the context needed to finish it.
   because a file already answers it costs more trust than the item was worth.
 - Quote the user and yourself accurately from the digest, with the reference so either can be
   located. Do not paraphrase a concern into something sharper than what was actually said.
-- The `allowed-tools` list above deliberately covers only this skill's own machinery. Answering
+- The `allowed-tools` list above deliberately covers only this skill's own machinery, sending a
+  ping included. Answering
   a finding in step 6 is arbitrary work and goes through the normal permission flow; do not
   narrow the step to fit the list.
