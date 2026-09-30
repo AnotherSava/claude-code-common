@@ -1,6 +1,6 @@
 ---
 name: feedback_subagent_calls_the_real_function
-description: A subagent told to reproduce production logic in its prompt returns a confident wrong number with a credible method section; have it import and call the real function instead
+description: Restating logic that exists as code — in a subagent's prompt, or by reading a rule's prose to prescribe a fix — yields a confident wrong answer; import and call the real function instead
 metadata:
   type: feedback
 ---
@@ -29,3 +29,14 @@ check one case against the real function before building on it; see
 [[feedback_no_guessed_facts]]. The failure is not a missing answer, it is a confident
 wrong one with a credible method section attached. Related: [[feedback_check_the_limit_is_real]]
 is the same reflex applied to a general rule whose premise you never checked.
+
+**The same reflex fires with no subagent in it.** A convention that ships as a runnable
+checker is prose in its README and code in its rule file, and reading the prose to
+prescribe a fix is that restatement one layer up. 2026-09-29: version 008's three
+clauses were read from its README and a compose service rename prescribed that met two
+of them — the name carried the repo's name but not its compose *project's*, which was
+longer — and that rename reached the user as the fix before anything measured it.
+Importing the rule module and calling it named the surviving deviation in one command.
+So run the checker against the candidate fix, not only against the current state: the
+prose says what the rule means and the module says what it answers, and a fix is a
+claim about the second.

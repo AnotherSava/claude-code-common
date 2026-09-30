@@ -355,7 +355,7 @@ Cross-project preferences and feedback. Memory files live in `~/.claude/memory/`
 - [Fix the class, not the instance](~/.claude/memory/feedback_fix_the_class_not_the_instance.md) — a defect in one member of an already-enumerated set is a defect in the set; find the list and check all of it
 - [A gap in a gate is a fix, not a memo](~/.claude/memory/feedback_gap_in_a_gate_is_a_fix.md) — a blind spot in a check the project already runs gets that check extended; parking it re-files the same class every review
 - [Do it, don't offer a memo](~/.claude/memory/feedback_do_it_dont_offer_a_memo.md) — a concrete item settleable now gets done and reported; memos are for dropped ideas and work that cannot happen now
-- [A subagent calls the real function](~/.claude/memory/feedback_subagent_calls_the_real_function.md) — never restate production logic in a prompt; the reimplementation drops a filter and returns a confident wrong number with a method section attached
+- [A subagent calls the real function](~/.claude/memory/feedback_subagent_calls_the_real_function.md) — never restate logic that exists as code — in a prompt, or by reading a rule's prose to prescribe a fix; run the real function against the candidate answer
 - [Link inside the question](~/.claude/memory/feedback_link_inside_the_question.md) — a choice that needs a page opened first gets the link in the question box or plain text; the box covers the text above it
 - [Rate realism before hardening](~/.claude/memory/feedback_realism_before_hardening.md) — a rare edge case a review found, harmless or cheap to handle by hand, is reported and gets a warning or a doc line, not code
 <!-- END generated -->
