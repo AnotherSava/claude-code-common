@@ -1,6 +1,6 @@
 {
   "env": {
-    "CLAUDE_CODE_DISABLE_MOUSE": "1",
+    "CLAUDE_CODE_DISABLE_MOUSE_CLICKS": "1",
     "CLAUDE_CODE_DISABLE_NONESSENTIAL_TRAFFIC": "1",
     "PYTHONUTF8": "1"
   },
@@ -368,6 +368,9 @@
   "effortLevel": "xhigh",
   "modelSettings": {
     "claude-opus-5": {
+      "effortLevel": "high"
+    },
+    "claude-opus-5-5": {
       "effortLevel": "high"
     }
   },
