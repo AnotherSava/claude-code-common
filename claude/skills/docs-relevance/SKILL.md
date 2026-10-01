@@ -180,7 +180,7 @@ A repo that says nothing gets every step as written. Never infer a rule from the
 ## Out of scope
 
 - Do NOT touch code logic — only comments, docstrings, and doc files
-- Do NOT patch, or memo, a documentation gap in a file the project's upstream owns. Report it and stop; raise it upstream only when the user asks
+- Do NOT patch, or memo, a documentation gap in a file the project's upstream owns, except where it belongs to a change the user carries on their own branch or to an issue they have already raised. Report the rest and stop; raise one upstream only when the user asks
 - Do NOT create new documentation files or restructure existing ones without explicit approval
 - Do NOT capture, crop, resize, recompress or retouch an image whose manifest entry says `never` — report those and let the user decide. Capture without asking is permitted only under `auto`; every other state, including an absent `policy`, requires their approval for that specific replacement first. Opening the step-4 HTML report is **not** covered by this: it renders findings to look at rather than producing an image, and alters nothing on disk
 - Do NOT capture a *new* shot for a documented gap without the explicit approval step 4 requires — never bundled into another yes, never inferred from enthusiasm about the gap itself
