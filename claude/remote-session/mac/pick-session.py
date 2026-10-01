@@ -9,7 +9,8 @@ The list is the far side's `cc-*` tmux sessions, because those are the ones that
 attached. A Claude started in an ordinary Windows terminal owns its own pty: tmux cannot adopt a pty
 it did not create, and `claude attach` covers only `claude --bg` sessions and serves one viewer — so
 such a session is not merely awkward to join, it is unreachable, and listing it would offer
-something that cannot be done.
+something that cannot be done. A session already open in a tab here is left out for the opposite
+reason: it is reachable, and reaching it is what agterm's own session palette is for.
 
 The Claude Code Dashboard's roster supplies each row's status and current task. It is decoration
 only: when it is unreachable the rows still list, without status. It cannot be the source, because
@@ -179,12 +180,17 @@ def pick(rows: "list[dict]", prompt: str) -> "str | None":
     return answer.get("id")
 
 
-def choose(attachable: "list[str]", directories: "list[str]", status: "dict[str, str]") -> "str | None":
-    """The running sessions first; the directory tree only once you ask to start something.
+def choose(attachable: "list[str]", attached: "dict[str, tuple[str, str]]", directories: "list[str]", status: "dict[str, str]") -> "str | None":
+    """The running sessions you cannot already see first; the directory tree once you ask to start one.
 
     Two pickers rather than one list, because the two answer different questions. Folding the
     directories in would bury a handful of running sessions under two hundred places one could be
     started, and the running ones are what the chord is for.
+
+    A project in `attached` has a tab on this Mac, so the chord has nothing to open for it and the row
+    would only ever raise a window the session palette already reaches. It stays out of `running`
+    territory though: the second picker excludes every running project whether or not a tab shows it,
+    because starting a second session in that directory is the thing being prevented.
     """
     rows = [
         {
@@ -193,6 +199,7 @@ def choose(attachable: "list[str]", directories: "list[str]", status: "dict[str,
             "subtitle": status.get(project.rsplit("/", 1)[-1], "running")[:SUBTITLE_LIMIT],
         }
         for project in attachable
+        if project not in attached
     ]
 
     if rows:
@@ -211,11 +218,13 @@ def choose(attachable: "list[str]", directories: "list[str]", status: "dict[str,
     return pick(browse, "Project to start")
 
 
-def existing_tab(project: str) -> "tuple[str, str] | None":
-    """The window id and session id of a tab already attached to this project, if there is one.
+def attached_tabs() -> "dict[str, tuple[str, str]]":
+    """Window id and session id per project that already has a tab attached to it on this Mac.
 
     Opening a second local client on the same tmux session is not an error, but it is never what was
-    wanted: both draw the same thing, at the size of whichever was used last.
+    wanted: both draw the same thing, at the size of whichever was used last. Two things read this —
+    the first picker drops those projects from its rows, and a project typed by name raises its tab
+    rather than opening a client beside it.
 
     A tab's foreground process is the ssh that attach.sh execs into, and the project is a word inside
     its one remote-command argument, right after cc-session.sh — never an argument of its own.
@@ -223,10 +232,14 @@ def existing_tab(project: str) -> "tuple[str, str] | None":
     Every open window is searched, because a bare `tree --json` answers for the frontmost one only:
     a tab in a background window would be missed and a second client opened beside it. Closed
     windows are listed too, and `tree --window` on one fails, so they are skipped.
+
+    The whole set comes back from one walk rather than a lookup per project, because the window list
+    and a tree per window cost the same whether one project is asked about or all of them are.
     """
     listing = agtermctl("window", "list", "--json")
     if listing.returncode != 0:
-        return None
+        return {}
+    tabs = {}
     for window in json.loads(listing.stdout)["result"]["windows"]:
         if window.get("open") is False:
             continue
@@ -238,9 +251,10 @@ def existing_tab(project: str) -> "tuple[str, str] | None":
             for session in workspace.get("sessions", []):
                 for argument in session.get("foreground") or []:
                     words = argument.split()
-                    if any(word.endswith("/cc-session.sh") and words[i + 1:i + 2] == [project] for i, word in enumerate(words)):
-                        return window["id"], session["id"]
-    return None
+                    for index, word in enumerate(words):
+                        if word.endswith("/cc-session.sh") and words[index + 1:index + 2]:
+                            tabs.setdefault(words[index + 1], (window["id"], session["id"]))
+    return tabs
 
 
 def main() -> int:
@@ -258,14 +272,15 @@ def main() -> int:
         attachable, directories = inventory(config)
         if START_SENTINEL in directories:
             directories = [d for d in directories if d != START_SENTINEL]
-        project = choose(attachable, directories, roster_status(config["REMOTE_DEVICE"]))
+        attached = attached_tabs()
+        project = choose(attachable, attached, directories, roster_status(config["REMOTE_DEVICE"]))
     except (RuntimeError, ValueError, KeyError) as error:
         return fail(str(error))
 
     if project is None:
         return 0
 
-    already = existing_tab(project)
+    already = attached.get(project)
     if already:
         window, session = already
         # Selecting the session picks the tab inside its own window and leaves that window where it

@@ -14,14 +14,17 @@ only hold the terminal it lives in.
 From the Mac, press **cmd+shift+r** in agterm. A fuzzy picker lists the Windows machine's attachable
 sessions, each with its status and what it is working on; choosing one opens it as a tab in a
 workspace called `remote`, created on first use. The tab is titled with the session's status, as it
-is on the Windows machine, behind a `⇄` that marks it as remote. Picking a session that already has
-a tab brings that tab forward, from whichever agterm window holds it, rather than opening a second
-client on it.
+is on the Windows machine, behind a `⇄` that marks it as remote. A session that already has a tab on
+this Mac is left out of that list, because the keystroke's job is to open what is not already open;
+agterm's own session palette, **ctrl+p**, is what reaches a tab you have lost track of. Typing such a
+session's name still brings its tab forward, from whichever agterm window holds it, rather than
+opening a second client on it.
 
 To start something new, take the last row — **Start a project…** — which opens a second picker over
 the projects on that machine, so a name is completed rather than remembered. It is a second step
 rather than part of the first list because those folders would bury the handful of running sessions
-the keystroke exists for.
+the keystroke exists for. When every running session already has a tab here, the first list has
+nothing left to offer and the keystroke opens that second picker straight away.
 
 A folder is offered when it holds a `.claude` directory, which Claude Code creates the first time it
 runs somewhere — so the list is the places Claude is actually used rather than every folder on the
