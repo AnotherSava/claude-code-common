@@ -7,9 +7,9 @@ metadata:
 
 Two repos that adopt conventions hold a `.claude/memos.md` git has never seen — chrome-assistant
 and intellij-jsonl-extension, measured 2026-09-18 with
-`git -C <repo> ls-files --error-unmatch .claude/memos.md`. A third untracked copy sits in
-`external/agwinterm`, which is a fork — `origin` is the user's, `upstream` is yeroo's — so it adopts
-v1 like any repo of the user's (v1 is required in a fork), and the same hazard applies there.
+`git -C <repo> ls-files --error-unmatch .claude/memos.md`. `external/agwinterm` held a third
+untracked copy until 2026-10-01, when it was committed on that fork's `local` branch; it is a fork,
+so it adopts v1, and its split now has a committed file to read.
 
 Version 001's split deletes that file. Where it was never committed, the `[x]`/`[ ]` markers then
 exist nowhere: no revision carries them, and the only copy was the one the splitting session read
@@ -31,7 +31,7 @@ refuses below v001 and `/adopt` there was not that session's to run. Writing the
 it uncommitted is the same hazard as finding it uncommitted — so a hand-written entry has to be
 routed to the owning session for a commit (the `peer` skill), not just written and reported.
 
-**Commit `.claude/memos.md` in all three repos before running `/adopt` there.** One commit, before
+**Commit `.claude/memos.md` in each repo still holding it untracked before running `/adopt` there.** One commit, before
 the walk starts, and the whole problem is gone. v010's step 1 says so, but a walk reaches that
 instruction only after 001 has already run and deleted the file, so the prevention has to happen
 earlier than the version that documents it — which means from here, or from a session working in
