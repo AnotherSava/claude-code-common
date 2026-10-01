@@ -16,13 +16,18 @@ Summarize the "why" not just the "what".
 
 ## Validation checklist
 
+The countable rules are checked by `~/.claude/scripts/check-commit-message.py` — run it on a
+prepared message with `--file <path>`, or over commits with `--range @{upstream}..HEAD`. `/commit`
+runs it over the unpushed range, and the global `pre-push` hook refuses a push that fails it in any
+repo carrying a `.claude/conventions` record. Run it on a message written outside a commit plan
+too: a lone follow-up commit reaches the push without `/commit` having seen it, and measured
+2026-09-14 one went out at 58 characters and needed `/reset` to fix, because it was eyeballed. The
+rules the script cannot judge — the mood, whether a body restates the code's own comments, whether
+the reason is the author's to give — are below it and stay with the reader.
+
 - Imperative mood ("add" not "added")
-- Subject line ≤ 50 characters, body lines wrapped at 72 characters
-- **Count them, on every message, including one written outside a commit plan.** `/commit` step 6
-  counts as an explicit pass, but it only sees messages drafted *for a plan* — a lone follow-up
-  commit bypasses it. Measured 2026-09-14: a batch of four was counted mechanically and passed, then
-  a single re-commit went out at 58 characters and needed `/reset` to fix, because it was eyeballed
-  rather than measured. Length is the one rule here that reading cannot check
+- Subject line ≤ 50 characters, body lines wrapped at 72 characters, except a line carrying a token
+  longer than 40 characters, which cannot be wrapped to width
 - No trailing period
 - Type prefix not repeated in description (e.g. not "refactor: refactor...")
 - No capitalized first word after type prefix

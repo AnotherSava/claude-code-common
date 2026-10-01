@@ -1,11 +1,15 @@
 #!/usr/bin/env bash
 #
-# pre-push — reject commits that are Claude-attributed or unsigned, then upload Git LFS objects.
+# pre-push — reject commits that are Claude-attributed, unsigned, or carry a message breaking the
+# conventions, then upload Git LFS objects.
 #
 # Checks every NEW commit (not yet on remote) for:
 #   1. Author/committer name or email containing "claude" or "anthropic"
 #   2. Co-Authored-By trailer mentioning "claude" or "anthropic"
 #   3. Missing good GPG signature (only "G" status passes)
+#   4. A message failing ~/.claude/scripts/check-commit-message.py, in a repo holding a
+#      .claude/conventions record — a third-party clone keeps its own style, and core.hooksPath
+#      points every repo on the machine at this hook
 #
 # Git LFS installs its own hooks wherever core.hooksPath points, and stops at this non-LFS pre-push,
 # so no LFS hook runs anywhere and a push would send LFS pointers without their objects, silently.
@@ -26,6 +30,8 @@ trap '' PIPE
 CLAUDE_PATTERN="claude|anthropic"
 errors=0
 declares_lfs=0
+new_commits=""
+MSG_CHECKER="$HOME/.claude/scripts/check-commit-message.py"
 
 # The null object id is 40 zeros under SHA-1 and 64 under SHA-256; blank counts as null too.
 is_null() {
@@ -54,6 +60,8 @@ while read -r local_ref local_sha remote_ref remote_sha; do
 
     # Assigned first so a failing rev-list stops the push, rather than checking nothing and passing
     commits=$(git rev-list $range)
+
+    new_commits="$new_commits $commits"
 
     for commit in $commits; do
         short=$(git rev-parse --short "$commit")
@@ -91,6 +99,23 @@ while read -r local_ref local_sha remote_ref remote_sha; do
         fi
     done
 done <<< "$input"
+
+# Commit-message rules apply only where the repo has adopted this machine's conventions. A
+# third-party clone keeps its own style, and `core.hooksPath` points every repo at this hook.
+if [ -n "$new_commits" ] && [ -f "$(git rev-parse --show-toplevel)/.claude/conventions" ]; then
+    if [ ! -f "$MSG_CHECKER" ]; then
+        echo "WARNING: $MSG_CHECKER is missing, so commit messages were NOT checked." >&2
+        echo "         Signature and attribution were. Reinstall the claude dotfiles to restore it." >&2
+    elif ! msg_output=$(python3 "$MSG_CHECKER" $new_commits 2>&1); then
+        echo "$msg_output"
+        echo ""
+        echo "Push blocked: the message rules in commit-message-rules.md are not met."
+        echo "Fix with /reset to bring these commits back into the tree, then /commit."
+        echo "To push anyway: git push --no-verify (which also skips the signature and"
+        echo "attribution checks, so prefer fixing the messages)."
+        exit 1
+    fi
+fi
 
 if [ "$errors" -gt 0 ]; then
     echo ""

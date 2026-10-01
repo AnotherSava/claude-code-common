@@ -4,8 +4,29 @@ description: >-
   Check that a project's documentation still matches the code and that what should be documented is.
   TRIGGER when: /commit step 4 runs it, or the user asks whether the docs are stale, out of date, or missing a feature.
   DO NOT TRIGGER when: the task is how a document is written rather than whether it is true — that is `docs-style`.
-allowed-tools: Read, Edit, Write, Grep, Glob, Bash(git diff:*), Bash(git status:*), Bash(git rev-parse:*), Bash(git ls-files:*), Bash(git grep:*), Bash(git log:*), Bash(file:*), Bash(cp:*), Bash(ls:*), Bash(mkdir:*), Bash(bash docs/screenshots/capture/:*), Bash(pwsh -File docs/screenshots/capture/:*)
+user-invocable: false
+context: fork
+effort: medium
+background: true
+allowed-tools: Read, Edit, Write, Bash(python ~/.claude/scripts/worktree-sandbox.py:*), Bash(cd:*), Bash(git add:*), Bash(git diff:*), Bash(git status:*), Bash(git rev-parse:*), Bash(git ls-files:*), Bash(git grep:*), Bash(git log:*), Bash(file:*), Bash(cp:*), Bash(ls:*), Bash(mkdir:*), Bash(bash docs/screenshots/capture/:*), Bash(pwsh -File docs/screenshots/capture/:*)
 ---
+
+<!--
+This skill runs as a backgrounded forked subagent, which has three consequences its steps must respect.
+
+A fork starts with a fresh context: it gets this file and CLAUDE.md, and sees nothing of the conversation
+that invoked it. Every step below therefore derives what it needs from the repository, never from what was
+discussed. A step that needs the conversation does not belong here.
+
+A background fork runs with a narrower tool set than a normal turn, and `Grep` and `Glob` are not in it —
+measured 2026-09-30. Use `git grep` (add `--untracked` to reach new files) and `git ls-files` instead; a
+step written around the missing tools loses itself silently rather than failing. `allowed-tools` above no
+longer lists them for that reason.
+
+Edits made here land outside the session's checkpoints, so `/rewind` will not undo them. That is why
+step 0 moves the work into a sandbox and this skill never writes to the user's tree at all.
+-->
+
 
 # Update Documentation
 
@@ -22,7 +43,9 @@ Scan project documentation and comments for references that no longer match the 
 
 ## Working directory
 
-All file paths below (`README.md`, `docs/`, `docs/pages/`, `docs/index.md`, `docs/screenshots/`, `CLAUDE.md`) are relative to **Repo root** from Context. The current working directory may be a subdirectory (e.g. `src-tauri/`, `frontend/`), so always prefix the Repo root value when calling Read/Edit/Write/Grep/Glob. Bare paths are cwd-relative and will silently miss files that live at the actual root.
+All file paths below (`README.md`, `docs/`, `docs/pages/`, `docs/index.md`, `docs/screenshots/`, `CLAUDE.md`) are relative to the root of the **sandbox** step 0 creates, not to **Repo root** from Context. Those two are different directories, and Repo root is the user's tree, which this skill must not write to — prefix the sandbox path on every Read/Edit/Write and `git` call once step 0 has run. The Context probes above were taken in the real repo before the sandbox existed, which is correct: the sandbox is built to mirror exactly that state, so a diff quoted there describes the sandbox too.
+
+Bare paths are resolved against the current working directory, so they are only safe after step 0's `cd` and never before.
 
 ## Process
 
@@ -31,6 +54,14 @@ All file paths below (`README.md`, `docs/`, `docs/pages/`, `docs/index.md`, `doc
 Say in the report which of its rules applied, so a skipped step reads as a decision already taken rather than as a check that quietly did not run. Step 5 reads the same file for staleness — that is a different job, and finding a rule here does not excuse checking whether the rest of it is still true.
 
 A repo that says nothing gets every step as written. Never infer a rule from the absence of something: a project with no screenshots has not thereby declined them, which is exactly the case step 4 is built to raise.
+
+0. **Work in a sandbox, not the user's tree.** Run `python ~/.claude/scripts/worktree-sandbox.py create --name docs-relevance` and `cd` to the path it prints on its last line. That is a detached git worktree outside the repo, already holding the pending change set — the uncommitted edits, the new files, the deletions — so every step below sees exactly what the caller sees. Do all of your reading and every edit there.
+
+   Nothing this skill does reaches the user's tree, which is the point: a fork's writes land outside the session's checkpoints, so `/rewind` cannot undo them, and the caller applies a patch it has reviewed instead. Two consequences to respect. **Ignored files are not carried in** — the script says so when it runs — so a step needing a build artifact must copy it in itself rather than concluding it is absent. And a file you *create* is untracked in the sandbox and therefore absent from the patch, so `git add -N <path>` it as you go; `patch` warns on stderr about any you missed, and that warning is the one output of this flow that must never be ignored.
+
+   When the carry-in cannot run at all — not a git repo, or the worktree add fails — say so and stop rather than falling back to editing the real tree. The caller's step 4 treats a missing sandbox as a reason to run this skill in the main session, where the checkpointing works.
+
+   At the end, emit the patch with `python ~/.claude/scripts/worktree-sandbox.py patch <sandbox> --binary` (the flag is what carries a screenshot change), save it inside the repo's gitignored `tmp/`, and report that path plus a plain-language summary of every file it touches. Then tear the sandbox down with the `remove` subcommand. Report the patch path even when the patch is empty, so "nothing to fix" and "the run failed" cannot be confused.
 
 1. **Read `README.md`** (at the repo root) and fix any references to changed paths, APIs, or behavior
 
@@ -136,7 +167,7 @@ A repo that says nothing gets every step as written. Never infer a rule from the
 
 6. **Check comments and docstrings** in modified source files (use **Uncommitted changes** and **Full diff** to identify them) that reference changed behavior
 
-7. **Update dimensioned drafts** — only if the repo keeps drafts (Glob `**/dimensioned_drafts/*.py` outside ignored dirs; skip this step when nothing matches). Drafts are documentation of model geometry: when a model source file changed in the diff, find the draft scripts that document it (match by model name/directory and by constants mirrored from the model's dimensions class) and check every drawn value — dimensions, profile vertices, removed/added features, not just labels. Update the draft script to the current model, re-run it to regenerate the SVG, and include both files in the change set. A draft documenting a feature the model no longer has is stale documentation just like prose.
+7. **Update dimensioned drafts** — only if the repo keeps drafts (`git ls-files -- '*dimensioned_drafts/*.py'`, which lists tracked drafts and so skips ignored dirs by construction; skip this step when it prints nothing). Drafts are documentation of model geometry: when a model source file changed in the diff, find the draft scripts that document it (match by model name/directory and by constants mirrored from the model's dimensions class) and check every drawn value — dimensions, profile vertices, removed/added features, not just labels. Update the draft script to the current model, re-run it to regenerate the SVG, and include both files in the change set. A draft documenting a feature the model no longer has is stale documentation just like prose.
 
 8. **Suggest improvements** — if documentation would benefit from a new file or reorganization, suggest it to the user and wait for approval before proceeding
 

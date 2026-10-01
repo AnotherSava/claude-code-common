@@ -87,7 +87,10 @@ Analyzes changes and generates atomic Conventional Commit messages.
 **Features:**
 - Reviews staged and unstaged changes, groups them into atomic commits
 - Clears the index before staging each group, so work staged before the run cannot ride into the first commit
-- Delegates to `/reflect`, `/clean-code`, and `/docs-relevance` before planning commits
+- Takes everything that has not reached the remote as its subject, not only what is uncommitted: it runs `claude/scripts/check-commit-message.py` over `@{upstream}..HEAD` and adds that range to the confidentiality scan, so a commit made by hand or by a session that skipped this skill is examined by something. A message or a secret already in history needs `/reset`, which it proposes rather than runs; stale docs, a debug print or a wrong file mode carry forward into the change set instead
+- Delegates to `/reflect`, `/clean-code`, and `/docs-relevance` before planning commits, gating the last two on `claude/skills/commit/scripts/change_scope.py` — it classifies the working tree and the unpushed range and prints `RUN` or `SKIP` per sub-skill with the paths behind the verdict, since both review unpushed commits on the same terms as uncommitted ones. A `SKIP` is reported in one line rather than passed over silently, and a scope git cannot be read from prints `RUN` for both
+- Launches `/docs-relevance` as a background fork and keeps working, then reads the patch it hands back and applies it — a byte-exact patch fails rather than corrupting a tree that moved under it, and a rejected finding goes back to the same fork by name rather than paying for a fresh scan
+- Watches CI in the background after the push instead of blocking on it, reporting each workflow as it exits; a watch still running when the session ends was never reported as passing
 - Drafts commit messages in imperative mood with type prefixes
 - Presents a full plan for approval before executing any commits
 - GPG-signs all commits, never adds AI attribution
@@ -134,9 +137,12 @@ Brings the branch up to date with its upstream when the working tree is dirty �
 
 Scans project documentation for stale references and fixes them.
 
-**Command:** `/docs-relevance`
+**Invoked by:** [`/commit`](#commit) at its documentation step, or by asking whether the docs are stale. It carries `user-invocable: false`, so it has no entry in the `/` menu.
 
 **Features:**
+- Runs as a backgrounded forked subagent at `effort: medium`, so `/commit` launches it and carries on with the steps that depend on nothing it produces. A fork starts fresh with the skill body and `CLAUDE.md` and sees none of the conversation, so every step derives what it needs from the repository
+- Edits a detached worktree outside the repo rather than the user's tree, created by `claude/scripts/worktree-sandbox.py` and carrying the pending change set — the uncommitted edits, the new files, the deletions — then hands back a unified diff for the caller to read and `git apply`. A fork's writes land outside the session's checkpoints, so `/rewind` cannot undo them; routing them through a patch keeps one writer
+- Reports the patch path even when the patch is empty, so "nothing to fix" and "the run failed" cannot be confused
 - Reads the project's own `CLAUDE.md` first and lets it override any step — a repo that rules out screenshots gets no staleness pass, no manifest and no offer — and says in the report which of its rules applied
 - Checks README, `docs/pages/`, CLAUDE.md, and source comments against current code
 - Fixes stale paths, API references, and behavior descriptions
@@ -555,6 +561,8 @@ Conventions for writing and changing skills — the directory shape, the frontma
 - Fixes the layout: `SKILL.md` as the entry point, optional `scripts/` and `references/` beside it, shared resources in `skills/shared/`
 - Treats the un-ignore line as part of *creating* a skill rather than a final step — an allowlisted skills directory leaves a new skill untracked and invisible, and the `skill-tracked.py` hook is a net, not the plan
 - Spells out the `description` field's double duty — the skill list *and* the auto-invocation trigger — with explicit `TRIGGER when` / `DO NOT TRIGGER when` conditions
+- Tabulates the frontmatter that decides where a skill runs — `context: fork`, `agent`, `model`, `effort`, `background`, `user-invocable`, `disallowed-tools`, `paths` — so a forked, cheaper, read-only or Claude-only pass is configured rather than hand-built out of `Agent` calls
+- Points at `claude/learnings/claude-code-skill-profiling.md` for what a skill costs in wall-clock seconds and how to attribute it, measured with `claude/scripts/profile-skill-run.py` against a session transcript
 - Covers injecting dynamic context through `!` commands, and what that costs on every invocation
 - Points at `references/claude-project-memory-paths.md` for the `~/.claude/projects/<project-id>/` mangling rule, so no skill re-derives it
 - Carries the checks owed before writing anywhere shared — whether the destination is published, and which gitignore scope applies — plus the cross-platform rules for scripts that run on both Windows and macOS
@@ -797,9 +805,11 @@ Prevents pushing commits that are Claude-attributed or not GPG-signed. Every new
 - `Co-Authored-By` trailers mentioning Claude or Anthropic
 - Missing good GPG signature (only `G` status passes)
 
+It then checks every new commit's **message** against the countable half of [`commit-message-rules.md`](claude/skills/shared/commit-message-rules.md), by running `claude/scripts/check-commit-message.py` over the pushed range — subject length and prefix, a capitalised or period-terminated description, the blank line, and the body's paragraph count, line count and width. A message cannot be corrected by a later commit, so the refusal names `/reset` as the route: bring the commits back into the tree and re-commit them. Only a repo carrying a `.claude/conventions` record is held to it, since `core.hooksPath` points every repo on the machine at this hook and a third-party clone keeps its own style. A missing checker is reported as unchecked rather than passed, and the signature and attribution checks still run. `/commit` runs the same script over the unpushed range early, so the block is a backstop rather than the first notice.
+
 It also uploads Git LFS objects, because with `core.hooksPath` global the hook Git LFS would install never runs. Wherever the push can carry LFS content — the repo has a local LFS object store, `lfs.storage` moves that store elsewhere, or a pushed commit's root `.gitattributes` names `filter=lfs` — it runs `git lfs pre-push`, and refuses the push if `git-lfs` is not on `PATH`. Everywhere else it skips the call, which would cost every push an SSH handshake and a locks request.
 
-**Tests:** `bash claude/tests/pre-push-hook.sh [hook]` — exit 0 when every case behaves, 1 otherwise. Most cases are real pushes to bare repos on disk, sealed from this machine's git config and signing key; where git-lfs or SHA-256 support is missing, those cases are counted as NOT COVERED rather than passed.
+**Tests:** `bash claude/tests/pre-push-hook.sh [hook]` — exit 0 when every case behaves, 1 otherwise. Most cases are real pushes to bare repos on disk, sealed from this machine's git config and signing key; where git-lfs or SHA-256 support is missing, those cases are counted as NOT COVERED rather than passed. The message checker has its own cases in `python claude/tests/check-commit-message.py`, which pins each rule against a message that breaks it and one that only looks as though it does — an acronym or identifier opening the description (`docs(learnings): LFS objects …`) passes, a sentence-style capital does not, and a line carrying an unbreakable token is exempt from the width limit.
 
 **Global installation** is covered in the [Global Installation](#global-installation) section below.
 

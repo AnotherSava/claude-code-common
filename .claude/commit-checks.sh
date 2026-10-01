@@ -77,6 +77,15 @@ run "python baseline" python3 claude/tests/python-baseline.py
 # site serving a neighbour's application with every conventional check green.
 run "ingress-lint.py" python3 claude/tests/ingress-lint.py
 
+# The message checker the pre-push hook below calls in every repo that has adopted these
+# conventions, so a false positive there stops real work while a false negative is the hole the
+# checker exists to close.
+run "commit messages" python3 claude/tests/check-commit-message.py
+
+# The sandbox a sub-skill reviews instead of the user's tree. A change set it fails to carry in is a
+# review that reports success over files it never saw.
+run "worktree sandbox" python3 claude/tests/worktree-sandbox.py
+
 # The global pre-push hook, which every push on both machines runs and which nothing else tests. A
 # review of one change to it found three defects, each of which let a push through that it existed
 # to stop or stopped one it had no reason to. Most cases are a real push to a bare repo on disk, and

@@ -232,6 +232,15 @@ If the tree is clean and step 6 changed nothing, there may be nothing to commit.
 anyway: reflection can produce files worth committing, and that skill stops on its own if the
 tree is still clean afterwards.
 
+**Where `/commit` already ran earlier in this same session, say so when you invoke it.** It is
+the expensive thing this skill does, and a second full run over a tree its own first run left
+clean repeats `/reflect` on ground already scanned. Its step 2 skips reflection on exactly that
+condition and its step 3 gate skips the other two sub-skills on an empty scope, but both read
+the session rather than being told — so name the earlier run, name what changed since (step 6's
+dispositions, usually), and let it decide. Do not skip `/commit` itself on these grounds: the
+unpushed-commit audit in its step 1 and the push in its step 9 have not happened yet, and they
+are why this step exists.
+
 ### 8. Hand over to `/clear`
 
 Once the push is confirmed, close with a single line telling the user to run `/clear`, and say
