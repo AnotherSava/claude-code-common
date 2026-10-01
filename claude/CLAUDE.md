@@ -365,6 +365,7 @@ Cross-project preferences and feedback. Memory files live in `~/.claude/memory/`
 - [Do it, don't offer a memo](~/.claude/memory/feedback_do_it_dont_offer_a_memo.md) — a concrete item settleable now gets done and reported; memos are for dropped ideas and work that cannot happen now
 - [A subagent calls the real function](~/.claude/memory/feedback_subagent_calls_the_real_function.md) — never restate logic that exists as code — in a prompt, or by reading a rule's prose to prescribe a fix; run the real function against the candidate answer
 - [Link inside the question](~/.claude/memory/feedback_link_inside_the_question.md) — a choice that needs a page opened first gets the link in the question box or plain text; the box covers the text above it
+- [Ask for the entry point](~/.claude/memory/feedback_ask_for_the_entry_point.md) — can't find the surface a request names? ask how they reach it (chord, menu path, URL), not which candidate it is
 - [Rate realism before hardening](~/.claude/memory/feedback_realism_before_hardening.md) — a rare edge case a review found, harmless or cheap to handle by hand, is reported and gets a warning or a doc line, not code
 <!-- END generated -->
 
