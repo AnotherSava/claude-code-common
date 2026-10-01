@@ -96,6 +96,7 @@
 - [Guard the input, not the output](feedback_guard_the_input_not_the_output.md) — a check after a transformation can't see what was missing before it; delete a guard to prove it does anything
 - [Re-read the whole procedure](feedback_reread_the_whole_procedure.md) — one moved file falsifies several steps; step-N's output is often step-M's baseline, so patching the flagged line alone breaks the comparison
 - [State an enforcement's reach](feedback_state_the_enforcement_reach.md) {always} — never conclude more broadly than the check you cite delivers; name what it cannot see, since that boundary is permanent
+- [A mirror carries the exceptions](feedback_mirror_carries_the_exceptions.md) — a rule's short form carries its carve-outs or it reads as absolute
 - [Rehearsals must not mimic the real signal](feedback_rehearsal_must_not_mimic.md) — a test must be unmistakable in the part read first (subject line), and must not consume the real alert's rate limit
 - [Name with a metaphor in a shared namespace](feedback_name_with_metaphor.md) — a vivid name is safer than a category word; nobody accidentally picks a metaphor, and `ingress` is already Docker Swarm's
 - [Local deploys come with a URL](feedback_local_deploy_give_url.md) — reporting a site runs locally without its address isn't a report; give scheme+host+port+path, link the page that matters, and say whether it's still up
