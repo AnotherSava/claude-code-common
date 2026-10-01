@@ -156,7 +156,17 @@ before believing it.
 This section accumulates. When a hook surprises you — a cost, a silent failure, a semantic — add a
 dated line here rather than leaving it in a session transcript.
 
-- **2026-08-19** — `python3` on this machine is a 29-byte bash shim that execs `python`, costing
+- **2026-09-30** — **Counting registrations is not counting spawns, and the arithmetic that treats
+  them as equal overstates the cost badly.** `settings.json` registers one `^Bash$` entry per `if`
+  pattern, because `if` takes a single permission rule — so `windows-link-guard` appears four times
+  (`powershell *ItemType*`, `pwsh *ItemType*`, `cmd *`, `mklink *`) and `secret-print-guard` four
+  (`*config*`, `*transcrypt*`, `*var -l*`, `*var --list*`). Read as duplicates they look like eight
+  spawns per Bash call, ~176 ms at the ~22 ms a guard costs standalone. They are not duplicates, and
+  rung 1 above is why: a non-matching `if` costs **zero** process startup, so a typical Bash call
+  starts none of them. The measurement that settles it is the transcript, not a stopwatch on one
+  script — pair each `tool_use` with its `tool_result` and read the floor. Across 101 Bash calls the
+  fastest round trips were **40 ms including hooks**, which no serial sum of three or more guards
+  fits. Budget the chain as *what actually matches this command*, never as the registration count.
   **+23 ms on every invocation** for no behaviour change. All 18 hook commands were switched to
   `python`; measured after the change, `plan-archive.py done` went 96 → 72 ms and the statusline
   hook 108 → 84 ms. The statusline runs every 2 s, so that one alone returns ~0.7 s of CPU per

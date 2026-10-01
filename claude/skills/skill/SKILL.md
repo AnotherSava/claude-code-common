@@ -78,6 +78,23 @@ Whitelist the minimum set of tools the skill needs. Use glob patterns for Bash:
 ```yaml
 allowed-tools: Bash(git diff:*), Bash(git add:*), Read, Glob
 ```
+
+### Where and how the skill runs
+
+Those three fields describe what a skill *is*. A further set decides where it executes, on which model, and who may call it — and reaching for hand-built machinery before reading them is expensive. On 2026-09-30 three rounds of design went into a `claude/agents/` directory, read-only probe scripts and a patch-passing convention, to get behaviour these fields already provide.
+
+| Field | What it decides |
+|---|---|
+| `context: fork` | Runs the skill in a forked subagent. **Not** a fork of the conversation: it starts fresh with this file and CLAUDE.md, so a skill whose input is the conversation cannot use it |
+| `agent` | Which subagent type serves the fork — the route to a definition carrying `isolation: worktree`, which SKILL.md has no field for |
+| `model`, `effort` | The fork's model and reasoning level, so a mechanical pass need not run at the session's level |
+| `background` | Defaults to `true`, so a fork runs concurrently and reports when it finishes |
+| `user-invocable: false` | Hides it from the `/` menu while leaving Claude able to invoke it — the honest setting for a skill only another skill calls |
+| `disable-model-invocation: true` | The mirror: keeps it in the `/` menu and stops Claude choosing it |
+| `disallowed-tools` | Removes tools from the pool while the skill is active, which is how a skill is made read-only |
+| `paths` | Globs limiting when the skill activates at all |
+
+Read the official field reference before designing anything around a skill's execution, rather than inferring the list from what other skills in this repo happen to use. Two traps measured the same day: a backgrounded fork runs with a narrower tool set that excludes `Grep` and `Glob`, so a step written around them loses itself silently; and a fork's edits land outside the session's checkpoints, so `/rewind` cannot undo them. `~/.claude/learnings/claude-code-skill-profiling.md` carries both, with what each costs.
 Omit `allowed-tools` only if the skill genuinely needs unrestricted access.
 
 ## Writing the skill body

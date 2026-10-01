@@ -326,6 +326,8 @@ Cross-project preferences and feedback. Memory files live in `~/.claude/memory/`
 - [A settled design means build it](~/.claude/memory/feedback_settled_design_means_build_it.md) — don't record the decision and resume the in-flight commit; pause the workflow, build it, then commit
 - [Write the procedure to find the missing artifact](~/.claude/memory/feedback_write_the_procedure.md) — review asks "is this right", a runbook asks "does this exist"; run the commands a doc quotes rather than predicting their output
 - [No guessed facts](~/.claude/memory/feedback_no_guessed_facts.md) — don't state a guessed URL/path/endpoint or capability claim as known, or widen a supplied fact when paraphrasing; verify or flag it
+- [Report the divergence](~/.claude/memory/feedback_report_the_divergence.md) — when what you shipped differs from what was approved, say so beside the outcome
+- [Measure the composite](~/.claude/memory/feedback_measure_the_composite.md) — a measured unit times an assumed count is not a measurement; observe the whole from outside
 - [Dedupe before you compare](~/.claude/memory/feedback_dedupe_before_you_compare.md) — a paginated source's record count isn't a count of distinct things; reduce both sides to sets on the identity key before comparing or reporting
 - [Read the evidence you have](~/.claude/memory/feedback_read_the_evidence_you_have.md) — a root cause is read, not constructed; print the output you captured and read the log the failing thing wrote before theorising
 - [Reading an email includes its attachments](~/.claude/memory/feedback_read_email_means_attachments.md) — "check the original email" always means the whole message; the body alone answers a question nobody asked

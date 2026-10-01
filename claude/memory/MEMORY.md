@@ -186,6 +186,8 @@
 - [A settled design means build it](feedback_settled_design_means_build_it.md) {always} — don't record the decision and resume the in-flight commit; pause the workflow, build it, then commit
 - [Write the procedure to find the missing artifact](feedback_write_the_procedure.md) {always} — review asks "is this right", a runbook asks "does this exist"; run the commands a doc quotes rather than predicting their output
 - [No guessed facts](feedback_no_guessed_facts.md) {always} — don't state a guessed URL/path/endpoint or capability claim as known, or widen a supplied fact when paraphrasing; verify or flag it
+- [Report the divergence](feedback_report_the_divergence.md) {always} — when what you shipped differs from what was approved, say so beside the outcome
+- [Measure the composite](feedback_measure_the_composite.md) {always} — a measured unit times an assumed count is not a measurement; observe the whole from outside
 - [Dedupe before you compare](feedback_dedupe_before_you_compare.md) {always} — a paginated source's record count isn't a count of distinct things; reduce both sides to sets on the identity key before comparing or reporting
 - [Read the evidence you have](feedback_read_the_evidence_you_have.md) {always} — a root cause is read, not constructed; print the output you captured and read the log the failing thing wrote before theorising
 - [Reading an email includes its attachments](feedback_read_email_means_attachments.md) {always} — "check the original email" always means the whole message; the body alone answers a question nobody asked
