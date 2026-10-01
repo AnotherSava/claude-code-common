@@ -40,6 +40,12 @@ session that followed one and a session that broke it, so there is nothing for a
   check the remote after an idle gap, prefer `git status --short`.
 - **Bash conventions** — forward slashes on Windows, no `cd` drift across calls, never route a plaintext
   secret through the `!` prefix, no `python -c`.
+- **Deleting a path** — a recursive delete goes unasked only where `git check-ignore -q` already calls the
+  path disposable, a per-machine wrapper nothing regenerates needs asking even though it passes that
+  check, and every deleting command takes an absolute path and names the files while the set is small
+  enough to read. The repo's own `.gitignore` is the list of disposable paths, so there is nothing for a
+  rule to compare it against, and a tree deleted unasked is indistinguishable afterwards from one deleted
+  after asking.
 - **Background-process hygiene** — redirect stdout and stderr, kill the whole process tree by a
   distinguishing flag, clean up before reporting done.
 - **The overused-phrases blocklist** and its replacements.
@@ -134,8 +140,8 @@ needed it.
 So these hand the checker a rule under `claude/conventions/universal/` rather than a version. No version
 gates one: it runs in every repo whatever its number, an exempt repo included, it fails the commit gate
 exactly as a versioned rule does, and it names in its `FIX` the command that repairs what it found. The
-class is small on purpose — a universal rule reaches every repo whose gate calls the checker, with no adoption in between, with no
-adoption in between — so a property a repo can *adopt* belongs in a version, and only what adoption
+class is small on purpose — a universal rule reaches every repo whose gate calls the checker, with no adoption in between — so a
+property a repo can *adopt* belongs in a version, and only what adoption
 cannot settle belongs here.
 
 - **This machine's memory cache for the repo is a link into the committed `.claude/memory/`** —
