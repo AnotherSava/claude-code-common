@@ -66,7 +66,11 @@ def main() -> int:
             return 0  # not a git repo — nothing to be ignored by
         repo = top.stdout.strip()
         rel = os.path.relpath(skill_dir, repo).replace(os.sep, "/") + "/"
-        check = _git(repo, "check-ignore", "-v", rel)
+        # The bare form decides; the `-v` call below only names the rule. `-v` exits 0 on any
+        # matching pattern, the `!` line an allowlist is made of included, so deciding on its
+        # status reports a correctly re-included skill as ignored — see
+        # claude/learnings/gitignore-anchoring-and-scope.md.
+        check = _git(repo, "check-ignore", rel)
     except (OSError, subprocess.SubprocessError):
         return 0
 
@@ -76,7 +80,8 @@ def main() -> int:
         return 0
 
     name = os.path.basename(skill_dir)
-    citation = check.stdout.strip().split("\t")[0] or "the ignore file"
+    verbose = _git(repo, "check-ignore", "-v", rel)
+    citation = verbose.stdout.strip().split("\t")[0] or "the ignore file"
     print(json.dumps({
         "hookSpecificOutput": {
             "hookEventName": "PostToolUse",
@@ -84,7 +89,7 @@ def main() -> int:
                 f"The `{name}` skill is gitignored — it will never be committed, and the only "
                 f"copy is on this machine. Ignored by {citation}. Add an un-ignore line for it "
                 f"beside its siblings (`!{rel}` in that file's repo-relative form), then confirm "
-                f"with `git check-ignore -v {rel}` until it exits 1. Do this now; it is silent "
+                f"with `git check-ignore {rel}` until it exits 1. Do this now; it is silent "
                 f"otherwise — an ignored skill never appears in `git status`."
             ),
         },

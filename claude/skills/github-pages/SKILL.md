@@ -432,10 +432,10 @@ Follow these steps whenever creating or restructuring docs.
 9. **Verify git is actually tracking the new files.** A repo whose `.gitignore` ignores `docs/*` and re-includes specific paths (a common way to keep local scratch docs out) swallows the entire site silently: an ignored path never appears in `git status`, so nothing in the normal flow mentions it, and the site simply is not in the commit. Ask git rather than reading the ignore file:
 
    ```bash
-   git check-ignore -v docs/_config.yml docs/index.md docs/_includes/ docs/pages/
+   git check-ignore docs/_config.yml docs/index.md docs/_includes/ docs/pages/
    ```
 
-   Exit 1 with no output means everything is tracked. Any `<file>:<line>:<pattern>` citation names the rule to add a `!` line beside — repeat until it exits 1. Do this for every new *top-level* entry under `docs/`; re-including a directory covers what is inside it.
+   Exit 1 with no output means everything is tracked; each path it prints is still hidden. Reach for `-v` on those paths alone, to name the `<file>:<line>:<pattern>` to add a `!` line beside, then re-run the bare form until it exits 1. Never read the exit status of `-v`: it exits 0 on *any* matching pattern, a `!` line included, so the verbose form still reports 0 once the negations are correctly in place and the loop never ends (`~/.claude/learnings/gitignore-anchoring-and-scope.md`). Do this for every new *top-level* entry under `docs/`; re-including a directory covers what is inside it.
 10. **Publish, and point the repo at it.** The README's footer now links to a site that 404s until GitHub Pages is switched on, so this is part of the job, not a follow-up. Confirm with the user first — it publishes the docs — and do it **after** the branch carrying `docs/` is pushed, or the first build runs against a tree with no site in it.
 
     ```bash

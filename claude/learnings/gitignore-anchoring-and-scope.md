@@ -99,8 +99,50 @@ one to trust. Second, a repo-level negation of a global rule is a supported and 
 how one repo opts a path back in without weakening the default for every other repo), so getting this
 backwards means rejecting the right design for a measurement error.
 
-Also worth auditing: any instruction of the form "`git check-ignore` must exit 0" written near a `!`
-pattern is probably asserting the opposite of what it intends.
+**A trailing slash on the path argument hides the whole effect**, which is why some call sites built on
+`-v` are correct and others are not. Measured 2026-10-01 on a scratch repo with `skills/*` and
+`!skills/mine`:
+
+```
+$ git check-ignore -v skills/mine  ; echo $?
+.gitignore:2:!skills/mine	skills/mine
+0                                                       # matched — and NOT ignored
+$ git check-ignore -v skills/mine/ ; echo $?            # same path, trailing slash
+1                                                       # correct, and the negation line is suppressed
+```
+
+So a directory check written `<path>/` gets the right answer out of `-v` by accident, and loses it the day
+someone drops the slash. Depending on that is not a reason to keep `-v`; it is a reason the bug is hard to
+find. A path *inside* the re-included directory answers correctly either way, since the `!` line names the
+directory and does not match the file — measured in the same repo, `-v skills/mine/SKILL.md` exits 1.
+
+Also worth auditing: any instruction of the form "`git check-ignore` must exit 0" — or "repeat until it
+exits 1" — written near a `!` pattern is probably asserting the opposite of what it intends. Check the
+path form before calling one wrong, though: a trailing-slash directory argument behaves, per the
+measurement above, and `--stdin` callers that read the *output records* rather than the exit status are
+unaffected either way.
+
+## A directory-only pattern needs the directory to exist before it will match
+
+A pattern with a trailing slash — `__pycache__/`, `/tmp/` — matches directories only, and git decides
+whether a path *is* a directory by looking at the filesystem. So a path that does not exist yet answers
+"not ignored", however squarely its name sits under such a pattern. Measured 2026-10-01 in a repo whose
+`.gitignore` carries `__pycache__/`:
+
+```
+$ git check-ignore -q some/new/__pycache__ ; echo $?    # does not exist on disk
+1                                                       # not ignored
+$ mkdir -p some/new/__pycache__
+$ git check-ignore -q some/new/__pycache__ ; echo $?
+0                                                       # ignored
+```
+
+Two consequences. Testing the mechanism with invented paths reads as a falsification of it — the first
+run of exactly this check reported `__pycache__` and `node_modules` unignored and looked like proof that
+`.gitignore` was not doing its job. And a check used as a *gate* before touching a path is answering
+about the path as it is now, which is the question that matters, and errs toward "not ignored" when it
+cannot tell. That is the safe direction for a gate guarding a delete and the wrong one for a gate
+asserting a new rule will take effect.
 
 ## `--no-index` asks a different question, and which one you want depends on the job
 

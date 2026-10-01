@@ -132,8 +132,10 @@ Fix in both files, and prefer the glob over naming the file so a second app can'
 !*.env.example
 ```
 
-Verify rather than assume — `git check-ignore -v <file>` must exit 0, and check the Docker side by matching the
-name against `.dockerignore`'s patterns (`fnmatch`), since Docker has no equivalent of `check-ignore`.
+Verify rather than assume — `git check-ignore <file>` must exit 0, with no `-v`, which exits 0 on the
+`!*.env.example` line too and would report the re-included file as hidden
+(`~/.claude/learnings/gitignore-anchoring-and-scope.md`). Check the Docker side by matching the name
+against `.dockerignore`'s patterns (`fnmatch`), since Docker has no equivalent of `check-ignore`.
 
 ## Name the compose project, and give each private repo its own deploy key
 

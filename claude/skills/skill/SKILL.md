@@ -253,20 +253,21 @@ The `skill-tracked.py` PostToolUse hook runs this check automatically when a `SK
 Ask git instead of reading an ignore file by hand:
 
 1. Resolve the symlink — `readlink ~/.claude/skills` gives the real directory inside the dotfiles repo.
-2. From that repo, check the new skill by its **repo-relative** path: `git check-ignore -v claude/skills/<skill-name>/`
+2. From that repo, check the new skill by its **repo-relative** path, with the trailing slash: `git check-ignore claude/skills/<skill-name>/`
 
 Interpret the result:
 
 | Result | Meaning | Action |
 |---|---|---|
 | exit 1, no output | not ignored | tracked — done |
-| exit 0 + a `<file>:<line>:<pattern>` citation | ignored | add `!claude/skills/<skill-name>/` to the cited file, beside its siblings, and re-run until it exits 1 |
+| exit 0, the path echoed back | ignored | run `git check-ignore -v claude/skills/<skill-name>/` for the `<file>:<line>:<pattern>` that hides it, add `!claude/skills/<skill-name>/` to that file beside its siblings, and re-run the bare form until it exits 1 |
 | exit 128, `is outside repository` | the `~/.claude/...` symlink path was passed | retry with the resolved path from step 1 |
 
-Two traps this avoids:
+Three traps this avoids:
 
 - **Checking a file that can't hold the pattern.** The allowlist normally lives in the dotfiles repo's own `.gitignore`, not the global one (`git config --global core.excludesfile`). Inspecting only the global file reports "nothing excludes it" while the skill stays untracked. Only `check-ignore` names the file and line that actually decides.
 - **Reading exit 128 as success.** It is non-zero, so a bare `if git check-ignore …; then` classifies the skill as tracked when the path was merely unresolvable.
+- **Deciding on `-v`'s exit status.** It exits 0 on any matching pattern, the `!` line the allowlist is made of included, so the verbose form answers "ignored" for a skill that is correctly re-included and the check never clears. A trailing-slash directory argument happens to suppress that, so a `-v` check of `claude/skills/<name>/` gets the right answer while the same check written without the slash does not — `~/.claude/learnings/gitignore-anchoring-and-scope.md` has the measurement. Relying on the slash is what makes the bug hard to find. The bare form decides; `-v` only names the rule.
 
 To catch skills that are already missing an entry, audit them all from the repo root:
 
