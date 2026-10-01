@@ -37,6 +37,7 @@ Scan project documentation and comments for references that no longer match the 
 - Uncommitted changes: !`git status --short`
 - Diff summary: !`git diff --stat $(git rev-parse -q --verify HEAD || echo 4b825dc642cb6eb9a060e54bf8d69288fbee4904)`
 - Full diff: !`git diff --no-textconv $(git rev-parse -q --verify HEAD || echo 4b825dc642cb6eb9a060e54bf8d69288fbee4904)`
+- Code in unpushed commits (empty when there is none; read it with `git log -p --no-textconv HEAD --not --remotes`): !`git log --stat --oneline HEAD --not --remotes`
 - GH Pages index present: !`R=$(git rev-parse --show-toplevel 2>/dev/null || pwd) && test -f "$R/docs/index.md" && echo yes || echo no`
 - Doc image files: !`git ls-files --full-name -co --exclude-standard -- ':/docs/*.png' ':/docs/*.jpg' ':/docs/*.jpeg' ':/docs/*.gif' ':/docs/*.webp' ':(top,exclude,glob)docs/**/raw/**' | grep . || echo NONE`
 - Screenshot manifest: !`R=$(git rev-parse --show-toplevel 2>/dev/null || pwd) && cat "$R/docs/screenshots/screenshots.json" 2>/dev/null || echo MISSING`

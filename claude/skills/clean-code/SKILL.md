@@ -1,7 +1,7 @@
 ---
 name: clean-code
 description: Remove dead code, fix duplication, enforce naming conventions, and optimize imports in modified files
-allowed-tools: Read, Edit, Write, Grep, Glob, Bash(git diff:*), Bash(git status:*), Bash(git rev-parse:*)
+allowed-tools: Read, Edit, Write, Grep, Glob, Bash(git diff:*), Bash(git log:*), Bash(git status:*), Bash(git rev-parse:*)
 ---
 
 # Clean Code
@@ -12,8 +12,17 @@ Audit modified files for dead code, duplication, naming conventions, and import 
 - Uncommitted changes: !`git status --short`
 - Diff summary: !`git diff --stat $(git rev-parse -q --verify HEAD || echo 4b825dc642cb6eb9a060e54bf8d69288fbee4904)`
 - Full diff: !`git diff --no-textconv $(git rev-parse -q --verify HEAD || echo 4b825dc642cb6eb9a060e54bf8d69288fbee4904)`
+- Code in unpushed commits (empty when there is none): !`git log --stat --oneline HEAD --not --remotes`
 
 ## Process
+
+**The scope is the working tree AND the unpushed commits**, not whichever of the two the first
+two probes happen to show. Code that has not been pushed is unreviewed whether or not it is still
+in the tree, and `/commit` sends this skill here for code sitting in a commit as readily as for
+an edit on disk. When **Code in unpushed commits** is non-empty, read that patch with
+`git log -p --no-textconv HEAD --not --remotes` and audit those files too. Measured 2026-10-01:
+three unpushed commits changing two C# files were invisible to the `git diff HEAD` probes, so this
+skill reported on a one-line installer edit while the code it was summoned for went unexamined.
 
 1. **Remove debug prints** (`print()`, `console.log()`, `Debug.Log()`, etc.) added during development — do not commit temporary debug output
 

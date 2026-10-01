@@ -29,18 +29,35 @@ INERT_PATHS = {".claude/conventions"}
 
 
 def unpushed_paths() -> tuple[list[str], str | None]:
-    """Paths touched by commits not yet on the remote, and a note when that cannot be determined.
+    """Paths touched by commits not yet on a remote, and a note when that cannot be determined.
 
     What has not reached the remote is unreviewed whether or not it is still in the tree, so the
-    gate reads both. Where there is no upstream the range is every commit, which this script has
-    no basis to bound — it says so rather than reporting the working tree as the whole scope.
+    gate reads both.
     """
     try:
         git(["rev-parse", "--abbrev-ref", "@{upstream}"])
     except subprocess.CalledProcessError:
-        return [], "no upstream, so unpushed commits are unmeasured here — see /commit step 1"
+        return paths_not_on_any_remote()
     raw = git(["diff", "--name-only", "-z", "--diff-filter=ACMRT", "@{upstream}..HEAD"], binary=True)
     return [p.decode("utf-8", "surrogateescape") for p in raw.split(b"\0") if p], None
+
+
+def paths_not_on_any_remote() -> tuple[list[str], str | None]:
+    """The unpushed range for a branch with no upstream: commits no remote ref contains.
+
+    A missing upstream is not an unmeasurable range — `HEAD --not --remotes` bounds it exactly,
+    without a tracking branch, and a branch pushed nowhere yet then scopes its whole history,
+    which is the honest answer. Measured 2026-10-01: returning an empty list and a note here
+    instead let the verdict below read the working tree as the whole scope and print
+    `clean-code: SKIP` over three unpushed commits that changed two C# files.
+    """
+    try:
+        raw = git(["log", "--name-only", "--pretty=format:", "-z", "HEAD", "--not", "--remotes"],
+                  binary=True)
+    except subprocess.CalledProcessError:
+        return [], "UNMEASURED — no upstream and the remote refs could not be read"
+    paths = sorted({p.decode("utf-8", "surrogateescape") for p in raw.split(b"\0") if p})
+    return paths, "no upstream; the unpushed range is bounded by remote refs instead"
 
 
 def suffix_of(path: str) -> str:
@@ -117,13 +134,19 @@ def main() -> None:
     if inert:
         print(f"  else: {sample(inert)}")
 
-    if code:
-        print(f"clean-code: RUN ({len(code)} code file(s) changed)")
+    # A scope that could not be read must never produce a SKIP, however empty it looks.
+    unmeasured = bool(note and note.startswith("UNMEASURED"))
+
+    if code or unmeasured:
+        reason = "unpushed scope unmeasured" if unmeasured else f"{len(code)} code file(s) changed"
+        print(f"clean-code: RUN ({reason})")
     else:
         print("clean-code: SKIP (no file with a code suffix changed)")
 
-    if code or docs:
-        reason = "code changed, so prose about it may be stale" if code else "documentation itself changed"
+    if code or docs or unmeasured:
+        reason = ("unpushed scope unmeasured" if unmeasured else
+                  "code changed, so prose about it may be stale" if code else
+                  "documentation itself changed")
         print(f"docs-relevance: RUN ({reason})")
     else:
         print("docs-relevance: SKIP (no code and no documentation in the change set)")
