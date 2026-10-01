@@ -526,13 +526,35 @@ def _refuse_if_format_unadopted() -> None:
         behind = engine.behind(_root(), REQUIRES_VERSION)
     except BaseException as exc:
         print(f"note: could not check whether this repo has adopted the memo format ({exc})", file=sys.stderr)
+        _refuse_if_single_file_backlog()
         return
     if behind is None:
+        _refuse_if_single_file_backlog()
         return
     adopted, title = behind
     sys.exit(f"This repo has not adopted the memo backlog format: it is at v{adopted}, and v{REQUIRES_VERSION} "
              f"({title}) is what defines the layout every command here reads.\n"
              f"Run /adopt first — writing a memo now would leave the backlog half migrated.")
+
+
+def _refuse_if_single_file_backlog() -> None:
+    """Stop where the single-file backlog is still on disk, in a repo the version check waved through.
+
+    `behind` answers "go ahead" for a repo the conventions do not govern — a clone of someone
+    else's project above all — because no record can ever say what format it is in. Such a clone
+    can still hold a `.claude/memos.md` written by hand, and this module reads only the directory
+    layout, so `count` would answer `0 open` beside a file holding items. This is the artifact
+    check `_refuse_if_format_unadopted` declines to make, and it stays a second line rather than a
+    replacement: in a governed repo the version decides, and the file turning up here as well means
+    the split never reached it.
+    """
+    legacy = os.path.join(_root(), ".claude", "memos.md")
+    if os.path.isfile(legacy):
+        sys.exit("This repo keeps its backlog in .claude/memos.md, the single-file format this tool does not "
+                 "read, so any listing here would leave those items out.\n"
+                 "In a repo that adopts conventions, /adopt splits it into .claude/memos/. Anywhere else — a "
+                 "clone of someone else's project, an exempt repo, a directory outside git — read and append "
+                 "to that file by hand.")
 
 
 def main() -> None:

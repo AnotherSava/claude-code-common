@@ -361,6 +361,33 @@ def main() -> int:
         check("a mistyped leading flag is refused", b.run("add", "--titel", "Typo", "body")[0] != 0, True)
         check("neither wrote a memo", b.titles(), [])
 
+        # --- a clone's single-file backlog is refused, not counted as empty -------------------------------
+        # The version check waves a clone of someone else's project through, since no record can say
+        # what format it holds. Without the second check `count` answered `0 open` here while the
+        # file beside it held items, and nothing refused.
+        b = Backlog(stack)
+        subprocess.run(["git", "remote", "add", "origin", "https://github.com/someone-else/thing.git"],
+                       cwd=b.root, check=True)
+        os.remove(os.path.join(b.root, ".claude", "conventions"))
+        with open(os.path.join(b.root, ".claude", "memos.md"), "w", encoding="utf-8", newline="\n") as fh:
+            fh.write("- [ ] an item written by hand\n")
+        rc, out, err = b.run("count")
+        check("count refuses in a clone holding .claude/memos.md", (rc != 0, "memos.md" in err), (True, True))
+        check("and prints no count", out, "")
+        os.remove(os.path.join(b.root, ".claude", "memos.md"))
+        check("the same clone without that file is counted", b.run("count")[1], "0 open · 0 done")
+
+        # The version check can also fail outright — here, a record that will not parse. memos.py then
+        # notes it and carries on, and the single-file check has to run on that branch too.
+        b = Backlog(stack)
+        with open(os.path.join(b.root, ".claude", "conventions"), "w", encoding="utf-8", newline="\n") as fh:
+            fh.write("banana\n")
+        with open(os.path.join(b.root, ".claude", "memos.md"), "w", encoding="utf-8", newline="\n") as fh:
+            fh.write("- [ ] an item written by hand\n")
+        rc, out, err = b.run("count")
+        check("count refuses over .claude/memos.md when the version check itself fails",
+              (rc != 0, "could not check" in err, "memos.md" in err), (True, True, True))
+
     if FAILURES:
         print(f"memos tests: {len(FAILURES)} case(s) failed\n")
         for failure in FAILURES:
