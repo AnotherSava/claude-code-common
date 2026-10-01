@@ -144,6 +144,7 @@ Scans project documentation for stale references and fixes them.
 - Edits a detached worktree outside the repo rather than the user's tree, created by `claude/scripts/worktree-sandbox.py` and carrying the pending change set — the uncommitted edits, the new files, the deletions — then hands back a unified diff for the caller to read and `git apply`. A fork's writes land outside the session's checkpoints, so `/rewind` cannot undo them; routing them through a patch keeps one writer
 - Reports the patch path even when the patch is empty, so "nothing to fix" and "the run failed" cannot be confused
 - Reads the project's own `CLAUDE.md` first and lets it override any step — a repo that rules out screenshots gets no staleness pass, no manifest and no offer — and says in the report which of its rules applied
+- Reports a documentation gap in a file the project's upstream owns and edits nothing there — no patch and no memo for the docs of a fork's upstream or of a third-party clone, since the backlog holds work this repo has undertaken; such a finding reaches upstream only as an issue the user asks for
 - Checks README, `docs/pages/`, CLAUDE.md, and source comments against current code
 - Fixes stale paths, API references, and behavior descriptions
 - Keeps curated feature listings (features page, docs index, README) in sync with the diff

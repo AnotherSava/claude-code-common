@@ -41,6 +41,7 @@ Scan project documentation and comments for references that no longer match the 
 - GH Pages index present: !`R=$(git rev-parse --show-toplevel 2>/dev/null || pwd) && test -f "$R/docs/index.md" && echo yes || echo no`
 - Doc image files: !`git ls-files --full-name -co --exclude-standard -- ':/docs/*.png' ':/docs/*.jpg' ':/docs/*.jpeg' ':/docs/*.gif' ':/docs/*.webp' ':(top,exclude,glob)docs/**/raw/**' | grep . || echo NONE`
 - Screenshot manifest: !`R=$(git rev-parse --show-toplevel 2>/dev/null || pwd) && cat "$R/docs/screenshots/screenshots.json" 2>/dev/null || echo MISSING`
+- Remotes, nothing above `(end of remotes)` meaning none: !`git remote -v; echo "(end of remotes)"`
 
 ## Working directory
 
@@ -55,6 +56,8 @@ Bare paths are resolved against the current working directory, so they are only 
 Say in the report which of its rules applied, so a skipped step reads as a decision already taken rather than as a check that quietly did not run. Step 5 reads the same file for staleness — that is a different job, and finding a rule here does not excuse checking whether the rest of it is still true.
 
 A repo that says nothing gets every step as written. Never infer a rule from the absence of something: a project with no screenshots has not thereby declined them, which is exactly the case step 4 is built to raise.
+
+**Documentation another account owns is reported and nothing else.** Read **Remotes** from Context: an `upstream` pointing at an account that is not the user's marks a fork, and an `origin` that does marks a clone of someone else's project, where every file is upstream's. The files that account wrote are not this skill's to edit, so a stale screenshot or a comment that omits a field there is reported in step 9 and left alone — no patch for it, and **no memo**, because the backlog is work this repo has undertaken and upstream's documentation is not it. Two exceptions, where the finding is really the user's: the gap touches a change they carry on their own branch, or it belongs to an issue they have already raised upstream. Anything else reaches upstream only as an issue they ask for, so never offer one unprompted and never open the offer by proposing a memo. The project's own code and the user's own docs are checked as written in every step below; it is only the verdict on an upstream-owned file that stops at reporting.
 
 0. **Work in a sandbox, not the user's tree.** Run `python ~/.claude/scripts/worktree-sandbox.py create --name docs-relevance` and `cd` to the path it prints on its last line. That is a detached git worktree outside the repo, already holding the pending change set — the uncommitted edits, the new files, the deletions — so every step below sees exactly what the caller sees. Do all of your reading and every edit there.
 
@@ -177,6 +180,7 @@ A repo that says nothing gets every step as written. Never infer a rule from the
 ## Out of scope
 
 - Do NOT touch code logic — only comments, docstrings, and doc files
+- Do NOT patch, or memo, a documentation gap in a file the project's upstream owns. Report it and stop; raise it upstream only when the user asks
 - Do NOT create new documentation files or restructure existing ones without explicit approval
 - Do NOT capture, crop, resize, recompress or retouch an image whose manifest entry says `never` — report those and let the user decide. Capture without asking is permitted only under `auto`; every other state, including an absent `policy`, requires their approval for that specific replacement first. Opening the step-4 HTML report is **not** covered by this: it renders findings to look at rather than producing an image, and alters nothing on disk
 - Do NOT capture a *new* shot for a documented gap without the explicit approval step 4 requires — never bundled into another yes, never inferred from enthusiasm about the gap itself
