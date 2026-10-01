@@ -53,15 +53,20 @@ already right.
 
 The record is `<repo>/.claude/conventions` — committed, one integer on its own content line. `vN` says
 every migration up to and including N was performed here, in ascending order, by a session that read it.
-Three things it deliberately does not say:
+Four things it deliberately does not say:
 
 - **That the repo still conforms.** A property that has to hold *continuously* is a rule, re-measured by
   `~/.claude/conventions/check.py` — which the repo's commit gate runs, and which this walk runs too. The
   number is history; the checker is the present tense.
 - **That every version applied.** A version whose `## When it does not apply` is satisfied here ran to a
-  no-op, and the number advances just the same. There is no `n/a` and no `declined`: an exception to a
-  convention belongs *in* the convention, written into that section and re-evaluated in every repo, not
-  remembered per repo as a line nobody re-reads.
+  no-op, and the number advances just the same. There is no `n/a`: an exception to a convention belongs
+  *in* the convention, written into that section and re-evaluated in every repo, not remembered per repo
+  as a line nobody re-reads.
+- **That every version was performed, in a fork.** A fork — `origin` is the user's, the `upstream` remote
+  is someone else's — may decline a version whose README frontmatter says `optional: forks`. The record
+  then carries `decline <n> <reason>` below the number, and the checker runs none of that version's
+  rules. The convention still decides where the choice exists; the fork only answers it. Everywhere else,
+  and for every version not marked that way, there is no decline.
 - **That the rules it brought in are the only ones running here.** The number decides the versioned rules
   and nothing else: one introduced by v7 starts running when the number reaches 7. Beside them,
   `~/.claude/conventions/universal/` holds the rules no version gates — they run in every repo whatever
@@ -69,7 +74,9 @@ Three things it deliberately does not say:
   That directory is the smaller half on purpose, because a rule added to it reaches every repo the moment
   it is committed, with no adoption in between; a property a repo can adopt belongs in a version instead.
 
-A repo that must never adopt carries `exempt <reason>` on that content line instead of a number.
+A repo that must never adopt carries `exempt <reason>` on that content line instead of a number. A clone
+of someone else's project — `origin` owned by another account — adopts nothing and records nothing, with
+no file needed; a fork is not a clone and adopts like any other repo of the user's.
 
 What can never carry a version at all — agent behaviour, code content, an unbounded property, a global
 setting — is enumerated in `~/.claude/conventions/not-versioned.md`. Read it when the user asks what
@@ -112,6 +119,14 @@ each introduces.
   and from nothing else: the universal rules are gated by no number, so they run in that repo too and its
   commit gate can still fail on one — say that, rather than leaving `exempt` to read as nothing being
   checked here.
+- **A `declined vN` line** names a version this fork chose not to take on. It is not pending, and the
+  walk never re-offers it. If the user asks to take one on now, read its README as §2 does, perform the
+  migration, and run `engine.py adopt "<repo root>" <N>` with that number: the engine accepts a declined
+  version below the record, drops its decline line, and leaves the number where it is.
+- **Status saying this record declines versions but no `upstream` remote is configured** means a clone of a
+  fork that never had the remote added — git does not commit remotes. The declines still hold. Before
+  walking, tell the user, and ask for the upstream URL to add with `git remote add upstream <url>`, or a
+  version this fork would have declined gets migrated here instead.
 - Nothing pending: say the repo is current and name the version it is current *through*. Then run
   `python ~/.claude/conventions/check.py "<repo root>"` anyway and report what it says, because current
   is a statement about migrations and the checker is the one that can still find something broken,
@@ -125,7 +140,8 @@ each introduces.
 
 One version per pass, in number order. Never batch them, never reorder them, and never start the next
 before the current one's number is recorded — a later migration may depend on what an earlier one wrote.
-The engine enforces the order anyway: `adopt` takes only the current number plus one.
+The engine enforces the order anyway: `adopt` and `decline` take only the current number plus one, the one
+exception being a declined version taken on later, which §1 describes.
 
 1. **Read the version's README in full first** — `~/.claude/conventions/versions/<NNN-slug>/README.md`,
    every heading, before touching anything. Its four sections are what the rest of this pass runs on:
@@ -136,6 +152,13 @@ The engine enforces the order anyway: `adopt` takes only the current number plus
    ran or the file you read and show what came back; "nothing found" and "nothing looked at" must not
    read the same (`~/.claude/memory/feedback_not_run_is_not_pass.md`). If none of its conditions holds,
    the migration applies here — continue. If one does, change nothing and go to sub-step 5.
+
+   **In a fork, ask about a version marked `[optional for forks]` before migrating it.** Status prints
+   `a fork of <owner>'s project` when this repo is one, and tags each such version in the pending list.
+   Only where the migration applies — a no-op needs no decision — ask the user whether this fork takes
+   it on or declines it, saying what the migration would change here and that declining keeps the fork
+   closer to its upstream. Ask in plain text, for the same reason sub-step 4 gives. A decline takes the
+   user's reason in their words and goes straight to sub-step 5's decline form; nothing is migrated.
 
 3. **Check whether the repo is already in the target shape.** Work done by hand, or on the other machine
    days ago, is common, and the answer is the same as a no-op: change nothing and go to sub-step 5. Say
@@ -156,7 +179,8 @@ The engine enforces the order anyway: `adopt` takes only the current number plus
      reason is stored nowhere, so if it would hold for every repo it belongs in that version's
      `## When it does not apply` or in a later version, which is work in the dotfiles repo and its own
      session's task. Offer a memo for it. If their answer is that it applies and they do not want it
-     done, that is a §3 stop.
+     done, that is a §3 stop — unless this is a fork and the version is marked optional for forks, where
+     it is the decline sub-step 2 describes.
    - **Where the folder carries an `apply.py`, run it** rather than doing the work by hand —
      `python ~/.claude/conventions/versions/<NNN-slug>/apply.py "<repo root>"`. It exists because the
      work is mechanical and tedious, it prints what it did, and it exits non-zero on any line it cannot
@@ -168,7 +192,9 @@ The engine enforces the order anyway: `adopt` takes only the current number plus
 
 5. **Advance the number by one:** `python ~/.claude/conventions/engine.py adopt "<repo root>" <N>`.
    It refuses to lower the number, to skip one, or to go above the newest version in this checkout, and
-   a refusal is a §3 stop rather than something to work around.
+   a refusal is a §3 stop rather than something to work around. A version the fork declined advances
+   with `python ~/.claude/conventions/engine.py decline "<repo root>" <N> <reason>` instead, which also
+   refuses outside a fork and for a version not marked optional.
 
 6. **Run the checker:** `python ~/.claude/conventions/check.py "<repo root>"`. Exit 0 is done; exit 1 —
    a violation or a rule that could not be measured — is a §3 stop. It runs *after* the number moves
@@ -191,8 +217,9 @@ exists today — so running it is the user's decision rather than a step of the 
 
 ## 3. The first failure stops the run
 
-A migration you cannot complete, an `apply.py` exiting non-zero, an `adopt` refusal, a `check.py` exit 1,
-or a user who wants the convention's work not done — any of these ends the walk. Leave the tree exactly
+A migration you cannot complete, an `apply.py` exiting non-zero, an `adopt` or `decline` refusal, a
+`check.py` exit 1, or a user who wants the convention's work not done where no decline is on offer — any
+of these ends the walk. Leave the tree exactly
 as it is, name the failing items whatever printed them reported, and say which versions were adopted
 before it. Do not skip the failing version and carry on with the next: later migrations may depend on it,
 and the engine will refuse the skip regardless. The repo stays behind at that number, and the
@@ -215,7 +242,9 @@ Two things to say once the walk is over. If this repo's `.claude/commit-checks.s
 `check.py`, the rules this walk just took on were measured by the walk and by nothing since, and the
 universal rules with them — say so rather than leaving "adopted" to read as "checked from here on". And
 if the record file conflicts on a later pull, both machines walked from the same base: keep the higher
-number, whose migrations are all present in the merged tree.
+number, whose migrations are all present in the merged tree. Decline lines need one more look, since
+one machine may have declined a version the other performed: keep a decline only where the merged tree
+does not carry that version's migration, and ask the user where you cannot tell.
 
 ## There is no audit step
 
@@ -236,8 +265,8 @@ afterwards, because a migration is not a standing claim — it ran, and the numb
   under one number; a convention that is wrong is corrected by a later version. A fix to how a *rule*
   detects something is different — that belongs in the rule file, under `rules/` or `universal/`, where
   it applies everywhere at once.
-- Do not hand-write, or lower, the record file. The engine's `adopt` is the only writer, and one version
-  at a time is what keeps the number from claiming a migration nobody read.
+- Do not hand-write, or lower, the record file. The engine's `adopt` and `decline` are the only writers,
+  and one version at a time is what keeps the number from claiming a migration nobody read.
 - Do not create the artifact a version's `## When it does not apply` says is absent — an empty
   `.claude/memos/`, a guessed `LICENSE`, an invented `engines.node`. The no-op is the version working
   correctly.

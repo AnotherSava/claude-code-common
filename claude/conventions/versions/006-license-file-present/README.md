@@ -1,5 +1,6 @@
 ---
 title: A LICENSE file sits at the repo root
+optional: forks
 ---
 
 ## What changed

@@ -8,7 +8,8 @@ metadata:
 Two repos that adopt conventions hold a `.claude/memos.md` git has never seen — chrome-assistant
 and intellij-jsonl-extension, measured 2026-09-18 with
 `git -C <repo> ls-files --error-unmatch .claude/memos.md`. A third untracked copy sits in
-`external/agwinterm`, a third-party clone that adopts nothing.
+`external/agwinterm`, which is a fork — `origin` is the user's, `upstream` is yeroo's — so it adopts
+v1 like any repo of the user's (v1 is required in a fork), and the same hazard applies there.
 
 Version 001's split deletes that file. Where it was never committed, the `[x]`/`[ ]` markers then
 exist nowhere: no revision carries them, and the only copy was the one the splitting session read

@@ -402,10 +402,11 @@ def rule_wiring(gate: Gate, versions: list[engine.Version]) -> None:
         gate.ok(False, f"rules/{name}.py is named by some version",
                 "no version declares it under `rules:`, so no repo ever runs it and the checker "
                 "cannot say which adopted number would entitle one to")
+    naming = {name: [version.number for version in versions if name in version.rules] for name in named}
     introduced = check.rule_versions()
-    gate.ok(introduced == named,
+    gate.ok(introduced == naming,
             "the checker derives the same rule-to-version mapping from the same frontmatter",
-            f"the checker reads {introduced}, the version set says {named}")
+            f"the checker reads {introduced}, the version set says {naming}")
 
     # The other directory's wiring is the mirror image: a universal rule is entitled to run by being
     # there, so what has to hold is that no version claims to introduce one — a name in both places
@@ -428,7 +429,8 @@ def rule_wiring(gate: Gate, versions: list[engine.Version]) -> None:
 
 
 def requirements_page(gate: Gate, versions: list[engine.Version]) -> None:
-    """The requirements page carries one row per version, ticked exactly where the version hands the checker a rule.
+    """The requirements page carries one row per version, ticked exactly where the version hands the checker a
+    rule, and in its fork column exactly where the version is optional for forks.
 
     Nothing else reads that page, so a version shipped without its row leaves the page describing a
     smaller set than the one every repo is asked to adopt, with nothing reporting it.
@@ -441,16 +443,22 @@ def requirements_page(gate: Gate, versions: list[engine.Version]) -> None:
         gate.ok(False, "docs/convention-requirements.md reads", str(exc))
         return
     rows: dict[int, bool] = {}
+    forks: dict[int, bool] = {}
     for line in lines:
         cells = [cell.strip() for cell in line.strip().strip("|").split("|")]
         if line.startswith("|") and cells[0].startswith("**v") and cells[0].endswith("**") and cells[0][3:-2].isdigit():
             rows[int(cells[0][3:-2])] = cells[-1] == "✓"
+            forks[int(cells[0][3:-2])] = cells[-2] == "✓"
     for version in versions:
         gate.ok(version.number in rows, f"v{version.number} {version.slug} has a row on the requirements page")
         if version.number in rows:
             gate.ok(rows[version.number] == bool(version.rules),
                     f"v{version.number} {version.slug}: the page ticks Re-checked exactly when the version names a rule",
                     f"the page says {'✓' if rows[version.number] else 'blank'}, `rules:` says {list(version.rules)}")
+            gate.ok(forks[version.number] == version.fork_optional,
+                    f"v{version.number} {version.slug}: the page ticks the fork column exactly when the version "
+                    f"is optional for forks", f"the page says {'✓' if forks[version.number] else 'blank'}, "
+                    f"`optional:` says {'forks' if version.fork_optional else 'nothing'}")
     for number in sorted(set(rows) - {version.number for version in versions}):
         gate.ok(False, f"the requirements page's v{number} row has a version folder", "no folder carries that number")
 
@@ -730,12 +738,40 @@ def record_line(root: str) -> str:
         return handle.read()
 
 
-def refuses(root: str, number: int) -> str:
+def refuses(root: str, number: int, decline: str | None = None) -> str:
     """The sentence `write_record` refuses with, or "" when it wrote instead."""
     try:
-        engine.write_record(root, number)
+        engine.write_record(root, number, decline)
     except (engine.RecordError, engine.VersionError) as exc:
         return str(exc)
+    return ""
+
+
+def run_script(script: str, *argv: str) -> tuple[int, str]:
+    """One of this directory's scripts as a subprocess. -> (exit code, stdout and stderr together)"""
+    try:
+        done = subprocess.run([sys.executable, script, *argv], capture_output=True, encoding="utf-8",
+                              errors="replace", timeout=GIT_TIMEOUT)
+    except (OSError, ValueError, subprocess.SubprocessError) as exc:
+        return 1, f"{os.path.basename(script)} could not be run ({exc})"
+    return done.returncode, (done.stdout + done.stderr).strip()
+
+
+def run_engine(*argv: str) -> tuple[int, str]:
+    return run_script(os.path.join(HERE, "engine.py"), *argv)
+
+
+def engine_status(root: str) -> str:
+    """What `engine.py status` prints for `root`, which is what /adopt reads."""
+    return run_engine("status", root)[1]
+
+
+def make_fork(root: str) -> str:
+    """Give a scratch repo our origin and someone else's upstream. -> "" or why it could not."""
+    for name, owner in (("origin", engine.OWNER), ("upstream", "someone-else")):
+        code, output = run_git(root, ["remote", "add", name, f"https://github.com/{owner}/thing.git"])
+        if code != 0:
+            return f"git remote add {name} exited {code}: {output}"
     return ""
 
 
@@ -760,16 +796,16 @@ def record_round_trip(gate: Gate, base: str, versions: list[engine.Version]) -> 
     if failure:
         gate.ok(False, "a scratch repo for the record is built", failure)
         return
-    gate.ok(engine.read_record(root).present is False and engine.adopted(root) == 0,
+    gate.ok(engine.read_record(root).present is False and engine.read_record(root).number == 0,
             "a repo with no record file reads as never asked, at 0")
     gate.ok(bool(refuses(root, 2)), "it refuses to skip from 0 to 2")
     gate.ok(bool(refuses(root, newest + 1)), f"it refuses v{newest + 1}, above the newest version here")
     gate.ok(not refuses(root, 1), "it writes v1")
-    gate.ok(engine.adopted(root) == 1, "and reads v1 back")
+    gate.ok(engine.read_record(root).number == 1, "and reads v1 back")
     gate.ok(record_line(root).endswith("\n1\n"), "the file ends with its one content line and a newline",
             repr(record_line(root)))
     gate.ok(bool(refuses(root, 1)), "it refuses to write v1 again")
-    gate.ok(not refuses(root, 2) and engine.adopted(root) == 2, "it writes v2")
+    gate.ok(not refuses(root, 2) and engine.read_record(root).number == 2, "it writes v2")
     gate.ok(bool(refuses(root, 1)), "and then refuses to lower the number back to v1")
 
     exempt, failure = build(base, "record-exempt", Tree(
@@ -787,11 +823,175 @@ def record_round_trip(gate: Gate, base: str, versions: list[engine.Version]) -> 
         return
     gate.ok(bool(engine.read_record(broken).error), "a record line that is neither a number nor exempt is an error")
     try:
-        engine.adopted(broken)
-        gate.ok(False, "reading it raises rather than answering 0",
+        engine.pending(broken)
+        gate.ok(False, "asking what is pending there raises rather than walking from 0",
                 "0 would send a walk back to the first version in a repo that may have run all of them")
     except engine.RecordError:
-        gate.ok(True, "reading it raises rather than answering 0")
+        gate.ok(True, "asking what is pending there raises rather than walking from 0")
+
+
+def fork_cases(gate: Gate, base: str, versions: list[engine.Version]) -> None:
+    """A fork may decline a version marked optional for forks, and nothing else may decline anything."""
+    print("\nforks")
+    shapes = {"fork": (engine.OWNER, "someone-else"), "own-no-upstream": (engine.OWNER, None),
+              "third-party-with-upstream": ("someone-else", "another"), "no-origin": (None, "someone-else"),
+              "own-upstream-too": (engine.OWNER, engine.OWNER)}
+    expected = {"fork": "someone-else"}
+    for label, (origin, upstream) in shapes.items():
+        root, failure = build(base, f"fork-shape-{label}", Tree({"README.md": "a repo\n"}))
+        for name, owner in (("origin", origin), ("upstream", upstream)):
+            if owner and not failure:
+                code, output = run_git(root, ["remote", "add", name, f"git@github.com:{owner}/thing.git"])
+                failure = output if code else ""
+        if failure:
+            gate.ok(False, f"a scratch repo shaped {label} is built", failure)
+            continue
+        gate.ok(engine.fork_of(root) == expected.get(label), f"fork_of reads a repo shaped {label} as "
+                f"{expected.get(label)!r}", repr(engine.fork_of(root)))
+    # A local path names a directory, not an account: its parent folder must not read as an owner.
+    for label, url in (("a local path", "C:/work/other"), ("a file URL", "file:///C:/work/other"),
+                       ("a file URL with a host", "file://server/share/repo")):
+        root, failure = build(base, "fork-path-" + label.replace(" ", "-"), Tree({"README.md": "a repo\n"}))
+        for name, target in (("origin", f"git@github.com:{engine.OWNER}/thing.git"), ("upstream", url)):
+            if not failure:
+                code, output = run_git(root, ["remote", "add", name, target])
+                failure = output if code else ""
+        gate.ok(not failure and engine.fork_of(root) is None, f"an upstream that is {label} is not a fork",
+                failure or repr(engine.fork_of(root)))
+    # An SSH host alias carries no dot, and still names an account.
+    root, failure = build(base, "fork-ssh-alias", Tree({"README.md": "a repo\n"}))
+    for name, target in (("origin", f"git@gh-work:{engine.OWNER}/thing.git"), ("upstream", "gh-other:someone-else/thing")):
+        if not failure:
+            code, output = run_git(root, ["remote", "add", name, target])
+            failure = output if code else ""
+    gate.ok(not failure and engine.fork_of(root) == "someone-else", "remotes through an SSH host alias read their owners",
+            failure or repr(engine.fork_of(root)))
+
+    optional = next((version for version in versions if version.fork_optional and version.rules), None)
+    required = next((version for version in versions if not version.fork_optional), None)
+    if optional is None or required is None:
+        gate.not_covered("declining in a fork", "the version set needs an optional version that names a rule "
+                         "and a version that is not optional")
+        return
+
+    plain, failure = build(base, "decline-not-a-fork", Tree({"README.md": "ours\n"}))
+    refused = failure or walk_to(plain, optional.number - 1)
+    gate.ok(not refused and bool(refuses(plain, optional.number, "upstream's own")),
+            f"a repo that is not a fork may not decline v{optional.number}", refused)
+
+    fork, failure = build(base, "decline-fork", Tree({"README.md": "a fork\n"}))
+    failure = failure or make_fork(fork)
+    if failure:
+        gate.ok(False, "a scratch fork is built", failure)
+        return
+    # A fresh fork stands at 0, so the walk reaches v1 first: a required v1 is refused right here.
+    if required.number == 1:
+        gate.ok(bool(refuses(fork, 1, "upstream's own")), "a fork may not decline v1, which is not optional")
+    else:
+        gate.not_covered("a fork may not decline a required version", "v1 is optional, so a fresh fork never "
+                         "stands one step below a required version")
+    refused = walk_to(fork, optional.number - 1)
+    gate.ok(bool(refuses(fork, optional.number, "   ")), "a decline with a blank reason is refused", refused)
+    code, output = run_engine("decline", fork, str(optional.number), "")
+    gate.ok(code == 2 and engine.read_record(fork).number == optional.number - 1,
+            "the command line refuses an empty reason rather than adopting the version", f"exit {code}: {output}")
+    gate.ok(not refused and not refuses(fork, optional.number, "tracks upstream  closely"),
+            f"a fork declines v{optional.number}", refused)
+    record = engine.read_record(fork)
+    gate.ok(record.number == optional.number and record.declined == {optional.number: "tracks upstream closely"}
+            and not record.error, "the record advances and carries the decline, its reason normalised", repr(record))
+    gate.ok(record_line(fork).endswith(f"\n{optional.number}\ndecline {optional.number} tracks upstream closely\n"),
+            "the file holds the number, then the decline line", repr(record_line(fork)))
+    gate.ok(bool(refuses(fork, optional.number, "again")), "the same version cannot be declined twice")
+    taken = {name for _, name in check.rules_taken_on(check.rule_versions(), record)}
+    gate.ok(not set(optional.rules) & taken, f"the checker runs none of v{optional.number}'s rules there",
+            f"it runs {sorted(set(optional.rules) & taken)}")
+    code, output = run_script(os.path.join(HERE, "check.py"), fork)
+    gate.ok(f"adopted v{optional.number} (declined v{optional.number})" in output,
+            "the checker's header names the declined version", output)
+    status = engine_status(fork)
+    gate.ok("a fork of someone-else's project" in status
+            and f"declined v{optional.number}: tracks upstream closely" in status,
+            "status names the fork and the declined version, which /adopt reads", status)
+
+    following = optional.number + 1
+    if following <= versions[-1].number:
+        gate.ok(not refuses(fork, following)
+                and engine.read_record(fork).declined == {optional.number: "tracks upstream closely"},
+                f"adopting v{following} next keeps the decline of v{optional.number}", record_line(fork))
+        tagged = next((v for v in versions if v.number > following and v.fork_optional), None)
+        if tagged is not None:
+            gate.ok(any(f"v{tagged.number}" in line and "[optional for forks]" in line
+                        for line in engine_status(fork).splitlines()),
+                    f"status tags the pending v{tagged.number} as optional for forks")
+    else:
+        gate.not_covered("a walk past a declined version keeps its decline", f"v{optional.number} is the newest version")
+
+    # A fresh clone of the fork has no `upstream` remote: git never commits one. Its declines still
+    # hold, and status says why nothing new can be declined there.
+    code, output = run_git(fork, ["remote", "remove", "upstream"])
+    record = engine.read_record(fork)
+    gate.ok(code == 0 and not record.error and optional.number in record.declined,
+            "a clone with no upstream remote still reads its committed declines", output or repr(record))
+    gate.ok("no `upstream` remote owned by someone else is configured" in engine_status(fork),
+            "and status says the remote is missing rather than calling the record broken")
+    run_git(fork, ["remote", "add", "upstream", "https://github.com/someone-else/thing.git"])
+
+    gate.ok(not refuses(fork, optional.number), f"adopting the declined v{optional.number} afterwards is allowed")
+    record = engine.read_record(fork)
+    gate.ok(optional.number not in record.declined and not record.error,
+            "and removes its decline line while the number stays", repr(record))
+    taken = {name for _, name in check.rules_taken_on(check.rule_versions(), record)}
+    gate.ok(set(optional.rules) <= taken, f"and the checker then runs v{optional.number}'s rules")
+
+    # A rule two versions name keeps running when the earlier one is declined, labelled by the later.
+    named = {"shared-rule": [2, 5]}
+    gate.ok(check.rules_taken_on(named, engine.Record(5, True, "", "", {2: "x"})) == [(5, "shared-rule")],
+            "a rule a later adopted version also names still runs when the earlier one is declined")
+    gate.ok(check.rules_taken_on(named, engine.Record(5, True, "", "", {})) == [(2, "shared-rule")],
+            "and is labelled with the earlier version where neither is declined")
+    gate.ok(check.rules_taken_on(named, engine.Record(4, True, "", "", {2: "x"})) == [],
+            "and does not run when the only version naming it at or below the number is declined")
+
+    # A hand-edited record is read against the shape a written one has. Whether the repo is a fork and
+    # whether the version offered the choice are settled at write time, so these read the same in a
+    # fork or out of one.
+    hand = {
+        "a decline above the number": f"{optional.number - 1}\ndecline {optional.number} x\n",
+        "a decline of v0": f"{optional.number}\ndecline 0 x\n",
+        "a version declined twice": f"{optional.number}\ndecline {optional.number} x\ndecline {optional.number} y\n",
+        "a decline with no reason": f"{optional.number}\ndecline {optional.number}\n",
+        "a decline after an exempt line": f"exempt ours\ndecline {optional.number} x\n",
+        "a second number": f"{optional.number}\n{optional.number + 1}\n",
+    }
+    for label, body in hand.items():
+        root, failure = build(base, "hand-" + label.replace(" ", "-"), Tree({".claude/conventions": body}))
+        if failure:
+            gate.ok(False, f"a scratch repo holding {label} is built", failure)
+            continue
+        gate.ok(bool(engine.read_record(root).error), f"{label} reads as an unparseable record",
+                repr(engine.read_record(root)))
+    newest = versions[-1].number
+    root, failure = build(base, "hand-decline-above-checkout", Tree(
+        {".claude/conventions": f"{newest + 1}\ndecline {newest + 1} declined on a newer checkout\n"}))
+    status = "" if failure else engine_status(root)
+    gate.ok(not failure and not engine.read_record(root).error and "pull the dotfiles repo" in status,
+            "a decline of a version newer than this checkout reads as a behind checkout, not a broken record",
+            failure or status)
+    gate.ok(not failure and bool(refuses(root, newest + 1)) and newest + 1 in engine.read_record(root).declined,
+            "taking on a declined version this checkout does not hold is refused, and the decline stays")
+
+    # The `optional:` field takes one value, and a typo is refused rather than read as required.
+    scratch = os.path.join(base, "versions-typo")
+    write_file(scratch, "001-typo/README.md", "---\ntitle: a version\noptional: fork\n---\n")
+    saved, engine.VERSIONS_DIR = engine.VERSIONS_DIR, scratch
+    try:
+        engine.load_versions()
+        gate.ok(False, "an `optional:` value other than forks is refused", "the version set loaded")
+    except engine.VersionError:
+        gate.ok(True, "an `optional:` value other than forks is refused")
+    finally:
+        engine.VERSIONS_DIR = saved
 
 
 def behind_cases(gate: Gate, base: str) -> None:
@@ -799,6 +999,20 @@ def behind_cases(gate: Gate, base: str) -> None:
     rather than answering where it cannot tell."""
     print("\nbehind")
     required = 1
+    optional = next((version for version in engine.load_versions() if version.fork_optional), None)
+    if optional is None:
+        gate.not_covered("a fork that declined a version is behind on it", "no version is marked optional: forks")
+    else:
+        fork, failure = build(base, "behind-fork", Tree({"README.md": "a fork\n"}))
+        failure = failure or make_fork(fork)
+        refused = failure or walk_to(fork, optional.number - 1) or refuses(fork, optional.number, "upstream's own")
+        if refused:
+            gate.ok(False, "a fork that declined a version is built", refused)
+        else:
+            answer = engine.behind(fork, optional.number)
+            gate.ok(answer is not None and answer[0] == optional.number,
+                    f"a fork that declined v{optional.number} is behind on it, as a repo below it would be",
+                    repr(answer))
     plain = os.path.join(base, "behind-nonrepo")
     os.makedirs(plain, exist_ok=True)
     gate.ok(engine.behind(plain, required) is None, "None for a directory that is not a git repo")
@@ -879,6 +1093,7 @@ def main() -> int:
         rule_behaviour(gate, base, outside_repo)
         universal_behaviour(gate, base, outside_repo, before)
         record_round_trip(gate, base, versions)
+        fork_cases(gate, base, versions)
         behind_cases(gate, base)
     finally:
         restore_env(before)

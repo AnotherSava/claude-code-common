@@ -12,6 +12,7 @@ Which versioned rules run is read off the repo's adopted integer, never off the 
 introduced by v8 does not run in a repo at v7, so a repo takes on stricter checking by adopting
 and never because someone edited a shared file. The mapping from a rule to the version that
 introduced it is derived from the version folders' `rules:` frontmatter, so nothing states it twice.
+A version a fork declined hands it none of its rules, unless an adopted version names one as well.
 
 Beside them, `universal/` holds the rules no version gates. They run in every repo whatever its
 number, and each names the command that repairs what it found — `FIX` in the module, printed under
@@ -66,18 +67,33 @@ if hasattr(sys.stderr, "reconfigure"):
     sys.stderr.reconfigure(encoding="utf-8")
 
 
-def rule_versions() -> dict[str, int]:
-    """Every rule the version set names, mapped to the version that introduced it.
+def rule_versions() -> dict[str, list[int]]:
+    """Every rule the version set names, mapped to the versions that name it, ascending.
 
-    The lowest version wins where two name the same rule, because "introduced" is when a repo took
-    the rule on. Reading it off the frontmatter is what keeps a rule from having to state its own
-    version: the folder that hands the checker a rule is the folder that dates it.
+    Every one is kept rather than only the lowest, because a fork can decline the version that
+    introduced a rule and adopt a later one naming it too. Reading it off the frontmatter is what
+    keeps a rule from having to state its own version: the folder that hands the checker a rule is
+    the folder that dates it.
     """
-    introduced: dict[str, int] = {}
+    named: dict[str, list[int]] = {}
     for entry in engine.load_versions():
         for name in entry.rules:
-            introduced[name] = min(introduced.get(name, entry.number), entry.number)
-    return introduced
+            named.setdefault(name, []).append(entry.number)
+    return {name: sorted(numbers) for name, numbers in named.items()}
+
+
+def rules_taken_on(named: dict[str, list[int]], record: engine.Record) -> list[tuple[int, str]]:
+    """`(version, rule)` for every versioned rule this record entitles the repo to, ascending.
+
+    A rule runs where some version naming it is at or below the adopted number and was not
+    declined, and it is labelled with the lowest such version — the one the repo took it on with.
+    """
+    taken: list[tuple[int, str]] = []
+    for name, numbers in named.items():
+        held = [number for number in numbers if number <= record.number and number not in record.declined]
+        if held:
+            taken.append((held[0], name))
+    return sorted(taken)
 
 
 def universal_names() -> list[str]:
@@ -130,13 +146,12 @@ def main() -> int:
     if not os.path.isdir(root):
         print(f"{given} is not a directory, so there is nothing here to check")
         return 2
-    try:
-        # Zero for a repo that is exempt or has never been asked, so both run no rules and say so
-        # rather than being checked against a version nobody decided; an unreadable record raises.
-        adopted = engine.adopted(root)
-    except Exception as exc:
-        print(f"the convention record in this repo could not be read ({exc}), so which rules apply "
-              f"here was never established")
+    # Zero for a repo that is exempt or has never been asked, so both run no rules and say so rather
+    # than being checked against a version nobody decided; an unreadable record stops here.
+    record = engine.read_record(root)
+    if record.error:
+        print(f"the convention record in this repo could not be read ({record.error}), so which rules "
+              f"apply here was never established")
         return 2
     try:
         introduced = rule_versions()
@@ -155,11 +170,10 @@ def main() -> int:
     # rules apply" and the wrong sentence to print: it has not adopted v0, it adopts nothing. The
     # reason is asked for here so the header says which of the two this is. The universal rules run
     # in it regardless — they are gated by nothing, which is what exempting a repo cannot change.
-    exempt = engine.read_record(root).exempt
-    taken_on = [(f"v{number}", name) for number, name
-                in sorted((number, name) for name, number in introduced.items() if number <= adopted)]
+    taken_on = [(f"v{number}", name) for number, name in rules_taken_on(introduced, record)]
     applicable = taken_on + [("universal", name) for name in universal]
-    stands = f"exempt ({exempt})" if exempt else f"adopted v{adopted}"
+    declined = f" (declined {', '.join(f'v{number}' for number in sorted(record.declined))})" if record.declined else ""
+    stands = f"exempt ({record.exempt})" if record.exempt else f"adopted v{record.number}{declined}"
     print(f"conventions check: {root}")
     print(f"{stands}, dotfiles at {engine.dotfiles_sha()} — {len(taken_on)} rule(s) taken on, "
           f"{len(universal)} universal")

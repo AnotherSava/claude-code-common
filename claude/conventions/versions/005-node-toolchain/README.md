@@ -1,6 +1,7 @@
 ---
 title: The Node toolchain is declared, enforced and pinned
 rules: node-engines, engine-strict, package-manager-pin
+optional: forks
 ---
 
 ## What changed

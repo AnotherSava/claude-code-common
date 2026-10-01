@@ -1,6 +1,7 @@
 ---
 title: The docs theme is pinned to a tag
 rules: docs-theme-pinned
+optional: forks
 ---
 
 ## What changed

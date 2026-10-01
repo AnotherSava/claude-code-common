@@ -1,6 +1,7 @@
 ---
 title: Raw screenshot captures are committed, and kept off the site
 rules: screenshot-raws-unpublished
+optional: forks
 ---
 
 ## What changed

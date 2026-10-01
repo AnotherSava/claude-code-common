@@ -4,6 +4,7 @@
     python engine.py versions                  every version: number, title, rules
     python engine.py status <repo-root>        where this repo stands
     python engine.py adopt <repo-root> <n>     write the record
+    python engine.py decline <repo-root> <n> <reason>   decline an optional version, in a fork
 
 One module owns both halves because every other surface asks one of them a question — the
 `/adopt` skill, the session-start notice, `memos.py`, the cross-machine status report — and a
@@ -18,6 +19,15 @@ let an underspecified convention sit declined while the repos around it diverged
 hold *continuously* is not in this file at all: the checker beside it runs the rules a repo's
 number entitles it to, on every commit, which is the only place a standing property can be
 asserted without someone remembering to ask.
+
+A fork is the one place a per-repo exception is recorded, and the convention still decides where
+one is allowed. A fork tracks a project someone else owns, and how closely it should stay to that
+project is the fork's own judgement rather than anything a file in it can show: a Node pin or a
+LICENSE the upstream never asked for turns every pull from upstream into a merge. So a version
+whose frontmatter says `optional: forks` may be declined in a repo `fork_of` recognises, and the
+record carries a `decline <n> <reason>` line for it beside the number. Every version not marked
+that way is required in a fork exactly as anywhere else. Both conditions are checked when the line
+is written; once written it travels with the repo, as an `exempt` line does (see `read_record`).
 
 A version's number and its slug come from its folder name and are stored nowhere else, so the
 two can never disagree. The sequence has been renumbered exactly once, when the memory-cache
@@ -61,11 +71,20 @@ FIELD_RE = re.compile(r"^([A-Za-z_][A-Za-z0-9_-]*):[ \t]*(.*?)[ \t]*$")
 # reader that kept them would turn `rules: node-engines   # optional` into a rule name with no file.
 COMMENT_RE = re.compile(r"[ \t]+#.*$")
 NAME_RE = re.compile(r"^[a-z0-9-]+$")
-ORIGIN_URL_RE = re.compile(r"[:/]([^/:]+)/[^/]+?(?:\.git)?/?$")
+# The owner is the first path segment of a hosted remote — `[user@]host:owner/repo` or
+# `scheme://host/owner/repo` — and nothing else. A local path or a `file://` URL names a directory,
+# not an account, and reading its parent folder as one made `C:/work/other` a fork of `work`.
+# The scp-like form needs a host of two characters or more, as git's own drive-prefix check does, so
+# `C:/work` stays a path while an SSH alias such as `gh-work:owner/repo` still names its owner.
+REMOTE_URL_RE = re.compile(r"^(?:(?!file:)[a-z][a-z0-9+.-]*://(?:[^@/]+@)?[^/]+/|(?:[^@/:]+@)?[^@/:\\]{2,}:)"
+                           r"([^/]+)/[^/].*?(?:\.git)?/?$", re.IGNORECASE)
 # Everything a version's frontmatter may declare. Anything else is refused rather than ignored: a
 # `version:` or `script:` left behind by a port would otherwise sit there reading as authoritative
 # while the folder name and the folder's contents quietly decided both.
-FIELDS = ("title", "rules")
+FIELDS = ("title", "rules", "optional")
+# The values `optional:` may take. A fork is the only kind of repo that may decline a version, and a
+# third-party clone adopts nothing at all, so there is no second value yet.
+OPTIONAL_FOR = ("forks",)
 
 RECORD_HEADER = ("# Convention version this repo has adopted, from the claude dotfiles repo.",
                  "# Written by /adopt. See claude/conventions/ in that repo.")
@@ -97,6 +116,7 @@ class Version(NamedTuple):
     folder: str
     readme: str
     apply: str                # the optional mechanical migration, "" when the prose is the whole of it
+    fork_optional: bool       # `optional: forks` — a fork may decline it
 
 
 class Record(NamedTuple):
@@ -104,6 +124,7 @@ class Record(NamedTuple):
     present: bool       # whether the file exists — "never asked" is not "at 0"
     exempt: str         # the reason, when a record line reads `exempt <reason>`
     error: str          # the full sentence to print when the file will not parse
+    declined: dict[int, str] = {}   # version -> reason, for each `decline` line; only a fork has any
 
 
 # ---------------------------------------------------------------- the versions
@@ -170,8 +191,11 @@ def _version_from(name: str) -> Version:
     title = data.get("title", "")
     if not title:
         raise VersionError(f"{label} declares no title")
+    optional = data.get("optional", "")
+    if optional and optional not in OPTIONAL_FOR:
+        raise VersionError(f"{label} declares optional: {optional!r}; the only value is {', '.join(OPTIONAL_FOR)}")
     script = os.path.join(folder, "apply.py")
-    return Version(int(match.group(1)), match.group(2), title, _names(data, "rules", label, "rule name"), folder, readme, script if os.path.isfile(script) else "")
+    return Version(int(match.group(1)), match.group(2), title, _names(data, "rules", label, "rule name"), folder, readme, script if os.path.isfile(script) else "", optional == "forks")
 
 
 def load_versions() -> list[Version]:
@@ -238,8 +262,8 @@ def dotfiles_sha() -> str:
 # ---------------------------------------------------------------- the record
 
 
-def _read_one(path: str) -> tuple[int, bool, str, str]:
-    """(number, the file exists, exempt reason, error sentence) for one record file.
+def _read_one(path: str) -> Record:
+    """The record file at `path`, parsed but not yet checked against the repo or the version set.
 
     Only a missing file reads as "no record". Every other way of failing to read one — a
     permission bit, a half-written file, bytes that are not UTF-8 — is an error sentence, because
@@ -247,57 +271,76 @@ def _read_one(path: str) -> tuple[int, bool, str, str]:
     the second one silently rewinds the repo to v0: the next `adopt` would walk it from the start.
     `utf-8-sig` because Notepad and PowerShell's `Out-File` write a BOM, which would otherwise land
     as a parse error pointing at the header comment.
+
+    The first content line is the number or the exempt line. Every line after it must be a
+    `decline <n> <reason>`, below or at the number and named once; anything else is an error,
+    because a second number would leave which one this repo stands on unrecoverable.
     """
     rel = ".claude/" + os.path.basename(path)
+
+    def broken(sentence: str) -> Record:
+        return Record(0, True, "", sentence, {})
+
     try:
         with open(path, encoding="utf-8-sig") as handle:
             lines = handle.read().splitlines()
     except FileNotFoundError:
-        return 0, False, "", ""
+        return Record(0, False, "", "", {})
     except (OSError, UnicodeDecodeError) as exc:
-        return 0, True, "", f"{rel} could not be read ({exc})."
+        return broken(f"{rel} could not be read ({exc}).")
     content = [(number, text) for number, text in ((n, raw.strip()) for n, raw in enumerate(lines, 1))
                if text and not text.startswith("#")]
     if not content:
-        return 0, True, "", f"{rel} holds no content line: it must carry a version number or an exempt line."
-    if len(content) > 1:
-        where = ", ".join(str(number) for number, _ in content)
-        return 0, True, "", (f"{rel} holds {len(content)} content lines (lines {where}), and the record is "
-                             f"exactly one: which of them this repo stands on is not recoverable.")
-    number, text = content[0]
+        return broken(f"{rel} holds no content line: it must carry a version number or an exempt line.")
+    (number, text), rest = content[0], content[1:]
     if text.split()[0] == "exempt":
         reason = text[len("exempt"):].strip()
         if not reason:
-            return 0, True, "", f"{rel} could not be parsed (line {number}): an exempt line must name its reason."
-        return 0, True, reason, ""
+            return broken(f"{rel} could not be parsed (line {number}): an exempt line must name its reason.")
+        if rest:
+            return broken(f"{rel} could not be parsed (line {rest[0][0]}): an exempt record carries nothing "
+                          f"after its exempt line, since an exempt repo adopts nothing to decline.")
+        return Record(0, True, reason, "", {})
     if not text.isdigit():
-        return 0, True, "", (f"{rel} could not be parsed (line {number}): {text!r} is neither a version number "
-                             f"nor an exempt line.")
-    return int(text), True, "", ""
+        return broken(f"{rel} could not be parsed (line {number}): {text!r} is neither a version number "
+                      f"nor an exempt line.")
+    adopted = int(text)
+    declined: dict[int, str] = {}
+    for line, extra in rest:
+        parts = extra.split(None, 2)
+        if parts[0] != "decline":
+            return broken(f"{rel} could not be parsed (line {line}): {extra!r} is not a decline line, and the "
+                          f"record holds one number — which of two this repo stands on is not recoverable.")
+        if len(parts) < 3 or not parts[1].isdigit():
+            return broken(f"{rel} could not be parsed (line {line}): a decline line reads `decline <version> "
+                          f"<reason>`, and the reason is mandatory.")
+        version = int(parts[1])
+        if version in declined:
+            return broken(f"{rel} could not be parsed (line {line}): v{version} is declined twice.")
+        if not 1 <= version <= adopted:
+            return broken(f"{rel} could not be parsed (line {line}): v{version} is declined, but the record "
+                          f"stands at v{adopted} and a version is declined only when the walk reaches it.")
+        declined[version] = parts[2].strip()
+    return Record(adopted, True, "", "", declined)
 
 
 def read_record(root: str) -> Record:
-    """The record file for `root`, read once. The only reader of it anywhere."""
-    return Record(*_read_one(os.path.join(root, *RECORD_REL.split("/"))))
+    """The record file for `root`, read once. The only reader of it anywhere.
+
+    A decline line is checked for its own shape here and nowhere else at read time. Whether the repo
+    is a fork and whether the version offered the choice are settled when the line is written,
+    because neither can be re-derived from the repo alone: the `upstream` remote lives in each
+    clone's own `.git/config`, so a fresh clone of the fork has none, and the version set is
+    whatever this machine's dotfiles checkout holds, which is routinely behind the other one. Read
+    against either, a decline the repo made would turn into a broken record on the other machine.
+    So a decline travels with the repo, as an `exempt` line does.
+    """
+    return _read_one(os.path.join(root, *RECORD_REL.split("/")))
 
 
 def parse_error_message(record: Record) -> str:
     """The sentence shown when a record file will not parse — one wording, every caller."""
     return f"{record.error} Conventions state is unknown — /adopt will not run until it is fixed."
-
-
-def adopted(root: str) -> int:
-    """The version this repo has adopted. An exempt repo and one with no file both read as 0.
-
-    Those two are different facts from each other and from a plain 0, and `read_record` is where
-    the difference lives; a caller that only wants "which rules is this repo entitled to" wants
-    this number. An unreadable record raises instead of reading as 0, because 0 would send a walk
-    back to the first version in a repo that may have run all of them.
-    """
-    record = read_record(root)
-    if record.error:
-        raise RecordError(parse_error_message(record))
-    return record.number
 
 
 def _pending(versions: list[Version], record: Record) -> list[Version]:
@@ -326,6 +369,9 @@ def behind(root: str, required: int) -> tuple[int, str] | None:
     thirty-three items sit in the old file, and `add` writes a memo into a directory beside it,
     producing the half-migrated state v1 then refuses to resolve on its own.
 
+    A fork that declined `required` gets the same answer as a repo below it: the format that
+    version defines was never adopted there.
+
     None means "go ahead", and it is returned only for a repo this system does not govern — no
     `.git`, a third-party origin, an `exempt` line — because a tool must not refuse to work in a
     directory that was never going to hold a record. Anything that stops this from reaching an
@@ -338,14 +384,15 @@ def behind(root: str, required: int) -> tuple[int, str] | None:
     record = read_record(root)
     if record.error:
         raise VersionError(record.error)
-    if record.exempt or record.number >= required:
+    if record.exempt or (record.number >= required and required not in record.declined):
         return None
     version = next((v for v in load_versions() if v.number == required), None)
     return record.number, version.title if version else f"v{required}"
 
 
-def _write_number(path: str, number: int) -> str:
-    """Write the record file: the comments it already carries, or the header, then the integer.
+def _write_number(path: str, number: int, declined: dict[int, str]) -> str:
+    """Write the record file: the comments it already carries, or the header, the integer, then one
+    `decline` line per declined version, ascending.
 
     The comments are kept rather than regenerated because they are the file's own statement of
     what its one line means, and a repo that has annotated them should not lose that to a bump.
@@ -359,17 +406,23 @@ def _write_number(path: str, number: int) -> str:
         comments = []
     os.makedirs(os.path.dirname(path), exist_ok=True)
     with open(path, "w", encoding="utf-8", newline="\n") as handle:
-        handle.write("\n".join([*(comments or RECORD_HEADER), str(number)]) + "\n")
+        declines = [f"decline {version} {declined[version]}" for version in sorted(declined)]
+        handle.write("\n".join([*(comments or RECORD_HEADER), str(number), *declines]) + "\n")
     return path
 
 
-def write_record(root: str, number: int) -> list[str]:
+def write_record(root: str, number: int, decline: str | None = None) -> list[str]:
     """Move this repo's record to `number`, returning the files written.
 
     The number only ever moves forward, one at a time, and never past the newest version in this
     checkout. One at a time is what keeps the record from claiming a migration nobody read: a walk
     that jumps to the newest number would leave every version under it recorded as run on the
     strength of nothing.
+
+    With `decline`, the same step records the version as declined for that reason instead of
+    performed, which only a fork may do and only for a version marked `optional: forks`. A version
+    already declined is the one number allowed at or below the record: adopting it then says its
+    migration has now been performed, so its decline line goes and the number stays where it is.
     """
     versions = load_versions()
     if not is_repo(root):
@@ -388,14 +441,32 @@ def write_record(root: str, number: int) -> list[str]:
     if number > newest:
         raise RecordError(f"v{number} is above the newest version in this dotfiles checkout (v{newest}): pull the "
                           f"dotfiles repo before recording it here")
+    path = os.path.join(root, *RECORD_REL.split("/"))
+    declined = dict(record.declined)
+    if number in declined:
+        if decline is not None:
+            raise RecordError(f"v{number} is already declined here — {declined[number]}")
+        del declined[number]
+        return [os.path.relpath(_write_number(path, record.number, declined), root).replace(os.sep, "/")]
     if number <= record.number:
         raise RecordError(f"this repo is already at v{record.number}: the record moves forward only, and a lower "
                           f"number would claim migrations were undone that were not")
     if number != record.number + 1:
         raise RecordError(f"refusing to skip from v{record.number} to v{number}: a walk advances one version at a "
                           f"time, so every number in between is one somebody read")
-    written = [_write_number(os.path.join(root, *RECORD_REL.split("/")), number)]
-    return [os.path.relpath(path, root).replace(os.sep, "/") for path in written]
+    if decline is not None:
+        reason = " ".join(decline.split())
+        version = next(v for v in versions if v.number == number)
+        if fork_of(root) is None:
+            raise RecordError(f"only a fork may decline a version — a repo whose `upstream` remote belongs to "
+                              f"someone other than {OWNER} — so v{number} is adopted here or the walk stops")
+        if not version.fork_optional:
+            raise RecordError(f"v{number} ({version.title}) is required in a fork too: its README does not say "
+                              f"`optional: forks`")
+        if not reason:
+            raise RecordError("a decline names its reason, so the fork's judgement is readable in the record")
+        declined[number] = reason
+    return [os.path.relpath(_write_number(path, number, declined), root).replace(os.sep, "/")]
 
 
 # ---------------------------------------------------------------- whose repo this is
@@ -423,8 +494,8 @@ def _git_directory(root: str) -> str | None:
     return None
 
 
-def _origin_owner(root: str) -> str | None:
-    """The account owning `origin`, read out of `.git/config` as text. None when there is none.
+def _remote_owner(root: str, remote: str) -> str | None:
+    """The account owning `remote`, read out of `.git/config` as text. None when there is none.
 
     None and "someone else" are different answers: a repo with no remote yet is still one of ours
     and still adopts, while a clone of someone else's project never does.
@@ -437,6 +508,7 @@ def _origin_owner(root: str) -> str | None:
     git_dir = _git_directory(root)
     if git_dir is None:
         return None
+    wanted = f'[remote"{remote}"]'.casefold()
     # A linked worktree's `.git` file points at `<main>/.git/worktrees/<name>`, which holds no
     # `config` of its own — the remote is two levels up, in the main checkout's `.git`.
     for candidate in (os.path.join(git_dir, "config"),
@@ -451,8 +523,8 @@ def _origin_owner(root: str) -> str | None:
             stripped = line.strip()
             if stripped.startswith("["):
                 section = stripped.replace(" ", "").casefold()
-            elif section == '[remote"origin"]' and stripped.split("=")[0].strip().casefold() == "url":
-                match = ORIGIN_URL_RE.search(stripped.split("=", 1)[1].strip())
+            elif section == wanted and stripped.split("=")[0].strip().casefold() == "url":
+                match = REMOTE_URL_RE.match(stripped.split("=", 1)[1].strip())
                 return match.group(1) if match else None
         return None
     return None
@@ -460,8 +532,24 @@ def _origin_owner(root: str) -> str | None:
 
 def is_third_party(root: str) -> str | None:
     """The owner's name when this repo belongs to someone else, else None."""
-    owner = _origin_owner(root)
+    owner = _remote_owner(root, "origin")
     return owner if owner is not None and owner.casefold() != OWNER.casefold() else None
+
+
+def fork_of(root: str) -> str | None:
+    """The upstream owner's name when this repo is a fork, else None.
+
+    A fork is a repo whose `origin` is ours and whose `upstream` remote is someone else's: work is
+    committed and pushed here, and pulled from a project another account owns. That is the one
+    kind of repo allowed to decline a version marked `optional: forks`. A repo with no origin is
+    not a fork whatever its upstream says, since nothing shows it is ours to commit into, and a
+    clone whose origin is someone else's is third-party and adopts nothing at all.
+    """
+    origin = _remote_owner(root, "origin")
+    if origin is None or origin.casefold() != OWNER.casefold():
+        return None
+    upstream = _remote_owner(root, "upstream")
+    return upstream if upstream is not None and upstream.casefold() != OWNER.casefold() else None
 
 
 # ---------------------------------------------------------------- subcommands
@@ -480,9 +568,10 @@ def _versions_or_refuse() -> tuple[list[Version], int]:
         return [], 2
 
 
-def _listing(version: Version) -> str:
+def _listing(version: Version, optional_shown: bool = True) -> str:
     rules = f"  [rules: {', '.join(version.rules)}]" if version.rules else ""
-    return f"  v{version.number:<3} {version.slug:<28} {version.title}{rules}"
+    optional = "  [optional for forks]" if optional_shown and version.fork_optional else ""
+    return f"  v{version.number:<3} {version.slug:<28} {version.title}{rules}{optional}"
 
 
 def cmd_versions() -> int:
@@ -524,6 +613,18 @@ def cmd_status(root: str) -> int:
         print("no record file: this repo has never been asked where it stands")
     else:
         print(f"this repo: v{record.number}")
+    upstream = fork_of(root)
+    if upstream is not None:
+        # /adopt reads this line to know it may offer the decline, so it is printed whether or not
+        # anything is pending: a fork with nothing left to walk can still re-adopt a declined version.
+        print(f"a fork of {upstream}'s project: a version marked [optional for forks] may be declined here")
+    elif record.declined:
+        # A fresh clone of a fork has no `upstream` remote, since git never commits one. Its declines
+        # still hold, but nothing new can be declined here until the remote is added back.
+        print("this record declines versions, but no `upstream` remote owned by someone else is configured "
+              "in this clone: add it to be offered a decline for the versions still pending")
+    for number in sorted(record.declined):
+        print(f"declined v{number}: {record.declined[number]}")
     if record.number > newest:
         # The hook says this too, but its systemMessage never reaches the transcript, so /adopt
         # reads the gap from here. Without this line a repo recorded against a newer version set
@@ -533,22 +634,24 @@ def cmd_status(root: str) -> int:
     waiting = _pending(versions, record)
     print(f"{len(waiting)} version(s) pending")
     for version in waiting:
-        print(_listing(version))
+        print(_listing(version, upstream is not None))
     return 0
 
 
-def cmd_adopt(root: str, raw: str) -> int:
+def cmd_adopt(root: str, raw: str, decline: str | None = None) -> int:
     if not raw.lstrip("v").isdigit():
         print(f"{raw!r} is not a version number")
         return 2
     number = int(raw.lstrip("v"))
     try:
-        written = write_record(root, number)
+        before = read_record(root).declined
+        written = write_record(root, number, decline)
     except (VersionError, RecordError) as exc:
         print(exc)
         return 2
+    verb = "declined" if decline is not None else "adopted the declined" if number in before else "recorded"
     for path in written:
-        print(f"recorded v{number} in {path}")
+        print(f"{verb} v{number} in {path}")
     return 0
 
 
@@ -565,7 +668,11 @@ def main() -> int:
         if len(rest) != 2:
             return _usage("adopt <repo-root> <version>")
         return cmd_adopt(os.path.abspath(rest[0]), rest[1])
-    return _usage("{versions|status|adopt}")
+    if command == "decline":
+        if len(rest) < 3:
+            return _usage("decline <repo-root> <version> <reason>")
+        return cmd_adopt(os.path.abspath(rest[0]), rest[1], " ".join(rest[2:]))
+    return _usage("{versions|status|adopt|decline}")
 
 
 if __name__ == "__main__":

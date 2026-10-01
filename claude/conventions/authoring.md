@@ -97,7 +97,7 @@ then. So retire a version only when it has stopped being a migration at all — 
 to the memory-cache one, now a universal rule. A version that is merely wrong is superseded by a
 later one.
 
-The folder holds a `README.md` opening with frontmatter — `title` required, `rules`
+The folder holds a `README.md` opening with frontmatter — `title` required, `rules` and `optional`
 optional — then four sections, in order:
 
 - `## What changed` — the convention as it now reads, and why it moved.
@@ -109,6 +109,20 @@ optional — then four sections, in order:
   evidence that a repo wants no backlog, and that case is a question to the user instead.
 - `## Continuing rule` — the rule this version hands to the checker, named, or the words
   `None — this is a one-time migration.`
+
+**Mark a version `optional: forks` when it shapes the project rather than the Claude tooling around
+it.** A fork tracks a project someone else owns, and whether it should stay close to that project is
+the fork's judgement, not something a file in it can show. A Node pin, a LICENSE, a compose naming
+scheme — each is a change the upstream never asked for and a source of conflict at every pull, so a
+fork may decline it. What keeps the Claude tooling working stays required: the memo backlog, the
+memory files and the record under `.claude/`, the commit gate that runs the checker over them, and
+the `.gitignore` rule that keeps them committable. A fork that declined the gate would never run a
+rule again, required ones included. `docs/convention-requirements.md` carries a column for the field, and the gate asserts the
+two agree. Adding the field to a shipped version passes the edit test above: a decline is offered
+only as a walk reaches the version, so every repo that already adopted it keeps it, and a repo that is
+not a fork never reads the field. Removing it does not pass: a decline is checked only when it is
+written, so a fork that already declined the version keeps skipping it, now a required one, and
+nothing reports it. Make a version required again with a later version that tells forks to take it on.
 
 The default is prose and nothing else. A version may carry an `apply.py` beside its README where
 the migration is genuinely mechanical and tedious; it takes the repo root, does the work, prints
@@ -172,10 +186,14 @@ python claude/conventions/tests.py
 ```
 
 Run it before committing. It asserts that version numbers are unique and contiguous and match their
-folder names, that every README carries all four sections, that every name in a `rules:` field has
+folder names, that every README carries all four sections, that the requirements page ticks a fork
+column exactly where a version says `optional: forks`, that every name in a `rules:` field has
 a file and every rule file is named by some version, that no universal rule is also named by a
 version and no filename sits in both rule directories, that every universal rule names a `FIX`, and
 that each rule holds on a conforming tree, fails on one that is not, and raises rather than passing
-when git cannot answer. A rule this file builds no trees for prints as NOT COVERED, counted nowhere:
+when git cannot answer. It also builds a scratch fork and asserts that only a fork may decline, only
+a version marked `optional: forks`, that a declined version's rules stop running unless a later
+adopted version names them too, and that a fresh clone of the fork with no `upstream` keeps its
+declines. A rule this file builds no trees for prints as NOT COVERED, counted nowhere:
 that is the gate asking for a case, not passing the rule. This repo's `.claude/commit-checks.sh`
 runs it, so a rule that would run in every other repo cannot be committed here untested.

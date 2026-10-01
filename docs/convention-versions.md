@@ -50,7 +50,7 @@ So a **stricter** rule is a new version and a **better-detecting** rule is an ed
 
 ## The record
 
-One file, `.claude/conventions` under the repo's own `.claude/`, committed: a comment block and exactly one line of content, holding the highest version this repo has adopted. In full:
+One file, `.claude/conventions` under the repo's own `.claude/`, committed: a comment block and one line of content, holding the highest version this repo has adopted. In full:
 
 ```
 # Convention version this repo has adopted, from the claude dotfiles repo.
@@ -60,9 +60,20 @@ One file, `.claude/conventions` under the repo's own `.claude/`, committed: a co
 
 The content line is a non-negative integer, or the word `exempt` and a reason. Anything else is a parse error naming the file and what it found.
 
+**A fork may also carry `decline` lines below the number**, one per version it chose not to take on:
+
+```
+12
+decline 5 tracks upstream's toolchain
+```
+
+A **fork** is a repo whose `origin` is the user's and whose `upstream` remote belongs to someone else. It is the one place a repo records an exception, and the version still decides whether one is allowed: only a version whose README frontmatter says `optional: forks` can be declined, and the requirements page marks which those are. Each is about the project rather than the Claude tooling — a Node pin, a LICENSE, a compose naming scheme — so a fork staying close to its upstream can leave it out instead of carrying a change upstream never asked for. The checker runs none of a declined version's rules.
+
+Both conditions are checked when the line is written, and not again. A decline then travels with the repo, as an `exempt` line does, because neither condition is a fact about the committed tree: git never commits a remote, so a fresh clone of the fork on the other machine has no `upstream` until someone adds it, and the version set is whatever that machine's dotfiles checkout holds. Status says so in such a clone, and offers no new decline there until the remote is back.
+
 **A repo with no file at all is at 0 and has never been asked**, which is a different fact from being at 0, and the notice words the two differently.
 
-`/adopt` is the only thing that writes the line. It refuses to lower the number, to exceed the newest version in this checkout, or to skip — the new number must be the current one plus one, so the record can never claim a migration nobody read.
+`/adopt` is the only thing that writes the record. It refuses to lower the number, to exceed the newest version in this checkout, or to skip — the new number must be the current one plus one, so the record can never claim a migration nobody read. A decline advances the number the same way. Taking on a declined version later is the one write below the number: the migration is performed, its decline line goes, and the number stays.
 
 ## The checker
 
@@ -112,7 +123,7 @@ Run `/adopt` in the repo that is behind, from that repo's own session. Commit or
 The walk takes the pending versions in ascending order, one at a time:
 
 1. **It reads the README in full** before touching anything.
-2. **It checks the "When it does not apply" conditions against this repo**, settling each with the positive evidence the README names. A version that does not apply here is still decided: the number advances with nothing mutated.
+2. **It checks the "When it does not apply" conditions against this repo**, settling each with the positive evidence the README names. A version that does not apply here is still decided: the number advances with nothing mutated. In a fork, a version marked optional for forks that does apply is put to you first, and a decline advances the number with nothing mutated either.
 3. **Otherwise it performs the migration**, showing every mutation before it happens and applying it only on a yes.
 4. **It asks you, verbatim, any question the README puts to a human** — whether a repo wants a backlog at all, whether a missing LICENSE is deliberate — and lays out beside it what the repo holds that bears on it. The findings are evidence for your answer, not a substitute for it: the walk does not answer those questions on your behalf.
 5. **It checks whatever the README says to check afterwards.**
@@ -131,7 +142,7 @@ chore(conventions): adopt through vN
 Three of them are permanent — a repo in any of these states records nothing at all, and the session-start notice stays silent there:
 
 - **There is no git repo here.** A record in an untracked directory is a file no clone ever sees.
-- **The origin belongs to someone else.** Ownership is read from the origin URL against one hardcoded account name, and a third-party clone adopts nothing. A repo with no origin is *not* third-party and does adopt.
+- **The origin belongs to someone else.** Ownership is read from the origin URL against one hardcoded account name, and a third-party clone adopts nothing — every version is out, with no choice offered. A repo with no origin is *not* third-party and does adopt, and neither is a fork, whose origin is the user's: it adopts every required version and may decline the optional ones.
 - **The record reads `exempt`.** A repo that must never adopt carries `exempt` and a mandatory reason in place of a number — the one content line written by hand, and it travels with the repo, because an exemption is the repo's rather than one machine's.
 
 Two are temporary, and naming what to fix is the whole of the answer:
