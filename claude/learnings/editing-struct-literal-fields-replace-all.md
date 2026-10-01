@@ -23,4 +23,4 @@ The 12-space pattern `            instruction_drift: false,` is a **substring** 
 
 Right after a `replace_all` field-add: `missing field X` on some literals **plus** `field X specified more than once` (E0062) on others is exactly this bug — the shorter-indent pass double-inserted into the deeper-indent literals.
 
-Corollary: after a field-add across many literals, always `cargo build` (or the compiler) for the authoritative error list — the editor/LSP diagnostics lag badly across a burst of edits and show stale "missing field" errors on literals that were already updated, which is misleading.
+Corollary: after a field-add across many literals, always `cargo build` (or the compiler) for the authoritative error list — the editor/LSP diagnostics lag badly across a burst of edits and show stale "missing field" errors on literals that were already updated, which is misleading. The same lag fires after a git operation that rewrites many files, where nothing you did explains it and the errors land in files you never edited; see `stale-lsp-diagnostics-after-bulk-change.md`.
