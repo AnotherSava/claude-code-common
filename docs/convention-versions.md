@@ -14,8 +14,8 @@ A version is a one-time migration, and running it proves nothing about tomorrow 
 A convention changes here, and the change ships with its version folder, committed alongside. Every other repo is now at least one version behind — a fact derived by comparing the number that repo recorded against the newest one here. Three steps close the gap, and none of them run unattended:
 
 1. **The session-start notice says so** in that repo, the next time a session opens there.
-2. **You run `/adopt` there.** It walks the pending versions in ascending order, one at a time: reading the version's prose in full, performing the migration where it applies, and advancing the number by one.
-3. **`/commit` commits the record with the work.**
+2. **You run `/adopt` there**, in one clone of that repo only. It walks the pending versions in ascending order, one at a time: reading the version's prose in full, performing the migration where it applies, and advancing the number by one.
+3. **`/commit` commits the record with the work**, and the repo's other clone takes it through `/pull`.
 
 No session ever writes to a repo other than its own. `/github-status` reports where every repo stands, across both machines at once, but closing a gap takes a session opened in the repo itself.
 
@@ -118,7 +118,9 @@ Silence means the repo is current, its origin belongs to someone else, its recor
 
 ## Adopting
 
-Run `/adopt` in the repo that is behind, from that repo's own session. Commit or stash what you have first: the walk does not commit, but it hands to `/commit`, and a tree already carrying unrelated work makes that commit harder to review. A dirty tree is not a gate — several repos hold a convention's work already done and never committed, and the record and that pending change commit together.
+Run `/adopt` in the repo that is behind, from that repo's own session — and in one clone of it only. A repo behind on conventions is behind in both clones, so the notice fires in both, but a second walk from the same base migrates the same files again and writes a record claiming a number the first walk already claimed. The machine you typed `/adopt` in walks; the other clone takes the resulting commit through `/pull`, which `/commit` asks it for after the push like any other work.
+
+Commit or stash what you have first: the walk does not commit, but it hands to `/commit`, and a tree already carrying unrelated work makes that commit harder to review. A dirty tree is not a gate — several repos hold a convention's work already done and never committed, and the record and that pending change commit together.
 
 The walk takes the pending versions in ascending order, one at a time:
 
@@ -145,9 +147,10 @@ Three of them are permanent — a repo in any of these states records nothing at
 - **The origin belongs to someone else.** Ownership is read from the origin URL against one hardcoded account name, and a third-party clone adopts nothing — every version is out, with no choice offered. A repo with no origin is *not* third-party and does adopt, and neither is a fork, whose origin is the user's: it adopts every required version and may decline the optional ones.
 - **The record reads `exempt`.** A repo that must never adopt carries `exempt` and a mandatory reason in place of a number — the one content line written by hand, and it travels with the repo, because an exemption is the repo's rather than one machine's.
 
-Two are temporary, and naming what to fix is the whole of the answer:
+The rest are temporary, and naming what to fix is the whole of the answer:
 
 - **The repo or the dotfiles checkout is behind its upstream.** Pull first, or the walk reasons from a stale version set.
+- **The other machine's clone is already walking**, which shows as a clone ahead on the record or holding an uncommitted adoption. The `/repo-status` run reports both clones' convention records, and it is asked after the upstream sync rather than in place of it — that one is about commits, this one about how far the sequence has run. A peer that cannot be reached is not evidence of a second walk: it goes unmeasured and the walk proceeds.
 - **The record file is ignored**, so it would never travel. Fix the `.gitignore` first.
 
 An exempt repo still runs every universal rule, which is the part an exemption cannot reach: it is a statement about the sequence, and those are gated by no number in it.

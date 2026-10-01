@@ -95,6 +95,16 @@ setting — is enumerated in `~/.claude/conventions/not-versioned.md`. Read it w
   machine just appended to merges cleanly and loses the append silently; that near-loss is written up in
   `~/.claude/learnings/git-stash-pull-safety.md`, and the tree is dirty by premise here, so follow that
   file rather than reaching for `git pull --rebase`.
+- **A repo cloned on two machines gets one walk, not two.** These repos are worked from both machines, so
+  a repo behind on conventions is behind in both clones, and the session-start notice fires in both. Two
+  walks from the same base migrate the same files twice and write two records claiming the same number —
+  the conflict §4 ends with. The machine the user typed `/adopt` in walks; the other clone takes the
+  result through `/pull`, which is work for the session that owns it and never for this one. Before
+  walking, find out whether that clone already is: `/repo-status` reports both clones' convention
+  records. It answers a different question from the behind-its-upstream gate, which is about commits and
+  has already run by here. A peer clone already ahead on the record, or holding an uncommitted
+  adoption, means stopping here and pulling instead. A peer that cannot be reached is not evidence of a
+  second walk — say it went unmeasured, and walk.
 - **The dotfiles checkout behind its upstream** — if **Dotfiles checkout, commits it is behind its
   upstream** shows any commit line above `(end of list)`, stop and propose pulling it. A walk run from a
   stale checkout records this repo as current against a `latest` that has already moved.
@@ -238,6 +248,11 @@ The record and whatever the migrations changed in the working tree commit togeth
 runs `.claude/commit-checks.sh`, the confidentiality scan and the memo and issue notices, so nothing here
 commits directly.
 
+The other machine's clone takes this walk through `/pull`, and `/commit` already asks its session for
+exactly that after the push, so nothing further has to be sent from here. What that session must not do
+is run `/adopt`: its own session-start notice was derived before the pull arrived and will still report a
+convention gap, which is the one thing that turns this into the record conflict this section ends with.
+
 Two things to say once the walk is over. If this repo's `.claude/commit-checks.sh` does not run
 `check.py`, the rules this walk just took on were measured by the walk and by nothing since, and the
 universal rules with them — say so rather than leaving "adopted" to read as "checked from here on". And
@@ -258,6 +273,8 @@ afterwards, because a migration is not a standing claim — it ran, and the numb
 
 - **Never touch another repository.** The session running in a repo is the only one that may commit
   there. A repo found behind is reported, never adopted from here.
+- Do NOT walk the same versions in another machine's clone of this repo, and do NOT drive that clone from
+  here. It takes this walk's commit through `/pull`.
 - Do not author a new convention version. That happens in the dotfiles repo, in the session that is
   changing the convention itself, not in the one adopting it here.
 - Do not edit a shipped version's README or its `apply.py` to make this repo pass. A version folder is
