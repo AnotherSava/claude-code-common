@@ -177,6 +177,8 @@ A repo that says nothing gets every step as written. Never infer a rule from the
 
 9. **Report** what was updated. If nothing was stale, say so. Call out README ↔ `docs/index.md` mismatches explicitly, even when fixed. When step 4 opened an HTML report, say so and do not restate its findings in the chat — repeating them splits one decision across two surfaces, and the annotations come back from the page.
 
+   **Mark every claim this run could not check, not only the paths.** A cross-repo *pointer* is the easy one to notice, because a missing file is visibly a thing the sandbox cannot see. A sentence asserting how another repo's code *behaves* is the same unverifiable claim wearing prose, and it reads as settled fact in the patch — so it goes out under the same flag, naming what would settle it. The word a document already uses is not evidence either: carrying it forward is how an unchecked claim acquires a second source. Measured 2026-10-01: a patch rewrote a docstring to say the dashboard recognises a relayed turn by "a preamble it minted", flagged the `classification.md` path beside it as unverified, and said nothing about the mechanism — which was wrong, reached a pushed commit, and took one `grep` for the constant to settle once anybody looked.
+
 ## Out of scope
 
 - Do NOT touch code logic — only comments, docstrings, and doc files
