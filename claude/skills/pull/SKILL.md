@@ -82,7 +82,7 @@ The reference for every branch below is `~/.claude/learnings/git-stash-pull-safe
     ```
     Use `python` on Windows. Run it when step 9's last two clauses are both empty — nothing conflicted and nothing is left for the user — or at whichever step 1 stop sent you here. Do **not** run it after a conflict you resolved, a question you put to the user, or `FETCH-FAILED`; each of those is something to return to.
 
-    Do not condition it on how the turn started. This skill cannot tell a relayed request from a typed one, and the dashboard can, so it applies that test on its side. The command prints nothing and always exits 0, including where no dashboard is listening — an absent signal is read as "not clean", which is the safe direction. The dashboard also cancels the signal if the turn goes on to do anything else, so a pull that is followed by real work needs nothing undone here.
+    Do not condition it on how the turn started, and do not condition it on what the row looked like beforehand. Both are the dashboard's to test and it holds the evidence for each: it recognises a relayed request by the preamble it minted itself, and it knows what the row was before this turn opened. Report what this run did and let it weigh the rest. The command prints nothing and always exits 0, including where no dashboard is listening — an absent signal is read as "not clean", which is the safe direction. A later prompt revokes a signal whose turn never settled, so a pull followed by real work needs nothing undone here.
 
 ## Out of scope
 - Do NOT commit or push — that is `/commit`
