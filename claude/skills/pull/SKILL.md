@@ -12,7 +12,7 @@ Read `~/.claude/skills/shared/bash-rules.md` for bash command constraints.
 
 The reference for every branch below is `~/.claude/learnings/git-stash-pull-safety.md`: it carries the recipes, the verification baselines, and the failure modes that produce no conflict at all. This file is the decision procedure, that one is the depth. Follow its section when a step names it rather than re-deriving a recipe it already holds.
 
-**When a message asked for this run** — `/commit` on the other machine sends one after each push — the message is a claim, but this skill re-measures its premise in step 1: if nothing is inbound, say so and stop. Send no reply unless something needs the sender's attention; the `peer` skill covers anything the message asks beyond the pull.
+**When a message asked for this run** — every skill that pushes on the other machine sends one afterwards, `/commit`, `/release` and `/pr-merge` among them — the message is a claim, but this skill re-measures its premise in step 1: if nothing is inbound, say so and stop. Send no reply unless something needs the sender's attention; the `peer` skill covers anything the message asks beyond the pull.
 
 ## Context
 - Fetch: !`git fetch -q 2>&1 || echo FETCH-FAILED`

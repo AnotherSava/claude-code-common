@@ -105,6 +105,13 @@ run "pre-commit hook" bash claude/tests/pre-commit-hook.sh
 # failed three times in twenty minutes.
 run "bash guards" python3 claude/tests/bash-guards.py
 
+# The skills the push rule in settings.json clears to push, against the notice each one owes the other
+# machine. The permission gate already refuses a push from a skill that list does not name, so the hole
+# is a skill added to the list with no notice wired — which is how `/release` pushed a version bump to
+# `tauri-dashboard`'s main for a release with nothing sent, leaving the Windows clone behind and nothing
+# reporting it.
+run "push notifies peer" python3 claude/tests/push-notifies-peer.py
+
 # The global memory index. `claude/memory/MEMORY.md` is authored; CLAUDE.md's list is generated from
 # it, and CLAUDE.md is injected into every session on both machines. Hand-maintaining the two is what
 # this replaced: they had drifted to 68 entries against 141, sharing 16, and nothing said so. The

@@ -1,7 +1,7 @@
 ---
 name: release
 description: Tag a new version, push to trigger CI, monitor the build, and verify the GitHub release
-allowed-tools: AskUserQuestion, Read, Edit, Bash(git status --porcelain), Bash(git branch --show-current), Bash(git rev-parse *), Bash(git fetch origin *), Bash(git rev-list *), Bash(git describe --tags *), Bash(git log *), Bash(git tag *), Bash(git push origin *), Bash(git add *), Bash(git commit -S -m *), Bash(gh run list *), Bash(gh run watch *), Bash(gh run view *), Bash(gh release view *), Bash(gh release edit *), Bash(gh release create *), Bash(gh repo view *), Bash(node -p *), Bash(sed *), Bash(ls *), Bash(test *), Bash(grep *)
+allowed-tools: AskUserQuestion, Read, Edit, Bash(git status --porcelain), Bash(git branch --show-current), Bash(git rev-parse *), Bash(git fetch origin *), Bash(git rev-list *), Bash(git describe --tags *), Bash(git log *), Bash(git tag *), Bash(git push origin *), Bash(git add *), Bash(git commit -S -m *), Bash(python ~/.claude/skills/shared/notify_peer_pull.py:*), Bash(gh run list *), Bash(gh run watch *), Bash(gh run view *), Bash(gh release view *), Bash(gh release edit *), Bash(gh release create *), Bash(gh repo view *), Bash(node -p *), Bash(sed *), Bash(ls *), Bash(test *), Bash(grep *)
 ---
 
 # Release
@@ -93,7 +93,7 @@ For Chrome extension:
 - Edit `manifest.json` `"version"` field → new version
 - Edit `package.json` `"version"` field → new version
 - Stage and commit (GPG-signed): `git add manifest.json package.json && git commit -S -m "chore: bump version to X.Y.Z"`
-- Push: `git push origin main`
+- Push: record where the remote stood with `git rev-parse @{upstream}`, then `git push origin main`
 
 For Tauri, bump **all five** version references so they stay in sync (the bundle version comes from `tauri.conf.json`; the others must match):
 - Edit `src-tauri/tauri.conf.json` `"version"` field → new version
@@ -102,9 +102,11 @@ For Tauri, bump **all five** version references so they stay in sync (the bundle
 - Edit `src-tauri/Cargo.lock` — the package's own entry (find the `[[package]]` block whose `name` matches the crate, bump its `version`; leave dependency entries untouched)
 - Regenerate `package-lock.json` with `npm install --package-lock-only` (run it *after* editing `package.json`; it rewrites the root `"version"` and the mirrored one under `packages.""`, touching nothing else when dependencies are unchanged). Skip only if the project has no `package-lock.json`. This one is easy to miss because nothing fails without it: `npm ci` compares dependency specifiers, not the root version, so a stale value survives release after release in silence — one project's lockfile sat five versions behind before anyone noticed.
 - Stage and commit (GPG-signed): `git add src-tauri/tauri.conf.json package.json package-lock.json src-tauri/Cargo.toml src-tauri/Cargo.lock && git commit -S -m "chore: bump version to X.Y.Z"`
-- Push: `git push origin main`
+- Push: record where the remote stood with `git rev-parse @{upstream}`, then `git push origin main`
 
 Use the Edit tool — do not regenerate any file. Read `Cargo.lock` before editing it (Edit requires a prior Read).
+
+**Ask the other machine to pull, once that push has succeeded.** Run `python ~/.claude/skills/shared/notify_peer_pull.py <recorded-sha> release`. The bump commit is on main, so the peer's clone is behind by it, and nothing else in this flow reports that — a release is where it is easiest to miss, since the tag and the GitHub Release both look like the outcome while the branch is what moved. Send it without asking: it is a message to an agent. Report each `peer-pull:` line as it stands; the `peer` skill's receipt table explains them. Skip it if the push failed. The tag push in step 6 needs no second message, because `/pull` restores a branch and a plain `git fetch` brings the tag along with the commits.
 
 ## 5. Compile release notes
 

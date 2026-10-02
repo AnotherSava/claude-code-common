@@ -46,6 +46,7 @@ Merges a PR locally via fast-forward to preserve your GPG-signed commits.
 - Fast-forwards main to the PR branch (rebases as fallback if needed)
 - Stashes uncommitted changes and restores them after merge
 - Cleans up remote and local branches, prunes stale remote-tracking refs
+- After pushing main, asks the session working on the same repo on the other machine to run `/pull` (see [Peer](#peer))
 
 ---
 
@@ -128,7 +129,7 @@ Brings the branch up to date with its upstream when the working tree is dirty �
 - Verifies against the stash commit as a baseline, then checks the two failure modes that produce no conflict at all: one document asserting the same thing twice, and an incoming file duplicating one already in the tree
 - Reads its procedure from `@{upstream}` when the repo being pulled is this one, since a behind checkout's documentation is behind by the same commits
 - Proposes a rebase on a diverged branch rather than running one, and will not commit or push
-- Runs when a session on the other machine asks for it: `/commit` there sends that request after each push
+- Runs when a session on the other machine asks for it: every skill that pushes there sends that request afterwards, `/commit`, `/release` and `/pr-merge` among them
 - Tells the local dashboard when a run left nothing to come back to, so a session asked to pull by a peer stops reading as though it holds work — not sent after a conflict, a question put to the user, or a failed fetch, each of which is something to return to
 
 ---
@@ -270,6 +271,7 @@ Tags a new version, pushes to trigger CI, monitors the build, and updates the Gi
 - Auto-detects project type (dotnet or Tauri) and extracts project name
 - Recommends version bump from commit history, checked against what the release actually ships, then asks for confirmation
 - Bumps version in all manifest files before tagging (csproj / package.json / tauri.conf.json / Cargo.toml)
+- After pushing the bump commit, asks the session working on the same repo on the other machine to run `/pull` (see [Peer](#peer)) — the tag and the GitHub Release both look like the outcome while the branch is what moved, so nothing else in the flow reports that clone being behind
 - Creates signed annotated tags for GitHub "Verified" badge
 - Compiles platform-appropriate release notes (SmartScreen + Gatekeeper first-launch warnings)
 - Monitors CI (single-platform for dotnet, matrix for Tauri) until completion
@@ -430,6 +432,9 @@ Finds, messages and routes work to other Claude Code sessions, on this machine o
 - Reports each relay receipt literally, keeping "written" apart from "delivered" and "not sent" apart from "nobody there"
 - Explains each relay refusal code and what to do about it
 - Covers the receiving side: requests to act, commit handoffs, routed learnings and relayed approvals
+- Owns the post-push notice every pushing skill sends, `skills/shared/notify_peer_pull.py` — one message per peer device asking that machine's session on the same project to run [`/pull`](#pull), listing the commits the push carried. [`/commit`](#commit), [`/release`](#release) and [`/pr-merge`](#pr-merge) each call it with their own name; `/pr-create` is exempt, since it pushes a feature branch rather than the branch the peer is on
+
+**Tests:** `python claude/tests/push-notifies-peer.py` — exit 0 when every skill the push rule clears calls the notifier, 1 otherwise. Which skills may push is the clear condition on `claude/settings.json`'s `Push to GitHub` rule, so the check reads that list rather than hunting for `git push`: a skill not named there is already refused by the permission gate, while one added to the list with no notice wired is stopped by nothing. It asserts both directions and that each exemption still covers a skill that cannot send the notice. A clear condition it cannot parse prints `NOT CHECKED` and fails rather than reporting a pass.
 
 ---
 

@@ -4,21 +4,24 @@
 These repos are worked from two machines, and a clone left behind the remote is how work gets
 rebuilt that already exists upstream, or a later commit there fails to push. So once a push has
 succeeded, the same project's session on the peer is asked to run `/pull`. Delivery, addressing and
-receipts are `skills/shared/peer_relay.py`'s; this script only composes the request.
+receipts are `peer_relay.py`'s; this script only composes the request.
+
+Every skill that pushes calls this, which is why it lives here rather than under one of them: a
+release or a PR merge leaves the peer exactly as far behind as a commit does. The skill names itself
+in the second argument, which the relay carries as the sender's label and the receiving session is
+shown: a message from `/commit` arrives there headed `Sender's own description: the /commit skill,
+after a push`.
 
 Takes the upstream sha recorded before the push (`none` on a first push) to list what was pushed.
 Prints one `peer-pull:` line per peer device, or one saying the other machine was unmeasured.
 """
 from __future__ import annotations
 
-import os
 import re
 import subprocess
 import sys
 
-sys.path.insert(0, os.path.join(os.path.dirname(os.path.abspath(__file__)), "..", "..", "shared"))
-
-from peer_relay import PeerUnmeasured, current_project, describe, send_to_project  # noqa: E402 — needs the sys.path line above
+from peer_relay import PeerUnmeasured, current_project, describe, send_to_project
 
 
 def git(*args: str) -> str:
@@ -39,11 +42,12 @@ def compose(before: str) -> str:
 
 
 def main() -> int:
-    if len(sys.argv) != 2:
-        print("usage: notify_peer_pull.py <upstream-sha-before-push | none>", file=sys.stderr)
+    if len(sys.argv) != 3:
+        print("usage: notify_peer_pull.py <upstream-sha-before-push | none> <skill-name>", file=sys.stderr)
         return 2
+    sender = f"the /{sys.argv[2]} skill, after a push"
     try:
-        for target, receipt in send_to_project(current_project(), compose(sys.argv[1]), "the /commit skill, after a push"):
+        for target, receipt in send_to_project(current_project(), compose(sys.argv[1]), sender):
             print(f"peer-pull: {describe(target, receipt)}")
     except PeerUnmeasured as exc:
         print(f"peer-pull: NOT SENT — {exc}, so the other machine is unmeasured")

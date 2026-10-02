@@ -103,7 +103,9 @@ healthy. The check that would catch it is the one in `CLAUDE.md`'s Git Workflow 
 `git log --oneline HEAD..@{upstream}` — run **in the dotfiles repo**, which a session working anywhere
 else has no reason to open.
 
-`/commit` narrows the gap from the other side: after each push it asks the session working on the same
-repo on the other machine to run `/pull` (`skills/commit/scripts/notify_peer_pull.py`). A push made
-while no dotfiles session is live over there, or whose request came back refused or `NOT SENT`, still
-waits for someone to pull by hand.
+Every skill that pushes narrows the gap from the other side: once the push succeeds it asks the session
+working on the same repo on the other machine to run `/pull` (`skills/shared/notify_peer_pull.py`). A
+release or a PR merge leaves that clone as far behind as a commit does — `/release` put `chore: bump
+version to 1.15.0` on `tauri-dashboard`'s main on 2026-10-01 with no message sent, and the gap surfaced
+only because the user asked. A push made while no session for that repo is live over there, or whose
+request came back refused or `NOT SENT`, still waits for someone to pull by hand.

@@ -1,7 +1,7 @@
 ---
 name: pr-merge
 description: Merge a PR locally with fast-forward to preserve GPG-signed commits, then clean up.
-allowed-tools: Bash(git status:*), Bash(git log:*), Bash(git diff:*), Bash(git fetch:*), Bash(git checkout:*), Bash(git rebase:*), Bash(git merge:*), Bash(git push:*), Bash(git branch:*), Bash(git rev-parse:*), Bash(git symbolic-ref:*), Bash(git stash:*), Bash(git remote:*), Bash(gh pr:*), Read
+allowed-tools: Bash(git status:*), Bash(git log:*), Bash(git diff:*), Bash(git fetch:*), Bash(git checkout:*), Bash(git rebase:*), Bash(git merge:*), Bash(git push:*), Bash(git branch:*), Bash(git rev-parse:*), Bash(git symbolic-ref:*), Bash(git stash:*), Bash(git remote:*), Bash(gh pr:*), Bash(python ~/.claude/skills/shared/notify_peer_pull.py:*), Read
 ---
 
 # Merge PR Locally (Preserving GPG Signatures)
@@ -96,10 +96,17 @@ be fast-forwardable. If not, rebase first.
    git merge <branch-name> --ff-only
    ```
 
-3. Push main:
+3. Push main, recording where the remote stood first so the next step can list what went out:
    ```
+   git rev-parse @{upstream}
    git push origin main
    ```
+
+4. Ask the other machine to pull, once that push has succeeded:
+   ```
+   python ~/.claude/skills/shared/notify_peer_pull.py <recorded-sha> pr-merge
+   ```
+   The merged commits are on main, so the peer's clone is behind by them. Send it without asking: it is a message to an agent. Report each `peer-pull:` line as it stands; the `peer` skill's receipt table explains them. Skip it if the push failed.
 
 ### Step 5: Clean up
 
