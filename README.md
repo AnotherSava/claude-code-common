@@ -412,6 +412,7 @@ Closes out a section of work. Before anything is committed it re-reads the curre
 - Checks each candidate against the current working tree before presenting it, dropping whatever is already settled: a later message, an existing memo, an earlier `/wrap-up`, or a step of the commit flow that owns it
 - Gates the commit: every finding is answered now, memo'd for later, pinged to the session that owns it, or dropped, and nothing is committed until the list is disposed of
 - Routes work only the other machine can do to the live session there rather than parking it as a memo, and holds that message until the push when the peer has to pull this session's work before it can act
+- Reports a finding in a file the project's upstream owns and goes no further — no memo and no ping — unless it touches a change carried on the user's own branch or an issue they already raised upstream
 - Hands the rest to `/commit` (remote sync, reflect, clean-code, documentation, confidentiality scan, push), then recommends the `/clear` that scopes the next wrap-up to exactly one section
 
 ---

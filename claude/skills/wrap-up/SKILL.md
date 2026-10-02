@@ -149,11 +149,24 @@ reachable through the `peer` skill. Offered as a memo and corrected on 2026-09-1
 2026-09-15, so recommend the ping.
 
 **A finding another repo's session has to decide is routed too, even where this machine could act.**
-The test above is capability; this one is ownership, and they come apart on a finding this session
+The other-machine test is capability; this one is ownership, and they come apart on a finding this session
 could implement but has no standing to settle — whether a convention is worth writing, whether a
 shared rule should change. Recommend the ping to the session that owns that repo. Offered as a memo
 on 2026-09-18 and corrected: *"discuss with claude agent — either on this machine or air — it's
 their work"*. A memo there files the question in the backlog of a repo that cannot answer it.
+
+**A finding in a file the project's upstream owns is reported and nothing else — not a memo, and
+not a ping either.** The capability and ownership tests both end at a session that can act; this one ends at an account
+nobody here speaks for. A fork's backlog is work this repo has undertaken, and upstream's files are
+not it, so a memo parks work nobody here will ever do and a ping has no one to reach. `docs-relevance`
+already refuses to patch or memo such a gap and reports it instead, which means a finding arriving
+from that skill carries the reason it stopped — read it before re-dispositioning, rather than taking
+the report and choosing afresh. Two exceptions, both named there: the gap touches a change the user
+carries on their own branch, or it belongs to an issue they have already raised upstream. Test them
+with `git diff --name-only upstream/main...<branch>` rather than from memory. Otherwise the
+disposition is `drop`, and an upstream issue only when the user asks for one. On 2026-10-01 a
+stale screenshot and a source comment in a third-party fork were both carried in from that skill's
+own report and recommended as memos, which is the one disposition it names as forbidden.
 
 **A `--platform` tag does not soften that.** The flag exists for a memo that was going into the
 backlog anyway and happens to need one box — not as a way to park work a live session over there
