@@ -280,6 +280,7 @@ Cross-project preferences and feedback. Memory files live in `~/.claude/memory/`
 - [Find the override before stacking a setting](~/.claude/memory/feedback_check_overrides_first.md) — a global setting that looks ignored is usually cancelled by a local rule; remove that rule instead of adding a redundant copy
 - [Validate edits to self-gating files](~/.claude/memory/feedback_validate_self_gating_edits.md) — blocking hooks/git hooks/rc files: edit a temp copy, run the configured commands, then copy over; valid syntax ≠ working command
 - [State an enforcement's reach](~/.claude/memory/feedback_state_the_enforcement_reach.md) — never conclude more broadly than the check you cite delivers; name what it cannot see, since that boundary is permanent
+- [Read the control point](~/.claude/memory/feedback_read_the_control_point.md) — read what gates an action before claiming nothing does; anchor new checks on that list
 - [Surface the gap, don't fill it](~/.claude/memory/feedback_surface_the_gap_dont_fill_it.md) — never auto-fill a field a human must vouch for; leave it null, mark it, fill by hand
 - [Verify at the layer the user sees](~/.claude/memory/feedback_verify_at_the_user_visible_layer.md) — your write succeeding at every layer you own is not the outcome; read the value at the last consumer before saying it works
 - [Scratch lives in the project's tmp/](~/.claude/memory/feedback_scratch_lives_in_project_tmp.md) — file tools can't read $TEMP back, so previews and contact sheets go in the repo's gitignored tmp/
