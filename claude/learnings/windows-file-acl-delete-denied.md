@@ -16,6 +16,8 @@ The shape, measured on a repo where five files under one directory refused to mo
 
 That last row is what rules out a lock: a file you create yourself is fully yours while the ones already there are not.
 
+A fast-forward fails the same way, `git merge --ff-only` printing `error: unable to unlink old '<path>': Invalid argument` for each incoming file that is affected, and stopping with HEAD unmoved and the tree clean. On 2026-10-01 a pull was the first thing to touch such files, a whole directory of them written by an elevated session days earlier.
+
 ## Read the ACL, and read one you created beside it
 
 ```
