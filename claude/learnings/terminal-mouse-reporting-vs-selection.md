@@ -65,6 +65,14 @@ Measured the same day on the Windows box: a session whose only source of the var
 checked-out `settings.json` — no shell export, no `WSLENV` — reported `0,0,0`, where the identical
 command before that file carried the flag reported `1,1,1`.
 
+**Restart a running session after changing these variables; the change does not reach it.** When the
+shared `settings.json` swapped `CLAUDE_CODE_DISABLE_MOUSE` for `CLAUDE_CODE_DISABLE_MOUSE_CLICKS` on
+2026-10-01, a session started the day before ended up carrying both in its process environment: the
+reload added the new key and never removed the old one. Because the old one is tested for presence,
+that session stayed in off mode, and its pane still reported `0,0,0` while two sessions started after
+the change reported `any=1 std=1 sgr=1`. So when one session's wheel misbehaves and its neighbours' do
+not, compare each pane's start time with the date of the last mouse-related change to `settings.json`.
+
 **Crossing WSL to a native Windows `claude.exe` needs `WSLENV`.** A variable exported in the WSL shell
 is not inherited by a Win32 child unless it is named there:
 
@@ -84,12 +92,17 @@ on the alternate screen, neither side owns the wheel, and terminals disagree abo
   `ESC O A` / `ESC O B` one line per notch with no setting to tune or disable it. Claude Code reads
   those as Up/Down, so the wheel walks the input history. Read on 2026-10-01 from Windows Terminal's
   `TerminalInput::_makeAlternateScrollOutput` and microsoft/terminal#3321, not reproduced by a run.
+- **agterm turns it into arrow keys too.** On 2026-10-01 the user saw the trackpad walk Claude's input
+  history in a remote tmux pane whose Claude had requested nothing, viewed from agterm on the Mac.
+  That was the user's report, not a matched comparison of two panes. The shipped binary's strings
+  contain `mouse-reporting`, `mouse-scroll-multiplier` and `mouse-shift-capture` but no
+  `alternate-scroll` key, so assume no ghostty setting turns this off until someone finds one.
 - **agwinterm drops it.** Its wheel handler returns early when `IsAltScreen` is set, and its mode
   switch handles 1000, 1002, 1003, 1006 and 1016 with no 1007 case.
 
-So "the wheel scrolls history in Windows Terminal and does nothing in agwinterm" is this one mode, and
-neither is transcript scrolling. Adding 1007 to agwinterm would reproduce the Windows Terminal
-behaviour, not fix it.
+So "the wheel scrolls history in Windows Terminal or agterm and does nothing in agwinterm" is this one
+mode, and none of them is transcript scrolling. Adding 1007 to agwinterm would reproduce the Windows
+Terminal behaviour, not fix it. The fix is on the pane's side: a Claude in scroll mode.
 
 ## Bypassing it for one drag, or for every program
 

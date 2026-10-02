@@ -87,3 +87,20 @@ Windows side's `lib.sh` (`remote_session_attach`) turns on tmux's `set-titles` s
 status reaches every attached terminal. A skew there raises no error. The remote tab just shows no
 status: it stays on `⇄ <project>` when the Mac is behind, and has neither status nor badge when
 Windows is behind. Compare the two checkouts before debugging a title, too.
+
+## Restarting a session's claude.exe keeps its conversation only on a clean exit
+
+A running session never picks up a later change to `settings.json`'s `env` block, so a fix there
+needs a fresh `claude.exe` in that pane (see `claude/learnings/terminal-mouse-reporting-vs-selection.md`).
+Restart it with `/exit` typed inside the session, from either terminal. The pane's command is built
+by `remote_session_resume_command` in `lib.sh` as `claude --continue … || exec claude …`, so the two
+ways out are not equivalent:
+
+- **A zero exit** skips the `||` branch, and `remain-on-exit failed` lets the pane close. The next
+  attach recreates the session with `--continue`, and the conversation resumes.
+- **A non-zero exit** — the process killed, over ssh or by the agent itself — runs the `||` branch and
+  execs a fresh `claude` with no `--continue` in the same pane. The pane survives and the conversation
+  does not.
+
+An agent cannot take the clean route for itself: no tool ends its own session, and killing its own
+process is the non-zero case. Ask the user to type `/exit`.
