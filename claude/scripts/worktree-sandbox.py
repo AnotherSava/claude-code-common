@@ -16,7 +16,8 @@ being reviewed.
 
 Ignored files are not carried in. That is right for a review of documentation or source, and
 wrong for anything needing a build artifact — such a caller must copy what it needs itself.
-Renames arrive as their destination path. Symlinks and submodules are untested.
+A rename arrives as both halves: the destination is copied in and the source deleted. Symlinks
+and submodules are untested.
 """
 
 from __future__ import annotations

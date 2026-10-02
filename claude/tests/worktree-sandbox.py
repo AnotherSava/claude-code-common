@@ -44,6 +44,7 @@ def build_repo(root: str) -> None:
     os.makedirs(os.path.join(root, "build"))
     write(root, "docs/page.md", "base\n")
     write(root, "keep.md", "keep\n")
+    write(root, "docs/old.md", "moved\n")
     write(root, ".gitignore", "/build/\n")
     git(["add", "-A"], root)
     git(["commit", "-q", "--no-gpg-sign", "-m", "chore: base"], root)
@@ -53,6 +54,7 @@ def build_repo(root: str) -> None:
     write(root, "docs/page.md", "base\nedited\n")
     write(root, "docs/new.md", "new\n")
     os.remove(os.path.join(root, "keep.md"))
+    git(["mv", "docs/old.md", "docs/moved.md"], root)
     write(root, "build/blob", "x" * 200_000)
 
 
@@ -83,6 +85,8 @@ def main() -> None:
         check("the edit arrived", open(os.path.join(sandbox, "docs/page.md")).read(), "base\nedited\n")
         check("the new file arrived", os.path.exists(os.path.join(sandbox, "docs/new.md")), True)
         check("the deletion arrived", os.path.exists(os.path.join(sandbox, "keep.md")), False)
+        check("a staged rename's destination arrived", os.path.exists(os.path.join(sandbox, "docs/moved.md")), True)
+        check("and its source is gone", os.path.exists(os.path.join(sandbox, "docs/old.md")), False)
         check("the ignored blob stayed out", os.path.exists(os.path.join(sandbox, "build/blob")), False)
         check("sandbox is clean after carry-in", git(["status", "--porcelain"], sandbox).strip(), "")
         check("the user's tree is untouched", git(["status", "--porcelain"], repo), before)

@@ -35,12 +35,14 @@ def git(args: list[str], cwd: str | None = None, binary: bool = False) -> bytes 
 
 
 def changed_paths(cwd: str | None = None, untracked: bool = True) -> list[str]:
-    """Every path in the working tree's change set, renames by destination, ignored files excluded.
+    """Every path in the working tree's change set, both halves of a rename, ignored files excluded.
 
     `-z` is what makes this safe to parse: without it git escapes non-ASCII bytes and quotes the
     result, so a Cyrillic or CJK filename comes back as octal escapes and compares unequal to the
-    name on disk. A rename entry spends two NUL-separated fields — destination then source — so the
-    loop consumes both and keeps the destination, which is the path that now exists.
+    name on disk. A rename or copy entry spends two NUL-separated fields — destination then source.
+    A rename's source is a path the change set removes, so it is returned too: a caller that copies
+    present paths and deletes absent ones would otherwise keep the old file alongside the new one.
+    A copy's source is unchanged and is skipped.
     """
     args = ["status", "--porcelain", "-z"] + (["-uall"] if untracked else ["-uno"])
     fields = git(args, cwd=cwd, binary=True).split(b"\0")
@@ -53,5 +55,7 @@ def changed_paths(cwd: str | None = None, untracked: bool = True) -> list[str]:
             continue
         code = entry[:2].decode("ascii", "replace")
         paths.append(entry[3:].decode("utf-8", "surrogateescape"))
+        if "R" in code and i + 1 < len(fields):
+            paths.append(fields[i + 1].decode("utf-8", "surrogateescape"))
         i += 2 if ("R" in code or "C" in code) else 1
     return paths

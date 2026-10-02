@@ -44,6 +44,13 @@ after the ` -> ` separator:
     if " -> " in path:
         path = path.split(" -> ", 1)[1]
 
+**Keep the source too when the list stands for the change set.** A rename removes the source
+path, so a tool that mirrors the change set somewhere else, copying paths that exist and deleting
+paths that do not, leaves the old file in place if it was handed only the destination. Measured
+2026-10-01: a review sandbox built that way still held a memo that had been moved to `done/`. With
+`-z` the entry is two NUL-separated fields, destination first and source second; a copy (`C`) has
+the same shape, but its source is unchanged and does not belong in the list.
+
 ## `core.quotepath` mangles non-ASCII paths in every listing command
 
 `git ls-files`, `git status` and friends escape non-ASCII bytes by default and wrap the

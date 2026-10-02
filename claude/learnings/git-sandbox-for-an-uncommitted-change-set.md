@@ -33,7 +33,7 @@ worth keeping, because each looks right until it is run.
 
 A worktree at `HEAD` shares `.git`, so nothing is duplicated and transcrypt keys, hooks and config
 all come along. On top of it, copy in only the paths `git status --porcelain -z -uall` names,
-renames by destination, deleting in the sandbox whatever no longer exists in the source. Then
+both halves of a rename, deleting in the sandbox whatever no longer exists in the source. Then
 commit that state inside the sandbox on a detached HEAD, so a later `git diff HEAD` shows what the
 *tool* changed rather than the change set it was handed.
 
@@ -57,4 +57,6 @@ any it finds, which is the one output of this flow that must not be ignored.
 own, and it is not in every repo's `.gitignore` — the dotfiles repo does not ignore it. A sandbox
 there shows up as untracked in the very change set being reviewed.
 
-Renames arrive as their destination path and are covered. Symlinks and submodules are untested.
+A rename is covered only because its source is in that list as well as its destination: handed
+the destination alone, the carry-in copies the new file and never deletes the old one. Symlinks
+and submodules are untested.
