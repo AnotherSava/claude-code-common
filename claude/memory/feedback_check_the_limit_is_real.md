@@ -95,3 +95,26 @@ surfaces already has an owner among these projects, and the gap is usually a def
 missing feature. Ask which project owns the surface before designing anything, and message that
 session on whichever machine it runs, as the `peer` skill describes. See
 [[feedback_check_live_sibling_session]] and [[peer_messaging]].
+
+## A fifth shape: the component that performs the action already holds the fact
+
+**"Nothing records it" is a missing field, not a missing capability.** Seen 2026-10-01. Asked why a
+relayed request to pull could not return a session to its CLEAN state, I reported that the dashboard
+"cannot tell a relayed request from a typed one". Oleg's whole reply was one question: *"it is the
+dashboard that relays message to remote maching in the first place, why can't it perform the test?"*
+It does — the receiving dashboard writes the frame into that session's inbox itself and logs the write
+against the receiving row, so at that instant it holds exactly the fact I had called unknowable.
+
+What made it easy to get wrong is that two *narrower* sources each said something true. An audit
+finding said nothing on the session row **records** that a relayed frame was written; a memo said the
+dashboard "cannot **currently** tell it from a human prompt". Neither claimed the capability was
+absent, and collapsing both into one flat sentence is what produced a false limitation — then
+published it in a plan, with a design built around avoiding it.
+
+The tell is narrower than the first shape's and worth holding separately: a claim shaped **"X cannot
+know Y"** about a component that performs Y's cause. Whoever does the thing knows it happened;
+whether anybody wrote it down is a different question with a different answer and a much cheaper fix.
+So locate the action before describing the limit — and when a source says "nothing stores" or
+"currently", carry that scope into the claim rather than rounding it up. See [[feedback_no_guessed_facts]]
+for the general form of widening a supplied fact, and [[feedback_state_the_enforcement_reach]] for the
+mirror case of concluding more broadly than the check you cite.
