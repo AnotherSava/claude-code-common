@@ -170,6 +170,21 @@ path you typed. Two different failures follow, and neither says "your glob was w
 Quote the path (`'…/[slug]/page.tsx'`) or escape the brackets. Worth a habit: any path
 with `[`, `?` or `*` in it gets single-quoted, even when it looks literal.
 
+**An option's value is a glob position too, and the single-quote-every-glob-character
+habit does not watch it.** That habit is phrased about paths, so a pattern written into a
+flag reads as configuration rather than as something the shell will touch:
+
+```sh
+grep -rn PATTERN --include=*.rs src/   # zsh: "no matches found: --include=*.rs"
+```
+
+zsh expands `--include=*.rs` against the *current* directory, and finding no `.rs` file
+there it aborts before grep runs at all — so the search never happens, and the message
+names the flag rather than any file. bash passes the word through untouched, which is how
+such a line survives in a README and then fails on one machine. Quote the value
+(`--include='*.rs'`), and read a `no matches found:` that names a word starting with `--`
+as this, not as a missing file. Measured 2026-10-01 against a Rust tree.
+
 **A colon after a parameter starts a zsh history modifier**, so `"$rev:$path"` — the shape
 of every git rev spec — expands to a different string. bash passes the colon through:
 
