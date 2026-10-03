@@ -305,6 +305,7 @@ Cross-project preferences and feedback. Memory files live in `~/.claude/memory/`
 - [Show the artifact with the ask](~/.claude/memory/feedback_show_the_artifact_with_the_ask.md) — a choice between specific artifacts gets the passage that decides each, not only your one-line reading of them
 - [Build the variant sheet, don't iterate](~/.claude/memory/feedback_variant_sheet_for_visual_choices.md) — second tweak to a colour/spacing means one HTML page of every candidate in real context, not another deploy
 - [A fixture must exceed the cap](~/.claude/memory/feedback_fixture_must_exceed_the_cap.md) — sized below a threshold it never reaches the branch and still reports success; count the caps before picking the size
+- [Both sides of a comparison](~/.claude/memory/feedback_comparison_you_supply_both_sides.md) — supply both and it has stopped comparing; a term removed for wrong units gets relocated, never dropped
 - [Drive the transition in tests](~/.claude/memory/feedback_drive_the_transition_in_tests.md) — constructing the object at the state under test leaves the read field at its default, which is usually the value that hides the bug
 - [User GitHub account](~/.claude/memory/user_github_account.md) — handle is `AnotherSava`; use to filter "my repos" vs third-party clones
 - [Where supplied screenshots land](~/.claude/memory/user_screenshot_location.md) — "see the screenshot" with nothing attached means the newest PNG in `~/Desktop`, or `~/CropStage` on Windows; go look first
