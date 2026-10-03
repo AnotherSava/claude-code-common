@@ -94,6 +94,17 @@
             "timeout": 5
           }
         ]
+      },
+      {
+        "matcher": "^Workflow$",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "python -S \"$HOME/.claude/hooks/workflow-realism.py\"",
+            "async": false,
+            "timeout": 10
+          }
+        ]
       }
     ],
     "PostToolUse": [
@@ -116,15 +127,6 @@
             "if": "Write(//**/SKILL.md)"
           }
         ]
-      },
-      {
-        "hooks": [
-          {
-            "type": "command",
-            "command": "[ -n \"$AGWINTERM_SESSION_ID\" ] && \"$CLAUDE_AGWINTERM/agwintermctl.exe\" session status active >/dev/null 2>&1 || true",
-            "async": true
-          }
-        ]
       }
     ],
     "Notification": [
@@ -133,16 +135,6 @@
           {
             "type": "command",
             "command": "python -S \"$CLAUDE_AI_AGENT_DASHBOARD/integrations/claude_hook.py\" idle",
-            "async": true
-          }
-        ]
-      },
-      {
-        "matcher": "permission_prompt",
-        "hooks": [
-          {
-            "type": "command",
-            "command": "[ -n \"$AGWINTERM_SESSION_ID\" ] && \"$CLAUDE_AGWINTERM/agwintermctl.exe\" session status blocked >/dev/null 2>&1 || true",
             "async": true
           }
         ]
@@ -163,15 +155,6 @@
           {
             "type": "command",
             "command": "python -S \"$HOME/.claude/hooks/memos-surface.py\" on-prompt"
-          }
-        ]
-      },
-      {
-        "hooks": [
-          {
-            "type": "command",
-            "command": "[ -n \"$AGWINTERM_SESSION_ID\" ] && \"$CLAUDE_AGWINTERM/agwintermctl.exe\" session status active >/dev/null 2>&1 || true",
-            "async": true
           }
         ]
       }
@@ -262,15 +245,6 @@
             "async": true
           }
         ]
-      },
-      {
-        "hooks": [
-          {
-            "type": "command",
-            "command": "[ -n \"$AGWINTERM_SESSION_ID\" ] && \"$CLAUDE_AGWINTERM/agwintermctl.exe\" session status completed >/dev/null 2>&1 || true",
-            "async": true
-          }
-        ]
       }
     ],
     "SessionEnd": [
@@ -336,7 +310,8 @@
     "claude-mermaid@claude-mermaid": true,
     "rust-analyzer-lsp@claude-plugins-official": true,
     "notion-workspace-plugin@notion-plugin-marketplace": true,
-    "swift-lsp@claude-plugins-official": true
+    "swift-lsp@claude-plugins-official": true,
+    "firecrawl@claude-plugins-official": true
   },
   "extraKnownMarketplaces": {
     "claude-code-plugins": {

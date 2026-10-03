@@ -224,6 +224,7 @@ Shipping outward is a different verb: a versioned artifact goes through the `rel
 - Creates `scripts/deploy.sh` wrapper pointing to the global deploy script
 - Reads install path from `config/deploy.env` (asks on first run)
 - Install targets run the full pipeline: stop app → build → clean install dir → copy → launch → verify
+- Asks right before a run that starts, restarts or closes an app with a window — the install targets that launch the installed app, and the IntelliJ target when it is set to close the IDE — and runs only on a yes; the dev-server target opens no window and runs without asking
 - Local web servers (a `package.json` with a `dev` script, or a plain static `index.html`) relaunch detached on the configured port, then get health-checked
 - An optional `DEV_PRESTART_CMD` runs the project's own script — seeding the local database from production, fetching a fixture — in the gap between stopping the old server and starting the new one
 - After first `/deploy`, use `! deploy` for instant deploys without LLM overhead
@@ -666,23 +667,18 @@ When a hook command needs a path outside `~/.claude/` or this repo, reference it
 **Currently used env vars** — set these on a fresh machine before the corresponding hooks will work:
 
 - **`CLAUDE_AI_AGENT_DASHBOARD`** — points to a local clone of the `tauri-dashboard` repo. Used by the `Notification`, `UserPromptSubmit`, `Stop`, `SessionEnd`, and `SessionStart` hooks for live session-status updates.
-- **`CLAUDE_AGWINTERM`** — points to the directory holding `agwintermctl.exe`. Used by the `PostToolUse`, `Notification`, `UserPromptSubmit`, and `Stop` hooks to report session status (active / blocked / completed) to the terminal. Each of those commands is additionally guarded on `$AGWINTERM_SESSION_ID`, so it stays inert outside an agwinterm session — leaving this unset costs nothing on a machine that doesn't run one.
-- **`CLAUDE_LANDLORD`** — points to a local clone of the `landlord` repo, which owns the shared-host tenancy rules [Ingress Lint](#ingress-lint) delegates to. Optional, and only consulted for a repo that publishes a vhost: the lookup falls back to a `landlord` sibling of the repo being linted, which is the layout both machines already have. Unlike the two above, leaving it unset is not free — the tenancy half then reports **NOT CHECKED** rather than passing quietly.
-
-The macOS counterpart needs no env var. The same four events also report status to **agterm** via `$HOME/.config/agterm/agent-status/agterm-agent-status.sh` — the app installs that script at a fixed `$HOME`-relative path, so there is nothing to configure. Those commands are guarded on `$AGTERM_SESSION_ID` and stay inert outside an agterm session, which is what lets one committed `settings.json` carry both machines' status hooks.
+- **`CLAUDE_LANDLORD`** — points to a local clone of the `landlord` repo, which owns the shared-host tenancy rules [Ingress Lint](#ingress-lint) delegates to. Optional, and only consulted for a repo that publishes a vhost: the lookup falls back to a `landlord` sibling of the repo being linted, which is the layout both machines already have. Unlike `CLAUDE_AI_AGENT_DASHBOARD`, leaving it unset is not free — the tenancy half then reports **NOT CHECKED** rather than passing quietly.
 
 **Set on Windows** (User scope, persistent):
 
 ```powershell
 [Environment]::SetEnvironmentVariable('CLAUDE_AI_AGENT_DASHBOARD', '{{path-to-tauri-dashboard}}', 'User')
-[Environment]::SetEnvironmentVariable('CLAUDE_AGWINTERM', '{{path-to-agwinterm}}', 'User')
 ```
 
 **Set on Linux / macOS** (in your shell profile):
 
 ```bash
 export CLAUDE_AI_AGENT_DASHBOARD="$HOME/projects/tauri-dashboard"
-export CLAUDE_AGWINTERM="$HOME/programs/agwinterm"
 ```
 
 ---
@@ -787,6 +783,18 @@ A flagged skill is cleared one of two ways, both durable: add `!claude/skills/<n
 
 ---
 
+### Workflow Realism
+
+**File:** `claude/hooks/workflow-realism.py`
+
+A review loop that verifies and fixes on its own shows its findings to nobody, so the rule that rare, cheap-to-handle edge cases get a warning rather than code never gets a chance to apply, and every confirmed finding is coded. This `PreToolUse` on `Workflow` warns, without blocking, when an inline script (or the file a `scriptPath` run names) has a stage that fixes findings — "fix these confirmed defects", "apply fixes for these findings" — and mentions none of `frequency`, `reached_by` or the [saved `review-and-fix` workflow](#saved-workflows). The fix verb has to take findings, defects, issues or bugs as its object, so "fix every compile error and test failure" in an implementation workflow does not count. Any mention of those three words silences it, whatever the script uses them for. The warning reaches the model as additional context and names that workflow; the run goes ahead either way. A run by name is not judged.
+
+It is synchronous because a backgrounded hook cannot deliver context, which is affordable only because the matcher limits it to `Workflow` calls.
+
+**Tests:** `python claude/tests/workflow-realism.py` — exit 0 when every case behaves, 1 otherwise.
+
+---
+
 ### Ingress Lint
 
 **Files:** `claude/hooks/ingress-lint.py` and `claude/scripts/ingress-lint.py`
@@ -864,6 +872,16 @@ Two things about that key are worth knowing before debugging one. The name is re
 
 ---
 
+## Saved Workflows
+
+The `claude/workflows/` directory holds workflows any session can run by name, linked to `~/.claude/workflows/`, which Claude Code reads as the user scope beside a project's own `.claude/workflows/`.
+
+- **`review-and-fix`** — the way to run an automated review that also fixes what it finds. Called as `Workflow({name: "review-and-fix", args: {scope, lenses: [{key, prompt}], context, gate}})`. Every finding must name who reaches it (a call site, a log line, a stored record), how often (common, plausible, rare, theoretical) and what leaving it costs. A skeptic per finding judges both truth and realism, and plain code decides what happens: a finding nothing reaches is dropped; one that is reached and would lose data, crash, corrupt core output or leak identity is fixed, as is anything common or plausible; a rare one gets a log line or a doc sentence and no logic; a theoretical one is dropped. A finding whose skeptic was skipped or died is `unverified`, neither fixed nor counted as refuted, and the next round is asked to report it again. Each fix- and warn-class row records what the fixer's report says happened to it — applied, skipped with its reason, or not applied — and the second round's reviewers see every earlier finding with that outcome, so they do not re-report a dropped case in new words. The loop stops after a round with nothing worth fixing, when the fixer returns nothing or applies none of its fixes, and after two rounds regardless, and returns the whole triage table for the user rather than a count of fixes. A lens whose reviewer was skipped or died is listed in `silent_lenses`, and the stop reason says the round was clean only among what ran. No agent in it may deploy, start or stop an app, and the fixer runs the project's gate by its exit status.
+
+**Tests:** `node claude/tests/review-and-fix.mjs` runs the real script with the Workflow runtime stubbed, and asserts every triage outcome, the stop rule and the cap, including the cases where a reviewer, verifier or fixer returns nothing or throws.
+
+---
+
 ## Remote Session
 
 The `claude/remote-session/` directory holds a Claude session that runs on the Windows machine and
@@ -912,6 +930,7 @@ New-Item -ItemType SymbolicLink -Path "$env:USERPROFILE\.claude\memory" -Target 
 New-Item -ItemType SymbolicLink -Path "$env:USERPROFILE\.claude\scripts" -Target "$PWD\claude\scripts"
 New-Item -ItemType SymbolicLink -Path "$env:USERPROFILE\.claude\output-styles" -Target "$PWD\claude\output-styles"
 New-Item -ItemType SymbolicLink -Path "$env:USERPROFILE\.claude\conventions" -Target "$PWD\claude\conventions"
+New-Item -ItemType SymbolicLink -Path "$env:USERPROFILE\.claude\workflows" -Target "$PWD\claude\workflows"
 New-Item -ItemType SymbolicLink -Path "$env:USERPROFILE\.git-hooks" -Target "$PWD\git\hooks"
 New-Item -ItemType SymbolicLink -Path "$env:USERPROFILE\.gitignore" -Target "$PWD\git\gitignore"
 New-Item -ItemType SymbolicLink -Path "$env:USERPROFILE\.gitattributes" -Target "$PWD\git\gitattributes"
@@ -935,6 +954,7 @@ ln -s "$(pwd)/claude/memory" ~/.claude/memory
 ln -s "$(pwd)/claude/scripts" ~/.claude/scripts
 ln -s "$(pwd)/claude/output-styles" ~/.claude/output-styles
 ln -s "$(pwd)/claude/conventions" ~/.claude/conventions
+ln -s "$(pwd)/claude/workflows" ~/.claude/workflows
 ln -s "$(pwd)/git/hooks" ~/.git-hooks
 ln -s "$(pwd)/git/gitignore" ~/.gitignore
 ln -s "$(pwd)/git/gitattributes" ~/.gitattributes

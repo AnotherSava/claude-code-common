@@ -52,5 +52,22 @@ not shrink, classify every finding as fix / theoretical / wrong against real cal
 artifacts and the owning session's own record; fix the real ones, and memo the theoretical ones with
 their evidence instead of hardening against them.
 
+**An automated review-and-fix loop counts as presenting findings, so the gate goes into its prompts.**
+A workflow that verifies and fixes on its own shows its findings to nobody, which is the one moment the
+rest of this memory is written for, and its subagents see this memory only as one index line in
+`CLAUDE.md` — an explicit prompt saying "fix these confirmed defects" overrides it. So the verify
+prompt asks for evidence that something reaches the case and rates frequency and cost, the fix prompt
+receives what earns code plus the rare cases with an instruction to add only a log line or a doc
+sentence, and the loop stops when a round finds nothing that earns code. Run such loops
+through the saved `review-and-fix` workflow (`claude/workflows/review-and-fix.js`, called as
+`Workflow({name: "review-and-fix", args: {scope, lenses, context, gate}})`), which carries all of it and
+returns the triage table to present. The `workflow-realism.py` hook warns when a workflow's inline
+script, or the file a `scriptPath` run names, fixes findings and mentions none of `frequency`, `reached_by` or `review-and-fix`; any
+mention of those words silences it, so its silence does not prove a realism gate exists. Seen 2026-10-02 in tauri-dashboard: 8 workflows, 347 agents and 10 review
+rounds confirmed 125 findings, 85 of them rated low, and coded every one; a post-review found the
+fixes had bloated the prompt-origin code and parts of the label and attention code. Its verify prompts
+refuted only what "cannot happen, is already handled, or is a deliberate documented limit" — truth,
+never realism.
+
 Related: [[feedback_complexity_may_be_self_imposed]], [[feedback_no_defensive_fallbacks]],
 [[feedback_check_the_limit_is_real]], [[feedback_loud_errors]].

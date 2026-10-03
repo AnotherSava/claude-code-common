@@ -230,7 +230,7 @@
 - [Link inside the question](feedback_link_inside_the_question.md) {always} — a choice that needs a page opened first gets the link in the question box or plain text; the box covers the text above it
 - [Ask for the entry point](feedback_ask_for_the_entry_point.md) {always} — can't find the surface a request names? ask how they reach it (chord, menu path, URL), not which candidate it is
 - [Commit gate contents](feedback_commit_gate_contents.md) — a repo's commit gate runs its build, lint and tests where each exists; draft from what's there, invent no linter
-- [Rate realism before hardening](feedback_realism_before_hardening.md) {always} — a rare edge case a review found, harmless or cheap to handle by hand, is reported and gets a warning or a doc line, not code
+- [Rate realism before hardening](feedback_realism_before_hardening.md) {always} — a rare edge case a review found, harmless or cheap to handle by hand, is reported and gets a warning or a doc line, not code; an automated review-and-fix loop runs through the saved `review-and-fix` workflow, whose verify step rates who reaches each finding
 - [Date split memos from the pickaxe](feedback_memo_split_dates_from_pickaxe.md) — v1 Path A split: recover each [x] close date with the pickaxe and offer dated done/ names
 - [Re-measure before concluding](feedback_remeasure_before_concluding.md) — shared state other sessions are changing goes stale in minutes; re-measure in the turn that states the verdict
 - [Issue replies lead with the feature](feedback_issue_reply_feature_first.md) — tell a reporter what they get, not the mechanism; a reason goes in the example or brackets

@@ -10,8 +10,9 @@
 #
 # Deliberately absent: a linter. There is no lint config in this repo and adopting one is its own
 # decision with its own baseline to triage, not something to smuggle in behind a commit gate.
-# Also absent: any check of the ~/.claude symlinks. `check-install.py` owns that, it runs at every
-# session start already, and its answer is about this machine rather than about the change set.
+# The ~/.claude symlinks are asserted here without a line of their own: the "Conventions — this repo"
+# run below includes the universal rule install-links-present, which imports `check-install.py`'s
+# LINKS, so every link listed there is checked at every commit, as it is at session start.
 #
 # Prerequisite is `python3` on PATH. Its absence fails rather than skips: a check that cannot tell
 # "passed" from "never ran" turns an open problem into a closed-looking one.
@@ -98,6 +99,21 @@ run "pre-push hook" bash claude/tests/pre-push-hook.sh
 # Each case runs in a sealed scratch repo, and a refusal counts only when it carries the refusing
 # check's own words.
 run "pre-commit hook" bash claude/tests/pre-commit-hook.sh
+
+# The hook that files an approved plan into the repo, unattended at every approval on both machines.
+# Both of its failures are quiet: a plan filed into a fork or someone else's clone sits among their
+# design docs until a commit carries it upstream, and a plan moved rather than copied is gone once
+# that working tree is cleaned.
+run "plan archive" python3 claude/tests/plan-archive.py
+
+# The saved workflow automated review loops run through. What it guarantees is decided in plain code — which
+# verified findings get code, that a quiet round ends the loop, that it never passes two rounds — and a loop
+# without it coded 125 findings in one day, 85 of them rated low. Needs node; its absence fails rather than skips.
+run "review-and-fix workflow" node claude/tests/review-and-fix.mjs
+
+# The backstop that warns when an inline workflow fixes findings without rating realism. Too quiet and the next
+# such loop runs unnoticed; too loud on review-only workflows and the warning stops being read.
+run "workflow realism hook" python3 claude/tests/workflow-realism.py
 
 # The PreToolUse guards that read Bash commands, and the shared module that finds command position
 # for them. A guard that refuses too little leaks a secret into the transcript; one that refuses too
