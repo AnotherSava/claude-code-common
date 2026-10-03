@@ -31,7 +31,9 @@ One shared helper behind both, with the namespaces as a parameter, is the step t
 **What a merge has to answer**, and what nearly made the case for keeping them apart:
 
 - They mean opposite things. A memo is work deliberately *not* being done; a plan is the approved design for work in flight. A merged list offered by number in the status bar would mix the two.
-- `plan-archive.py start` is the only thing that retains `ExitPlanMode` text, which otherwise lives only in the transcript. Memos have no equivalent because capture requires an offer and a yes. A merge must keep an automatic-capture path.
+- `plan-archive.py start` is the only thing that puts `ExitPlanMode` text into a repo. Otherwise it stays in the transcript and in Claude Code's own `~/.claude/plans/<codename>.md`, which is machine-local, never committed and reused for the session's next plan, so it never reaches the other machine. Memos have no equivalent because capture requires an offer and a yes. A merge must keep an automatic-capture path.
 - The archived plans are a design log — 53 across Oleg's repos — read differently from `memos/done/`.
 
 Two arguments *not* to lean on, both withdrawn on 2026-10-01 after Oleg corrected them: `/pr-create` and `/pr-prepare` do read `docs/plans`, but neither has been used lately, so that is not a live dependency; and the `agwinterm` archival backlog above is a fork's.
+
+**Changed 2026-10-02, and what waits on this memo.** `plan-archive.py start` now writes the approved text from the hook payload (`tool_response.plan`) into the repo root's `docs/plans/`, copies rather than moves (`~/.claude/plans/` is left as Claude Code wrote it), and files nothing in a fork or a third-party clone — `engine.fork_of` and `engine.is_third_party` decide, so `agwinterm` gets no new plans. The README has no section for the hook: `/docs-relevance` proposed one, and it was dropped on 2026-10-02 so as not to document a mechanism this memo may retire. Whichever way this memo is decided, that section is the follow-up — written if plans stay, unnecessary if they merge.
