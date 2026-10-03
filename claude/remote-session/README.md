@@ -143,7 +143,8 @@ is enough for a change to it, and re-running the installer for one kills every s
 It also writes the `claude` function into every shell that has a profile. Git Bash, Windows
 PowerShell 5.1 and PowerShell 7 each read their own file and none of them is version-controlled, so
 it builds the function from `config.secret.env` rather than leaving them to be kept in step by
-hand. It leaves alone a function that already makes exactly this call (same distro and repo path),
+hand. It leaves alone a function that already makes exactly this call (same distro and repo path,
+and in Git Bash the `MSYS_NO_PATHCONV=1` prefix that keeps the script path from being rewritten),
 and prints the replacement for any other `claude` function rather than overwriting it, since a
 profile holds plenty the installer did not write.
 
