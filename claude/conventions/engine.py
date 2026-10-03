@@ -477,6 +477,18 @@ def is_repo(root: str) -> bool:
     return os.path.exists(os.path.join(root, ".git"))
 
 
+def repo_root(start: str) -> str | None:
+    """The nearest ancestor of `start` holding a `.git`, or None. A worktree's `.git` is a file."""
+    current = os.path.abspath(start)
+    while True:
+        if is_repo(current):
+            return current
+        parent = os.path.dirname(current)
+        if parent == current:
+            return None
+        current = parent
+
+
 def _git_directory(root: str) -> str | None:
     """Where this checkout's git metadata lives. A worktree's `.git` is a file pointing elsewhere."""
     path = os.path.join(root, ".git")

@@ -74,18 +74,6 @@ def _say(message: str) -> None:
     print(json.dumps({"systemMessage": message}))
 
 
-def _repo_root(start: str) -> str | None:
-    """The nearest ancestor holding a `.git`, or None. A worktree's `.git` is a file, not a dir."""
-    current = os.path.abspath(start)
-    while True:
-        if os.path.exists(os.path.join(current, ".git")):
-            return current
-        parent = os.path.dirname(current)
-        if parent == current:
-            return None
-        current = parent
-
-
 def _render(pending: list, adopted: int, latest: int, sha: str) -> str:
     """The gap as the user reads it: the numbers, at most five bullets, and the one command."""
     count = f"{len(pending)} version{'' if len(pending) == 1 else 's'} behind"
@@ -106,7 +94,7 @@ def main() -> int:
 
     payload = _payload()
     start = os.environ.get("CLAUDE_PROJECT_DIR") or payload.get("cwd") or os.getcwd()
-    root = _repo_root(start)
+    root = engine.repo_root(start)
     if root is None:
         # Three real project directories have no `.git` at all, one of them with its own `.claude/`
         # and CLAUDE.md. Under silence they would sit outside this system with no line anywhere
