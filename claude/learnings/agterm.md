@@ -227,10 +227,10 @@ conversation. Assume the pane is unpublishable and crop it out.
 
 ### `tree --json` shows one window, and nothing in the answer says so
 
-A bare `agtermctl tree --json` projects the **frontmost** window only. It returns
-an ordinary `workspaces[]` array, just a short one, so on a single-window setup it
-is indistinguishable from "every session on the machine" — which is exactly how it
-gets mistaken for one. Enumerate instead:
+A bare `agtermctl tree --json` projects the **frontmost** window only. Its
+`workspaces` array has an ordinary shape, just a short one, so on a single-window
+setup it is indistinguishable from "every session on the machine" — which is
+exactly how it gets mistaken for one. Enumerate instead:
 
 ```bash
 agtermctl window list --json          # then, per open id:
@@ -300,7 +300,13 @@ hidden scratch shell stays alive — `agtermctl help session scratch` says so in
 many words. A test on presence marks the session covered for the rest of its
 life. The node's `scratch` boolean tracked the open state correctly here and is
 equally usable; the surface's `visible` is the one that says what is on screen
-rather than what exists.
+rather than what exists. A second reading on the Mac the same day found a
+session carrying `kind: "scratch"` with `visible: false` and `active: false`
+while the node's own `scratch` was `false` — the stranded entry, with no overlay
+anywhere on screen.
+
+The non-scratch kinds are `left` and `right`: a split session carries both, so
+`left` is not the only thing a `surfaces` array holds before a scratch opens.
 
 What sets `overlay` is unmeasured. It stayed `false` throughout, and 0.25.0
 exposes no overlay command at all — `agtermctl --help` lists tree, events,
@@ -315,6 +321,5 @@ are `active`, `commandWait`, `cwd`, `flagged`, `fontSize`, `foreground`,
 `split`, `splitAxis`, `splitFocused`, `splitFontSize`, `splitForeground`,
 `surfaces` and `title`, with `scratchFontSize` arriving once a scratch has been
 opened. And the tree's top level is `app`, `idleMs`, `quickVisible`,
-`sidebarMode`, `sidebarVisible`, `workspaceFilter` and `workspaces` — there is no
-window node in `tree` at all, so anything window-scoped has to come from
-`window list --json`.
+`sidebarMode`, `sidebarVisible`, `workspaceFilter` and `workspaces`, reached
+under the `result.tree` envelope rather than at the document root.
