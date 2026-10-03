@@ -28,7 +28,7 @@ Before asking the user to do something (run a command, edit a file, check a valu
 
 Before asking the user *for missing context*, search past conversation history. A request that assumes shared knowledge I don't have ("my schedule spreadsheet", "that script we fixed", "the usual config") almost always refers to something established in an earlier session. Transcripts live in `~/.claude/projects/<slugified-cwd>/*.jsonl` — one file per session, and other project directories are worth checking when the topic isn't repo-specific. Grep them for the distinguishing term rather than reading whole files; they run to hundreds of KB each. Ask only after that comes up empty, and say what I already searched. Every entry also carries a timestamp, so the transcript answers *when* something happened and how long ago — never claim elapsed time is unobservable.
 
-When changes are ready to test, run the project's `deploy` command (or equivalent) yourself via Bash. Do not suggest the user "run `deploy`" or type `! deploy`. The Self-Sufficiency rule applies: invoke the action, don't outsource it.
+When changes are ready to test, run the project's `deploy` command (or equivalent) yourself via Bash. Do not suggest the user "run `deploy`" or type `! deploy`. The Self-Sufficiency rule applies: invoke the action, don't outsource it. A deploy that launches or relaunches an app with a window still gets the ask **Taking Over the Machine** requires, right before it — asking is not outsourcing, and on a yes you run it.
 
 Don't give up on an explicit instruction the moment it hits a minor difficulty (a tool not loaded, a server not connected, an auth step, a missing dependency). Exhaust the ways to clear the obstacle *on the requested path* yourself first — install it, configure it, authenticate it. A workaround or alternative approach is NOT one of those ways: it's a different direction, and you don't take it unilaterally. If you genuinely can't clear the obstacle on the requested path, stop and confirm with the user before falling back to any alternative or abandoning the instruction. Silently substituting a workaround for what was explicitly asked is not acceptable — the user chose that path deliberately.
 
@@ -53,7 +53,9 @@ Some work needs the computer itself and not just a shell: raising a window to th
 
 This is a genuine exception to **Self-Sufficiency** above, which says to do a non-destructive action rather than hand it over. The action here may well be non-destructive and it is still not mine to start unannounced, because the cost lands on whatever the user was doing at that moment rather than on the file being changed.
 
-What is *not* this: launching a browser window, opening a terminal tab, starting a background process, or anything else that appears without seizing the foreground, the pointer or the keyboard. Those stay ordinary work.
+**Starting, restarting, reinstalling or relaunching an app with a window counts too**, however routine: a deploy that relaunches a widget, an install that replaces the terminal the user types in, a browser window opened. A new window can take focus, and a restarted app drops whatever the user had open in it. Ask right before it, once per launch. A subagent or workflow step never launches one: its prompt says "never deploy, start, restart or stop an app", and the main session does the launch after asking.
+
+What is *not* this: a process with no window — a build, a test run, a headless browser, a server bound to a port.
 
 **When one click by the user would settle the same thing, offer that before offering to take the machine.** Taking the screen is for what only the screen can do — driving a sequence, holding a window through several steps. It is the wrong instrument for a single observation, and it fails in ways a person simply looking does not: one such burst was spent discovering that the agent's own tab was not the active tab in the window it had just raised, and ended having learned nothing, while "play this one title and tell me whether the picture comes up" answered the same question in seconds. Offer both, say which is cheaper, and expect the answer to be theirs.
 
@@ -247,7 +249,7 @@ See `~/.claude/learnings/gitignore-anchoring-and-scope.md` for the anchoring rul
 
 ## Symlinks
 
-Everything under `~/.claude/` is symlinked from the dotfiles repo (`CLAUDE.md`, `settings.json`, `skills/`, `hooks/`, `learnings/`, `memory/`, `scripts/`). The Write and Edit tools **refuse to write through symlinks**. Before editing any file under `~/.claude/`, resolve the symlink with `readlink <path>` and pass the real target path to Write/Edit.
+Everything under `~/.claude/` is symlinked from the dotfiles repo (`CLAUDE.md`, `settings.json`, `skills/`, `hooks/`, `learnings/`, `memory/`, `scripts/`, `output-styles/`, `conventions/`, `workflows/`). The Write and Edit tools **refuse to write through symlinks**. Before editing any file under `~/.claude/`, resolve the symlink with `readlink <path>` and pass the real target path to Write/Edit.
 
 For first-time global installation, use the platform-appropriate command block from `README.md`'s Global Installation section. For ad-hoc symlinks during a session:
 
@@ -371,7 +373,7 @@ Cross-project preferences and feedback. Memory files live in `~/.claude/memory/`
 - [A subagent calls the real function](~/.claude/memory/feedback_subagent_calls_the_real_function.md) — never restate logic that exists as code — in a prompt, or by reading a rule's prose to prescribe a fix; run the real function against the candidate answer
 - [Link inside the question](~/.claude/memory/feedback_link_inside_the_question.md) — a choice that needs a page opened first gets the link in the question box or plain text; the box covers the text above it
 - [Ask for the entry point](~/.claude/memory/feedback_ask_for_the_entry_point.md) — can't find the surface a request names? ask how they reach it (chord, menu path, URL), not which candidate it is
-- [Rate realism before hardening](~/.claude/memory/feedback_realism_before_hardening.md) — a rare edge case a review found, harmless or cheap to handle by hand, is reported and gets a warning or a doc line, not code
+- [Rate realism before hardening](~/.claude/memory/feedback_realism_before_hardening.md) — a rare edge case a review found, harmless or cheap to handle by hand, is reported and gets a warning or a doc line, not code; an automated review-and-fix loop runs through the saved `review-and-fix` workflow, whose verify step rates who reaches each finding
 <!-- END generated -->
 
 ## Memos

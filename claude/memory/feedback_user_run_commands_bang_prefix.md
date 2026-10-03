@@ -13,4 +13,5 @@ When I want to verify my own changes by running a command (`deploy`, `build`, `t
 - For commands available as Claude Code skills (`deploy`, `build`, `test`, `release`, `commit`, etc.), invoke them through the Skill tool.
 - For ad-hoc shell commands, run via Bash.
 - Genuine exceptions where it's still right to ask: destructive/irreversible commands (force-push, drop database), commands that require interactive user input (login flows), or anything explicitly outside the auto-mode safety envelope.
+- A deploy or launch that starts or restarts an app with a window — ask right before it, per CLAUDE.md's **Taking Over the Machine**.
 - This is a hard rule, not a hint. Auto mode reinforces it: "execute immediately, minimize interruptions, prefer action over planning."

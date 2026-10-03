@@ -202,6 +202,8 @@ If step 2 or 3 made changes, tell the user:
 >
 > For now, running the deploy directly:
 
+When `TARGET` starts, restarts or closes an app with a window — `deploy.sh` and `deploy-tauri.sh` both launch the installed app, and `deploy-intellij-plugin.sh` closes the IDE when `IDE_PROCESS` or `IDE_BUNDLE_ID` is set — ask right before running it, per CLAUDE.md's **Taking Over the Machine**: name the app that will start, restart or close, and run only on a yes. `deploy-dev-server.sh` starts no window and needs no ask.
+
 Run the deploy now (bypassing the shell function, which needs a restart to load):
 - If **USE_DOPPLER** is true, run the wrapper so the Doppler render runs before the build:
   ```
