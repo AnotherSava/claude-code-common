@@ -188,6 +188,10 @@ Describe the thing as it is, not the drafts it went through — **and this one b
 
 A factual claim in prose must stay true as the thing it describes grows. Don't anchor a range or a count on the current last item — "APP_CONTAINER through VHOST_SRC" and "all four of them" both rot the moment someone appends. Write the open form ("APP_CONTAINER onward", "every key below it"), which costs nothing and cannot go stale. A line number is the same trap with the shortest half-life of all — one such anchor moved three lines in a single morning, from an edit to the very header that cited it — so point at a file plus a stable landmark (a heading, a key name), never `file:NN`. A position inside the document is the same trap one size smaller — "the bullet above", "the section below" — and it slips past the rule as written, because it carries neither a count nor a number to notice. Point at the thing by name: "the behind-its-upstream bullet", not "the bullet above", since an item inserted between the two silently makes the reference wrong and nothing will flag it.
 
+### Code Comments
+
+Comment only what the code cannot say: why it is done this way, the constraint it serves, and what must change together with it (name the other site by exact identifier and file). Never restate what the code does. Keep each comment readable on its own, without the surrounding file. The exception is a third-party project, or a fork whose changes are meant to merge upstream: there, follow that project's comment conventions.
+
 ### Explicit State
 
 Use a dedicated field or variable for object state rather than overloading another field's values (e.g., using `internalDate === 0` as a "deleted" sentinel). A simple null/non-null check is fine, but anything beyond that should be an explicit status field.

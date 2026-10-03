@@ -169,7 +169,7 @@ Three rules share one shape: the sentence is **correct the day it is written**, 
 
 ## Rules that live elsewhere
 
-`CLAUDE.md`'s **Prose Style** section is injected into every session, so its three rules are already loaded whenever you write anything and this file does not repeat them: no sentence opening on a backticked code span, parallel enumerations sharing grammatical form, and the drift-proof anchor rule above. Treat them as in force here.
+`CLAUDE.md`'s **Prose Style** section is injected into every session, so its rules are already loaded whenever you write anything and this file does not repeat them: no sentence opening on a backticked code span, parallel enumerations sharing grammatical form, describing the thing as it is rather than its drafts, and the drift-proof anchor rule that **Anchor a range on what cannot move** points at. Treat them as in force here. Its **Code Comments** section, injected the same way, governs what a comment says at all; this skill governs how a comment running past a few lines is written.
 
 `CLAUDE.md`'s **Overused Phrases** section governs every authored text, documents included. It is a live blocklist — read it, do not summarise it.
 

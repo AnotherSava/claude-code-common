@@ -86,8 +86,11 @@ every line not yet written.
   discriminator whose only job is to say which meaning that field currently holds.
 - **Single source of logic**, and confirming the path you fix is the one that actually runs.
 - **Prose and UI style** — single-line expressions preferred, sentence case for UI strings, no backticked
-  code opening a sentence, parallel enumerations sharing grammatical form, no claim anchored on a current
-  last item or a line number.
+  code opening a sentence, parallel enumerations sharing grammatical form, describing the thing as it is
+  rather than the drafts it went through, no claim anchored on a current last item or a line number.
+- **Code comments** — comment only what the code cannot say (why, the constraint served, what must change
+  with it, named by identifier and file), never restate what the code does, and keep each comment readable
+  on its own; a third-party project or an upstream-bound fork follows its own comment conventions instead.
 - **No logic, data structures, classes or exports in production code that exist only to support tests.**
 - **The dashboard tray icon's three machine-interaction states** — idle, request pending, interaction
   running: a feature of one app's source rather than a shape any repo can be checked for.
