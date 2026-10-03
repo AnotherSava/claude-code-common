@@ -108,13 +108,17 @@ one that is left.
 
 Both tabs are titled with the session's status. The Claude Code Dashboard on the Windows machine
 writes it once and tmux passes it to every attached terminal, so the two stay in step. The Mac tab
-has `⇄` in front. That badge, and the picker opening the tab in `/`, keep the Mac's own dashboard
-from taking the tab for one of its sessions. A tab where you run `attach.sh` by hand from inside a
-project directory has only the badge, so the Mac dashboard can read it as its own session of that
-project.
+has `⇄` in front, which tells the Mac's own dashboard which machine's row that tab names: it reads a
+badged title carrying a status against its synced rows only, so leaving one of these tabs marks the
+Windows session read rather than a same-named local one.
 
 Until the dashboard first writes to a new session, its tabs show the path of the `claude.exe` it
-runs. If the dashboard stops, they keep the last status it wrote.
+runs. If the dashboard stops, they keep the last status it wrote. A title carrying no status names no
+row, so the Mac dashboard falls through to the tab's working directory — and the picker opens these
+tabs in `/`, which derives an empty project id that matches no row at all. A tab you attach by hand
+sits in a real project directory, which does derive this machine's row for that project; the credit
+is refused anyway, because the tab holds a transport, and a transport is credited only where a
+badged title named the row, never where the working directory did.
 
 ## Setting it up
 

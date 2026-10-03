@@ -296,8 +296,12 @@ def main() -> int:
     # No --name: an agterm name outranks the terminal title, and the title is where the session's
     # status arrives, badge included (lib.sh remote_session_attach). The tab opens in `/` because the
     # dashboard on this machine falls back to a tab's working directory when its title names no
-    # status, and a tab sitting in a project directory would be read as that project's local session.
-    # No project is named after `/`.
+    # status, and a tab sitting in a project directory derives that project's local session. `/` is
+    # the one cwd that derives nothing: `adapters::claude::derive_chat_id` in the tauri-dashboard
+    # repo trims it to the empty string, and an empty id matches no row. That dashboard refuses the
+    # credit a second time in `terminals::person_verdict`: the tab holds a transport, and a transport
+    # is credited only where a badged title named the row, so a row the working directory named is
+    # refused. Opening these tabs anywhere real leaves only that refusal standing.
     result = agtermctl(
         "session", "new",
         "--workspace-name", WORKSPACE, "--create-workspace",

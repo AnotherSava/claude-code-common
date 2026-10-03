@@ -276,5 +276,3 @@ is no tmux on that machine to measure it with. Test it before relying on it.
 - Ctrl-C, bracketed paste and mouse reporting through the interop relay.
 - Whether an ssh-started `claude --bg` escapes the job object on a box with no daemon already
   running.
-- Whether the Mac's own dashboard leaves a badged remote tab opened in `/` alone. The title reaching
-  that tab was measured; what the dashboard then does with it was not.

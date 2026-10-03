@@ -138,10 +138,11 @@ remote_session_resume_command() {
 }
 
 # The mark in front of a session's status on a tab that is not on the Windows machine. It tells a
-# remote session apart from a local one at a glance. It also keeps the Mac's own dashboard from
-# reading the title as a status, which it does only for a title that opens with a status symbol. That
-# dashboard then falls back to the tab's working directory, which is why the picker opens these tabs
-# in `/` (mac/pick-session.py).
+# remote session apart from a local one at a glance, and it tells the Mac's own dashboard which
+# machine's row the tab names: `attention::resolve_row` in the tauri-dashboard repo reads a badged
+# title against its synced rows only, so leaving one of these tabs marks the Windows session read
+# rather than a same-named local one. Changing this symbol means changing `REMOTE_BADGE` in that
+# repo's `src-tauri/src/terminal_title.rs` with it.
 REMOTE_SESSION_BADGE='⇄'
 
 # Attaches this terminal to a session, and blanks the terminal's title when tmux hands it back.
