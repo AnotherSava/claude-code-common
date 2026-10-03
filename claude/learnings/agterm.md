@@ -275,3 +275,46 @@ cwd basename`, so a row reading `✋ bga-assistant [70%]` is showing a title som
 other program wrote — for this fleet, the dashboard's `terminal_title::sync`.
 The red count badge beside it *is* agterm's own, and the two are easy to
 conflate when reading a screenshot.
+
+## A scratch overlay shows up in `surfaces`, and not in `overlay`
+
+Every session node in `tree` carries an `overlay` boolean, and it is not the one
+that answers whether a terminal is drawn over that session. Opening a scratch
+overlay leaves it `false` and changes the `surfaces` array instead, so anything
+reading `overlay` to decide "is something covering this session" answers no
+while one is on screen.
+
+Measured on agterm 0.25.0 (commit 94ab03f2) 2026-10-03, by toggling a scratch
+overlay on one session and reading `agtermctl tree --json` either side of it:
+
+| field | closed | scratch open |
+|---|---|---|
+| `overlay` | `false` | `false` |
+| `scratch` | `false` | `true` |
+| `surfaces` | one entry, `kind: "left"`, `visible: true` | `left` goes `visible: false`; a second entry appears, `kind: "scratch"`, `visible: true` |
+| `paneOverlays` | absent | absent |
+
+**Read the scratch surface's `visible`, never the entry's presence.** Closing the
+overlay sets `visible: false` and leaves the entry in the array, because the
+hidden scratch shell stays alive — `agtermctl help session scratch` says so in as
+many words. A test on presence marks the session covered for the rest of its
+life. The node's `scratch` boolean tracked the open state correctly here and is
+equally usable; the surface's `visible` is the one that says what is on screen
+rather than what exists.
+
+What sets `overlay` is unmeasured. It stayed `false` throughout, and 0.25.0
+exposes no overlay command at all — `agtermctl --help` lists tree, events,
+workspace, session, surface, dashboard, window, quick, sidebar, notify, font,
+keymap, config, theme, pick, restore and version, of which `session scratch` is
+the only overlay-shaped one. `paneOverlays` never appears either, and with no way
+to open a pane overlay its absence says nothing about how agterm spells it.
+
+Two shapes worth having beside that, from the same reading. A session node's keys
+are `active`, `commandWait`, `cwd`, `flagged`, `fontSize`, `foreground`,
+`hasSplit`, `id`, `name`, `overlay`, `realized`, `scratch`, `scratchFontSize`,
+`split`, `splitAxis`, `splitFocused`, `splitFontSize`, `splitForeground`,
+`surfaces` and `title`, with `scratchFontSize` arriving once a scratch has been
+opened. And the tree's top level is `app`, `idleMs`, `quickVisible`,
+`sidebarMode`, `sidebarVisible`, `workspaceFilter` and `workspaces` — there is no
+window node in `tree` at all, so anything window-scoped has to come from
+`window list --json`.
