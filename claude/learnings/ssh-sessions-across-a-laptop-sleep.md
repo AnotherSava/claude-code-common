@@ -3,7 +3,8 @@
 A terminal tab holding `ssh` into another machine does not die when the laptop sleeps. It dies
 hours later, at a moment nothing else explains, with a message that blames the far end. Every part
 of that is misleading, and the companion file for the sleep itself is
-`macos-idle-sleep-diagnosis.md`; this one is about what the sleep does to the sockets.
+`macos-idle-sleep-diagnosis.md`; this one is about what the sleep does to the sockets. Keeping the
+far side alive to be reconnected to is `windows-persistent-terminal-session.md`.
 
 ## The shape
 

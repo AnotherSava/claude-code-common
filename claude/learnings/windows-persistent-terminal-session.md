@@ -265,24 +265,13 @@ client can join.
 The survival claim is reasoned from the absence of job objects rather than measured, because there
 is no tmux on that machine to measure it with. Test it before relying on it.
 
-## A sleeping client's ssh dies hours later, and nothing on either end notices
+## A sleeping client's ssh dies hours later
 
-Measured 2026-10-03: the Mac slept on battery at 08:26:52 with three tabs attached, and neither end
-was asking the other for anything — `ssh -G` reported `serveraliveinterval 0`, the far side's sshd
-`clientaliveinterval 0`, the kernel's `keepidle` two hours. The three sockets sat until TCP timers
-reaped them between 1h15m and 6h34m later, every one of them while the laptop was still asleep. tmux
-on the Windows side held all three sessions and all three agents throughout, so only the transport
-had died; the tabs sat at a press-any-key prompt with no sign of which hour they had stopped being
-live.
-
-Nothing can keep that connection alive, because a sleeping laptop runs no process and sends no
-packet. What `ServerAliveInterval=15 ServerAliveCountMax=4` buys is a *deadline* rather than a
-keepalive: the probe deadline is absolute against a clock that runs through the suspend, so a
-transport that died during sleep is noticed within 75s of waking instead of at whatever hour TCP
-gets round to it. The retry that follows is the Mac's half — see `mac/attach.sh`, which loops rather
-than exec'ing into ssh for this reason — and it must attach without creating, since a session that
-ended while nobody was watching is worth surfacing rather than replacing with a fresh agent in the
-same directory.
+Keeping the Windows side up is this file's subject. A *client* that sleeps is a separate failure with
+its own file: the tabs do not die at the sleep but hours later, when unrelated OS TCP timers fire,
+and ssh's own wording blames the far end. The measured timeline, the three keepalive clocks, the
+`log show` predicate that reads the deaths back, and why `ServerAliveInterval` is a deadline rather
+than a keepalive are in `ssh-sessions-across-a-laptop-sleep.md`.
 
 ## Still unmeasured
 
