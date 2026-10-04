@@ -237,3 +237,4 @@
 - [Issue replies lead with the feature](feedback_issue_reply_feature_first.md) — tell a reporter what they get, not the mechanism; a reason goes in the example or brackets
 - [Ask reporters only what they can answer](feedback_issue_reply_questions.md) — no questionnaire; scope is ours, close with "feedback and questions welcome"
 - [Amend the published comment](feedback_amend_the_published_comment.md) — a correction edits the text it corrects; a stacked follow-up leaves the wrong version as the one most people read
+- [Clear a provably stale blocker](feedback_clear_provably_stale_blockers.md) — state you can show is stale gets cleared by the operation itself, not refused with retry advice or waited out
