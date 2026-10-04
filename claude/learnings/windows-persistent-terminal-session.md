@@ -6,8 +6,8 @@ disconnects and be viewable from two machines at once, but the failures are not 
 hit any long-lived process started on a Windows host through an SSH connection.
 
 The SSH mechanics themselves — quoting through cmd.exe, the admin-key trap, probing reachability —
-are in [[windows-openssh-over-tailscale]]. Task registration without admin rights, and the two
-defaults that silently defeat a task, are in [[windows-scheduled-tasks-nonadmin]].
+are in `windows-openssh-over-tailscale.md`. Task registration without admin rights, and the two
+defaults that silently defeat a task, are in `windows-scheduled-tasks-nonadmin.md`.
 
 ## Everything an SSH session starts is killed when the connection drops
 
