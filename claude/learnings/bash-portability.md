@@ -757,3 +757,14 @@ Each of these made a test pass on one machine and prove nothing, or fail for a r
   compared string.
 - **A non-interactive `ssh` session on the Mac has no Homebrew on `PATH`**, so `gpg` and anything else under
   `/opt/homebrew/bin` reads as missing. Prefix the remote command with `export PATH=/opt/homebrew/bin:$PATH;`.
+
+## Non-ASCII arguments reach a Windows program in the ANSI codepage, not UTF-8
+
+**Send non-ASCII text to an HTTP API from Python (or a file), never as a `curl` argument from Git Bash on Windows.**
+A native Windows `.exe` receives its command line through the ANSI codepage (cp1251 on the Windows machine;
+the em dash is `0x97` in cp1252 as well), so `curl --data-urlencode
+"name=Silo — Season 3"` encodes the em dash as the single byte `0x97`, percent-encodes that, and the server — which
+decodes UTF-8 — stores `U+FFFD`: the name read back as `Silo � Season 3` with HTTP 200 and no error anywhere
+(measured 2026-10-04 against qBittorrent's `torrents/rename`). The same call from Python with
+`urllib.parse.urlencode(..., encoding="utf-8")` stored `—` correctly. Read the value back with `ascii()` or a
+hex dump to check, since the console prints a mangled character and a correct one in ways that are easy to confuse.
