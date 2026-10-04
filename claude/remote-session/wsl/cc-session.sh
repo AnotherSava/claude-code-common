@@ -17,9 +17,13 @@
 # in the same directory.
 #
 # The exit codes a caller branches on: 2 usage, 1 no such project directory, 4 the holder is down,
-# 3 reattach found no session. The holder gets its own code because it is the one refusal here that
-# clears without a person — the sshd answers before logon and the holder's scheduled task fires at
-# it — so a Mac tab that keeps trying comes back, where one that stopped would need somebody.
+# 3 reattach found no session. A failing `tmux attach-session` also arrives as 1, its status being
+# this script's last — `kill-server`, and a session killed between the check below and the attach,
+# both produce it — so a caller that reads 1 cannot separate that from a missing directory and can
+# only say the far side refused. The holder gets its own code because it is the one refusal here
+# that clears without a person — the sshd answers before logon and the holder's scheduled task
+# fires at it — so a Mac tab that keeps trying comes back, where one that stopped would need
+# somebody.
 
 set -eu
 

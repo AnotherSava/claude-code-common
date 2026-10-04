@@ -125,7 +125,12 @@ while [ "$stop" -eq 0 ]; do
 
     case $status in
         0)
-            # A detach, or a session that ended under the client. remote_session_attach already
+            # A detach, or a session that ended under the client — both of which mean stop, and
+            # both measured on the far side's tmux 3.4 rather than read from its source, since the
+            # whole loop turns on them: a client detached with `detach-client`, which is the same
+            # MSG_DETACH that Ctrl-b d sends, exits 0, and so does one whose session is killed
+            # under it. `kill-server` exits 1 and so does an attach to a session that is not there,
+            # which land below and stop with their reason. remote_session_attach has already
             # blanked the title on its way out.
             exit 0
             ;;

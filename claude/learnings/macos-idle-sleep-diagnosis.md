@@ -7,7 +7,9 @@ subagent investigating this hit it and built a headline finding on top of it, an
 reconstruction below is what caught that.
 
 The *lid* path is a separate kernel route no assertion reaches, and its companion file is
-`~/.claude/learnings/macos-lid-close-sleep.md`. This file is about idle sleep.
+`~/.claude/learnings/macos-lid-close-sleep.md`. This file is about idle sleep. What a sleep does to
+a long-lived ssh session — which is neither what it does to a turn nor when you would expect — is
+`~/.claude/learnings/ssh-sessions-across-a-laptop-sleep.md`.
 
 ## The live picture
 

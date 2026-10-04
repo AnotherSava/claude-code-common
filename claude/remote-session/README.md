@@ -86,12 +86,13 @@ Closing the lid on battery sleeps the Mac within the minute, and the ssh under e
 some hours later with neither end having noticed: on 2026-10-03 three of them took between 1h15m
 and 6h34m, every one while the laptop was still asleep. Nothing on the Windows machine is touched
 by that, tmux keeping both the session and the agent in it, so the tab reattaches to the same
-conversation about a minute after the Mac wakes, retrying from five seconds out to every five
-minutes for as long as that machine is away. Ctrl-C in the tab stops it. The reconnect attaches but
-never creates: where the machine is up and holds no session for that project any more, the tab says
-so and stops, because a session that ended hours ago is worth seeing rather than replacing with a
-fresh agent in the same directory. A reconnect is an attach like any other, so the Windows
-terminal's window takes this Mac's size again each time.
+conversation about a minute and a half after the Mac wakes — ssh takes up to 75 seconds to notice
+a transport that died during the sleep, and the first retry follows five seconds later — retrying
+from there out to every five minutes for as long as that machine is away. Ctrl-C in the tab stops
+it. The reconnect attaches but never creates: where the machine is up and holds no session for
+that project any more, the tab says so and stops, because a session that ended hours ago is worth
+seeing rather than replacing with a fresh agent in the same directory. A reconnect is an attach
+like any other, so the Windows terminal's window takes this Mac's size again each time.
 
 ### The keystroke, and why it is not the attach command
 
