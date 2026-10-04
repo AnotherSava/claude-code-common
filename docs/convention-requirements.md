@@ -18,6 +18,7 @@ The set as it stands. Each row is one **version** — a change a repo takes on b
 | **v10** | every memo v1's split produced sits on the side its checklist marker asked for, since v1 asserted only that each line reached *some* file | the repo's backlog was once a `memos.md` checklist | | |
 | **v11** | a Cloudflare Worker's script name is its project's own, and every hostname it claims opens with that name, because a DNS zone is a namespace every project taking hostnames in it shares | the repo holds a `wrangler.toml` | ✓ | ✓ |
 | **v12** | each screenshot's raw capture is committed beside it in `docs/screenshots/raw/`, so it can be re-framed on either machine without a re-shoot, and the docs site excludes that directory | the repo captures screenshots by script | ✓ | ✓ |
+| **v13** | a project `.gitignore` drops its own `/tmp/` line, because the global excludes file now ignores the agent's scratch folder at every repo's root | the root `.gitignore` carries `/tmp/` | | |
 
 Each version is gated on one prerequisite, and versions that shared one were merged rather than kept apart: v1 covers every transformation a backlog needs, v2 both halves of what a `.gitignore` may hold, v5 the three Node properties in the order they depend on each other, v9 both halves of the gate.
 

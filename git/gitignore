@@ -7,6 +7,12 @@ Thumbs.db
 .firecrawl/
 config/deploy.env
 
+# Claude Code's scratch folder at a repo's root: previews, logs, tokens minted for a test. It exists because of how
+# the agent works rather than because of any project, so it is ignored here once instead of in every repo
+# (claude/memory/feedback_scratch_lives_in_project_tmp.md). Root-anchored, so a tmp/ deeper in a project stays
+# visible. A clone that commits a root tmp/ keeps its tracked files tracked; only new files there go unseen.
+/tmp/
+
 # config/publish.env is NOT ignored any more — it is versioned, encrypted with transcrypt.
 #
 # Ignoring it meant every machine kept its own unversioned copy, hand-edited, and those copies drifted:

@@ -18,9 +18,11 @@ no grant at all, behaves identically on the Windows and macOS machines, and cann
 another repo's run.
 
 **How to apply:**
-- Add `/tmp/` to the project's `.gitignore` on first use, anchored with the leading slash so it
-  matches only the repo root.
-- This supersedes the `documentation` skill's `$TEMP/<artifact>-<repo>-<date>` convention for
+- The global excludes file (`git/gitignore` in the dotfiles repo, installed as `~/.gitignore`) ignores
+  `/tmp/` at every repo's root, so no project needs its own entry. The folder is the agent's convention,
+  not any project's, which is what the global file is for. Before relying on it in a fresh repo, confirm
+  with `git check-ignore -q tmp/x`.
+- This supersedes the `docs-relevance` skill's old `$TEMP/<artifact>-<repo>-<date>` convention for
   anything that must be re-read. That rule's whole purpose was to stop two repos overwriting each
   other's sheet in a shared directory, which is moot once the directory is per-repo. Keep the
   descriptive filename anyway; it costs nothing and reads better in a link.
