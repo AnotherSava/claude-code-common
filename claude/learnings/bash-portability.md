@@ -411,6 +411,11 @@ typo you cannot find. Same failure invoking PowerShell: `"$env:USERDOMAIN\$env:U
 without its separator and account lookups fail with `No mapping between account names and security IDs
 was done`.
 
+The collapse can also kill the whole command before anything runs. A body holding a quoted backslash
+— `'\\'` in a Rust char literal, `['\\r', '\\n']` in Python — arrives as `'\'`, an escaped quote
+that leaves the rest of the command unbalanced, and bash refuses it with `unexpected EOF while looking
+for matching `''`. Nothing executes, so a multi-file write in that heredoc writes none of its files.
+
 Fix: write the script to a real file and run it (`python script.py`, `powershell -File script.ps1`).
 Reserve heredocs for bodies with no backslashes.
 

@@ -394,3 +394,11 @@ $mmi.ptMinTrackSize   # 1522 x 716 == 1000 x 440 logical at 150% DPI
 
 Divide by the window's DPI scale before comparing against the logical numbers in `tauri.conf.json`, and make
 the probe per-monitor DPI aware (`SetProcessDpiAwarenessContext(-4)`) or every geometry it reads is virtualized.
+
+## An ASCII apostrophe in `productName` breaks the NSIS installer
+
+Give `productName` a typographic apostrophe (`What’s`, U+2019), never `'`. Tauri's NSIS template passes the
+product name into macros, and makensis reads the ASCII apostrophe as a quote, so the bundle step fails with
+`!insertmacro: macro "NSISCOMCALL" requires 4 parameter(s), passed 8!` and `Error in macro IsShortcutTarget`,
+pointing into the generated `installer.nsi`. The Rust build itself succeeds, so the binary exists and only
+`tauri build`'s bundling fails. Measured with Tauri CLI 2.12, 2026-10-04.

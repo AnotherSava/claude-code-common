@@ -544,6 +544,17 @@ Two traps worth naming:
 - **Do not resolve the tty with `lsof` when `ps -o tty=` says `??`.** A `bg-pty-host` holds a real private pty (`/dev/ttysNNN`, under `/tmp/cc-daemon-<uid>/`) that no login process owns. Writing an OSC escape to it succeeds and is never visible — a silent failure where `??` was the honest answer.
 - **`sessionKind:"bg"` in the transcript and `CLAUDE_JOB_DIR` in the child environment both identify a bg session**, and neither tells you a terminal. `CLAUDE_JOB_DIR` is the cheap in-hook test (set only by the daemon's bg env builder and exempt from the hook env strip list); `CLAUDE_CODE_SESSION_KIND` is *not* — it is stripped from children. `CLAUDE_AGENTS_SELECT` is inherited once at daemon spawn and is identical across unrelated jobs, so testing on it misfires.
 
+## Background shells are reaped under memory pressure
+
+Run a process that must stay up through idle time — a test agent another session is waiting on, a server
+that stays up for someone else to use — outside Claude Code, not as a `run_in_background` Bash call. Claude Code kills
+its own background shells when the machine runs critically low on memory while the session is idle, and
+reports it as a task notification with status `killed`, saying nothing about the process's own memory
+use. It happened twice within an hour on 2026-10-04 at about 4 GB free of 32 GB, each time taking down a
+headless agent a peer session was testing against. Only starting Claude Code with
+`CLAUDE_CODE_DISABLE_BG_SHELL_PRESSURE_REAP=1` in its environment turns this off; setting the variable from
+a shell command inside the session has no effect.
+
 ## MCP server conventions
 
 For projects that also register an MCP server:
