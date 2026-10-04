@@ -178,7 +178,7 @@ Default to sentence case for user-facing UI strings (menu items, buttons, dialog
 
 ### Prose Style
 
-Four rules live here because they apply to every sentence and cost nothing to carry. Everything else about how a document is written — what it opens with, how it is structured, which sentences to cut — is the `docs-style` skill: **invoke it before drafting or rewriting any long-form prose**, a docs page, a README section, a learnings file or a version README. It carries the worked before/after pairs, and it does not repeat the four below.
+The rules here apply to every sentence and cost nothing to carry. Everything else about how a document is written — what it opens with, how it is structured, which sentences to cut — is the `docs-style` skill: **invoke it before drafting or rewriting any long-form prose**, a docs page, a README section, a learnings file or a version README. It carries the worked before/after pairs, and it does not repeat them.
 
 In prose (docs, READMEs, comments), don't open a sentence or line with code-formatted (backtick-wrapped) text when regular text follows — lead with a real word and fold the code reference in after it ("The `notifications` block controls…" not "`notifications` controls…"). Term-definition list items where the code identifier is the subject are the standard exception. See `~/.claude/memory/feedback_no_code_at_sentence_start.md`.
 
