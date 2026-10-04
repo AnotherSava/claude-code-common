@@ -9,9 +9,10 @@ folder at the root of whichever repo it is working in. That folder belongs to ho
 rather than to any project, so the global excludes file (`git/gitignore` in the dotfiles repo) now
 ignores `/tmp/` once for every repo, and a project `.gitignore` no longer carries its own copy.
 
-A repo that kept the line now fails its commit gate: v2's `gitignore-scope-global` rule re-reads the
-global file at every commit and reports the project's `/tmp/` as a duplicate. This version is the
-migration that clears it.
+A repo that kept the line now fails its commit gate, unless a `!` line comes before it: v2's
+`gitignore-scope-global` rule re-reads the global file at every commit and reports the project's
+`/tmp/` as a duplicate, but stops judging duplicates after the first negation. This version is the
+migration that clears the line either way.
 
 ## Migrating an existing repo
 
@@ -50,4 +51,4 @@ repo commits no root `.gitignore` at all.
 ## Continuing rule
 
 None — this is a one-time migration. v2's `gitignore-scope-global` already reports the line in any
-repo at v2 or later.
+repo at v2 or later where no `!` line comes before it.
