@@ -86,15 +86,25 @@ PROC_NAME="$BIN_NAME"
 # doesn't exist on a fresh checkout — calling this before the build would
 # always fall through to the bare binary on first deploy.
 select_built_artifact() {
+    # A Cargo workspace builds into the workspace's target dir, not src-tauri/target, so ask
+    # Cargo rather than assuming. Failing here beats installing a stale binary from the
+    # other directory.
+    local target_dir
+    target_dir=$(cd "$REPO_DIR/src-tauri" && cargo metadata --format-version 1 --no-deps | node -e "let s='';process.stdin.on('data',d=>s+=d).on('end',()=>console.log(JSON.parse(s).target_directory))")
+    if [ -z "$target_dir" ]; then
+        echo "ERROR: cargo metadata did not report a target directory"
+        exit 1
+    fi
+    [ "$OS" = "win" ] && target_dir=$(cygpath -u "$target_dir")
     case "$OS" in
         win)
-            BUILT_ARTIFACT="$REPO_DIR/src-tauri/target/release/$BIN_NAME.exe"
+            BUILT_ARTIFACT="$target_dir/release/$BIN_NAME.exe"
             INSTALLED_NAME="$BIN_NAME.exe"
             ;;
         mac)
             BUNDLE_NAME="${PRODUCT_NAME:-$BIN_NAME}.app"
-            BUILT_BUNDLE="$REPO_DIR/src-tauri/target/release/bundle/macos/$BUNDLE_NAME"
-            BUILT_BIN="$REPO_DIR/src-tauri/target/release/$BIN_NAME"
+            BUILT_BUNDLE="$target_dir/release/bundle/macos/$BUNDLE_NAME"
+            BUILT_BIN="$target_dir/release/$BIN_NAME"
             if [ -d "$BUILT_BUNDLE" ]; then
                 BUILT_ARTIFACT="$BUILT_BUNDLE"
                 INSTALLED_NAME="$BUNDLE_NAME"
@@ -104,7 +114,7 @@ select_built_artifact() {
             fi
             ;;
         linux)
-            BUILT_ARTIFACT="$REPO_DIR/src-tauri/target/release/$BIN_NAME"
+            BUILT_ARTIFACT="$target_dir/release/$BIN_NAME"
             INSTALLED_NAME="$BIN_NAME"
             ;;
     esac
