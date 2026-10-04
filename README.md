@@ -225,6 +225,7 @@ Shipping outward is a different verb: a versioned artifact goes through the `rel
 - Creates `scripts/deploy.sh` wrapper pointing to the global deploy script
 - Reads install path from `config/deploy.env` (asks on first run)
 - Install targets run the full pipeline: stop app → build → clean install dir → copy → launch → verify
+- The Tauri target asks `cargo metadata` where the build landed, so an app inside a Cargo workspace installs the binary just built rather than a stale one from `src-tauri/target`
 - Asks right before a run that starts, restarts or closes an app with a window — the install targets that launch the installed app, and the IntelliJ target when it is set to close the IDE — and runs only on a yes; the dev-server target opens no window and runs without asking
 - Local web servers (a `package.json` with a `dev` script, or a plain static `index.html`) relaunch detached on the configured port, then get health-checked
 - An optional `DEV_PRESTART_CMD` runs the project's own script — seeding the local database from production, fetching a fixture — in the gap between stopping the old server and starting the new one
@@ -485,15 +486,16 @@ Cross-machine status of a single repo — this machine's clone and the peer's, s
 
 ### Move Project
 
-Moves or renames the current project folder while preserving the Claude Code data tied to it — session logs, memory, subagent history. That data lives in its own directory keyed by a mangled form of the project's path, so a plain `mv` orphans it.
+Moves or renames the current project folder while preserving the Claude Code data tied to it — session logs, memory, subagent history — and the Claude Code dashboard's data for the project. The session data lives in its own directory keyed by a mangled form of the project's path, so a plain `mv` orphans it.
 
 **Command:** `/move-project`
 
 **Features:**
 - Derives the old and new `~/.claude/projects/<key>` directory names from the path-mangling rule in `claude/skills/skill/references/claude-project-memory-paths.md`, so the session history follows the folder
-- Previews both moves with their resolved paths before anything runs, and refuses a destination that already exists
+- Previews both moves with their resolved paths before anything runs, and refuses a destination that already exists, except for a case-only rename (`Web` → `web`), which a case-insensitive file system reports as existing because it is the same folder
+- Ends the printed commands with a call to the dashboard's `/api/project/rename` route, chained after the moves so it runs only once the folder has actually moved; the project's dashboard history and custom name then follow it to the new path
 - **Prints the commands rather than running them** — moving the working directory out from under a live session would break it, so they are run from elsewhere and Claude reopened at the new location
-- Prints PowerShell alongside bash on Windows, bash alone on macOS and Linux
+- Prints PowerShell alongside bash on Windows, bash alone on macOS and Linux; the PowerShell variant posts with `Invoke-RestMethod` and a UTF-8 charset, since Windows PowerShell 5.1 otherwise sends a non-ASCII folder name as `?`
 - Skips the data move for a project that has no `~/.claude/projects/` directory yet
 
 ---
