@@ -8,6 +8,7 @@ Source references are to qBittorrent's tag `release-5.1.0`, read on 2026-09-24. 
 - `WebUI\LocalHostAuth=false` ("Bypass authentication for clients on localhost") makes loopback requests need no login; qBittorrent starts a session for them itself (`WebApplication::isAuthNeeded`, `src/webui/webapplication.cpp`). Any program on the machine can then drive qBittorrent.
 - Without the bypass, a request answers HTTP 403, which is neither the add's `Fails.` nor a connection error. Report it as its own case.
 - The keys live in `src/base/preferences.cpp`; the session keys in `src/base/bittorrent/sessionimpl.cpp`.
+- **Through the Options dialog it needs no restart.** Tools → Options → Web UI, switch it on, set the address, tick the bypass, Apply: `app/version` answered at once from the same process (verified on 5.1.0, 2026-10-04). Only the ini-editing route below costs an exit.
 
 ## Adding a torrent: `POST /api/v2/torrents/add`
 
@@ -19,6 +20,18 @@ Parameters, from `TorrentsController::addAction` in `src/webui/api/torrentscontr
 - **`NoSubfolder` strips each release's root folder.** With one shared `downloadPath`, two torrents holding a file of the same relative name (`01.avi`, `Sample.mkv`, `Subs/Rus.srt`) write to the same path. Give each torrent its own staging folder, for example `<staging root>/<info-hash>`.
 - **Re-adding into a folder that already holds some of the torrent's files moves them out.** `FileSearcher::search` looks for the files at the save path first. When it finds any there and the torrent is incomplete, `adjustStorageLocation` moves *all* of them to the download path until the torrent finishes, and moves them back afterwards. For an updated release added into a media library, the episodes already there leave the library for the length of the download. Add such a torrent with `useDownloadPath=false`.
 - On the same volume, the move from download path to save path is a per-file rename (libtorrent's `move_storage` in `src/storage_utils.cpp`), so it is instant. A rename that fails rolls back and counts as a failed move.
+
+## Fetching the file list first: `stopCondition=MetadataReceived`
+
+Added with `stopped=false` and `stopCondition=MetadataReceived`, a magnet runs until its metadata arrives and then stops (`stoppedDL`), with nothing written to the save path; `contentLayout=NoSubfolder` is applied at that moment, so `torrents/files` already shows the stripped paths. Files can then be renamed and re-prioritised before any data exists (verified on 5.1.0, 2026-10-04).
+
+## Moving storage: `setSavePath` and `setDownloadPath`
+
+- **Both take `id` and `path`** (`TorrentsController::setSavePathAction`), not the `hashes` and `location` of `setLocation`, and both create the directory.
+- **Both queue an asynchronous storage move, and qBittorrent records the new path only when that move finishes** (`TorrentImpl::handleMoveStorageJobFinished`). `TorrentImpl::setSavePath` moves the storage itself when the torrent's download path reads empty, and only records the save path otherwise. So `setDownloadPath` followed at once by `setSavePath` queues two moves: the second still sees an empty download path, the jobs run in order, and the data downloads straight into the save path while the staging folder stays empty. Wait until `torrents/info` shows the new `download_path` and the state has left `moving` before calling `setSavePath`. Measured with a real download on 2026-10-04: back to back, every byte landed in the library folder.
+- **Check `content_path`, not the recorded paths.** It follows where the files actually are (`actualStorageLocation`), so `content_path` inside the download path is the proof a download is staged; `save_path` and `download_path` can both read right while the storage is elsewhere.
+- **Skipped files leave a `.<infohash>.parts` file** in the storage folder, holding the pieces they share with wanted files. It moves with the data into the save path.
+- **`torrents/delete` with `deleteFiles=true` removes the files but not the folders** they were in, the save path included.
 
 ## The "Run external program on torrent finished" hook
 
@@ -35,7 +48,7 @@ From `Application::runExternalProgram` in `src/app/application.cpp`:
 There is no CLI shutdown. `cmdoptions.cpp` defines `--save-path`, `--add-stopped`, `--skip-dialog`, `--category`, `--sequential`, `--first-and-last` and `--seed-mode` for adding a torrent, and nothing that stops the application. The endpoint is `POST /api/v2/app/shutdown`, so stopping it from a script means the Web UI is already on.
 
 - **A tray-resident instance has no window to close.** `Get-Process qbittorrent` reports `MainWindowHandle == 0` once it is minimised to the tray, so `CloseMainWindow()` returns having sent nothing and the process sits there responding. Nothing distinguishes that from a close the application ignored, and waiting longer never helps.
-- **Turning the Web UI on costs one manual exit.** qBittorrent rewrites `qBittorrent.ini` from memory when it exits, so keys written while it runs are discarded. The order is: have the user exit from the tray once, write `WebUI\Enabled`, `WebUI\Address` and `WebUI\LocalHostAuth`, restart — and every later cycle is `app/shutdown`. Read this section *before* concluding the application cannot be stopped: asking a second time for a tray exit is what happens otherwise.
+- **Turning the Web UI on by editing the ini costs one manual exit** (the Options dialog does not; see the Web UI section). qBittorrent rewrites `qBittorrent.ini` from memory when it exits, so keys written while it runs are discarded. The order is: have the user exit from the tray once, write `WebUI\Enabled`, `WebUI\Address` and `WebUI\LocalHostAuth`, restart — and every later cycle is `app/shutdown`. Read this section *before* concluding the application cannot be stopped: asking a second time for a tray exit is what happens otherwise.
 - **Never run `qbittorrent.exe --help` on Windows.** It is a GUI subsystem binary, so the usage text goes to a modal dialog on the user's desktop and stdout stays empty. The command appears to hang, and the dialog sits in front of whatever they were doing.
 
 ## Editing `.fastresume` offline, to relocate or rename a torrent
