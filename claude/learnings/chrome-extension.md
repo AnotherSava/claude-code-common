@@ -347,6 +347,8 @@ rollupOptions: {
 **`chrome-types` (community fork) inlines callback parameter shapes as anonymous object literals — it does not export them as named interfaces.** Names you might expect from `@types/chrome` are missing:
 
 - `chrome.tabs.TabChangeInfo` (the `changeInfo` param of `tabs.onUpdated`) — not exported; the type is declared inline in the `onUpdated` event signature.
+- `chrome.tabs.CreateProperties` (the argument of `tabs.create`) — not exported either.
+- `chrome.runtime.OnInstalledReason` — the enum object is absent, so `reason === chrome.runtime.OnInstalledReason.INSTALL` fails to type-check; compare with the string `"install"`, which the inline type accepts.
 - Similar pattern for other event-callback shapes.
 
 If you cast a test fixture as `chrome.tabs.TabChangeInfo`, `tsc` errors with `Namespace 'chrome.tabs' has no exported member 'TabChangeInfo'`. Fixes:
