@@ -96,6 +96,7 @@ Analyzes changes and generates atomic Conventional Commit messages.
 - Presents a full plan for approval before executing any commits
 - GPG-signs all commits, never adds AI attribution
 - Asks the live session that owns a peer repository to commit work this session left there, scoped to repos it actually wrote to
+- Holds back a path in the change set this session never wrote until its author has handed it over or gone idle, and reads it against what this run already pushed — two documents covering one subject share no heading and conflict in no line, so nothing else in the flow reports the duplicate
 - After a push, asks the session working on the same repo on the other machine to run `/pull` (see [Peer](#peer))
 
 ---
