@@ -80,7 +80,18 @@ one resumes the conversation already in that directory, whichever machine it is 
 picking a project from the Mac comes back to where that project was left rather than starting over.
 
 Detach with tmux's `Ctrl-b d`. The session and everything in it keep running; closing the terminal
-or dropping the connection does the same thing.
+does the same thing. A connection that drops is different — the tab opens another one by itself.
+
+Closing the lid on battery sleeps the Mac within the minute, and the ssh under each tab then dies
+some hours later with neither end having noticed: on 2026-10-03 three of them took between 1h15m
+and 6h34m, every one while the laptop was still asleep. Nothing on the Windows machine is touched
+by that, tmux keeping both the session and the agent in it, so the tab reattaches to the same
+conversation about a minute after the Mac wakes, retrying from five seconds out to every five
+minutes for as long as that machine is away. Ctrl-C in the tab stops it. The reconnect attaches but
+never creates: where the machine is up and holds no session for that project any more, the tab says
+so and stops, because a session that ended hours ago is worth seeing rather than replacing with a
+fresh agent in the same directory. A reconnect is an attach like any other, so the Windows
+terminal's window takes this Mac's size again each time.
 
 ### The keystroke, and why it is not the attach command
 
@@ -189,6 +200,16 @@ A fresh clone reads the file as ciphertext until transcrypt is unlocked there on
 says so instead of surfacing as a missing setting.
 
 ## When something is wrong
+
+**A tab says `reconnecting` and stays there.** The Mac cannot reach the Windows machine. Nothing is
+lost while that lasts — tmux over there holds the session and the agent in it — and the tab
+attaches itself as soon as that machine answers. After a few rounds the message changes to point at
+ssh's own lines above it: a changed host key and a renamed WSL distro end in the same exit code an
+absent machine does, and only those lines separate them. Ctrl-C stops it trying.
+
+**A tab says the session ended, or that it stopped reconnecting.** That tab is finished with. Close
+it, then cmd+shift+r, which lists the project again and resumes that directory's conversation.
+Reaching for the chord without closing it opens a second tab beside the first.
 
 **Attaching says the holder is not running.** The scheduled task stopped, most often because you
 logged off and back on without it re-triggering. Start it:

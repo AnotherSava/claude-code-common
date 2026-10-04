@@ -195,12 +195,16 @@ re-runs on restore when *Restore running commands on restart* is on. App-global 
 deliberately does **not** clear it — that only wipes *captured foreground* commands. Fine when you want
 the session to come back as itself; use the per-session `session restore` override when you do not.
 
-**Find a `--command` tab by what it became, not by what launched it.** A session's `foreground` in
-`tree --json` is the argv of the process in front right now, so once the command execs into another
-program the launching script and its arguments are gone from it. Measured 2026-09-24: a tab opened with
-`--command "<path>/attach.sh <project>"` reported `['ssh', '-t', '<user>@<host>', '<remote command>']`,
-with the project only as a word inside that last argument. Test for membership in the argv and the
-match never fires; split the argument that carries it instead.
+**Find a `--command` tab by what its argv says, not by what launched it.** A session's `foreground`
+in `tree --json` is the argv of the process in front right now, so a command that execs into another
+program leaves the launching script and its arguments out of it. Measured 2026-09-24 against a
+version of `attach.sh` that exec'd into ssh: a tab opened with `--command
+"<path>/attach.sh <project>"` reported `['ssh', '-t', '<user>@<host>', '<remote command>']`, with the
+project only as a word inside that last argument. A script that stays in front of its own child
+reports itself instead — `attach.sh` loops over ssh rather than exec'ing into it, so the same tab now
+names the script and its project as two separate arguments. A matcher meets both shapes, so flatten
+the argv to words and look for the marker among them; testing membership in the argument list misses
+the exec'd form entirely.
 
 ## Window commands, and the floor that defeats a sidebar-only capture
 

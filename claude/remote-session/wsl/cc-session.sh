@@ -6,11 +6,20 @@
 # and the interactive desktop both work. Starting it from an ext4 directory instead gets the
 # cmd.exe "UNC paths are not supported" failure.
 #
-# Usage: cc-session.sh <project> <origin>
+# Usage: cc-session.sh <project> <origin> [create|reattach]
 #
 # <project> is a directory name under WSL_PROJECT_ROOT. <origin> names the machine whose keyboard
 # the person is at — `windows` from this box, `mac` from the other one — and both callers pass it as
-# a bare token, which is the only thing that survives the Windows sshd's cmd.exe.
+# a bare token, which is the only thing that survives the Windows sshd's cmd.exe. <mode> defaults to
+# `create`; `reattach` exits 3 where no session is running instead of starting one. The Mac's attach
+# passes it on every attempt after its first, because a reconnect runs with nobody watching and a
+# session that has gone is a fact worth surfacing rather than one to paper over with a fresh agent
+# in the same directory.
+#
+# The exit codes a caller branches on: 2 usage, 1 no such project directory, 4 the holder is down,
+# 3 reattach found no session. The holder gets its own code because it is the one refusal here that
+# clears without a person — the sshd answers before logon and the holder's scheduled task fires at
+# it — so a Mac tab that keeps trying comes back, where one that stopped would need somebody.
 
 set -eu
 
@@ -20,8 +29,9 @@ remote_session_load_config "$here/../config.secret.env" || exit 1
 
 project=${1:-}
 origin=${2:-}
-if [ -z "$project" ] || [ -z "$origin" ]; then
-    echo "usage: cc-session.sh <project> <origin>" >&2
+mode=${3:-create}
+if [ -z "$project" ] || [ -z "$origin" ] || { [ "$mode" != create ] && [ "$mode" != reattach ]; }; then
+    echo "usage: cc-session.sh <project> <origin> [create|reattach]" >&2
     exit 2
 fi
 
@@ -51,13 +61,17 @@ if ! remote_session_holder_up; then
     echo "cc-session: the holder is not running, so any session started now would die at disconnect." >&2
     echo "cc-session: start it with 'schtasks /run /tn ClaudeRemoteSessionHolder' on the Windows side," >&2
     echo "cc-session: or re-run windows/install.ps1 if it was never registered." >&2
-    exit 1
+    exit 4
 fi
 
 # A detached session is created at tmux's 80x24 default, and the TUI draws itself once at that size.
 # Creating it wide means the first thing an attaching client sees is not a session laid out for a
 # terminal nobody is using; after that the window follows whichever attached client was used last.
 if ! tmux has-session -t "$session" 2>/dev/null; then
+    if [ "$mode" = reattach ]; then
+        echo "cc-session: no session for $project is running here, so there was nothing to reattach to." >&2
+        exit 3
+    fi
     remote_session_keep_failed_panes
     tmux new-session -d -s "$name" -x 200 -y 50 -c "$directory" "$(remote_session_resume_command "$CLAUDE_EXE")"
 fi

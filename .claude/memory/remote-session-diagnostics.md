@@ -88,6 +88,14 @@ status reaches every attached terminal. A skew there raises no error. The remote
 status: it stays on `⇄ <project>` when the Mac is behind, and has neither status nor badge when
 Windows is behind. Compare the two checkouts before debugging a title, too.
 
+The third argument skews quietly in the other direction. Since 2026-10-03 `cc-session.sh` takes
+`create` or `reattach` after the origin, and the Mac's attach sends `reattach` on every attempt
+after its first, so a reconnect that finds the session gone says so instead of starting a fresh
+agent in that directory. A Windows checkout predating that argument ignores the extra positional and
+creates one — the outcome the mode exists to prevent, reported nowhere, because an argument a script
+never reads is not an error. The symptom is a tab that reconnects hours later into an empty
+conversation.
+
 ## Restarting a session's claude.exe keeps its conversation only on a clean exit
 
 A running session never picks up a later change to `settings.json`'s `env` block, so a fix there

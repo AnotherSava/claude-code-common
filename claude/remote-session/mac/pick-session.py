@@ -42,6 +42,11 @@ SUBTITLE_LIMIT = 70
 # Marks the row that opens the folder browser. Guarded against collision with a real directory
 # before it is trusted, since nothing stops someone naming one this.
 START_SENTINEL = "\u2026start-a-project"
+# What names the project inside a remote tab's foreground argv: the word after whichever of these
+# the argv carries. Two of them, because agterm names a pane by its process group leader and that
+# is attach.sh, which loops over ssh rather than exec'ing into it \u2014 while an ssh run by hand carries
+# the project inside the remote command instead, after cc-session.sh.
+FOREGROUND_MARKERS = ("/attach.sh", "/cc-session.sh")
 
 
 def notify(body: str) -> None:
@@ -226,8 +231,11 @@ def attached_tabs() -> "dict[str, tuple[str, str]]":
     the first picker drops those projects from its rows, and a project typed by name raises its tab
     rather than opening a client beside it.
 
-    A tab's foreground process is the ssh that attach.sh execs into, and the project is a word inside
-    its one remote-command argument, right after cc-session.sh — never an argument of its own.
+    A tab's foreground process is the attach.sh that runs it, whose own argv names the project; an
+    ssh run by hand carries it inside the remote command instead, a word after cc-session.sh. The
+    argv is flattened to words before the search so one rule covers both — in the first shape the
+    marker and the project are separate arguments, in the second two words of one. attach.sh refuses
+    a project name carrying a space, so flattening cannot split one in half.
 
     Every open window is searched, because a bare `tree --json` answers for the frontmost one only:
     a tab in a background window would be missed and a second client opened beside it. Closed
@@ -249,11 +257,10 @@ def attached_tabs() -> "dict[str, tuple[str, str]]":
         tree = json.loads(result.stdout)["result"]["tree"]
         for workspace in tree.get("workspaces", []):
             for session in workspace.get("sessions", []):
-                for argument in session.get("foreground") or []:
-                    words = argument.split()
-                    for index, word in enumerate(words):
-                        if word.endswith("/cc-session.sh") and words[index + 1:index + 2]:
-                            tabs.setdefault(words[index + 1], (window["id"], session["id"]))
+                words = " ".join(session.get("foreground") or []).split()
+                for index, word in enumerate(words):
+                    if word.endswith(FOREGROUND_MARKERS) and words[index + 1:index + 2]:
+                        tabs.setdefault(words[index + 1], (window["id"], session["id"]))
     return tabs
 
 
