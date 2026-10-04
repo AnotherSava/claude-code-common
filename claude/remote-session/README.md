@@ -204,13 +204,28 @@ says so instead of surfacing as a missing setting.
 
 **A tab says `reconnecting` and stays there.** The Mac cannot reach the Windows machine. Nothing is
 lost while that lasts — tmux over there holds the session and the agent in it — and the tab
-attaches itself as soon as that machine answers. After a few rounds the message changes to point at
-ssh's own lines above it: a changed host key and a renamed WSL distro end in the same exit code an
-absent machine does, and only those lines separate them. Ctrl-C stops it trying.
+attaches itself as soon as that machine answers. Only a tab that has already held a session waits
+like this; a tab saying `not connected` or `refused` does not come back on its own. After a few
+rounds the message changes to point at ssh's own lines above it: a changed host key and a renamed
+WSL distro end in the same exit code an absent machine does, and only those lines separate them.
+Ctrl-C stops it trying.
 
 **A tab says the session ended, or that it stopped reconnecting.** That tab is finished with. Close
 it, then cmd+shift+r, which lists the project again and resumes that directory's conversation.
 Reaching for the chord without closing it opens a second tab beside the first.
+
+**A tab says `not connected`.** Close it, then cmd+shift+r, which tries the whole thing again from
+the picker. This one is waiting for nothing: a tab retries only once an attempt has lasted long
+enough to prove a session was really up, and this one never got that far, so the reason it failed is
+as likely to be permanent as not — a refused key, a changed host key and a renamed WSL distro all
+end in the same exit code an absent machine does. The ssh lines above the message are what separate
+them.
+
+**A tab says `refused`.** Close it, then cmd+shift+r. The far side answered rather than went quiet,
+with a status that means neither a lost link nor a connection that could not be opened, so there is
+nothing for the tab to wait for; the common one is a project directory that does not exist on that
+machine, which typing a path into **Start a project…** reaches where picking a row cannot. The
+lines above the message carry the far side's own reason.
 
 **Attaching says the holder is not running.** The scheduled task stopped, most often because you
 logged off and back on without it re-triggering. Start it:
@@ -276,7 +291,9 @@ Every piece below exists because something simpler was measured not to work; the
 - **`windows/run-hidden.py`** launches the holder with no console window, and logs what it otherwise
   could not report.
 - **`wsl/cc-session.sh`** creates or attaches one project's session, running the native `claude.exe`
-  from a `/mnt/d` working directory so the Windows child gets a real `D:\...` path.
+  from a `/mnt/d` working directory so the Windows child gets a real `D:\...` path. A third argument
+  makes it attach without creating, which is what an unattended reconnect passes so a session that
+  has ended is reported rather than replaced by a fresh agent in the same directory.
 - **`wsl/start-here.sh`** is what the Windows machine's `claude` function runs. It does the same for
   whatever directory you are standing in, which is what makes every session started there
   attachable. Every shell on that machine calls it and nothing else, so no profile carries behaviour
@@ -288,7 +305,8 @@ Every piece below exists because something simpler was measured not to work; the
 - **`mac/attach.sh`** and **`windows/attach.cmd`** are the two ways in, and
   **`mac/pick-session.sh`** is what the keystroke runs: it asks tmux on the far side which sessions
   exist, decorates them from the dashboard, opens agterm's picker, and creates the tab in the
-  `remote` workspace.
+  `remote` workspace. The Mac's attach loops over ssh rather than exec'ing into it, so a connection
+  that drops reattaches with nobody there to ask for it.
 - **`lib.sh`** holds what more than one piece has to agree on: the config loader, the rule for naming
   a session, the keepalive session's name, the check for whether the holder is up, the read that
   turns a session's attached clients into the machines they are sitting at, the command a new

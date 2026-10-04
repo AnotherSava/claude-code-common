@@ -143,3 +143,33 @@ Two things to check before replacing `exec ssh` with a loop, both of which bit h
 - **The title stops being maintained.** Whatever blanks or updates it usually runs on the far side
   and never gets to. Decide what the tab should say while disconnected, and make sure that string
   cannot be mistaken for a live status by anything that parses titles.
+
+## Forcing a drop, to exercise the loop without waiting for a sleep
+
+A reconnect loop nobody has seen reconnect is a guess, and the obvious lever tests the wrong branch.
+
+**Killing the local client reports a signal status, not 255.** A shell sees 137 for a `SIGKILL`ed
+child and 143 for a `SIGTERM`ed one, so a loop that retries on 255 and reports anything else takes
+the reporting branch and exits. Measured 2026-10-03 against a throwaway `sleep 30 || status=$?`.
+
+**On Windows OpenSSH one connection is two `sshd` processes, and the socket lives with the second.**
+The listener forks a privileged parent per connection, which forks the session handler; the shell
+and everything it launches hang off the handler. Killing the parent orphans the handler and leaves
+the transport working — measured, with the client still running 66 seconds later. Kill the handler
+and the client sees the connection close.
+
+Walk up from the remote command to find it rather than picking an `sshd` pid, which would as easily
+hit the connection you are issuing the kill through:
+
+```powershell
+$all = Get-CimInstance Win32_Process
+$t = $all | Where-Object { $_.CommandLine -match "{{remote-command}}" }
+# then follow ParentProcessId up; the second sshd.exe from the top is the handler
+```
+
+Measured 2026-10-03: killing the handler dropped the tab and the loop had a replacement `ssh`
+running about 30 seconds later, with the attach-only argument its reconnect passes. That is well
+inside the 75-second probe deadline, so the probes were not what noticed; what consumed the rest of
+the 30 seconds was not measured. The far side's tmux still held the session, so the attach-only mode
+found something to attach to and its no-session branch stayed unexercised — testing that one needs a
+session that has really ended.
