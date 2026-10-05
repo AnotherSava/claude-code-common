@@ -550,8 +550,11 @@ def bash_path() -> str:
     Never the bare name `bash`: Windows resolves a bare command against System32 before PATH, and
     System32 holds WSL's `bash.exe`. That one starts, reads `D:/repo/...` as a path it has no
     volume for, and reports the script missing — a failure that looks like a broken checkout rather
-    than like the wrong interpreter. `SHELL` names the Git Bash that launched this run; `which`
-    searches PATH in order, which is the same answer from the other direction.
+    than like the wrong interpreter. Reading `SHELL` first is a preference rather than a correctness
+    fix: it names the bash that launched this run, `which` searches PATH, and measured the two can
+    name different copies — the `bin` wrapper against `usr/bin` — both of them Git's bash, and both
+    satisfying this function's basename-and-`isfile` test. Whether each copy then runs the link script
+    `memory_cache_linked` drives is unmeasured. The measurement is in learnings/windows-spawning-bash.md.
     """
     shell = os.environ.get("SHELL") or ""
     if os.path.basename(shell).casefold().startswith("bash") and os.path.isfile(shell):

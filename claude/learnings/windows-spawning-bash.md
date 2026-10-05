@@ -53,6 +53,12 @@ subprocess.run([GIT_BASH, "script.sh"])
 Resolve it rather than hardcoding where a project already has a resolver, and prefer `bin\bash.exe`
 (the wrapper intended for external callers) over `usr\bin\bash.exe`.
 
+Forward-slash every path argument once the interpreter is resolved: MSYS reparses the Windows command
+line under POSIX rules, so a literal `D:\repo\script.sh` reaches the script as `D:reposcript.sh`.
+Measured 2026-09-16 on a `D:` checkout. It changes nothing while WSL is the shell answering — every
+spelling under **The signature when it is a script path rather than `-c`** fails there identically — so
+slash direction is worth checking only once `uname -a` says MSYS.
+
 **The diagnostic is one command, and it beats any amount of inference:** run `uname -a` inside the
 process that failed. It distinguishes MSYS (`MINGW64_NT-…`) from WSL (`Linux … microsoft-standard-WSL2`)
 immediately, and it is available before you know what you are looking for.
@@ -92,6 +98,29 @@ assert shutil.which("bash"); subprocess.run(["bash", script])   # the trap — a
 Spawning `which`'s *result* never reaches System32, so the discrepancy cannot arise. Prefer
 `bin\bash.exe` when hardcoding, but on a script that also runs on macOS, `shutil.which("bash")` is the
 portable form and returns a genuine MINGW64 bash here (verified with `uname -a`).
+
+Read `SHELL` before falling back to that, where a shell launched the process at all: it names the bash
+that started this run, so it holds up where `PATH` has no bash or a different one. The MSYS runtime
+rewrites a path-shaped environment variable on its way out to a native program — the same conversion
+that **Git-Bash-on-Windows traps when handing text to a Windows-native program** in `bash-portability.md`
+describes for arguments, with `MSYS_NO_PATHCONV` as its lever. It round-trips, so what a native Python
+receives depends on who set the variable. Measured 2026-10-05 on Windows 11:
+
+| `SHELL` set by | bash shows | Python receives |
+|---|---|---|
+| a parent process, to a Windows path | `/bin/bash.exe` | `C:\Program Files\Git\bin\bash.exe` |
+| Git Bash itself, as a login shell | `/usr/bin/bash` | `C:\Program Files\Git\usr\bin\bash.exe` |
+
+Both paths exist, so `os.path.isfile` passes and the branch is taken either way. The second row is the
+file `shutil.which` returns; the first is the `bin\bash.exe` wrapper this file prefers, which `which`
+did not return in that measurement. So reading `SHELL` first buys independence from `PATH`, and
+sometimes the better wrapper:
+
+```python
+shell = os.environ.get("SHELL") or ""
+if not os.path.basename(shell).casefold().startswith("bash") or not os.path.isfile(shell):
+    shell = shutil.which("bash") or ""        # PATH order, so Git's copy wins
+```
 
 ## Where this does *not* bite
 
