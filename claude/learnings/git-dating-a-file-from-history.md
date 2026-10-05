@@ -45,3 +45,7 @@ later version is the instrument.
 ## Neither of these is dated by mtime
 
 A filesystem timestamp is rewritten by a clone, a checkout, a rebase or a `git stash pop`, so it answers when this machine last wrote the file. Where git has never seen a file at all, its history is genuinely unreadable and the honest output is to say so — not to fall back on the one number that is always available and always about the wrong thing.
+
+A *recent* timestamp is the dangerous case, because it reads as fresh authorship and so invites a conclusion about who wrote the file. The write may be a `git stash push <path>` and `git stash pop` round-trip from a probe minutes earlier, which leaves content that is hours or days old looking as though someone just edited it. Measured 2026-10-04: an uncommitted learnings file read as touched 28 minutes ago, and the write was a sibling session in the same repo stashing it aside to run the commit gate against a clean tree. Authorship is answered by the transcripts under `~/.claude/projects/`, searched for a tool call naming the path, and by nothing the filesystem records.
+
+That search reaches this machine's sessions only. The `projects/` directory is not one of the symlinked ones, so a session on the other box keeps its transcript over there, and an empty result here is silence about that machine rather than evidence it was uninvolved — which is the case the question usually arises in, since both machines work the same repos. Reaching those transcripts, or asking the session that is holding the file, is the `peer` skill's job.
