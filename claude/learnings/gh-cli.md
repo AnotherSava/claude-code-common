@@ -193,3 +193,52 @@ minute after that. All the while, `gh run list --limit 10` already showed all th
 sha. A few minutes later the same filtered query returned all three. So a partial answer shortly
 after a push reads as "only these workflows ran". Compare it against the workflows the repo's
 `on: push` triggers, and re-query until each one appears.
+
+## `gh run watch --exit-status` is only as good as what reads its exit code
+
+The flag works: the watch exits non-zero when the run it watched failed. What breaks is the shell
+around it, because the obvious way to keep the output readable throws the status away:
+
+```bash
+gh run watch "$ID" --exit-status --compact 2>&1 | tail -5; echo "exit: $?"   # tail's status, always 0
+gh run watch "$ID" --exit-status --compact > /tmp/watch.log 2>&1; echo "exit: $?"   # the watch's
+```
+
+Measured 2026-10-04: a Build that failed on its windows-latest job was reported as `exit: 0` by the
+first form, so a red push was announced as still running and then as fine. The failure was found only
+because a later `gh run list` printed `conclusion: failure`. `$?` after a pipeline is the *last*
+command's; `${PIPESTATUS[0]}` in bash or `$pipestatus[1]` in zsh reads the first, but redirecting to
+a file and reading the exit code directly removes the question. The derivation, including that
+`${PIPESTATUS[0]}` under zsh expands to an empty string rather than erroring, is in
+`bash-portability.md`.
+
+**Two oracles disagree here, and the conclusion is the one to trust.** A watch's exit code is a
+process status that anything in the pipeline can mask, while `gh run list --json conclusion` is the
+server's own verdict. After a watch returns, re-read the conclusion and assert on it:
+
+```bash
+gh run list --commit "$SHA" --json workflowName,conclusion > /tmp/runs.json; echo "gh exit: $?"
+python3 <<'EOF'
+import json, sys
+
+# The failures are named rather than inverted, because not everything short of success is red: a
+# skipped run is a path filter doing its job, and a cancelled one was somebody's decision. Inverting
+# the test reports both as a failing build.
+RED = {"failure", "timed_out", "startup_failure", "action_required"}
+rows = json.load(open("/tmp/runs.json"))
+red = [r["workflowName"] for r in rows if r["conclusion"] in RED]
+# A run with no conclusion yet has not passed; printed on its own so an unfinished one cannot be
+# read as a clean sweep.
+running = [r["workflowName"] for r in rows if not r["conclusion"]]
+print("FAILURES:", red or "none", "| still running:", running or "none")
+sys.exit(1 if red else 0)
+EOF
+```
+
+The redirect is the same move as above, for the same reason: piping `gh` into the reader would hide
+whether `gh` itself failed, and an API error returning no rows prints the same `FAILURES: none` a
+green build does.
+
+The general rule this is an instance of: a check whose "pass" is silence must not be read through
+anything that can produce the same silence for its own reasons. See
+`verify-the-detector-before-the-negative.md`.
