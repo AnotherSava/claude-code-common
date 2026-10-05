@@ -277,6 +277,7 @@ Cross-project preferences and feedback. Memory files live in `~/.claude/memory/`
 - [No defensive fallbacks](~/.claude/memory/feedback_no_defensive_fallbacks.md) — never substitute a plausible value for one you don't have; a gap in the logic keeps the wider answer or throws, and an unobservable guess still becomes a lie once something reads it
 - [No bluffing external UIs or local internals](~/.claude/memory/feedback_no_bluffing_external_uis.md) — investigate (WebSearch or Bash/Read) before answering; don't guess at dashboards, hook timing, file contents
 - [Honor concrete example](~/.claude/memory/feedback_honor_concrete_example.md) — implement the user's literal example; ask before substituting a more general rule
+- [Reject what was proposed](~/.claude/memory/feedback_reject_what_was_proposed.md) — restate the invariant you are about to refuse, then run the governing test on it; a version floor is not a currency check
 - [Removal scopes to the region](~/.claude/memory/feedback_removal_scopes_to_the_region.md) — "remove X from region R" means R; enumerate the region and ask what stays, don't delete X and wait
 - [Discuss before rewriting deliberate behavior](~/.claude/memory/feedback_discuss_before_rewriting_design.md) — don't rewrite considered design off a single offhand comment; propose, preview, confirm first
 - [A "why" question is not a doc request](~/.claude/memory/feedback_why_question_is_not_a_doc_request.md) — answer in chat and wait; writing the rationale into a file mid-disagreement entrenches a design being questioned

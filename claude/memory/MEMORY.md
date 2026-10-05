@@ -42,6 +42,7 @@
 - [Verify log timing before transcript-based detection](feedback_verify_log_timing.md) — empirically check writer flush behavior; "unresolved X" probes fail silently if the writer buffers
 - [No bluffing external UIs or local internals](feedback_no_bluffing_external_uis.md) {always} — investigate (WebSearch or Bash/Read) before answering; don't guess at dashboards, hook timing, file contents
 - [Honor concrete example](feedback_honor_concrete_example.md) {always} — implement the user's literal example; ask before substituting a more general rule
+- [Reject what was proposed](feedback_reject_what_was_proposed.md) {always} — restate the invariant you are about to refuse, then run the governing test on it; a version floor is not a currency check
 - [Removal scopes to the region](feedback_removal_scopes_to_the_region.md) {always} — "remove X from region R" means R; enumerate the region and ask what stays, don't delete X and wait
 - [Discuss before rewriting deliberate behavior](feedback_discuss_before_rewriting_design.md) {always} — don't rewrite considered design off a single offhand comment; propose, preview, confirm first
 - [A "why" question is not a doc request](feedback_why_question_is_not_a_doc_request.md) {always} — answer in chat and wait; writing the rationale into a file mid-disagreement entrenches a design being questioned
