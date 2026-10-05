@@ -38,7 +38,7 @@ There is work here where a `Cargo.lock` that git does not hide holds a `tray-ico
 `tauri = "2"` names no tray-icon version at all:
 
 ```
-grep -A1 '^name = "tray-icon"$' src-tauri/Cargo.lock
+grep -A1 '^name = "tray-icon"$' $(git ls-files '*Cargo.lock')
 ```
 
 Bring the branch up to date before running anything below. Cargo rewrites the whole lock, the other
