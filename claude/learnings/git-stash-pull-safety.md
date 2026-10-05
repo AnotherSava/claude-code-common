@@ -275,6 +275,21 @@ Resolving across files carries one hazard the within-document case cannot: delet
 every cross-reference pointing at it, including one you may have just written into the survivor
 while merging. Grep for the deleted basename **after** the deletion, not before.
 
+**Where one of the two is a section of a broad index, neither file is the loser.** Keeping both is
+right when the duplicate is a section inside a file organised by construct — a portability reference, a
+tool's gotcha list — while the other is a file named for the problem. The learnings directory is indexed
+by filename, so the dedicated file is the one a search for that failure reaches, and folding it into the
+index buries it under a name nobody globs for; deleting the section instead leaves the broad file silent
+on a trap its own readers hit. Dedupe at the claim level: the dedicated file carries every mechanism,
+measurement and diagnostic, and the section shrinks to the rule, a one-line mechanism, the one-command
+diagnostic, and a pointer naming what following it buys. A bare `see <file>` is the form to avoid, since
+a reader treats it as optional and the claim it replaced is gone. Verify by grepping each mechanism
+string across both files and counting: one substantive home each, and the short summary that makes the
+pointer followable is not a second one. Verified 2026-10-05: `bash-portability.md`'s spawning section
+and `windows-spawning-bash.md` had both been asserting the same finding from their own measurements a
+day apart, and the dedicated file took the mechanism, both measurements and the diagnostic while the
+section kept a rule and a pointer.
+
 ## A local migration that deletes the file upstream just appended to
 
 Everything above assumes the contested file survives on both sides. The asymmetric case is a local
