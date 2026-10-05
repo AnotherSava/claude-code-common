@@ -38,6 +38,33 @@ body = re.match(r'[A-Za-z0-9+/=_-]*', text[m.end():]).group(0)
 verdict = "real" if len(body) >= 40 else "prefix only"
 ```
 
+## Two of these are commands whose silence is routine, and both destroyed something
+
+The cases above are searches somebody wrote. The sharper version is a *standard tool* whose
+"nothing found" is indistinguishable from "could not look", because then the detector was never
+suspected at all. Both of these were measured on 2026-10-04 inside one disk-reclaim script, and both
+reached the point of deleting data:
+
+| The check | Why it could not work | What it cost |
+| --- | --- | --- |
+| `lsof -- <dir>` to ask whether a code-sign clone is in use | A process holds a *mapped file several levels down*, not the directory. The non-recursive form returns **zero lines** while Chrome is executing out of that very tree; only `lsof +D` sees it | Reported all 54 clones as unheld. Applying it would have pulled the executable out from under two running browsers |
+| `find <dir> -type f -newermt "$cut"` to ask whether a cache is still in use | BSD `find` cannot evaluate a **pre-1970** cutoff and silently matches nothing, so a gate meant to *exclude* live caches read them as dead | Deleted ~12 GiB of live tool caches while trying to exclude them |
+
+Both were fixed the same way, and it is the habit above applied to a tool rather than to a regex:
+**ask the instrument a question whose answer you already know, in the same invocation style, and
+refuse to interpret the real answer until the control passes.** For lsof, that this shell's own
+handles are visible (`lsof -p $$` must print something). For find, that a file is newer than
+`1970-01-02` — true of every real file, so an empty answer there means find could not evaluate the
+test on this directory at all.
+
+The second lesson is about *which* way to fail. A guard that cannot measure must return the answer
+that does nothing: "still in use", "not dead", "do not touch". Both of these failed open, toward
+action, which is the only reason either was expensive. See `~/.claude/memory/feedback_not_run_is_not_pass.md`
+for the rule; these are what it looks like when the unmeasured case is wired to a delete.
+
+Also worth knowing when parsing the fixed form: `lsof`'s COMMAND field contains spaces
+(`Google Chrome`), so column splitting mangles it — use the field output (`-Fcn`) instead.
+
 ## Corollaries
 
 **A second check that shares the first one's assumption is not a second check.** Real case

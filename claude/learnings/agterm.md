@@ -327,3 +327,58 @@ are `active`, `commandWait`, `cwd`, `flagged`, `fontSize`, `foreground`,
 opened. And the tree's top level is `app`, `idleMs`, `quickVisible`,
 `sidebarMode`, `sidebarVisible`, `workspaceFilter` and `workspaces`, reached
 under the `result.tree` envelope rather than at the document root.
+
+## `session context`: three things the Swift does not imply
+
+Measured against a running 0.34.0 (commit `fe1948b9`) on 2026-10-04, while
+teaching a dashboard to write each agent's task into the field. The verb arrived
+in **0.26.0**; 0.25.0 answers `unexpected arguments: 'context'`, so a caller
+gates on the version rather than probing, or it puts a refusal in its own log
+once per start.
+
+**The `--` terminator goes after every option, not before them.** The text is a
+positional argument, so a context beginning with `-` is otherwise parsed as an
+unknown flag and the command fails with `provide exactly one of a TEXT or
+--clear`. The obvious fix is wrong in a way that looks right:
+
+```bash
+agtermctl session context -- "-text" --target "$SID"      # --target becomes positional:
+                                                          #   "5 unexpected arguments"
+agtermctl session context --target "$SID" --json -- "-text"   # works
+```
+
+**The 256-byte budget is enforced, not advisory.** An over-long value is refused
+with `context must be at most 256 UTF-8 bytes` and the *previous* context stays
+on screen — so a writer that fits its text in UTF-16 units is wrong twice over,
+since 200 units of Cyrillic or emoji is up to 800 bytes. Two more refusals in the
+same family: an empty text answers `context must not be empty (use --clear to
+remove it)`, so a clear is only ever `--clear`; and agterm stores the **trimmed**
+value, so a fitted string ending in a space never equals its own read-back and a
+writer comparing the two rewrites it forever.
+
+**Read it back from the tree node's `context`**, absent when unset. On a session
+attached from another Mac that key is the *effective* value — a local override
+else the origin's mirrored one — so it can hold a value this caller never wrote.
+A repeat of an identical write answers `ok:true` rather than erroring, and emits
+no `tree.changed`.
+
+Writing to a session that is **not** the active one does not move the selection,
+which is what makes it safe to label every session on a tick.
+
+### Where it renders, which is less than the API suggests
+
+One composition site, two bars (the title bar and the terminal-zoom bar), and
+**only for the window's active session** — there is no sidebar row and no
+tooltip. `TitlebarComposition.compose` then puts it in a different slot per
+toolbar mode, and the two look nothing alike:
+
+| Mode | Slot | How it reads |
+| --- | --- | --- |
+| `compact` (the default — `toolbarMode` nil) | `tail`, same line as the name after a ` · ` | `.fontWeight(.semibold)`, full-strength chrome text: **identical to the session name** |
+| `normal` | `subtitle`, a second line | `.font(.caption)` at `opacity(0.6)`, and it **replaces** the cwd/OSC detail (`parts.context ?? parts.detail`) |
+
+So on the default setting a written context is indistinguishable from the name
+beside it. The user-side lever is **Settings ▸ Appearance ▸ Toolbar** (not
+Interface), which applies live — `setToolbarMode` runs `persistAndApply()` — and
+is not reachable from the control API or from a plain `defaults write`, since the
+value lives in agterm's own settings struct and a running app rewrites it.

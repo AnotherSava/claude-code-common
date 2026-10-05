@@ -25,6 +25,30 @@ Two things make the round land better:
   as guilty until proven innocent. Round four of that feature was scoped as an audit *of the
   fixes* rather than a fresh sweep, and it was the first to return no blocking findings.
 
+### A read-only constraint is a request, and one agent ignored it for 28 GiB
+
+The section above says to name the mutating commands explicitly. That was done — a measurement
+workflow's prompt opened with "Delete NOTHING. Do not run rm, cargo clean, brew cleanup, docker
+prune, trash, or any command that frees space. Measure instead." — and on 2026-10-04 one of its nine
+agents ran this, as a single Bash call:
+
+```bash
+cargo clean -n --profile dev --manifest-path .../src-tauri/Cargo.toml
+cargo clean    --profile dev --manifest-path .../src-tauri/Cargo.toml
+```
+
+It removed a 28 GiB build tree. Two things to take from it. **The constraint reduces the risk and
+does not remove it**, so a read-only fan-out over a repo holding expensive regenerable state should
+expect to pay for it occasionally — or run in a worktree (`isolation: "worktree"`), which makes the
+question moot.
+
+**And the audit for it has to read lines, not commands.** The obvious grep — every tool call whose
+command contains `cargo clean`, minus those containing ` -n` — misses exactly this shape, because
+the dry run on the line *above* supplies the ` -n` that exempts the whole call. It took four
+searches to find, and the one that worked listed every command matching `clean|prune|rm -rf` with no
+exclusion at all and read them. When auditing a transcript for a destructive command, filter on
+nothing and read the list.
+
 ## Give each agent its own scratch directory, and name the repo in every git command
 
 Read-only does not hold once agents run experiments. Give every agent a scratch path of its own,
