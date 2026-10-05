@@ -68,7 +68,25 @@ echo "Plugins dir: $INSTALL_DIR"
 [ -n "$IDE_BUNDLE_ID" ] && echo "IDE bundle id: $IDE_BUNDLE_ID"
 [ -n "$IDE_EXE" ] && echo "IDE executable: $IDE_EXE"
 
-echo "=== Step 1: Stopping IDE (if running)..."
+echo "=== Step 1: Building plugin zip..."
+$GRADLE_CMD buildPlugin
+echo "Done."
+
+PLUGIN_ZIP=$(ls -t "$REPO_DIR/build/distributions"/*.zip 2>/dev/null | head -1)
+if [ -z "$PLUGIN_ZIP" ] || [ ! -f "$PLUGIN_ZIP" ]; then
+    echo "ERROR: no plugin zip found under build/distributions/"
+    exit 1
+fi
+echo "Built: $PLUGIN_ZIP"
+
+# Top-level directory name inside the zip == plugin folder name in plugins dir.
+PLUGIN_DIR_NAME=$(unzip -Z1 "$PLUGIN_ZIP" | head -1 | cut -d/ -f1)
+if [ -z "$PLUGIN_DIR_NAME" ]; then
+    echo "ERROR: could not determine plugin directory name from $PLUGIN_ZIP"
+    exit 1
+fi
+
+echo "=== Step 2: Stopping IDE (if running)..."
 case "$OS" in
     win)
         if [ -n "$IDE_PROCESS" ]; then
@@ -110,24 +128,6 @@ case "$OS" in
         fi
         ;;
 esac
-
-echo "=== Step 2: Building plugin zip..."
-$GRADLE_CMD buildPlugin
-echo "Done."
-
-PLUGIN_ZIP=$(ls -t "$REPO_DIR/build/distributions"/*.zip 2>/dev/null | head -1)
-if [ -z "$PLUGIN_ZIP" ] || [ ! -f "$PLUGIN_ZIP" ]; then
-    echo "ERROR: no plugin zip found under build/distributions/"
-    exit 1
-fi
-echo "Built: $PLUGIN_ZIP"
-
-# Top-level directory name inside the zip == plugin folder name in plugins dir.
-PLUGIN_DIR_NAME=$(unzip -Z1 "$PLUGIN_ZIP" | head -1 | cut -d/ -f1)
-if [ -z "$PLUGIN_DIR_NAME" ]; then
-    echo "ERROR: could not determine plugin directory name from $PLUGIN_ZIP"
-    exit 1
-fi
 
 echo "=== Step 3: Installing into plugins dir..."
 mkdir -p "$INSTALL_DIR"

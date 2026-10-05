@@ -44,13 +44,13 @@ fi
 echo "Project: $ASSEMBLY_NAME"
 echo "Deploying to: $INSTALL_DIR"
 
-echo "=== Step 1: Stopping running app (if any)..."
-powershell.exe -Command "Get-Process '$ASSEMBLY_NAME' -ErrorAction SilentlyContinue | Stop-Process -Force" || true
-echo "Done."
-
-echo "=== Step 2: Building Release publish..."
+echo "=== Step 1: Building Release publish..."
 rm -rf "$REPO_DIR/src/bin/publish"
 dotnet publish "$REPO_DIR/src" -c Release -o "$REPO_DIR/src/bin/publish"
+echo "Done."
+
+echo "=== Step 2: Stopping running app (if any)..."
+powershell.exe -Command "Get-Process '$ASSEMBLY_NAME' -ErrorAction SilentlyContinue | Stop-Process -Force" || true
 echo "Done."
 
 echo "=== Step 3: Deploying to install directory..."

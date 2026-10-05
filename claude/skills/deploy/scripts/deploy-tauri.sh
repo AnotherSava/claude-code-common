@@ -123,23 +123,7 @@ select_built_artifact() {
 echo "Project: ${PRODUCT_NAME:-$BIN_NAME}"
 echo "Deploying to: $INSTALL_DIR"
 
-echo "=== Step 1: Stopping running app (if any)..."
-case "$OS" in
-    win)
-        powershell.exe -Command "Get-Process '$PROC_NAME' -ErrorAction SilentlyContinue | Stop-Process -Force" || true
-        ;;
-    mac)
-        pkill -x "$BIN_NAME" 2>/dev/null \
-            || osascript -e "quit app \"${PRODUCT_NAME:-$BIN_NAME}\"" 2>/dev/null \
-            || true
-        ;;
-    linux)
-        pkill -x "$BIN_NAME" 2>/dev/null || true
-        ;;
-esac
-echo "Done."
-
-echo "=== Step 2: Building Tauri Release..."
+echo "=== Step 1: Building Tauri Release..."
 # Skip the macOS .dmg target: deploy copies the .app from target/release/bundle/macos/
 # directly into INSTALL_DIR, so the DMG is wasted work — and `bundle_dmg.sh` mounts the
 # DMG, which auto-opens (and then closes) its "drag-to-Applications" Finder window every
@@ -157,6 +141,22 @@ if [ ! -e "$BUILT_ARTIFACT" ]; then
     echo "ERROR: build output not found at $BUILT_ARTIFACT"
     exit 1
 fi
+
+echo "=== Step 2: Stopping running app (if any)..."
+case "$OS" in
+    win)
+        powershell.exe -Command "Get-Process '$PROC_NAME' -ErrorAction SilentlyContinue | Stop-Process -Force" || true
+        ;;
+    mac)
+        pkill -x "$BIN_NAME" 2>/dev/null \
+            || osascript -e "quit app \"${PRODUCT_NAME:-$BIN_NAME}\"" 2>/dev/null \
+            || true
+        ;;
+    linux)
+        pkill -x "$BIN_NAME" 2>/dev/null || true
+        ;;
+esac
+echo "Done."
 
 echo "=== Step 3: Deploying to install directory..."
 mkdir -p "$INSTALL_DIR"
