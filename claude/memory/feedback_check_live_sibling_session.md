@@ -45,6 +45,27 @@ wrong shared premise stays wrong for everyone until someone checks it, and the
 sibling generally wants to know: mine offered to fix anything of theirs that
 broke rather than hand it back.
 
+**A question about another project's behaviour is routed, not researched here.**
+The two cases above are about editing and about believing; this one is about
+answering. On 2026-10-04 the transcripts session was asked why bga-assistant was
+not showing clean on the dashboard. That is a question about the
+claude-code-dashboard's classification rules, and its session was live — and was
+the one the user had selected. Answering it from here meant reading another
+repo's source, app-data and log to reconstruct a rule its own session knows, and
+the user's correction was that it should have been forwarded. The researched
+answer was correct and still the wrong move.
+
+**Why:** the owning session can check its own tree and act on what it finds; a
+foreign session can only describe. So the research is duplicated work that ends
+in a handoff anyway, and any fix it proposes arrives as a hypothesis the owner
+must re-verify.
+
+**How to apply:** when the subject of a question is another project's code or
+behaviour, forward it to that project's session (the `peer` skill) before
+investigating. Say in the message what prompted it, and keep the investigation
+for what *this* repo can answer. Forwarding needs no approval, so the cost of
+getting it wrong is one message.
+
 **Siblings also contend for shared OS state — the clipboard especially.** All
 sessions share one macOS pasteboard (sandboxed and unsandboxed Bash read the
 same one; there is no per-sandbox clipboard). So a `pbcopy` followed by a

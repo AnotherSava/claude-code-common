@@ -167,7 +167,7 @@
 - [Stay silent on user `!` commands](feedback_silent_on_bash_input.md) {always} — a bare `!`/bash-input result is the user's own action; return control immediately, no analysis or "looks good" filler, unless they ask
 - [Fix bugs at the source, not in callers](feedback_fix_at_source.md) {always} — if a bug lives in code I can modify (including vendored copies), fix it at the source instead of working around or suppressing it (gitignore, filtering, silencing)
 - [Generalize global skills, don't fork project-local](feedback_generalize_global_skills.md) {always} — name collisions load the wrong SKILL body; but a skill whose domain IS one project belongs in its repo
-- [Check for a live sibling session](feedback_check_live_sibling_session.md) {always} — an instruction that doesn't fit this repo likely belongs to another live session; find it and check its `git status` (the `peer` skill) before editing its files; siblings also overwrite the shared clipboard
+- [Check for a live sibling session](feedback_check_live_sibling_session.md) {always} — an instruction, or a question about another project, likely belongs to another live session; route it there and check its `git status` (the `peer` skill) before editing its files; siblings also overwrite the shared clipboard
 - [Native dialogs render plain text — no clickable links](feedback_native_dialogs_no_links.md) {always} — `tauri-plugin-dialog`/MessageBox/NSAlert can't embed `<a>`; build a custom Tauri webview window for About-style content with links
 - [About dialogs describe WHAT, not HOW](feedback_about_what_not_how.md) {always} — About copy stays declarative ("Each session keeps a history"), not action-prescriptive ("Double-click to open")
 - [Run the script, not the skill](feedback_deploy_script_not_skill.md) {always} — once configured, run `bash scripts/<verb>.sh` directly for deploy/build/cleanup/publish; Skill is for first-time setup; a new shell fn needs a restart
@@ -240,3 +240,4 @@
 - [Don't re-ask what you measured](feedback_dont_reask_what_you_measured.md) {always} — ask only about the undecided remainder, never from scratch
 - [Clear a provably stale blocker](feedback_clear_provably_stale_blockers.md) — state you can show is stale gets cleared by the operation itself, not refused with retry advice or waited out
 - [Minimal v1 first](feedback_minimal_v1_first.md) — design a feature's smallest end-to-end version first; enrichments go under "Later"
+- [A style rule applies forward, not backward](feedback_style_rule_no_history_sweep.md) {always} — don't sweep existing files for a newly banned phrase, and don't offer to

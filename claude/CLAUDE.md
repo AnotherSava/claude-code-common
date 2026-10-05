@@ -319,7 +319,7 @@ Cross-project preferences and feedback. Memory files live in `~/.claude/memory/`
 - [Stay silent on user `!` commands](~/.claude/memory/feedback_silent_on_bash_input.md) — a bare `!`/bash-input result is the user's own action; return control immediately, no analysis or "looks good" filler, unless they ask
 - [Fix bugs at the source, not in callers](~/.claude/memory/feedback_fix_at_source.md) — if a bug lives in code I can modify (including vendored copies), fix it at the source instead of working around or suppressing it (gitignore, filtering, silencing)
 - [Generalize global skills, don't fork project-local](~/.claude/memory/feedback_generalize_global_skills.md) — name collisions load the wrong SKILL body; but a skill whose domain IS one project belongs in its repo
-- [Check for a live sibling session](~/.claude/memory/feedback_check_live_sibling_session.md) — an instruction that doesn't fit this repo likely belongs to another live session; find it and check its `git status` (the `peer` skill) before editing its files; siblings also overwrite the shared clipboard
+- [Check for a live sibling session](~/.claude/memory/feedback_check_live_sibling_session.md) — an instruction, or a question about another project, likely belongs to another live session; route it there and check its `git status` (the `peer` skill) before editing its files; siblings also overwrite the shared clipboard
 - [Native dialogs render plain text — no clickable links](~/.claude/memory/feedback_native_dialogs_no_links.md) — `tauri-plugin-dialog`/MessageBox/NSAlert can't embed `<a>`; build a custom Tauri webview window for About-style content with links
 - [About dialogs describe WHAT, not HOW](~/.claude/memory/feedback_about_what_not_how.md) — About copy stays declarative ("Each session keeps a history"), not action-prescriptive ("Double-click to open")
 - [Run the script, not the skill](~/.claude/memory/feedback_deploy_script_not_skill.md) — once configured, run `bash scripts/<verb>.sh` directly for deploy/build/cleanup/publish; Skill is for first-time setup; a new shell fn needs a restart
@@ -382,6 +382,7 @@ Cross-project preferences and feedback. Memory files live in `~/.claude/memory/`
 - [Commit gate contents](~/.claude/memory/feedback_commit_gate_contents.md) — a repo's commit gate runs its build, lint and tests where each exists; draft from what's there, invent no linter
 - [Rate realism before hardening](~/.claude/memory/feedback_realism_before_hardening.md) — a rare edge case a review found, harmless or cheap to handle by hand, is reported and gets a warning or a doc line, not code; an automated review-and-fix loop runs through the saved `review-and-fix` workflow, whose verify step rates who reaches each finding
 - [Don't re-ask what you measured](~/.claude/memory/feedback_dont_reask_what_you_measured.md) — ask only about the undecided remainder, never from scratch
+- [A style rule applies forward, not backward](~/.claude/memory/feedback_style_rule_no_history_sweep.md) — don't sweep existing files for a newly banned phrase, and don't offer to
 <!-- END generated -->
 
 ## Memos
