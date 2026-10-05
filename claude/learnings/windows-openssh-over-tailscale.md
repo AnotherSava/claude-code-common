@@ -91,6 +91,15 @@ Two more cleanups for readable output: start the script with `$ProgressPreferenc
 PowerShell emits a wall of `#< CLIXML` progress objects onto the stream, and pipe results through `tr -d '\r'`
 locally since every line arrives CRLF.
 
+## An sshd session cannot answer what the interactive shell's environment holds
+
+Route an environment question to the Claude session already running on that box, through the `peer`
+skill: its Bash tool runs in the real Git Bash, so ask it for the raw output and read that. An sshd
+session answers about an environment nobody works in — its default shell is cmd.exe and nothing sources
+Git Bash's profile, so a variable the interactive shell sets for itself is simply absent. The one that
+matters is `SHELL`, since a native program reads it to find an interpreter. Measuring `bash -lc` over
+SSH reaches the login profile but still not the variables a desktop parent process contributes.
+
 ## Handing it data: send a program on stdin, not a command line
 
 Encoding solves a *script* cmd.exe would mangle. It does not solve a command carrying *data* — a
