@@ -27,6 +27,12 @@ So automation that needs a release belongs in the user's logged-in browser: an e
 - **Encoding**: pages are Windows-1251; decode accordingly when fetching one from script.
 - **Parsing Cyrillic with JS regex**: `\b` is ASCII-only and never ends a Cyrillic word, so `/^Сезон\b/` fails on "Сезон: 4". Use a lookahead such as `(?=[\s:]|$)`.
 
+## Specials in a release
+
+A topic's episode count includes any special it packs, so `Серии: 1-13 из 13` on a four-season Sherlock pack is twelve episodes plus "The Abominable Bride". Inside the torrent such a special is usually named by its title alone, with no episode number and sometimes a misspelt show name (`Season 4/Sherlok.The Abominable Bride.avi`, beside `Sherlock.s04e01.avi`), and its subtitles follow the same stem (`Sherlok.The Abominable Bride.RUS.FORCED.srt`). Mapping such files onto episodes therefore needs a match against the catalog's episode titles; a number-only parser files the special as unknown and separates it from its subtitles.
+
+The opposite case looks the same from the title and is not a special at all. The Sandman's "A Special Episode - Death: The High Cost of Living" is S02E12 in TMDB (where `episode_type` is `finale`), in TheTVDB and in the release's own file names, so the word "special" in a title says nothing about season 0. Comments on a topic page sometimes quote the torrent's file list, which is the only way to see it without logging in.
+
 ## Search page (logged in only)
 
 `tracker.php?nm=<query>&f=<forum ids>`; rows `table#tor-tbl > tbody > tr`, title `a.tLink`, size `td.tor-size[data-ts_text=<bytes>]`, seeders in column 7 (or days since a seeder was seen, containing "дн"), added time `data-ts_text`. Fifty rows per page. Rutracker's global CSS forces `a:hover { color: #dd6900 !important; text-decoration: underline !important }`, so UI injected into the page needs a shadow root.

@@ -33,6 +33,11 @@ Every response is `{ status, data, links? }`. `links` (pagination) appears on li
   following `links.next` (or incrementing `page` until `episodes` is empty). `season-type` ∈
   default | official | dvd | absolute | alternate | regional; **"default" = aired order** (matches TV Time
   and most trackers).
+- `&season=0` on the same endpoint narrows it to the specials. A special that aired inside a regular season
+  carries `airsAfterSeason`, or `airsBeforeSeason` plus `airsBeforeEpisode`; one with none of the three stands
+  apart from the seasons. Those fields are what tells a story episode a release group will pack into a season
+  ("The Abominable Bride", after Sherlock series 3) from a featurette, more reliably than its title or runtime.
+  Checked 2026-10-04 across a library of 84 shows.
 
 ## Gotchas (each caused a real bug)
 
