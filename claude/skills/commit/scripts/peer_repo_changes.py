@@ -23,6 +23,9 @@ import re
 import subprocess
 import sys
 
+sys.path.insert(0, os.path.join(os.path.dirname(os.path.abspath(__file__)), "..", "..", "shared"))
+from peer_relay import PeerUnmeasured, local_session  # noqa: E402  (the shared module's path is set above)
+
 WRITE_TOOLS = ("Edit", "Write", "NotebookEdit", "MultiEdit")
 PATH_KEYS = ("file_path", "notebook_path")
 
@@ -145,6 +148,15 @@ def _dirty_paths(root: str) -> set[str] | None:
     return dirty
 
 
+def _session_line(project: str) -> str:
+    """The owning session's `SendMessage` address as the dashboard resolves it, or why there is none to use."""
+    try:
+        name, why = local_session(project)
+    except PeerUnmeasured as exc:
+        return f"UNMEASURED — {exc}"
+    return name or f"none — {why}"
+
+
 def main() -> int:
     here = _toplevel(os.getcwd())
     transcript, how = _resolve_transcript()
@@ -176,7 +188,7 @@ def main() -> int:
             continue
         reported += 1
         print(f"peer-repos: {os.path.basename(root)}  ({root})")
-        print(f"  ListAgents name prefix: {os.path.basename(root)}")
+        print(f"  session: {_session_line(os.path.basename(root))}")
         for path in sorted(outstanding):
             print(f"  uncommitted: {os.path.relpath(path, root)}")
         others = len(dirty) - len(outstanding)

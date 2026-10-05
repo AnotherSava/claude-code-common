@@ -17,7 +17,7 @@ you have none of the context the other session built up.
 **How to check** — on 2026-07-31 an "align the elements" request for the BGA
 compact header arrived in the tauri-dashboard session. Find the session the
 instruction fits and see what it is mid-way through, as the `peer` skill's
-"Find the session" step describes (`ListAgents`, the dashboard roster, its
+"Find the session" step describes (`peer_relay.py session`, the dashboard roster, its
 `widget.jsonl`, and `git status` in that repo).
 
 Then name the session it belongs in rather than acting. Offer to do it from the

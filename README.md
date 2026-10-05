@@ -224,7 +224,7 @@ Shipping outward is a different verb: a versioned artifact goes through the `rel
 - Auto-configures `deploy()` shell function in the platform-appropriate rc file (`~/.zshrc` on macOS, `~/.bashrc` on Windows Git Bash / Linux)
 - Creates `scripts/deploy.sh` wrapper pointing to the global deploy script
 - Reads install path from `config/deploy.env` (asks on first run)
-- Install targets run the full pipeline: stop app → build → clean install dir → copy → launch → verify
+- Install targets run the full pipeline: build → stop app → clean install dir → copy → launch → verify. The build runs first, so a failed build leaves the running app untouched
 - The Tauri target asks `cargo metadata` where the build landed, so an app inside a Cargo workspace installs the binary just built rather than a stale one from `src-tauri/target`
 - Asks right before a run that starts, restarts or closes an app with a window — the install targets that launch the installed app, and the IntelliJ target when it is set to close the IDE — and runs only on a yes; the dev-server target opens no window and runs without asking
 - Local web servers (a `package.json` with a `dev` script, or a plain static `index.html`) relaunch detached on the configured port, then get health-checked
@@ -430,7 +430,7 @@ Finds, messages and routes work to other Claude Code sessions, on this machine o
 **Command:** `/peer`
 
 **Features:**
-- Reaches sessions on this machine through `ListAgents` and `SendMessage`, and sessions on the other machine through the Claude Code Dashboard relay
+- Reaches sessions on this machine through `SendMessage`, finding the one working in a project with `peer_relay.py session`, which asks the dashboard to match by working directory so a renamed session is still found; sessions on the other machine are reached through the Claude Code Dashboard relay
 - Sends cross-machine with one shared client, `skills/shared/peer_relay.py`, which addresses the project on the peer and lets the peer's dashboard resolve the session
 - Reports each relay receipt literally, keeping "written" apart from "delivered" and "not sent" apart from "nobody there"
 - Explains each relay refusal code and what to do about it

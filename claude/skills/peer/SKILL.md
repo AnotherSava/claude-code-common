@@ -17,7 +17,7 @@ Two transports, chosen by where the recipient runs:
 
 ## 1. Find the session
 
-**On this machine**, run `ListAgents`. A session's name is its project's directory name plus a short suffix (`tauri-dashboard-1b`), so match a repo by that prefix and address it by the name as printed, never from memory: a restarted session has a new suffix. A row's age is the process's, not the conversation's — a session started with `--continue` holds its whole history.
+**On this machine**, ask the dashboard: `python ~/.claude/skills/shared/peer_relay.py session --project <project>` (`python3` on macOS; `--project` defaults to this repo's) prints the `SendMessage` address of the one live session working in that project's directory. It matches by working directory through Claude Code's session registry, so it finds a session renamed away from its directory name, which a match on `ListAgents` names misses. Otherwise it prints `none — <why>`, which also covers two sessions sharing one directory, or `UNMEASURED — <why>` with exit 1 when the dashboard cannot answer. Address the session by the name printed, never from memory: a restarted session has a new name. `ListAgents` shows what else is running. A row's age is the process's, not the conversation's — a session started with `--continue` holds its whole history.
 
 **On the other machine**, finding is usually unnecessary: `peer_relay.py send` addresses the project and the peer's dashboard resolves it, including a session idle since its dashboard restarted, which no roster here shows. Look only when the question *is* whether a session exists or what it is doing:
 

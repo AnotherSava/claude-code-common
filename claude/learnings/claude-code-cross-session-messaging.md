@@ -60,9 +60,17 @@ Each session writes `<claude-config>/sessions/<pid>.json`:
  "name":"proj-89","nameSource":"derived","status":"idle"}
 ```
 
-- `nameSource` is `derived` unless `--name`/`/rename` set it, then `user`. **Derived names carry a
-  random suffix that changes on every restart** (`landlord-4b` → `landlord-29`), so never persist one
-  as an address — re-read `ListAgents` each time.
+- `nameSource` is `derived` unless `--name`/`/rename` set it (`user`) or Claude Code named the session
+  itself from its work (`auto`, seen 2026-10-04 on sessions called `verify-plan-archive-hook` and
+  `agwinterm-sidebar-label-ownership`). **Derived names carry a random suffix that changes on every
+  restart** (`landlord-4b` → `landlord-29`), so never persist one as an address — re-read the name each
+  time.
+- **A `user` or `auto` name no longer starts with the directory name**, so finding a project's session by
+  `ListAgents` name prefix misses it. Match on the record's `cwd` instead. The dashboard already does
+  that match, and `GET /api/agents` returns Claude Code's own `name` on a local row whenever exactly one
+  live session backs it. `skills/shared/peer_relay.py session` is the client for it. That `name` is a
+  different field from the row's `display_name`, which is the dashboard's own tab label and never a
+  `SendMessage` address.
 - `pidDomain` (`darwin`, `win32:<hostname>`, `darwin:<machineId>:<pidNs>`) exists to stop pid aliasing
   across machines or pid namespaces; a foreign-domain record is never treated as a local pid. It is
   evidence that this channel is **not** meant to stretch across machines.
