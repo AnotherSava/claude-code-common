@@ -1,7 +1,7 @@
 ---
 name: pr-create
 description: Prepare commits for the current feature branch, push, and create or update a PR to main.
-allowed-tools: Bash(git status:*), Bash(git log:*), Bash(git diff:*), Bash(git reset --soft:*), Bash(git add:*), Bash(git commit:*), Bash(git push:*), Bash(git rev-parse:*), Bash(git branch:*), Bash(git fetch:*), Bash(git checkout:*), Bash(git merge:*), Bash(git rebase:*), Bash(gh pr create:*), Bash(gh pr view:*), Bash(gh pr edit:*), Bash(ls:*), Read, Glob, Grep
+allowed-tools: Bash(git status:*), Bash(git log:*), Bash(git diff:*), Bash(git reset --soft:*), Bash(git add:*), Bash(git commit:*), Bash(git push:*), Bash(git rev-parse:*), Bash(git branch:*), Bash(git fetch:*), Bash(git checkout:*), Bash(git merge:*), Bash(git rebase:*), Bash(gh pr create:*), Bash(gh pr view:*), Bash(gh pr edit:*), Bash(ls:*), Bash(python ~/.claude/skills/shared/gate_pushed_tree.py:*), Bash(python3 ~/.claude/skills/shared/gate_pushed_tree.py:*), Read, Glob, Grep
 ---
 
 # Create PR for Plan-Based Changes
@@ -53,11 +53,14 @@ If the rebase produces conflicts, stop and ask the user to resolve them.
 
 ### Step 4: Push and create/update PR
 
-1. Push the branch. Use `--force-with-lease` if the remote branch already exists (commits were reset and recommitted):
+1. Push the branch. Gate the published state first, then use `--force-with-lease` if the remote branch already exists (commits were reset and recommitted):
    ```
+   python ~/.claude/skills/shared/gate_pushed_tree.py --caller /pr-create
    git push -u origin <branch-name> --force-with-lease
    ```
-   For a new remote branch, a regular push works too — `--force-with-lease` is safe either way.
+   Use `python3` on macOS. For a new remote branch, a regular push works too — `--force-with-lease` is safe either way.
+
+   A non-zero exit stops the push. The branch's commits were written here and never measured against the repo's own gate, and a reviewer reading the PR cannot see that: the gate runs on a working tree, so a branch that fails it looks the same on GitHub as one that passes.
 
 2. Draft the PR description. The PR body should be **more detailed than the commit message** — it is the primary review artifact. Build it from the plan doc, diff, and progress log:
 

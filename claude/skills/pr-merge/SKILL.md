@@ -1,7 +1,7 @@
 ---
 name: pr-merge
 description: Merge a PR locally with fast-forward to preserve GPG-signed commits, then clean up.
-allowed-tools: Bash(git status:*), Bash(git log:*), Bash(git diff:*), Bash(git fetch:*), Bash(git checkout:*), Bash(git rebase:*), Bash(git merge:*), Bash(git push:*), Bash(git branch:*), Bash(git rev-parse:*), Bash(git symbolic-ref:*), Bash(git stash:*), Bash(git remote:*), Bash(gh pr:*), Bash(python ~/.claude/skills/shared/notify_peer_pull.py:*), Read
+allowed-tools: Bash(git status:*), Bash(git log:*), Bash(git diff:*), Bash(git fetch:*), Bash(git checkout:*), Bash(git rebase:*), Bash(git merge:*), Bash(git push:*), Bash(git branch:*), Bash(git rev-parse:*), Bash(git symbolic-ref:*), Bash(git stash:*), Bash(git remote:*), Bash(gh pr:*), Bash(python ~/.claude/skills/shared/notify_peer_pull.py:*), Bash(python ~/.claude/skills/shared/gate_pushed_tree.py:*), Bash(python3 ~/.claude/skills/shared/gate_pushed_tree.py:*), Read
 ---
 
 # Merge PR Locally (Preserving GPG Signatures)
@@ -96,11 +96,13 @@ be fast-forwardable. If not, rebase first.
    git merge <branch-name> --ff-only
    ```
 
-3. Push main, recording where the remote stood first so the next step can list what went out:
+3. Push main, recording where the remote stood first so the next step can list what went out. Gate the published state before the push — the merge brings in commits this skill never gated, since they were written and reviewed on the branch:
    ```
+   python ~/.claude/skills/shared/gate_pushed_tree.py --caller /pr-merge
    git rev-parse @{upstream}
    git push origin main
    ```
+   Use `python3` on macOS. A non-zero exit stops the push: fix it in a commit on main rather than publishing a tree that fails the repo's own gate.
 
 4. Ask the other machine to pull, once that push has succeeded:
    ```

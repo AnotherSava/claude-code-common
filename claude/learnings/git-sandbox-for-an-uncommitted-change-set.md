@@ -43,7 +43,7 @@ and produced a 16 KB sandbox whose `git status` mirrored the source exactly, del
 untracked file included. On the real dotfiles repo, a 14-path change set gave a 6.1 MB sandbox,
 and the patch it yielded applied to the real tree under `git apply --check`.
 
-## Three limits to carry into any caller
+## Limits to carry into any caller
 
 **Ignored files are excluded by construction.** That is correct for reviewing documentation or
 source, and wrong for anything that needs a build artifact — such a caller must copy what it needs
@@ -56,6 +56,19 @@ any it finds, which is the one output of this flow that must not be ignored.
 **Put the sandbox outside the repository.** `.claude/worktrees/` is where `EnterWorktree` puts its
 own, and it is not in every repo's `.gitignore` — the dotfiles repo does not ignore it. A sandbox
 there shows up as untracked in the very change set being reviewed.
+
+**A repo whose own checks assert where it is installed cannot be verified from a sandbox at all.**
+Not a limit on the carry-in — a limit on what a check *means* when run anywhere but the real
+checkout. Measured 2026-10-04 in the dotfiles repo, where the plan was to run the commit gate in a
+detached worktree at `HEAD` so its verdict would bind the tree a push publishes: the gate failed
+with 17 violations across two rules, every one an artifact of the path. `install-links-present`
+accounts for 16, since `~/.claude/*` points at the real checkout rather than the sandbox, and
+`memory-cache-linked` derives a Claude project id from the checkout path and so looks for
+`~/.claude/projects/-private-tmp-<sandbox-name>/memory`. Both report a defect in a tree that has
+none, which is worse than not checking — so a gate like that belongs in the real root, with its
+reach stated, rather than in a sandbox whose answer is unusable. Any repo asserting its own
+absolute install location, a registered path, or a machine-local sibling directory has the same
+property; check for one before designing a per-revision verification around a worktree.
 
 A rename is covered only because its source is in that list as well as its destination: handed
 the destination alone, the carry-in copies the new file and never deletes the old one. Symlinks
