@@ -333,3 +333,63 @@ style content, on cost grounds; this one only *verifies*, which is a different p
 rejection does not cover it. And `preflight.sh` keeps its job — it reports the selected name and the resolved
 file separately, which is the output-style-specific detail the generic checker does not go into.
 
+---
+
+## 2026-10-04 — Fourth pass: the contrastive pair
+
+**Source:** the user, on a completion report that opened a paragraph with *"Verified by running, not by reading"*:
+"that's another thing i'd like you to use less — phrases 'something, not something else' where you contrast two
+things." One flagged instance, and the same reply held two more ("a decision rather than a sweep", "report,
+don't solicit"), so the complaint is about density as much as any single sentence.
+
+**Mechanism:** CLAUDE.md's **Overused Phrases** section, by the usual split — a construction never to write is a
+phrase ban, and that section already carries three construction-level entries (announcing openers, report
+lead-ins, colour clauses) in the entry-plus-replacement format. Nothing went into the output style: this is a
+string-level deletion with no bearing on where the action sits or how long the body runs.
+
+**Adopted:**
+
+- **Contrastive pairs written for emphasis** are banned, covering ", not Y", "rather than Y" and "not X but Y".
+  The stated reason is that the second half names an alternative nobody proposed, so one fact arrives dressed
+  as two.
+- **The exception is welded on in the same entry, and is the part that makes the ban safe:** the construction
+  stays correct where the contrast carries the information — a premise the user actually stated, what a check
+  could not see, how shipped work differs from approved work, two live options, or a replacement pair.
+- **A send-time test** rather than a word list: delete the "not Y" half and see whether anything actionable
+  went with it.
+
+**Rewritten:** nothing. The adjacent *Clauses that exist only for colour* entry was audited as
+**partially-covered** and left alone — it governs a decorative clause hung off a true statement, and a
+contrastive pair slips past it because the "not Y" half looks like a second fact instead of decoration.
+
+**Rejected:**
+
+- **An unqualified ban.** It collides with three rules that need the construction to say what they exist to say
+  (`feedback_state_the_enforcement_reach`, `feedback_report_the_divergence`, and correcting a wrong premise),
+  and with this very section's own replacement format. A ban without the exception would make the cheapest way
+  to state a limit unavailable, which trades a tic for a correctness loss.
+- **Extending it to documents, commit messages and memory titles.** Out of scope by this skill's own boundary,
+  and the construction is the repo's house idiom for naming a rule: **62** memory `description` lines use it
+  ("Lead with the rule, not the value", "Fix the class, not the instance"). A compressed title is where the
+  contrast genuinely is the content.
+
+**What would re-open it:** if replies start reading as evasive or start burying a real correction — the failure
+mode to watch is a wrong premise left uncorrected because the sentence that would correct it looks like the
+banned shape. That is the signal to widen the exception, never to delete the correction.
+
+**Tested:** **not tested.** Two reasons, both precedent in this file. A string-level deletion is the class the
+2026-09-08 pass called "the safest kind to ship untested", and it shipped two that way. And the harness's
+measurement is the user judging a blind sheet, which the 2026-09-10 pass recorded them declining for exactly
+this kind of change — "I feel stupid reading two screens of text for each problem just to choose a better
+view". An A/B would also struggle here: the construction appears a few times per reply at most, so eight
+prompts is a thin sample for a density complaint.
+
+**Do not re-litigate:**
+
+- The ban is scoped to **replies to the user**. Documents, commit messages, memory titles and skill prose keep
+  the construction; `docs-style` owns prose, and this skill does not reach it.
+- The exception is not a loophole to be trimmed later. It was written because three existing rules depend on
+  the construction, and those rules outrank a style preference.
+- The entry belongs in CLAUDE.md and not the output style, because a phrase ban must also reach Task
+  subagents, which an output style does not.
+
