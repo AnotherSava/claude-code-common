@@ -16,15 +16,17 @@ passes. Running it per commit needs a checkout per commit, which this repo canno
 conventions assert the `~/.claude` symlinks and derive a project id from the checkout path, so any
 scratch worktree collects 17 violations across two rules that have nothing to do with the tree.
 
-Called by every skill that pushes. Exits non-zero when the gate fails, and when the unpushed range
-cannot be read at all — an unmeasured range is not a pass. A repo with no gate, and a directory
-that is not a repo, are reported as NOT COVERED and block nothing.
+Called by every skill that pushes. Exits non-zero when the gate fails, when the unpushed range
+cannot be read at all, and when no bash is on PATH to run the gate — an unmeasured range is not a
+pass. A repo with no gate, and a directory that is not a repo, are reported as NOT COVERED and
+block nothing.
 """
 
 from __future__ import annotations
 
 import argparse
 import os
+import shutil
 import subprocess
 import sys
 
@@ -68,9 +70,17 @@ def main() -> None:
         print(f"gate-pushed-tree: NOT COVERED — {len(commits)} unpushed commit(s) and this repo has no {GATE}")
         return
 
+    # A bare "bash" goes through CreateProcess on Windows, which searches System32 before PATH and
+    # so starts the WSL launcher, a different OS with none of the tools the gate calls. A PATH
+    # search finds Git Bash there. See learnings/windows-spawning-bash.md.
+    bash = shutil.which("bash")
+    if bash is None:
+        print("gate-pushed-tree: UNMEASURED — no bash on PATH to run the gate with")
+        sys.exit(1)
+
     held = sorted(set(changed_paths(cwd=root)))
     print(f"gate-pushed-tree: running {GATE} over the {len(commits)} unpushed commit(s) {args.caller} would publish")
-    done = subprocess.run(["bash", GATE], cwd=root, capture_output=True, text=True)
+    done = subprocess.run([bash, GATE], cwd=root, capture_output=True, text=True)
     sys.stdout.write(done.stdout)
     sys.stderr.write(done.stderr)
 
