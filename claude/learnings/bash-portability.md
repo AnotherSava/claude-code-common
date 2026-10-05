@@ -393,7 +393,7 @@ reproduce for one person and not the next.
 
 Measured 2026-08-30, bash 3.2 (macOS).
 
-## Two Git-Bash-on-Windows traps when embedding another language
+## Git-Bash-on-Windows traps when handing text to a Windows-native program
 
 **A quoted heredoc still loses backslashes on the way into Python.** Writing a script inline with
 `python <<'PYEOF' … PYEOF` looks like it should pass the body through verbatim, but doubled backslashes
@@ -430,6 +430,20 @@ FileNotFoundError: [Errno 2] No such file or directory: '/tmp/captest/vault/inde
 Both halves succeed individually, which makes it read as the writer having failed rather than the
 reader looking elsewhere. Translate with `pwd -W` (or `cygpath -w`) before handing a path across, or
 keep scratch files inside the project on an explicit path.
+
+**An argument that starts with `/` gets rewritten into a Windows path, even when it is not a path.**
+MSYS converts every argument that looks like a POSIX path before it reaches a Windows-native program.
+So a label such as a skill name arrives as a path under the Git install directory:
+
+```
+python script.py --caller /commit    # sys.argv: 'C:/Program Files/Git/commit'
+```
+
+Nothing fails. The value is simply wrong wherever it is printed or compared. `MSYS_NO_PATHCONV=1` on
+the command stops the rewrite, but it stops all of it, and child processes inherit the variable. A real
+path such as `~/.claude/x` then reaches Python as `/c/Users/<name>/.claude/x`, which does not exist on
+Windows. That breaks every path handed on by a gate script the program spawns. The fix that holds is to
+pass the value without its leading slash and let the program add it back.
 
 ## Spawning `bash` from a Windows program gets WSL's bash, not Git Bash
 

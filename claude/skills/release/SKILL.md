@@ -93,7 +93,7 @@ For Chrome extension:
 - Edit `manifest.json` `"version"` field → new version
 - Edit `package.json` `"version"` field → new version
 - Stage and commit (GPG-signed): `git add manifest.json package.json && git commit -S -m "chore: bump version to X.Y.Z"`
-- Gate what the push would publish: `python ~/.claude/skills/shared/gate_pushed_tree.py --caller /release` (`python3` on macOS). It runs the repo's own commit gate over the tree `HEAD` now holds, which is what the remote gets; a non-zero exit means fix it in a further commit rather than pushing. Nothing else here runs that gate, and the bump commit reaches the remote with the version in it.
+- Gate what the push would publish: `python ~/.claude/skills/shared/gate_pushed_tree.py --caller release` (`python3` on macOS). It runs the repo's own commit gate over the tree `HEAD` now holds, which is what the remote gets; a non-zero exit means fix it in a further commit rather than pushing. Nothing else here runs that gate, and the bump commit reaches the remote with the version in it.
 - Push: record where the remote stood with `git rev-parse @{upstream}`, then `git push origin main`
 
 For Tauri, bump **all five** version references so they stay in sync (the bundle version comes from `tauri.conf.json`; the others must match):
@@ -103,7 +103,7 @@ For Tauri, bump **all five** version references so they stay in sync (the bundle
 - Edit `src-tauri/Cargo.lock` — the package's own entry (find the `[[package]]` block whose `name` matches the crate, bump its `version`; leave dependency entries untouched)
 - Regenerate `package-lock.json` with `npm install --package-lock-only` (run it *after* editing `package.json`; it rewrites the root `"version"` and the mirrored one under `packages.""`, touching nothing else when dependencies are unchanged). Skip only if the project has no `package-lock.json`. This one is easy to miss because nothing fails without it: `npm ci` compares dependency specifiers, not the root version, so a stale value survives release after release in silence — one project's lockfile sat five versions behind before anyone noticed.
 - Stage and commit (GPG-signed): `git add src-tauri/tauri.conf.json package.json package-lock.json src-tauri/Cargo.toml src-tauri/Cargo.lock && git commit -S -m "chore: bump version to X.Y.Z"`
-- Gate what the push would publish: `python ~/.claude/skills/shared/gate_pushed_tree.py --caller /release` (`python3` on macOS). It runs the repo's own commit gate over the tree `HEAD` now holds, which is what the remote gets; a non-zero exit means fix it in a further commit rather than pushing. Nothing else here runs that gate, and the bump commit reaches the remote with the version in it.
+- Gate what the push would publish: `python ~/.claude/skills/shared/gate_pushed_tree.py --caller release` (`python3` on macOS). It runs the repo's own commit gate over the tree `HEAD` now holds, which is what the remote gets; a non-zero exit means fix it in a further commit rather than pushing. Nothing else here runs that gate, and the bump commit reaches the remote with the version in it.
 - Push: record where the remote stood with `git rev-parse @{upstream}`, then `git push origin main`
 
 Use the Edit tool — do not regenerate any file. Read `Cargo.lock` before editing it (Edit requires a prior Read).

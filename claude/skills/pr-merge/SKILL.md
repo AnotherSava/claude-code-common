@@ -98,7 +98,7 @@ be fast-forwardable. If not, rebase first.
 
 3. Push main, recording where the remote stood first so the next step can list what went out. Gate the published state before the push — the merge brings in commits this skill never gated, since they were written and reviewed on the branch:
    ```
-   python ~/.claude/skills/shared/gate_pushed_tree.py --caller /pr-merge
+   python ~/.claude/skills/shared/gate_pushed_tree.py --caller pr-merge
    git rev-parse @{upstream}
    git push origin main
    ```

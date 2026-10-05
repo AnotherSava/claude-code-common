@@ -55,7 +55,7 @@ If the rebase produces conflicts, stop and ask the user to resolve them.
 
 1. Push the branch. Gate the published state first, then use `--force-with-lease` if the remote branch already exists (commits were reset and recommitted):
    ```
-   python ~/.claude/skills/shared/gate_pushed_tree.py --caller /pr-create
+   python ~/.claude/skills/shared/gate_pushed_tree.py --caller pr-create
    git push -u origin <branch-name> --force-with-lease
    ```
    Use `python3` on macOS. For a new remote branch, a regular push works too — `--force-with-lease` is safe either way.

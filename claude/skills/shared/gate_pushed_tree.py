@@ -47,8 +47,11 @@ def unpushed(root: str) -> list[str]:
 
 def main() -> None:
     parser = argparse.ArgumentParser(description=__doc__)
-    parser.add_argument("--caller", default="this skill", help="skill name, for the report lines")
+    # Taken without its slash: Git Bash rewrites an argument like "/commit" into a Windows path
+    # ("C:/Program Files/Git/commit") before Python sees it.
+    parser.add_argument("--caller", required=True, help="skill name without the leading slash, for the report lines")
     args = parser.parse_args()
+    skill = f"/{args.caller}"
 
     try:
         root = git(["rev-parse", "--show-toplevel"]).strip()
@@ -63,7 +66,7 @@ def main() -> None:
         sys.exit(1)
 
     if not commits:
-        print(f"gate-pushed-tree: nothing unpushed, so {args.caller} would publish no new state")
+        print(f"gate-pushed-tree: nothing unpushed, so {skill} would publish no new state")
         return
 
     if not os.path.exists(os.path.join(root, GATE)):
@@ -79,7 +82,7 @@ def main() -> None:
         sys.exit(1)
 
     held = sorted(set(changed_paths(cwd=root)))
-    print(f"gate-pushed-tree: running {GATE} over the {len(commits)} unpushed commit(s) {args.caller} would publish")
+    print(f"gate-pushed-tree: running {GATE} over the {len(commits)} unpushed commit(s) {skill} would publish")
     done = subprocess.run([bash, GATE], cwd=root, capture_output=True, text=True)
     sys.stdout.write(done.stdout)
     sys.stderr.write(done.stderr)
