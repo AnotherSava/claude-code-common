@@ -29,35 +29,30 @@ INERT_PATHS = {".claude/conventions"}
 
 
 def unpushed_paths() -> tuple[list[str], str | None]:
-    """Paths touched by commits not yet on a remote, and a note when that cannot be determined.
+    """Paths touched by commits no remote ref contains, and a note when that cannot be determined.
 
     What has not reached the remote is unreviewed whether or not it is still in the tree, so the
     gate reads both.
+
+    `HEAD --not --remotes` bounds that range in every layout, which is why no upstream is consulted
+    to pick it. An `@{upstream}..HEAD` range is wrong wherever the tracked remote is not the push
+    remote: in a fork whose branch tracks `upstream` while pushes go to `origin`, every
+    commit already pushed to the fork counts as unpushed forever, so both sub-skills verdict `RUN`
+    on every run over files they have already reviewed. Measured 2026-10-04 in such a fork:
+    `git rev-list HEAD --not --remotes` gave 0 against `@{upstream}..HEAD`'s 2. A branch pushed
+    nowhere yet scopes its whole history, which is the honest answer — measured 2026-10-01,
+    returning an empty list and a note instead let the verdict read the working tree as the whole
+    scope and print `clean-code: SKIP` over three unpushed commits that changed two C# files.
+
+    `--diff-filter=ACMRT` keeps a deletion out of the scope, since neither sub-skill can review a
+    path that no longer exists.
     """
     try:
-        git(["rev-parse", "--abbrev-ref", "@{upstream}"])
+        raw = git(["log", "--name-only", "--pretty=format:", "-z", "--diff-filter=ACMRT",
+                   "HEAD", "--not", "--remotes"], binary=True)
     except subprocess.CalledProcessError:
-        return paths_not_on_any_remote()
-    raw = git(["diff", "--name-only", "-z", "--diff-filter=ACMRT", "@{upstream}..HEAD"], binary=True)
-    return [p.decode("utf-8", "surrogateescape") for p in raw.split(b"\0") if p], None
-
-
-def paths_not_on_any_remote() -> tuple[list[str], str | None]:
-    """The unpushed range for a branch with no upstream: commits no remote ref contains.
-
-    A missing upstream is not an unmeasurable range — `HEAD --not --remotes` bounds it exactly,
-    without a tracking branch, and a branch pushed nowhere yet then scopes its whole history,
-    which is the honest answer. Measured 2026-10-01: returning an empty list and a note here
-    instead let the verdict below read the working tree as the whole scope and print
-    `clean-code: SKIP` over three unpushed commits that changed two C# files.
-    """
-    try:
-        raw = git(["log", "--name-only", "--pretty=format:", "-z", "HEAD", "--not", "--remotes"],
-                  binary=True)
-    except subprocess.CalledProcessError:
-        return [], "UNMEASURED — no upstream and the remote refs could not be read"
-    paths = sorted({p.decode("utf-8", "surrogateescape") for p in raw.split(b"\0") if p})
-    return paths, "no upstream; the unpushed range is bounded by remote refs instead"
+        return [], "UNMEASURED — the remote refs could not be read"
+    return sorted({p.decode("utf-8", "surrogateescape") for p in raw.split(b"\0") if p}), None
 
 
 def suffix_of(path: str) -> str:
