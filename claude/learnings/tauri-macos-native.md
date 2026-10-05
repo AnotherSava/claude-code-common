@@ -256,6 +256,26 @@ branch would be unable to distinguish that from an opt-out and would fight the
 OS-level choice. Whatever writes the setting in your UI must write both halves,
 or the next launch will undo an "off" chosen there.
 
+## A left click reaches the app only with tray-icon 0.25.1 on macOS 27
+
+Lock `tray-icon` at 0.25.1 or newer wherever a tray icon runs its own left-click
+action. Below that version the crate keeps the menu attached to the status item
+for the item's whole life, and macOS 27 presents that menu itself on a left
+press: the overlay view the crate installs never receives the event, so
+`show_menu_on_left_click(false)` has no effect and the app's handler never runs.
+No call in the app's own source distinguishes a build that behaves from one that
+does not. PR [#365](https://github.com/tauri-apps/tray-icon/pull/365) attaches
+the menu only while it is being presented and shipped in 0.25.1; tauri 2.12.1 is
+the first release to require that range.
+
+Read the resolved version out of `Cargo.lock` rather than the manifest, which
+under a range like `tauri = "2"` names no tray-icon version at all.
+The registry and changelog queries that establish which release a fix shipped in
+are in `cargo-which-release-carries-a-fix.md`. The floor is also a convention
+across these repos — the claude dotfiles repo's
+`claude/conventions/versions/014-tray-icon-macos-click/` holds the migration, and
+its `rules/tray-icon-macos-click.py` asserts the floor at every commit.
+
 ## Control+click on a tray icon must open the menu (secondary-click convention)
 
 On macOS, Control+click is the system-wide **secondary click** — Apple defines
@@ -268,7 +288,7 @@ Root cause, confirmed down to the crate source: AppKit delivers Control+click as
 a **`leftMouseDown` with the Control modifier flag set** — it does *not*
 synthesize a `rightMouseDown`. The `tray-icon` crate's macOS handler reports it
 as `MouseButton::Left` and **drops the modifier** — `TrayIconEvent::Click`
-carries no modifier field (still true on the newest 0.24.x and `dev`; upstream
+carries no modifier field (measured on 0.24.x and `dev`; upstream
 issue [#112](https://github.com/tauri-apps/tray-icon/issues/112) has been open
 with no PR since 2024). Tauri's wrapper exposes no modifier either. So you can't
 learn it from the event — you must query the live modifier state yourself.
@@ -297,7 +317,8 @@ icon. Tauri's tray wrapper doesn't re-export it, but you can reach it through th
 public `with_inner_tray_icon` — and the `on_tray_icon_event` closure's first
 param already *is* the Tauri `TrayIcon` handle:
 
-    // tauri >= 2.11 pins tray-icon 0.24 (has show_menu); otherwise require tray-icon >= 0.22
+    // tauri 2.11 requires tray-icon 0.24 and 2.12.1 requires 0.25; TrayIcon
+    // carries show_menu in both (docs.rs/tray-icon/0.25.1)
     #[cfg(target_os = "macos")]
     if control_key_held() {
         let _ = tray.with_inner_tray_icon(|inner| inner.show_menu());
