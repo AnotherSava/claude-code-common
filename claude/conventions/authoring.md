@@ -58,7 +58,7 @@ file. The first changes what a repo is required to be; the second changes only h
 requirement is measured, and a repo that starts failing on it was mismeasured rather than changed.
 
 A **universal** rule is for the property no number could ever be true of, because it is not about
-the repo alone. The one in the set is the memory-cache link: `claude/scripts/link-project-memory.sh`
+the repo alone. The clearest of them is the memory-cache link: `claude/scripts/link-project-memory.sh`
 points this machine's Claude memory cache at the repo's committed `.claude/memory/`, and that is
 per-machine work — the same repo arrives on the second machine with it genuinely not done, and it
 breaks years after any adoption from a cleared cache, a moved checkout, or a Git Bash `ln -s` that
