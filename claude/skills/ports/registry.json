@@ -125,7 +125,8 @@
       "owner": "claude",
       "scope": "machine",
       "status": "assigned",
-      "notes": "The sink page an agent serves to collect postMessage results out of claude-in-chrome. Throwaway per run; the number is written into the probing recipe."
+      "notes": "The sink page an agent serves to collect postMessage results out of claude-in-chrome. Throwaway per run; the number is written into the probing recipe.",
+      "pinned": "written into the claude-in-chrome probing recipe as a literal an agent types; no script launches it, so there is nothing to resolve the number at"
     },
     {
       "port": 4444,
@@ -207,7 +208,8 @@
       "owner": "claude",
       "scope": "machine",
       "status": "assigned",
-      "notes": "The ad-hoc local page server the claude-in-chrome probing recipes serve from. Throwaway per run; the number is written into the recipe."
+      "notes": "The ad-hoc local page server the claude-in-chrome probing recipes serve from. Throwaway per run; the number is written into the recipe.",
+      "pinned": "written into the claude-in-chrome probing recipe as a literal an agent types; no script launches it, so there is nothing to resolve the number at"
     },
     {
       "port": 8765,
@@ -231,7 +233,8 @@
       "owner": "claude",
       "scope": "machine",
       "status": "assigned",
-      "notes": "PUBLISH_PORT, the loopback file server every published file proxies to. Loopback-bound, which is the one bind style that can share its number with a serve mapping — and the reason publish-port's same-number form still exists."
+      "notes": "PUBLISH_PORT, the loopback file server every published file proxies to. Loopback-bound, which is the one bind style that can share its number with a serve mapping — and the reason publish-port's same-number form still exists.",
+      "pinned": "PUBLISH_PORT is a module constant in shared/tailnet_publish.py, read before any registry call could happen — the file server is what publishing resolves THROUGH, so it cannot resolve its own port"
     },
     {
       "port": 8818,
@@ -248,7 +251,8 @@
       "owner": "claude",
       "scope": "machine",
       "status": "assigned",
-      "notes": "The throwaway local Caddy the vhost-gate tests run against."
+      "notes": "The throwaway local Caddy the vhost-gate tests run against.",
+      "pinned": "written into the vhost-gate test recipe as a literal; the throwaway Caddy is started by hand, with no launch script to resolve it"
     },
     {
       "port": 9077,

@@ -227,8 +227,14 @@ CASES = (
         "ports-from-registry",
         # The dev script runs the shim, so the number is nowhere in the tree. Committed because the rule
         # asks git which launch files this repo tracks — an untracked package.json is nobody's declaration.
+        #
+        # Only the literal half of the rule is reachable here. Its other half asks the registry which ports
+        # it assigns THIS repo, and a scratch directory appears in no registry, so the conforming tree below
+        # passes that half by owning nothing rather than by resolving anything. Both halves are pinned
+        # directly against `check_repo` in `claude/tests/ports.py`, which supplies its own registry.
         Tree({"web/package.json": '{\n  "scripts": {\n    "dev": "node ../scripts/dev.mjs next dev"\n  }\n}\n',
-              "scripts/dev.mjs": "// resolves the port from the registry\n"}, committed=True),
+              "scripts/dev.mjs": "import { run } from '~/.claude/skills/ports/scripts/dev-port.mjs'\n"},
+             committed=True),
         # A `-p` flag. No pinned claim can own it, since the registry's claims name real repos and this
         # tree's name is a scratch directory — which is the point: a literal here is always unowned.
         Tree({"web/package.json": '{\n  "scripts": {\n    "dev": "next dev -p 3940"\n  }\n}\n'}, committed=True),

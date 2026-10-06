@@ -10,16 +10,21 @@ A port written into a dev script is a copy of a number something else also holds
 process actually reads. Nothing reconciled the two. Before this, the deploy skill chose a dev port by
 regexing a `package.json` for a `-p` flag and falling back to `3000` — which is printlab's dev port — and
 the number then settled into `config/deploy.env`, a `package.json` script, sometimes a project
-`scripts/dev.sh`, and a compose host publish. A survey on 2026-10-05 found one project spanning four files. Two ports were claimed by two projects each, and a `tailscale serve` mapping fronting a dev
+`scripts/dev.sh`, and a compose host publish. A survey on 2026-10-05 found one project spanning four
+files. Two ports were claimed by two projects each, and a `tailscale serve` mapping fronting a dev
 server from the port that server had to bind made it unstartable on the second run.
 
 The ports registry now owns every port this machine's projects take, keyed by use case:
 `~/.claude/skills/ports/`. A project asks for its number at launch and gets the same one every time.
 
-What that buys is a check a grep can do. With the number resolved at launch, a port literal in a
-launch-determining file is either a defect or a number that genuinely cannot move — and the second kind
-says so in the registry, as a `pinned` claim. So "does this repo hardcode a port?" is answerable from the
-repo's own files, with nothing to compare and no adoption state to keep in sync.
+What that buys is a check that reads the repo instead of reconciling two records. With the number resolved
+at launch, a port literal in a launch-determining file is either a defect or a number that genuinely cannot
+move — and the second kind says so in the registry, as a `pinned` claim.
+
+An absent literal answers only half of it, because a repo that resolves nothing holds no literal either. The
+other half asks the registry which ports it assigns this repo and requires a tracked file here that asks for
+each; the registry is where that set is knowable, since the repo's own files cannot say which ports it ought
+to have. Neither half keeps an adoption state in sync.
 
 Three kinds of literal stay, and the rule allows each once the registry records it as `pinned`:
 
@@ -40,11 +45,18 @@ literals no launch-time resolution can replace, and the rule does not look at th
 Do this in the repo that is behind, not in the dotfiles repo.
 
 1. **Find what the rule will find.** Run
-   `python3 ~/.claude/skills/ports/scripts/ports.py check --repo .` and read every line. It scans only
-   the files that decide where a server listens — `package.json` scripts, `scripts/`, compose host
-   publishes, a Vite config, `src-tauri/src/config.rs`, `build.gradle.kts` — and names the literal, its
-   line and what the registry says about that number. An empty report means the migration is a no-op
-   here; record the version and stop.
+   `python3 ~/.claude/skills/ports/scripts/ports.py check --repo .` and read every line. It reports two
+   different things, and an empty report means both came back empty:
+
+   - **A port literal** in a file that decides where a server listens — `package.json` scripts,
+     `scripts/`, compose host publishes, a Vite config, `src-tauri/src/config.rs`, `build.gradle.kts`
+     — named with its line and what the registry says about that number.
+   - **A port the registry assigns this repo that nothing here asks for.** An absent literal is not
+     resolution: a dev script with no `-p` and no resolver takes its framework's default and drifts
+     upward on a collision, which is a worse failure than the literal because nothing names the port
+     at all. Measured 2026-10-05: printlab and what-is-next were both in exactly that state.
+
+   Only when it reports neither is the migration a no-op here, and then record the version and stop.
 
 2. **Decide each literal: resolve it, or pin it.** A port the project's own server listens on and that
    nothing outside the machine depends on gets resolved at launch (step 3). A port in one of the three
@@ -94,17 +106,21 @@ Nothing here requires inventing a Node dependency a repo does not have.
 
 ## When it does not apply
 
-- **No launch-determining file tracked at all.** Step 1 reports nothing because there is nothing to scan:
-  no `package.json`, no `scripts/`, no compose file, no Vite or Tauri config, no Gradle build. Evidence
-  is `git ls-files` over those paths coming back empty, which the checker already does.
-- **Every literal it finds is already a `pinned` claim owned by this repo.** The report is empty and the
-  registry carries the reason for each number. A repo of externally-fixed ports is conforming, not
-  exempt.
-- **The repo takes no port.** Same empty report, reached by having no literal rather than by having
-  pinned ones. An absent `config/deploy.env` is not evidence of this on its own — it is per-machine, so
-  it says only that this machine has no local deploy configured.
+- **The registry assigns this repo no port.** Then there is nothing for a literal to copy and nothing
+  for a resolver to fetch, and step 1 reports neither half. Evidence is `ports.py list` carrying no
+  `machine`-scope claim whose owner is this repo — read off the registry, not inferred from the repo's
+  own files. `bga-assistant` is this case and conforming: its `dev` script is `vite build --watch`, a
+  build watcher that binds nothing.
+- **Every port it assigns this repo is a `pinned` claim.** The report is empty and the registry carries
+  the reason each number cannot move. A repo of externally-fixed ports is conforming, not exempt — the
+  dotfiles repo itself is this case, its own four ports being a module constant and three literals
+  written into recipes a person types.
+- **No launch-determining file tracked at all,** with no claim either: nothing to scan and nothing
+  owed. An absent `config/deploy.env` is not evidence of any of these on its own — it is per-machine,
+  so it says only that this machine has no local deploy configured.
 
 ## Continuing rule
 
 `ports-from-registry` — every port literal in a launch-determining file is a `pinned` claim in the ports
-registry owned by this repo.
+registry owned by this repo, and every unpinned port the registry assigns this repo is asked for by a
+tracked file here.

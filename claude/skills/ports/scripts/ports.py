@@ -473,24 +473,64 @@ def launch_path_literals(repo: Path) -> List[Tuple[Path, int, int, str]]:
     return found
 
 
-def check_repo(data: Dict, repo: Path) -> Tuple[List[str], List[str]]:
-    """Is every port this repo hardcodes one the registry says is unmovable: -> (problems, notices).
+# What a tracked file mentions when the repo resolves a port at launch: the shared resolver the
+# per-repo `scripts/dev.mjs` shim imports, or the allocator called directly by a script of its own.
+RESOLVER_MARKERS = ("dev-port.mjs", "ports.py")
 
-    The port a project's server listens on comes from the registry at launch, so a literal in a
-    launch-determining file is a second copy of a number the registry owns — and the one that wins,
-    since it is what the process reads. The exceptions are real and are recorded rather than removed: a
-    number fixed by an outside party, a compiled-in default, a vendor's default port. Each needs a
-    `pinned` claim owned by this repo, which is what turns "no literal here" into a check with meaning.
+
+def _owned_by(claim: Dict, name: str) -> bool:
+    """Is `claim` this repo's? The substring arm matches a claim several repos share as one owner."""
+    return claim["owner"] == name or name in str(claim["owner"])
+
+
+def _resolves_at_launch(repo: Path) -> bool:
+    """Does any tracked file in `repo` ask the registry for a port?
+
+    Read from the repo rather than assumed from the version record: a repo can record v15 and then
+    lose the shim to a revert or a bad merge, and the record would still say it adopted.
+
+    The allocator's own directory is excluded, so the dotfiles repo — which contains every one of these
+    markers by definition — is answered on the same evidence as anywhere else rather than passing for
+    holding the implementation.
+    """
+    patterns = [arg for marker in RESOLVER_MARKERS for arg in ("-e", marker)]
+    result = subprocess.run(["git", "-C", str(repo), "grep", "-lI", *patterns,
+                             "--", ".", ":(exclude)claude/skills/ports/*"],
+                            capture_output=True, encoding="utf-8", errors="replace", timeout=30)
+    # 1 is "no match", which is the answer rather than a failure. Anything else went unanswered.
+    if result.returncode not in (0, 1):
+        raise RuntimeError(f"git grep in {repo} exited {result.returncode}: {result.stderr.strip()}")
+    return bool(result.stdout.strip())
+
+
+def check_repo(data: Dict, repo: Path) -> Tuple[List[str], List[str]]:
+    """Does this repo get every port it owns from the registry: -> (problems, notices).
+
+    Two halves, and the second is why the first is worth anything. A literal in a launch-determining
+    file is a second copy of a number the registry owns, and the copy is what the process reads — so
+    each one has to be a `pinned` claim this repo owns, recording that an outside party, a compiled-in
+    default or a vendor fixed it.
+
+    The other half is a port the registry hands this repo that nothing here asks for. An absent literal
+    on its own proves nothing: a repo with no `-p` flag and no resolver is not resolving the port, it is
+    taking its framework's default and drifting upward on a collision. Measured 2026-10-05, printlab and
+    what-is-next both reported zero literals in exactly that state. So an unpinned claim this repo owns
+    requires either a literal already reported above or a tracked file that asks for the number.
+
+    A claim carrying `front_for` is exempt: a tailnet front port is allocated by `deploy-dev-server.sh`
+    at the moment it publishes, and the repo it belongs to never names it.
     """
     repo = repo.resolve()
     name = repo.name
     claims = _machine_ports(data)
     problems, notices = [], []
+    literal_ports = set()
 
     for path, number, port, line in launch_path_literals(repo):
+        literal_ports.add(port)
         claim = claims.get(port)
         relative = path.relative_to(repo).as_posix()
-        if claim is not None and claim.get("pinned") and (claim["owner"] == name or name in str(claim["owner"])):
+        if claim is not None and claim.get("pinned") and _owned_by(claim, name):
             continue
         if claim is None:
             problems.append(f"{relative}:{number} hardcodes port {port}, which no claim records: {line}. Either "
@@ -504,6 +544,18 @@ def check_repo(data: Dict, repo: Path) -> Tuple[List[str], List[str]]:
         else:
             problems.append(f"{relative}:{number} hardcodes port {port}, which is pinned to "
                             f"'{claim['use_case']}' ({claim['owner']}) rather than to this repo: {line}.")
+
+    owned = sorted((c for c in claims.values()
+                    if _owned_by(c, name) and not c.get("pinned") and c.get("front_for") is None
+                    and c["port"] not in literal_ports and c.get("status") == "assigned"),
+                   key=lambda c: c["port"])
+    if owned and not _resolves_at_launch(repo):
+        ports = ", ".join(f"{c['port']} ('{c['use_case']}')" for c in owned)
+        problems.append(f"the registry assigns this repo port {ports} and no tracked file here asks for it, so "
+                        f"nothing resolves it: the server takes its framework's default instead and drifts upward "
+                        f"on a collision. Copy `dev.mjs` from conventions/versions/015-ports-from-registry/ into "
+                        f"scripts/, point the dev script at it, and drop any port literal — or record the number "
+                        f"`--pinned` if it genuinely cannot be resolved at launch.")
 
     # Only the presence of DEV_PORT is worth a word. Its absence used to mean "nothing declared a port
     # here", which was unmeasured; the registry answers that now, so an absent key is the settled state
@@ -577,7 +629,7 @@ def main(argv: List[str]) -> int:
 
     p = sub.add_parser("check", help="the registry as a document, and optionally against this machine")
     p.add_argument("--live", action="store_true", help="also report what listens here that no claim records")
-    p.add_argument("--repo", help="also check one repo's config/deploy.env against the registry")
+    p.add_argument("--repo", help="also check whether one repo gets every port it owns from the registry")
 
     args = parser.parse_args(argv)
     if args.cmd == "check":

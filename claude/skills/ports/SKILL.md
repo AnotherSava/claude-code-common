@@ -79,14 +79,22 @@ the OS, a vendor default, another host — and releasing it would hand the numbe
 ```bash
 python3 ~/.claude/skills/ports/scripts/ports.py check                  # the registry as a document
 python3 ~/.claude/skills/ports/scripts/ports.py check --live           # ...and what this machine takes that it does not record
-python3 ~/.claude/skills/ports/scripts/ports.py check --repo <path>    # ...and one repo's config/deploy.env against it
+python3 ~/.claude/skills/ports/scripts/ports.py check --repo <path>    # ...and whether one repo gets every port it owns from the registry
 ```
 
-Exit 0 clean, 1 problems found. `--repo` reports a port literal in a **launch-determining** file —
-`package.json` scripts, `scripts/`, a compose host publish, a Vite config, `src-tauri/src/config.rs`,
-`build.gradle.kts` — which is a second copy of a number the registry owns, and the copy the process reads.
-A literal that cannot be resolved at launch is allowed once the registry records it as `pinned`: a number
-fixed by an outside party, a default compiled into a binary, a vendor's own port.
+Exit 0 clean, 1 problems found. `--repo` reports two things, and the second is why the first is worth
+anything:
+
+- **A port literal in a launch-determining file** — `package.json` scripts, `scripts/`, a compose host
+  publish, a Vite config, `src-tauri/src/config.rs`, `build.gradle.kts` — which is a second copy of a
+  number the registry owns, and the copy the process reads. Allowed once the registry records it as
+  `pinned`: a number fixed by an outside party, a default compiled into a binary, a vendor's own port.
+- **An unpinned port the registry assigns this repo that no tracked file asks for.** An absent literal
+  proves nothing on its own: a dev script with no `-p` and no resolver takes its framework's default and
+  drifts upward on a collision, which is worse, because then no file names the port at all. Measured
+  2026-10-05, printlab and what-is-next were both in that state while reporting zero literals. A claim
+  carrying `front_for` is exempt, since the deploy script allocates a tailnet front port at publish time
+  and the repo never names it.
 
 Prose is deliberately out of scope. A README telling a human which URL to open, an `.env.example` default,
 a test asserting a URL, a compose healthcheck on a container-internal port — none can be resolved at launch

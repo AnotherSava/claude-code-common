@@ -232,6 +232,37 @@ def main() -> int:
         except RuntimeError as exc:
             check("an unreadable tracked launch file raises", "will not read as text" in str(exc), True)
 
+        # ---- the other half: a port assigned to the repo that nothing here asks for -------------------
+        # A literal-free tree, so the half under test is the only thing that can speak. That is the state
+        # the first version of this rule called conforming while the port resolved nowhere.
+        subprocess.run(["git", "-C", str(scan), "rm", "-q", "--cached", "scripts/dev.sh"], check=True)
+        (scan / "scripts" / "dev.sh").unlink()
+        track("web/package.json", '{"scripts": {"dev": "next dev"}}\n')
+        check("the tree now holds no literal at all", ports.launch_path_literals(scan), [])
+
+        unpinned = {"version": 1, "claims": [dict(MACHINE, port=3950, use_case="scanned-dev-server",
+                                                  owner="scanned")]}
+        found, _ = ports.check_repo(unpinned, scan)
+        check("an unpinned assigned port no file asks for is reported", len(found), 1)
+        check("and the message says nothing resolves it", "nothing resolves it" in found[0], True)
+
+        check("a repo the registry assigns nothing owes nothing",
+              ports.check_repo({"version": 1, "claims": []}, scan), ([], []))
+        check("a pinned port needs no resolver",
+              ports.check_repo({"version": 1, "claims": [dict(MACHINE, port=3950, use_case="scanned-dev-server",
+                                                              owner="scanned", pinned="an outside party")]},
+                               scan), ([], []))
+        # A front port is deploy's to allocate at publish time; the repo never names it.
+        check("a front_for claim never demands a resolver",
+              ports.check_repo({"version": 1, "claims": [dict(MACHINE, port=3950, use_case="scanned-front",
+                                                              owner="scanned", front_for=3951),
+                                                         dict(MACHINE, port=3951, use_case="scanned-origin",
+                                                              owner="scanned", pinned="the origin")]},
+                               scan), ([], []))
+
+        track("scripts/dev.mjs", "import { run } from '.../ports/scripts/dev-port.mjs'\n")
+        check("a tracked file naming the resolver settles it", ports.check_repo(unpinned, scan), ([], []))
+
         # ---- the dead DEV_PORT key ------------------------------------------------------------------
         track("web/package.json", '{"scripts": {"dev": "node ../scripts/dev.mjs next dev"}}\n')
         (scan / "config").mkdir()
