@@ -9,7 +9,7 @@ allowed-tools: Read, Edit, Bash(git rev-parse:*), Bash(python ~/.claude/skills/m
 
 Park a stray idea now so it isn't lost — without derailing the current task — or review the backlog and pick something up.
 
-A memo is lighter than a GitHub issue: a half-formed thought worth keeping, not a tracked unit of work. The backlog lives in `.claude/memos/`, one file per memo, committed with the project. Open items resurface on their own at session start, at task completion, and during `/commit`.
+A memo is lighter than a GitHub issue: a half-formed thought worth keeping, not a tracked unit of work. The backlog lives in `.claude/memos/`, one file per memo, committed with the project. Open items surface on their own in the session-start status bar and nowhere else — asking for the list is what `/memo` with no arguments is for.
 
 ## Context
 - Repo root: !`git rev-parse --show-toplevel 2>/dev/null || pwd`

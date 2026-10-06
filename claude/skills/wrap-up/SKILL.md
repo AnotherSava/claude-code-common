@@ -232,8 +232,8 @@ Report what you did in one short line per item, then continue to step 7 in the s
 ### 7. Commit
 
 Run `/commit`. It owns the rest: the remote sync check, `/reflect` for durable knowledge,
-`/clean-code`, `/docs-relevance`, the confidentiality scan, the commit plan, the push, and the
-closing memo list. Honor its gates, and do not duplicate its work here. In particular, leave
+`/clean-code`, `/docs-relevance`, the confidentiality scan, the commit plan, and the push.
+Honor its gates, and do not duplicate its work here. In particular, leave
 the remote alone: syncing a branch whose tree is dirty has a specific safe order that `/commit`
 step 1 already encodes, and doing it early here would only get it wrong differently.
 

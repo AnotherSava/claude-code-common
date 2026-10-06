@@ -14,3 +14,4 @@
 - [Commit and wrap-up stay separate](commit-wrapup-stay-separate.md) — merging them was rejected 2026-09-30; they are already composed and the assumed overlap is absent
 - [Port uniqueness is not a rule](port-uniqueness-not-a-rule.md) — it lives in this repo's gate because three port-claiming repos have no gate at all; v15 does the per-repo replacement instead
 - [Registry prose audited against repos](registry-prose-audited-against-repos.md) — 2026-10-05: 29 claims read against their owning repos, numbers all held; a v15 adoption falsifies a note and nothing here reports it
+- [Memo surfacing is session start only](memo-surfacing-session-start-only.md) — decided 2026-10-06; a count in place of the list and keeping the task-completion listing were both declined, don't re-propose either
