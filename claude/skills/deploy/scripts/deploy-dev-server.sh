@@ -7,7 +7,6 @@
 # Reads config/deploy.env (written by the deploy skill):
 #   DEPLOY_TYPE=dev-server
 #   DEV_DIR=<subdir holding the package.json with the dev script, relative to repo root; default .>   e.g. web
-#   DEV_PORT=<port the server listens on; default 3000>
 #   DEV_CMD=<command that starts the server; default 'npm run dev'>
 #   DEV_PRESTART_CMD=<optional command run from the repo root between stopping the old server and
 #                     starting the new one; empty means no pre-start step>
@@ -17,6 +16,11 @@
 # Stops whatever holds the port, runs DEV_PRESTART_CMD if one is configured, then relaunches DEV_CMD
 # detached so the server outlives this command and the Claude session. Logs go to
 # <DEV_DIR>/dev-server.log (errors: .err.log).
+#
+# Both ports come from the ports registry, asked on every run and recorded there: the one the server binds
+# (`<repo>-dev-server`) and the one the tailnet URL is served on (`<repo>-dev-tailnet`). They cannot be the
+# same number — a `tailscale serve` mapping holds the wildcard address, so one on the server's own port
+# stops it rebinding at the next restart. Nothing in config/deploy.env names either.
 set -uo pipefail
 
 case "$(uname -s)" in
@@ -32,7 +36,6 @@ DEPLOY_ENV="$REPO_DIR/config/deploy.env"
 getval() { [ -f "$DEPLOY_ENV" ] && grep "^$1=" "$DEPLOY_ENV" | head -1 | cut -d= -f2- || true; }
 
 DEV_DIR="$(getval DEV_DIR)";  DEV_DIR="${DEV_DIR:-.}"
-DEV_PORT="$(getval DEV_PORT)"; DEV_PORT="${DEV_PORT:-3000}"
 DEV_CMD="$(getval DEV_CMD)";  DEV_CMD="${DEV_CMD:-npm run dev}"
 DEV_PRESTART_CMD="$(getval DEV_PRESTART_CMD)"
 DEV_TAILNET="$(getval DEV_TAILNET)"
@@ -40,19 +43,40 @@ DEV_TAILNET="$(getval DEV_TAILNET)"
 RUN_DIR="$REPO_DIR/$DEV_DIR"
 LOG="$RUN_DIR/dev-server.log"
 ERR="$RUN_DIR/dev-server.err.log"
+REPO_NAME="$(basename "$REPO_DIR")"
+PY=python3; [ "$OS" = "win" ] && PY=python
+SKILLS="$(cd "$(dirname "${BASH_SOURCE[0]}")/../.." && pwd)"
+PORTS="$SKILLS/ports/scripts/ports.py"
 
 if [ ! -d "$RUN_DIR" ]; then echo "ERROR: DEV_DIR '$DEV_DIR' not found under $REPO_DIR"; exit 1; fi
 
-# PIDs listening on the port (cross-platform).
-listening_pids() {
-    if [ "$OS" = "win" ]; then
-        MSYS_NO_PATHCONV=1 netstat -ano | grep -E "TCP.*[:.]${DEV_PORT}[[:space:]].*LISTENING" | awk '{print $NF}' | sort -u
-    else
-        lsof -nP -iTCP:"$DEV_PORT" -sTCP:LISTEN -t 2>/dev/null | sort -u
-    fi
-}
+# The port comes from the ports registry, keyed by use case, and no longer from config/deploy.env. One
+# number in one place is what lets a project's own dev script stop carrying a copy — and what retired the
+# old guess-from-package.json-else-3000 default, whose fallback was printlab's dev port. A
+# DEV_PORT line left in deploy.env is ignored; `ports.py check --repo` reports it so it can be removed.
+if ! DEV_PORT="$("$PY" "$PORTS" allocate --use-case "$REPO_NAME-dev-server" --owner "$REPO_NAME" \
+        --notes "$REPO_NAME's local dev server, started by deploy-dev-server.sh as: $DEV_CMD")"; then
+    echo "ERROR: the ports registry would not give $REPO_NAME a dev port (reason above), so nothing was started."
+    echo "       Look it up with: $PY $PORTS list"
+    exit 1
+fi
+
+# PIDs listening on the port. Both platforms' listings live in shared/port_probe.py, which also knows the
+# holder neither listing shows: a `tailscale serve` mapping's listener is in a root-owned system extension,
+# so an unprivileged lsof prints nothing about a port that cannot be bound.
+listening_pids() { "$PY" "$SKILLS/shared/port_probe.py" pids "$DEV_PORT"; }
 
 echo "Restarting dev server  (cmd: $DEV_CMD  dir: $DEV_DIR  port: $DEV_PORT)"
+
+# 0. Clear a tailnet mapping on DEV_PORT itself. One of these holds the wildcard address, so the server
+#    cannot rebind its own port and every process listing reports the port free — the state an earlier
+#    `deploy` left behind when it fronted the server from the number the server binds. The front port is
+#    a separate number now (step 5), so a mapping here is always stale.
+if FRONTED="$("$PY" "$SKILLS/shared/port_probe.py" served "$DEV_PORT" 2>/dev/null)"; then
+    echo "  clearing the tailnet mapping on port $DEV_PORT (fronts $FRONTED, and holds the wildcard address)"
+    "$PY" "$SKILLS/shared/tailnet_publish.py" unpublish-port "$DEV_PORT" >/dev/null \
+        || echo "  !! could not clear it — the server will fail to bind with nothing in any process listing"
+fi
 
 # 1. Stop whatever holds the port (tree kill — dev servers spawn worker children).
 pids="$(listening_pids)"
@@ -68,7 +92,10 @@ if [ -n "$pids" ]; then
     done
     sleep 1
 else
-    echo "  nothing listening on port $DEV_PORT"
+    # No visible PID is not the same as a free port. A root-owned or another user's listener appears in no
+    # unprivileged listing, so the honest line comes from the probe that also tries the bind — otherwise
+    # this says "nothing listening" about a port the server is about to fail on.
+    "$PY" "$SKILLS/shared/port_probe.py" verdict "$DEV_PORT" | sed 's/^/  /'
 fi
 
 # 2. Run the project's pre-start step, if it has one — seeding a database, fetching a fixture, rendering a
@@ -93,6 +120,13 @@ if [ -n "$DEV_PRESTART_CMD" ]; then
 fi
 
 # 3. Launch detached so this command returns and the server outlives the session.
+#
+#    PORT carries the registry's number into the command. Next and Vite both read it, and Next classifies
+#    an env-supplied port as source `env` rather than `default`, which keeps its retry-on-collision path
+#    off — so the server binds this number or exits, instead of drifting to the next free one and leaving
+#    the wait below polling a port nothing will ever open. A dev script that resolves the port itself
+#    (`node scripts/dev.mjs`) asks the same registry for the same use case and arrives at the same answer.
+export PORT="$DEV_PORT"
 if [ "$OS" = "win" ]; then
     RUN_WIN="$(cygpath -w "$RUN_DIR")"; OUT_WIN="$(cygpath -w "$LOG")"; ERR_WIN="$(cygpath -w "$ERR")"
     powershell.exe -NoProfile -Command "Start-Process -WindowStyle Hidden -FilePath 'cmd.exe' -ArgumentList '/c','$DEV_CMD' -WorkingDirectory '$RUN_WIN' -RedirectStandardOutput '$OUT_WIN' -RedirectStandardError '$ERR_WIN'" >/dev/null
@@ -109,21 +143,26 @@ for _ in $(seq 1 40); do
         # Repeated here because the pre-start output is dozens of lines back by now, and a server that came
         # up perfectly reads as a clean run. Restated where the eye already lands.
         [ "$PRESTART_RC" -ne 0 ] && echo "  !! pre-start step FAILED earlier (exit $PRESTART_RC) — this server is running on unsynced state"
-        # Last line, and only on success: the address is the point of the whole command, and a port number
-        # alone is not it — someone still has to assemble the URL before they can look at the thing. Printed
-        # by the script rather than left to whoever reports the run, so it cannot be omitted. It is the
-        # tailnet address, so the link opens on every machine the user has; the server keeps its loopback
-        # bind and Tailscale fronts it. A project pinned to a localhost origin keeps localhost, because the
-        # tailnet name would fail its key or redirect check.
+        # 5. Last line, and only on success: the address is the point of the whole command, and a port number
+        #    alone is not it — someone still has to assemble the URL before they can look at the thing.
+        #    Printed by the script rather than left to whoever reports the run, so it cannot be omitted. It
+        #    is the tailnet address, so the link opens on every machine the user has. A project pinned to a
+        #    localhost origin keeps localhost, because the tailnet name would fail its key or redirect check.
+        #
+        #    The tailnet port is NOT DEV_PORT. A `tailscale serve` mapping holds the wildcard address, so
+        #    fronting the server from its own number stops it rebinding at the next restart — with every
+        #    process listing showing the port free. The ports registry hands out the second number and
+        #    records who owns it; asking it on every run is what makes the answer stable across deploys.
         if [ "$DEV_TAILNET" = "no" ]; then
             echo "  open: http://localhost:$DEV_PORT  (this machine only: DEV_TAILNET=no)"
+        elif ! FRONT="$("$PY" "$PORTS" allocate \
+                --use-case "$REPO_NAME-dev-tailnet" --owner "$REPO_NAME" --front-for "$DEV_PORT" \
+                --notes "Tailnet front port for $REPO_NAME's dev server on $DEV_PORT. Allocated by deploy-dev-server.sh; the origin cannot share its own number.")"; then
+            echo "  open: http://localhost:$DEV_PORT  (this machine only: no tailnet port allocated, reason above)"
+        elif URL="$("$PY" "$SKILLS/shared/tailnet_publish.py" publish-port "$FRONT" --target "$DEV_PORT")"; then
+            echo "  open: $URL"
         else
-            PY=python3; [ "$OS" = "win" ] && PY=python
-            if URL="$("$PY" "$(dirname "${BASH_SOURCE[0]}")/../../shared/tailnet_publish.py" publish-port "$DEV_PORT")"; then
-                echo "  open: $URL"
-            else
-                echo "  open: http://localhost:$DEV_PORT  (this machine only: not published, reason above)"
-            fi
+            echo "  open: http://localhost:$DEV_PORT  (this machine only: not published, reason above)"
         fi
         exit 0
     fi

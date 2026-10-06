@@ -8,7 +8,7 @@ issued, so publishing costs no new service and no new credential.
 
     tailnet_publish.py publish <file> [--as <path>]   # prints the URL; exit 1 with a NOTE otherwise
     tailnet_publish.py unpublish <path>               # drop one published file
-    tailnet_publish.py publish-port <port>            # front a loopback server; prints https://<node>:<port>/
+    tailnet_publish.py publish-port <port> [--target <origin>]   # front a server; prints https://<node>:<port>/
     tailnet_publish.py unpublish-port <port>
     tailnet_publish.py list                           # every published file and the path behind it
     tailnet_publish.py serve                          # the loopback file server (spawned by publish)
@@ -28,10 +28,17 @@ serve a path`), so the proxy is the only shape that works on both machines. Only
 reachable, every file is re-read per request, and the server answers only Host headers naming
 loopback or a `*.ts.net` node, so a web page rebinding its own name to 127.0.0.1 reads nothing.
 
-Servers: `publish-port N` maps `https://<node>:N/` to `http://127.0.0.1:N`. Tailscale listens on the
-tailnet address and the server on loopback, so the two share the port number without colliding, the
-server keeps its loopback bind, and the whole root is proxied, so no base path is stripped. A server
-that checks the Host header (Vite's `server.allowedHosts`) has to allow the node's MagicDNS name.
+Servers: `publish-port N --target M` maps `https://<node>:N/` to `http://127.0.0.1:M`, and the whole
+root is proxied, so no base path is stripped. A server that checks the Host header (Vite's
+`server.allowedHosts`) has to allow the node's MagicDNS name.
+
+The front port N is a claim on this machine's TCP space, not only on the tailnet's: `tailscale serve`
+takes the wildcard and tailnet addresses and leaves loopback free, so while the mapping exists no
+local process can bind N on `0.0.0.0`. The ports registry hands out both numbers for that reason —
+`ports.py allocate` — and N must never be a port a server needs to bind. Omitting `--target` fronts
+`127.0.0.1:N` from N, which is safe only for a server bound to loopback alone; a wildcard-bound origin
+on N is refused, because the mapping would stop that server rebinding its own port at the next restart
+while `lsof` showed the port free. Measured on macOS, tailscale 1.102.1, 2026-10-05.
 
 Every publish verifies by fetching the URL — for a file, comparing the bytes — because the serve config
 lives in tailscaled and survives a reboot while the loopback file server does not; a dead server leaves
@@ -48,6 +55,7 @@ import http.client
 import json
 import mimetypes
 import os
+import re
 import shutil
 import subprocess
 import sys
@@ -61,6 +69,11 @@ from collections.abc import Iterator
 from http import HTTPStatus
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 from pathlib import Path
+
+sys.path.insert(0, str(Path(__file__).resolve().parent))
+
+import file_lock  # noqa: E402  — sibling module, reachable only after the path insert above
+import port_probe  # noqa: E402
 
 PUBLISH_PORT = 8788
 # Bumped whenever the server's routing or registry format changes, so a detached server started by an
@@ -136,30 +149,8 @@ def _registry_lock() -> Iterator[None]:
     its URL then 404s while its serve path stays mapped.
     """
     STATE_DIR.mkdir(parents=True, exist_ok=True)
-    with LOCK.open("a+b") as fh:
-        if sys.platform == "win32":
-            import msvcrt  # inline: Windows-only module
-
-            fh.seek(0)
-            while True:
-                try:
-                    msvcrt.locking(fh.fileno(), msvcrt.LK_LOCK, 1)
-                    break
-                except OSError:
-                    continue
-            try:
-                yield
-            finally:
-                fh.seek(0)
-                msvcrt.locking(fh.fileno(), msvcrt.LK_UNLCK, 1)
-        else:
-            import fcntl  # inline: POSIX-only module
-
-            fcntl.flock(fh.fileno(), fcntl.LOCK_EX)
-            try:
-                yield
-            finally:
-                fcntl.flock(fh.fileno(), fcntl.LOCK_UN)
+    with file_lock.locked(LOCK):
+        yield
 
 
 # ── naming ────────────────────────────────────────────────────────────────────
@@ -241,6 +232,52 @@ def _mapped_target(cli: str, host: str, port: int, path: str) -> str | None:
     if handler is None:
         return None
     return handler.get("Proxy", "") if isinstance(handler, dict) else ""
+
+
+def _serve_root_targets() -> dict[int, str]:
+    """Every port whose `/` this node serves, to what that handler proxies.
+
+    Keyed by scanning the serve table's own `host:port` entries rather than by this node's name, which
+    is unreadable on a tailnet with HTTPS certificates disabled while its mappings still exist.
+
+    A value of `""` is a mapping this module cannot read as a proxy — a file, a text handler. Still a
+    mapping, and it still holds the port, so callers treat it as foreign rather than as absent.
+    """
+    cli = _tailscale_cli()
+    if not cli:
+        return {}
+    data = _tailscale_json(cli, "serve", "status") or {}
+    found = {}
+    for key, entry in ((data.get("Web") or {}).items()):
+        try:
+            port = int(key.rsplit(":", 1)[-1])
+        except ValueError:
+            continue
+        handler = (entry or {}).get("Handlers", {}).get("/")
+        if handler is None:
+            continue
+        found[port] = handler.get("Proxy", "") if isinstance(handler, dict) else ""
+    return found
+
+
+def serve_ports() -> dict[int, str]:
+    """Every port this node fronts with `tailscale serve`, to what it proxies.
+
+    Public for the same reason as `serve_port_target`: each of these numbers is held on this machine's
+    wildcard address, so a record of what takes ports here is incomplete without them. 443 is excluded
+    — that is the node's shared root, where mappings are per path rather than per port, and a registry
+    told that 443 fronts whatever sits at `/` would read the shared root as one project's claim.
+    """
+    return {port: target for port, target in _serve_root_targets().items() if port != 443}
+
+
+def serve_port_target(port: int) -> str | None:
+    """What this node proxies `https://<node>:<port>/` to, or None when it serves that port's root at all.
+
+    Public because a `tailscale serve` mapping also holds the port on this machine's wildcard address,
+    so `port_probe.verdict` has to ask about it to name the holder no process listing shows.
+    """
+    return _serve_root_targets().get(port)
 
 
 def _tailscale_serve(cli: str, args: list[str]) -> bool:
@@ -529,10 +566,37 @@ def _port_answers(url: str) -> bool:
         return False
 
 
-def _publish_port(port: int) -> str | None:
-    """Front `http://127.0.0.1:<port>` at `https://<node>:<port>/` and return that verified URL."""
+def _front_port_refusal(port: int, origin: int) -> str | None:
+    """Why `port` must not front `origin`, or None when it may.
+
+    The front port is a claim on this machine's wildcard address as well as the tailnet's, so a server
+    that binds `0.0.0.0:<port>` can never share the number with its own mapping: it starts once, and
+    the next restart cannot rebind while `lsof` reports the port free. The same-number form stays
+    available for a loopback-only origin, which is what the publish file server is.
+    """
     if not 1 <= port <= 65535 or port == 443:
-        _note(f"{port} is not a port this can publish (443 is the node's shared root).")
+        return f"{port} is not a port this can publish (443 is the node's shared root)."
+    if not 1 <= origin <= 65535:
+        return f"{origin} is not a port this can front."
+    if port == PUBLISH_PORT and origin != PUBLISH_PORT:
+        return (f"{PUBLISH_PORT} is this module's own file server, so it cannot front another server. "
+                f"Allocate a front port with `ports.py allocate`.")
+    if port != origin:
+        return None
+    wildcard = [h for h in port_probe.holders(port) if h.bind == port_probe.WILDCARD]
+    if wildcard:
+        who = ", ".join(f"{h.command or 'pid'} {h.pid} on {h.address}" for h in wildcard)
+        return (f"{who} binds port {port} on every address, so fronting it from the same number would stop it "
+                f"rebinding at its next restart — with `lsof` showing the port free. Give the mapping its own "
+                f"front port: `publish-port <front> --target {port}`, with <front> from `ports.py allocate`.")
+    return None
+
+
+def _publish_port(port: int, origin: int) -> str | None:
+    """Front `http://127.0.0.1:<origin>` at `https://<node>:<port>/` and return that verified URL."""
+    refusal = _front_port_refusal(port, origin)
+    if refusal:
+        _note(refusal)
         return None
     cli = _tailscale_cli()
     if not cli:
@@ -542,7 +606,7 @@ def _publish_port(port: int) -> str | None:
     if not host:
         _note("this node has no MagicDNS name with HTTPS certificates, so the server was not published.")
         return None
-    target = f"http://127.0.0.1:{port}"
+    target = f"http://127.0.0.1:{origin}"
     mapped = _mapped_target(cli, host, port, "")
     if mapped is not None and mapped != target:
         _note(f"https://{host}:{port}/ already serves {mapped or 'something else'}, so it was left alone.")
@@ -552,18 +616,25 @@ def _publish_port(port: int) -> str | None:
         return url
     if mapped is None:
         _tailscale_serve(cli, [f"--https={port}", "off"])
-    _note(f"{url} got no answer from a server on 127.0.0.1:{port}, so it is not published.")
+    _note(f"{url} got no answer from a server on 127.0.0.1:{origin}, so it is not published.")
     return None
 
 
 def _unpublish_port(port: int) -> bool:
+    """Clear the mapping on `port`, whichever loopback origin it fronts.
+
+    Matched on the target being a loopback proxy rather than on one specific origin port: the origin
+    is a separate number now, so a caller that only knows the front port — the deploy script clearing
+    a mapping before it starts a server — has no way to name it.
+    """
     cli = _tailscale_cli()
     host = _node_name(cli) if cli else None
     if not cli or not host:
         _note("no tailscale binary or node name, so nothing was unpublished.")
         return False
-    if _mapped_target(cli, host, port, "") != f"http://127.0.0.1:{port}":
-        _note(f"port {port} is not fronting 127.0.0.1:{port}, so it was left alone.")
+    mapped = _mapped_target(cli, host, port, "")
+    if mapped is None or not re.match(r"^http://127\.0\.0\.1:\d+/?$", mapped):
+        _note(f"port {port} fronts {mapped or 'nothing'} rather than a loopback server, so it was left alone.")
         return False
     return _tailscale_serve(cli, [f"--https={port}", "off"])
 
@@ -577,7 +648,10 @@ def main() -> int:
     p.add_argument("file", type=Path)
     p.add_argument("--as", dest="url_path", help="URL path without the leading slash")
     sub.add_parser("unpublish").add_argument("url_path")
-    sub.add_parser("publish-port").add_argument("port", type=int)
+    pp = sub.add_parser("publish-port")
+    pp.add_argument("port", type=int, help="the tailnet front port, from `ports.py allocate`")
+    pp.add_argument("--target", type=int, help="the loopback port the server listens on; defaults to <port>, "
+                                               "which only a loopback-bound server may share")
     sub.add_parser("unpublish-port").add_argument("port", type=int)
     sub.add_parser("list")
     sub.add_parser("serve")
@@ -593,7 +667,10 @@ def main() -> int:
         return 0 if _unpublish(args.url_path) else 1
     if args.cmd == "unpublish-port":
         return 0 if _unpublish_port(args.port) else 1
-    url = _publish_port(args.port) if args.cmd == "publish-port" else publish(args.file, args.url_path)
+    if args.cmd == "publish-port":
+        url = _publish_port(args.port, args.target if args.target is not None else args.port)
+    else:
+        url = publish(args.file, args.url_path)
     if url:
         print(url)
     return 0 if url else 1

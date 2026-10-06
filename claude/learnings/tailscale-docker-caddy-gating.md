@@ -204,11 +204,15 @@ no path (`http://127.0.0.1:P`) strips the mapped path instead: `/report.html` ar
 must answer any path rather than matching the one it was mapped at.
 
 **A whole server gets its own HTTPS port instead of a path.** `tailscale serve --bg --https=4000
-http://127.0.0.1:4000` answers `https://<node>:4000/` — Tailscale listens on the tailnet address and the server on
-loopback, so the two share the port number without colliding, and the root is proxied whole, so an app with a base
-path of its own sees the paths it expects. Measured with a loopback-bound server on Windows 1.98.10 and macOS 1.102.1.
-`tailscale serve --https=4000 off` undoes it. The request keeps the Host the user typed, so a server that checks it
-(Vite's `server.allowedHosts`) must allow the node's MagicDNS name.
+http://127.0.0.1:3939` answers `https://<node>:4000/`, and the root is proxied whole, so an app with a base path of
+its own sees the paths it expects. `tailscale serve --https=4000 off` undoes it. The request keeps the Host the user
+typed, so a server that checks it (Vite's `server.allowedHosts`) must allow the node's MagicDNS name.
+
+The front port and the origin port must be different numbers whenever the origin binds the wildcard address: the
+mapping takes the wildcard and tailnet addresses and leaves only loopback free, so a wildcard-bound server starts
+once and then cannot rebind its own port — with no process listing showing why. Sharing the number is correct only
+for a loopback-only origin. Measured on Windows 1.98.10 and macOS 1.102.1; the full mechanics, the diagnostic and
+the allocator that hands out both numbers are in `tailscale-serve-port-ownership.md`.
 
 **The config outlives what it points at.** It lives in `tailscaled` and survives reboots, while the backing process
 does not — so after a reboot the URL answers 502 while every local check still passes. Verify by fetching the URL and
@@ -218,7 +222,8 @@ comparing what comes back against the file, which is the only check at the layer
 on 127.0.0.1:8788 serving every registered file by key, a `--set-path` per file under its repo-relative path
 (`<repo>/<path inside it>`) so no two files share an address, byte-comparison verification after each publish, a
 restart of the server when a publish finds it gone, and a refusal to repoint a path or port something else mapped.
-Its `publish-port` command is the HTTPS-port form above.
+Its `publish-port <front> --target <origin>` command is the HTTPS-port form above, with the two numbers kept apart;
+the single-number `publish-port <port>` is for a loopback-only origin and is refused over a wildcard-bound one.
 
 ## Gating inside the app instead of at the proxy
 
