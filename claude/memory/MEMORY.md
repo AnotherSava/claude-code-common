@@ -164,6 +164,7 @@
 - [Verify before justifying legacy behavior](feedback_verify_before_justifying.md) {always} — if explaining why old code/docs exist (especially defending keeping it), check the source before speculating; defensive guesses preserve cruft
 - [Captured the lesson, drop the code](feedback_research_to_production_cleanup.md) {always} — when research code transitions to production, delete helpers whose rationale lives in docs; the memory that replaces a retired tool keeps the claim, not the apparatus
 - [No permanent surface for one-time tasks](feedback_no_permanent_logic_for_one_time.md) {always} — do one-offs (backfills, migrations, seeding) as throwaways and delete; don't add a flag/helper/export to production — or a menu item/button to the UI — for a single run, and don't justify it with "single source"/"future use"
+- [Delete the copy, don't reconcile it](feedback_delete_the_copy_dont_reconcile.md) {always} — one value in two places gets a copy deleted, never a comparator plus a record of who reconciled them; absence of the copy is then the check
 - [Make the state settable, not a viewer](feedback_make_the_state_settable.md) {always} — expose the input a view depends on; never build a scaffold that imitates the state
 - [Stay silent on user `!` commands](feedback_silent_on_bash_input.md) {always} — a bare `!`/bash-input result is the user's own action; return control immediately, no analysis or "looks good" filler, unless they ask
 - [Fix bugs at the source, not in callers](feedback_fix_at_source.md) {always} — if a bug lives in code I can modify (including vendored copies), fix it at the source instead of working around or suppressing it (gitignore, filtering, silencing)
@@ -219,7 +220,7 @@
 - [No per-prompt hooks](feedback_no_per_prompt_hooks.md) {always} — never a hook on every prompt (worse if blocking); use an observable guideline or an on-demand check
 - [Fields earn their place, both ways](feedback_extend_schema_not_freetext.md) {always} — data that doesn't fit gets a new field, priced honestly, not stuffed in a comment; a field no step reads yet doesn't get one
 - [Compound label hierarchy](feedback_compound_label_hierarchy.md) {always} — a label made of several kinds of information gets a colour+weight per part, never one uniform run; a separator inside a part sits tighter than the gaps between parts
-- [Relative timestamps](feedback_relative_timestamps.md) {always} — "3h ago" visible, exact stamp on hover; port `formatInterval` from the What's Next repo, don't reinvent it
+- [Relative timestamps](feedback_relative_timestamps.md) {always} — "3h ago" visible, stamp on hover; absolute when the ask names a precision; port `formatInterval`
 - [Report timestamps in local time](feedback_local_time_timestamps.md) {always} — logs store UTC and these machines run hours behind it; convert before showing, or the quoted moment can't be matched to what the user saw
 - [Never weaken permissions in a subagent prompt](feedback_no_subagent_permission_bypass.md) {always} — approval for a task is never approval to disable approval gates; no `--dangerously-skip-permissions` in a subagent's instructions, ask first
 - [Route the output, don't ask for a paste](feedback_route_output_not_paste.md) {always} — a command only they can run gets `2>&1 | tee tmp/<name>.log`; I read it, clipboard is the fallback
