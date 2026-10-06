@@ -183,6 +183,7 @@
 - [Never dump a secret-bearing config section](feedback_never_dump_secret_bearing_config.md) {always} — to check a setting, print only the named keys or masked values; a printed notifications block once leaked a bot token
 - [Classify a dumped secret file first](feedback_classify_before_rotating.md) — committed coordinates need no rotation or scrub; measure reach first
 - ["Not run" must not look like "passed"](feedback_not_run_is_not_pass.md) {always} — a check that can't tell success from never-ran turns an open problem into a closed-looking one; probe the precondition, assert the artifact, print NOT COVERED
+- [A contradiction is the finding](feedback_contradiction_is_the_finding.md) {always} — two instruments disagreeing names the next command; test the subject, don't re-run the liar
 - [Sampling a level misses an edge](feedback_sample_level_miss_edge.md) {always} — polling "is it in state X" can't catch "did X happen"; a shorter interval narrows the blind window and never closes it — get an event, or state the limit
 - [Startup is not a poll](feedback_startup_is_not_a_poll.md) {always} — a startup-only concern gets bounded retry-until-*answered*, not a timer; count the recurrence before defending it, and check what the "cheap" gate calls
 - [Check where it is consumed](feedback_check_where_it_is_consumed.md) {always} — a session-start assertion is blind for the whole session; put a precondition check on the action that needs it
