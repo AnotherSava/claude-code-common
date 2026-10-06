@@ -107,8 +107,10 @@ Do this in the repo that is behind, not in the dotfiles repo.
 5. **Check it runs, both ways in.** `bash scripts/deploy.sh` for the deploy path, and `npm run dev` from
    the directory holding the dev script for the hand-run path. Both must come up on the registry's number
    — the second one is the entry point this version exists to fix, since a bare `next dev` with no flag
-   and no `PORT` starts on 3000 and drifts upward on a collision. Then re-run step 1; it must report
-   nothing.
+   and no `PORT` starts on 3000 and drifts upward on a collision. Then `git add` the new `scripts/dev.mjs`
+   and re-run step 1; it must report nothing. Staging comes first because the check reads tracked files,
+   so while the script is untracked it still reports the registry's port as one no file here asks for, and
+   the migration reads as having failed.
 
 A project whose server is not started by a Node-capable script — a Gradle task, a Swift test harness, a
 shell script with no Node nearby — pins its port in step 2 with that as the reason, and skips step 3.
