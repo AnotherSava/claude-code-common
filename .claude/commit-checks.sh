@@ -78,6 +78,13 @@ run "python baseline" python3 claude/tests/python-baseline.py
 # site serving a neighbour's application with every conventional check green.
 run "ingress-lint.py" python3 claude/tests/ingress-lint.py
 
+# The port allocator, and the registry it hands out from. Two claims on one number is a port given to two
+# projects, and the registry is edited by hand as often as by the allocator — so the committed file is run
+# through its own checker here, not only the code that writes it. The suite stubs the live probe; the
+# `check` below is what reads this machine.
+run "ports.py" python3 claude/tests/ports.py
+run "ports registry" python3 claude/skills/ports/scripts/ports.py check
+
 # The message checker the pre-push hook below calls in every repo that has adopted these
 # conventions, so a false positive there stops real work while a false negative is the hole the
 # checker exists to close.

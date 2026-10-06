@@ -1,0 +1,342 @@
+{
+  "version": 1,
+  "claims": [
+    {
+      "port": 9,
+      "use_case": "jsonl-logs-unreachable-plugin-repo",
+      "owner": "jsonl-logs-intellij-plugin",
+      "scope": "machine",
+      "status": "assigned",
+      "pinned": "chosen because nothing can listen there — the WHATWG discard port, blocked by every browser",
+      "notes": "A plugin-repository URL the tests point at to assert the unreachable path."
+    },
+    {
+      "port": 53,
+      "use_case": "landlord-dns",
+      "owner": "landlord",
+      "scope": "remote",
+      "status": "reserved",
+      "pinned": "a host port on the shared VPS, not a tenant's to take",
+      "notes": "Recorded by the 2026-10-05 port survey among landlord's host ports. Nothing local listens here."
+    },
+    {
+      "port": 80,
+      "use_case": "landlord-ingress-http",
+      "owner": "landlord",
+      "scope": "remote",
+      "status": "reserved",
+      "pinned": "the shared Caddy's own listener on the VPS",
+      "notes": "Every tenant reaches the internet through it; tenants expose container-internal ports instead."
+    },
+    {
+      "port": 443,
+      "use_case": "tailnet-node-serve-root",
+      "owner": "claude",
+      "scope": "machine",
+      "status": "reserved",
+      "pinned": "the node's shared HTTPS root, held by tailscaled",
+      "notes": "Where tailnet_publish.py maps published files by path. publish-port refuses this number outright."
+    },
+    {
+      "port": 1420,
+      "use_case": "tauri-dashboard-vite-dev",
+      "owner": "tauri-dashboard",
+      "scope": "machine",
+      "status": "assigned",
+      "notes": "Vite dev server with strictPort set, so it fails rather than drifting when the port is taken."
+    },
+    {
+      "port": 1421,
+      "use_case": "tauri-dashboard-vite-hmr",
+      "owner": "tauri-dashboard",
+      "scope": "machine",
+      "status": "assigned",
+      "notes": "The HMR websocket beside the dev server on 1420. Only its vite config names it."
+    },
+    {
+      "port": 2019,
+      "use_case": "landlord-caddy-admin",
+      "owner": "landlord",
+      "scope": "remote",
+      "status": "reserved",
+      "pinned": "Caddy's own admin endpoint default on the VPS",
+      "notes": "Occupied on purpose; landlord records it as an occupancy claim rather than a service it offers."
+    },
+    {
+      "port": 3000,
+      "use_case": "printlab-dev-server",
+      "owner": "printlab",
+      "scope": "machine",
+      "status": "assigned",
+      "notes": "Its dev script is a bare `next dev`, so it takes Next's default. With no explicit -p, Next retries upward on EADDRINUSE and silently starts on 3001 instead, which is why this number needs a record even though no config file states it. It is also deploy-dev-server.sh's DEV_PORT fallback."
+    },
+    {
+      "port": 3000,
+      "use_case": "shared-container-internal-app-port",
+      "owner": "what-is-next, scheduler, printlab, tripit",
+      "scope": "container",
+      "status": "reserved",
+      "notes": "Every production app listens on 3000 inside its own Docker network, behind one Caddy, with `expose:` rather than a host `ports:` publish. Deliberately shared — a container network is not a shared namespace — and recorded so that nobody reads the four as a collision."
+    },
+    {
+      "port": 3900,
+      "use_case": "what-is-next-dev-tailnet",
+      "owner": "what-is-next",
+      "scope": "machine",
+      "status": "assigned",
+      "notes": "Tailnet front port for what-is-next's dev server on 3939. Allocated by deploy-dev-server.sh; the origin cannot share its own number.",
+      "front_for": 3939
+    },
+    {
+      "port": 3939,
+      "use_case": "what-is-next-dev-server",
+      "owner": "what-is-next",
+      "scope": "machine",
+      "status": "assigned",
+      "notes": "`next dev -p 3939`, wildcard-bound. Needs a separate tailnet front port: a serve mapping on 3939 stops this server rebinding after a restart."
+    },
+    {
+      "port": 3940,
+      "use_case": "scheduler-dev-server",
+      "owner": "scheduler",
+      "scope": "machine",
+      "status": "assigned",
+      "notes": "`next dev -p 3940`, pinned in package.json as well as config/deploy.env."
+    },
+    {
+      "port": 3941,
+      "use_case": "tripit-dev-server",
+      "owner": "tripit",
+      "scope": "machine",
+      "status": "assigned",
+      "notes": "`next dev -p 3941`, pinned in package.json as well as config/deploy.env."
+    },
+    {
+      "port": 3942,
+      "use_case": "tripit-booking-extract",
+      "owner": "tripit",
+      "scope": "machine",
+      "status": "assigned",
+      "notes": "The booking-extract sidecar, published to host loopback by docker-compose.dev.yml and health-checked there. The second host port in one repo."
+    },
+    {
+      "port": 3949,
+      "use_case": "claude-postmessage-sink",
+      "owner": "claude",
+      "scope": "machine",
+      "status": "assigned",
+      "notes": "The sink page an agent serves to collect postMessage results out of claude-in-chrome. Throwaway per run; the number is written into the probing recipe."
+    },
+    {
+      "port": 4444,
+      "use_case": "tauri-dashboard-webdriver",
+      "owner": "tauri-dashboard",
+      "scope": "machine",
+      "status": "assigned",
+      "notes": "The tauri-driver WebDriver endpoint its UI tests dial."
+    },
+    {
+      "port": 5000,
+      "use_case": "macos-airplay-receiver-5000",
+      "owner": "macOS Control Center",
+      "scope": "machine",
+      "status": "reserved",
+      "machines": [
+        "macos"
+      ],
+      "pinned": "the OS holds it on every macOS box",
+      "notes": "AirPlay Receiver, wildcard-bound. The classic silent failure for a server defaulting to 5000; turning it off is a System Settings choice, not ours."
+    },
+    {
+      "port": 5173,
+      "use_case": "vite-default",
+      "owner": "third-party default",
+      "scope": "machine",
+      "status": "reserved",
+      "notes": "Vite's own default. Any Vite project that does not pin a port takes this one, so the allocator must not hand it to something else."
+    },
+    {
+      "port": 5432,
+      "use_case": "scheduler-dev-postgres",
+      "owner": "scheduler",
+      "scope": "machine",
+      "status": "assigned",
+      "notes": "Dev PostgreSQL published to host loopback. PostgreSQL's vendor default, so a second local instance would contend for it.",
+      "pinned": "PostgreSQL's vendor default, typed into connection strings by hand and quoted in web/.env.example"
+    },
+    {
+      "port": 7000,
+      "use_case": "macos-airplay-receiver-7000",
+      "owner": "macOS Control Center",
+      "scope": "machine",
+      "status": "reserved",
+      "machines": [
+        "macos"
+      ],
+      "pinned": "the OS holds it on every macOS box",
+      "notes": "The second AirPlay Receiver listener, wildcard-bound."
+    },
+    {
+      "port": 8000,
+      "use_case": "travel-map-dev-server",
+      "owner": "travel-map",
+      "scope": "machine",
+      "status": "assigned",
+      "pinned": "the dev Mapbox token is URL-restricted to http://localhost:8000, and Mapbox restrictions take no wildcards or port ranges",
+      "notes": "On any other port every tile 403s and the map renders as a blank white globe while the token still validates. `python3 -m http.server`, wildcard-bound. The origin is pinned to localhost, so this server wants DEV_TAILNET=no and no tailnet front port at all."
+    },
+    {
+      "port": 8096,
+      "use_case": "jellyfin",
+      "owner": "third-party, desktop box",
+      "scope": "remote",
+      "status": "reserved",
+      "notes": "Jellyfin on the other machine. what-is-next dials it; nothing local listens here."
+    },
+    {
+      "port": 8582,
+      "use_case": "jsonl-logs-robot-server",
+      "owner": "jsonl-logs-intellij-plugin",
+      "scope": "machine",
+      "status": "assigned",
+      "notes": "The IntelliJ Remote Robot screenshot sandbox. Two hardcoded copies in two languages must agree on it."
+    },
+    {
+      "port": 8731,
+      "use_case": "claude-probe-page-server",
+      "owner": "claude",
+      "scope": "machine",
+      "status": "assigned",
+      "notes": "The ad-hoc local page server the claude-in-chrome probing recipes serve from. Throwaway per run; the number is written into the recipe."
+    },
+    {
+      "port": 8765,
+      "use_case": "travel-dev-server",
+      "owner": "travel",
+      "scope": "machine",
+      "status": "assigned",
+      "notes": "`python3 -m http.server 8765`, wildcard-bound. The jekyll docs-preview procedure in this repo reaches for the same number, which is the collision to avoid when previewing docs while travel is up."
+    },
+    {
+      "port": 8787,
+      "use_case": "guild-post-inlet",
+      "owner": "guild",
+      "scope": "machine",
+      "status": "assigned",
+      "notes": "The Flask direct-POST inlet."
+    },
+    {
+      "port": 8788,
+      "use_case": "claude-tailnet-publish-file-server",
+      "owner": "claude",
+      "scope": "machine",
+      "status": "assigned",
+      "notes": "PUBLISH_PORT, the loopback file server every published file proxies to. Loopback-bound, which is the one bind style that can share its number with a serve mapping — and the reason publish-port's same-number form still exists."
+    },
+    {
+      "port": 8818,
+      "use_case": "chrome-webstore-oauth-redirect",
+      "owner": "claude",
+      "scope": "machine",
+      "status": "assigned",
+      "pinned": "registered with Google as the OAuth redirect URI for the Chrome Web Store client",
+      "notes": "publish-chrome-extension listens here only for the seconds the consent flow takes. Changing it means re-registering the client."
+    },
+    {
+      "port": 8899,
+      "use_case": "claude-vhost-gate-caddy",
+      "owner": "claude",
+      "scope": "machine",
+      "status": "assigned",
+      "notes": "The throwaway local Caddy the vhost-gate tests run against."
+    },
+    {
+      "port": 9077,
+      "use_case": "tauri-dashboard-http-api",
+      "owner": "tauri-dashboard",
+      "scope": "machine",
+      "status": "assigned",
+      "notes": "The dashboard's HTTP API on loopback — the hub every agent-facing client dials, including peer_relay.py and the session hooks. Its documented alternative is 9100.",
+      "pinned": "compiled into src-tauri/src/config.rs as the Rust default; no launch-time script reaches it"
+    },
+    {
+      "port": 9078,
+      "use_case": "tauri-dashboard-session-sync",
+      "owner": "tauri-dashboard",
+      "scope": "machine",
+      "status": "assigned",
+      "notes": "The cross-machine session-sync listener. It binds the tailnet address directly rather than through `tailscale serve`, so this machine's port space has a second allocator and a serve mapping here would contend with a live listener.",
+      "pinned": "compiled into src-tauri/src/config.rs as the Rust default; no launch-time script reaches it"
+    },
+    {
+      "port": 9100,
+      "use_case": "tauri-dashboard-http-api-alternate",
+      "owner": "tauri-dashboard",
+      "scope": "machine",
+      "status": "reserved",
+      "notes": "The documented alternative for the dashboard's API port, kept out of the allocator so that switching to it stays a one-line config change."
+    },
+    {
+      "port": 9222,
+      "use_case": "claude-debug-chrome-cdp",
+      "owner": "claude",
+      "scope": "machine",
+      "status": "assigned",
+      "pinned": "Chrome's DevTools Protocol default, which chrome-devtools MCP and the project-local skills all assume",
+      "notes": "Owned by whoever launched Chrome with --remote-debugging-port. A second launch on this number silently attaches to the first one's browser."
+    },
+    {
+      "port": 9998,
+      "use_case": "agterm-container-agent-status",
+      "owner": "agterm",
+      "scope": "machine",
+      "status": "assigned",
+      "notes": "The remote status receiver in agterm's cookbook, wildcard-bound by default. The number is a contract between the host and the container, so both sides change together."
+    },
+    {
+      "port": 11434,
+      "use_case": "ollama",
+      "owner": "third-party",
+      "scope": "remote",
+      "status": "reserved",
+      "notes": "Ollama's embeddings endpoint, as the transcripts research sketch dials it. Ollama's vendor default."
+    },
+    {
+      "port": 19432,
+      "use_case": "plannotator-remote",
+      "owner": "plannotator",
+      "scope": "machine",
+      "status": "assigned",
+      "notes": "A third-party CLI that self-allocates a random port normally and fixes this one in remote mode."
+    },
+    {
+      "port": 27017,
+      "use_case": "tripit-dev-mongo",
+      "owner": "tripit",
+      "scope": "machine",
+      "status": "assigned",
+      "notes": "Dev MongoDB published to host loopback. MongoDB's vendor default, so a second local instance would contend for it.",
+      "pinned": "MongoDB's vendor default, typed into connection strings by hand and quoted in web/.env.example"
+    },
+    {
+      "port": 32400,
+      "use_case": "plex",
+      "owner": "third-party, desktop box",
+      "scope": "remote",
+      "status": "reserved",
+      "notes": "Plex Media Server on the other machine. what-is-next dials it; nothing local listens here."
+    },
+    {
+      "port": 52631,
+      "use_case": "macos-rapportd",
+      "owner": "macOS",
+      "scope": "machine",
+      "status": "reserved",
+      "machines": [
+        "macos"
+      ],
+      "pinned": "the OS holds it; it sits in the ephemeral range the allocator excludes anyway",
+      "notes": "rapportd, which serves Handoff and Continuity."
+    }
+  ]
+}

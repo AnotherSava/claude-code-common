@@ -227,7 +227,8 @@ Shipping outward is a different verb: a versioned artifact goes through the `rel
 - Install targets run the full pipeline: build → stop app → clean install dir → copy → launch → verify. The build runs first, so a failed build leaves the running app untouched
 - The Tauri target asks `cargo metadata` where the build landed, so an app inside a Cargo workspace installs the binary just built rather than a stale one from `src-tauri/target`
 - Asks right before a run that starts, restarts or closes an app with a window — the install targets that launch the installed app, and the IntelliJ target when it is set to close the IDE — and runs only on a yes; the dev-server target opens no window and runs without asking
-- Local web servers (a `package.json` with a `dev` script, or a plain static `index.html`) relaunch detached on the configured port, then get health-checked
+- Local web servers (a `package.json` with a `dev` script, or a plain static `index.html`) relaunch detached, then get health-checked. The port is configured nowhere: the script asks the [Ports](#ports) registry for `<repo>-dev-server` on every run and exports it as `PORT`, so `config/deploy.env` names no port and a `DEV_PORT` line left in an old one is read by nothing
+- Prints the tailnet URL as its last line, fronted on a **second** registry port (`<repo>-dev-tailnet`) rather than the one the server binds — a `tailscale serve` mapping holds the wildcard address, so fronting a server from its own number stops it rebinding at the next restart while every process listing shows that port free. `DEV_TAILNET=no` keeps the `localhost` URL for a project whose origin is pinned there
 - An optional `DEV_PRESTART_CMD` runs the project's own script — seeding the local database from production, fetching a fixture — in the gap between stopping the old server and starting the new one
 - After first `/deploy`, use `! deploy` for instant deploys without LLM overhead
 
@@ -545,6 +546,27 @@ Manages env-style secrets — API keys, tokens, passwords, connection strings �
 - Prefers stdin over the command line, which also dodges Git Bash's path mangling on Windows
 - Reads values without materializing them, deriving a boolean via `doppler run` instead of printing the secret
 - Separate references for project wiring (`doppler.yaml`, directory binding, second-machine onboarding) and for failure modes that succeed silently with a wrong value
+
+---
+
+### Ports
+
+Hands out and records the TCP ports this machine's projects take, from one committed registry keyed by use case. Before it, nothing recorded who owned which number: five projects declared a dev port in a globally-gitignored `config/deploy.env`, others pinned theirs in a package script, a Rust default or a compose file, and the deploy skill's whole allocation rule was a regex guess over a `package.json` with `3000` as its fallback — which is printlab's dev port.
+
+**Command:** `/ports`
+
+**Features:**
+- `claude/skills/ports/registry.json` is the record and `scripts/ports.py` its only writer, with `allocate` / `get` / `list` / `release` / `check` as the whole surface. `allocate` is idempotent on the use case and prints the port alone on stdout, so a launch script can call it on every run and take the answer inline
+- Reads both the record and the machine, because liveness is an oracle in neither direction: at the 2026-10-05 survey nineteen file-claimed ports had no process behind them, so probing alone would reassign a port a project owns but is not running, while four live listeners were claimed by no file, so the record alone would hand out a number the OS already holds
+- Three scopes, since only one of them is a namespace where sharing is a defect — `machine` (uniqueness enforced), `remote` (a port on another host, recorded so a familiar number has an owner), and `container` (four apps sharing 3000 inside Docker networks is correct, and recording them stops it reading as a collision)
+- Refuses a number the WHATWG blocked set, the privileged range or the ephemeral range makes unusable, unless `--pinned "<why>"` records that an outside party fixed it — an OAuth redirect URI, a URL-restricted API key, a protocol default. That pin is also what lets the `ports-from-registry` rule allow the one literal a project cannot remove
+- Resolves a project's port **at launch** rather than storing it in the project: `deploy-dev-server.sh` asks for `<repo>-dev-server` and exports `PORT`, and a per-repo `scripts/dev.mjs` shim asks for the same use case so a hand-run `npm run dev` arrives at the same answer instead of starting on 3000 and drifting upward on a collision
+- Allocates the tailnet front port as a separate claim (`<repo>-dev-tailnet`, `--front-for <origin>`), because a `tailscale serve` mapping takes the wildcard and tailnet addresses and leaves only loopback: a server fronted from its own number starts once and then cannot rebind, with every process listing showing the port free. `shared/tailnet_publish.py` refuses a same-number publish over a wildcard-bound origin and says so. Measured mechanics in `claude/learnings/tailscale-serve-port-ownership.md`
+- Answers "what is on port N?" with `shared/port_probe.py verdict`, which tries the bind as well as the listing — the holder no unprivileged `lsof` shows is a `tailscale serve` mapping's listener inside a root-owned system extension, and that is the shape of every "EADDRINUSE but the port is free" report
+- `check` reads the registry as a document; `--live` adds what this machine takes that it does not record, and `--repo <path>` reports a port literal in a **launch-determining** file (`package.json` scripts, `scripts/`, a compose host publish, a Vite config, `src-tauri/src/config.rs`, `build.gradle.kts`). Prose is deliberately out of scope: ten launch-path literals across the fleet against 134 in prose, examples and tests, so a scan that read everything would bury its own findings
+- Reaches project repos as the convention rule `ports-from-registry`, which version 015 introduces, so an adopted repo is checked at every commit without wiring anything and an unadopted one reads as unchecked rather than clean
+
+**Tests:** `python claude/tests/ports.py` — exit 0 all cases behave, 1 otherwise. It asserts the allocator never hands out a number already claimed, already held on this machine, or unusable, and that it is idempotent on the use case; and separately that the committed `registry.json` passes its own checker, since that file is edited by hand as often as by the allocator and a duplicate claim there is a port given to two projects. The live probe is stubbed, so no case passes or fails on which servers happen to be running; this repo's `.claude/commit-checks.sh` runs `ports.py check` beside it as the half that does read the machine.
 
 ---
 

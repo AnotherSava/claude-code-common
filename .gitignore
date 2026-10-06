@@ -40,6 +40,7 @@ claude/skills/github-status/config/
 !claude/skills/peer/
 !claude/skills/plan-ralphex/
 !claude/skills/plannotator-update/
+!claude/skills/ports/
 !claude/skills/pr-create/
 !claude/skills/pr-merge/
 !claude/skills/pr-prepare/
