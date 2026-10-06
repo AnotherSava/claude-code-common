@@ -8,7 +8,7 @@
       "scope": "machine",
       "status": "assigned",
       "pinned": "chosen because nothing can listen there — the WHATWG discard port, blocked by every browser",
-      "notes": "A plugin-repository URL the tests point at to assert the unreachable path."
+      "notes": "The plugin repository the `runIdeForScreenshots` sandbox IDE is pointed at, in build.gradle.kts. With no marketplace to ask, the Settings tree shows no update count on Plugins, so nothing a documentation shot shows depends on the network."
     },
     {
       "port": 53,
@@ -57,10 +57,10 @@
       "port": 2019,
       "use_case": "landlord-caddy-admin",
       "owner": "landlord",
-      "scope": "remote",
+      "scope": "container",
       "status": "reserved",
-      "pinned": "Caddy's own admin endpoint default on the VPS",
-      "notes": "Occupied on purpose; landlord records it as an occupancy claim rather than a service it offers."
+      "pinned": "Caddy's own admin endpoint default, written out in base/Caddyfile",
+      "notes": "Occupied on purpose; landlord records it as an occupancy claim rather than a service it offers. Bound on the landlord-caddy container's loopback — the stack publishes 80 and 443 only, so no host port on the VPS is taken."
     },
     {
       "port": 3000,
@@ -68,7 +68,7 @@
       "owner": "printlab",
       "scope": "machine",
       "status": "assigned",
-      "notes": "Its dev script is a bare `next dev`, so it takes Next's default. With no explicit -p, Next retries upward on EADDRINUSE and silently starts on 3001 instead, which is why this number needs a record even though no config file states it. It is also deploy-dev-server.sh's DEV_PORT fallback."
+      "notes": "Its dev script is `doppler run -- next dev` (web/package.json), so it takes Next's default. With no explicit -p, Next retries upward on EADDRINUSE and silently starts on 3001 instead, which is why this number needs a record even though no config file states it. It is also deploy-dev-server.sh's DEV_PORT fallback."
     },
     {
       "port": 3000,
@@ -93,7 +93,7 @@
       "owner": "what-is-next",
       "scope": "machine",
       "status": "assigned",
-      "notes": "`next dev -p 3939`, wildcard-bound. Needs a separate tailnet front port: a serve mapping on 3939 stops this server rebinding after a restart."
+      "notes": "Its dev script is `doppler run -- next dev` (web/package.json) with no port flag; deploy-dev-server.sh exports this number as PORT, which Next reads. Wildcard-bound. Needs a separate tailnet front port: a serve mapping on 3939 stops this server rebinding after a restart."
     },
     {
       "port": 3940,
@@ -117,7 +117,7 @@
       "owner": "tripit",
       "scope": "machine",
       "status": "assigned",
-      "notes": "The booking-extract sidecar, published to host loopback by docker-compose.dev.yml and health-checked there. The second host port in one repo."
+      "notes": "The booking-extract sidecar, published to host loopback by docker-compose.dev.yml, which gives it no healthcheck. The only `/health` probe on 3942 is in the production docker-compose.yml, against the container's own loopback where the port is exposed but not published. The second host port in one repo."
     },
     {
       "port": 3949,
@@ -133,8 +133,8 @@
       "use_case": "tauri-dashboard-webdriver",
       "owner": "tauri-dashboard",
       "scope": "machine",
-      "status": "assigned",
-      "notes": "The tauri-driver WebDriver endpoint its UI tests dial."
+      "status": "reserved",
+      "notes": "The tauri-driver WebDriver endpoint, named only by the example wdio and Selenium snippets in the vendored `tauri-testing` skill. The repo has no UI tests and no WebDriver dependency, so nothing binds it today."
     },
     {
       "port": 5000,
@@ -184,7 +184,7 @@
       "scope": "machine",
       "status": "assigned",
       "pinned": "the dev Mapbox token is URL-restricted to http://localhost:8000, and Mapbox restrictions take no wildcards or port ranges",
-      "notes": "On any other port every tile 403s and the map renders as a blank white globe while the token still validates. `python3 -m http.server`, wildcard-bound. The origin is pinned to localhost, so this server wants DEV_TAILNET=no and no tailnet front port at all."
+      "notes": "On any other port every tile 403s and the map renders as a blank white globe while the token still validates. `python3 -m http.server`, wildcard-bound. The origin is pinned to localhost, so its config/deploy.env sets DEV_TAILNET=no and it takes no tailnet front port."
     },
     {
       "port": 8096,
@@ -217,7 +217,7 @@
       "owner": "travel",
       "scope": "machine",
       "status": "assigned",
-      "notes": "`python3 -m http.server 8765`, wildcard-bound. The jekyll docs-preview procedure in this repo reaches for the same number, which is the collision to avoid when previewing docs while travel is up."
+      "notes": "`python3 -m http.server 8765`, wildcard-bound. The jekyll docs-preview procedure in learnings/jekyll-local-build-windows.md reaches for the same number, which is the collision to avoid when previewing docs while travel is up."
     },
     {
       "port": 8787,
@@ -242,8 +242,8 @@
       "owner": "claude",
       "scope": "machine",
       "status": "assigned",
-      "pinned": "registered with Google as the OAuth redirect URI for the Chrome Web Store client",
-      "notes": "publish-chrome-extension listens here only for the seconds the consent flow takes. Changing it means re-registering the client."
+      "pinned": "a literal in the skill's scripts/cws.sh that the printed consent URL and the token exchange must carry identically; no launch-time call resolves it",
+      "notes": "Nothing ever listens here. The consent page redirects to it and fails to load, and the code is copied out of the address bar — the OAuth client is registered with Google as a desktop app, which pins no redirect URI, so changing the number means editing that one constant."
     },
     {
       "port": 8899,
@@ -295,6 +295,7 @@
       "owner": "agterm",
       "scope": "machine",
       "status": "assigned",
+      "pinned": "a default in cookbook/container-agent-status/agterm-remote-receiver.sh and the recipe's README, both copied out by hand into a container the repo never launches — no launch path exists to resolve it at",
       "notes": "The remote status receiver in agterm's cookbook, wildcard-bound by default. The number is a contract between the host and the container, so both sides change together."
     },
     {
@@ -339,8 +340,8 @@
       "machines": [
         "macos"
       ],
-      "pinned": "the OS holds it; it sits in the ephemeral range the allocator excludes anyway",
-      "notes": "rapportd, which serves Handoff and Continuity."
+      "pinned": "the OS takes it; it sits in the ephemeral range the allocator excludes anyway",
+      "notes": "rapportd, which serves Handoff and Continuity. It takes a fresh ephemeral port each boot rather than this one — 52631 is what it held when the survey ran, and it answered on 63790 when this was checked on 2026-10-05, so the number identifies the process only on the day it was read."
     }
   ]
 }
