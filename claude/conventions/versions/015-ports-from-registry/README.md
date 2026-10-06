@@ -22,11 +22,12 @@ at launch, a port literal in a launch-determining file is either a defect or a n
 move — and the second kind says so in the registry, as a `pinned` claim.
 
 An absent literal answers only half of it, because a repo that resolves nothing holds no literal either. The
-other half asks the registry which ports it assigns this repo and requires a tracked file here that asks for
-each; the registry is where that set is knowable, since the repo's own files cannot say which ports it ought
-to have. Neither half keeps an adoption state in sync.
+other half asks the registry which ports it assigns this repo and requires a launch-determining file here
+that asks for each — the same files the literal scan reads, so a README or CLAUDE.md sentence naming the
+tool never passes for a resolver; the registry is where that set is knowable, since the repo's own files
+cannot say which ports it ought to have. Neither half keeps an adoption state in sync.
 
-Three kinds of literal stay, and the rule allows each once the registry records it as `pinned`:
+Four kinds of literal stay, and the rule allows each once the registry records it as `pinned`:
 
 - **Fixed by an outside party** — a URL-restricted API key, an OAuth redirect URI registered with a
   provider, a protocol default another tool assumes. travel-map's `8000` is pinned by a Mapbox token
@@ -35,6 +36,9 @@ Three kinds of literal stay, and the rule allows each once the registry records 
   `server_port` and `listen_port` live in Rust source.
 - **A vendor's default** — PostgreSQL's `5432`, MongoDB's `27017`. The number is typed into connection
   strings by hand and quoted in `.env.example`; making it dynamic churns more than it protects.
+- **No launch path to resolve it at** — a number in a recipe a person runs by hand, or one two places
+  must carry identically with nothing starting either. The dotfiles repo's own ports are mostly this:
+  a throwaway Caddy started at a prompt, a consent URL and its token exchange in one shell script.
 
 Prose is not in scope and never was. A README telling a human which URL to open, an `.env.example`
 default, a test asserting a URL, a compose healthcheck on a container-internal port — all of those are
@@ -51,10 +55,12 @@ Do this in the repo that is behind, not in the dotfiles repo.
    - **A port literal** in a file that decides where a server listens — `package.json` scripts,
      `scripts/`, compose host publishes, a Vite config, `src-tauri/src/config.rs`, `build.gradle.kts`
      — named with its line and what the registry says about that number.
-   - **A port the registry assigns this repo that nothing here asks for.** An absent literal is not
-     resolution: a dev script with no `-p` and no resolver takes its framework's default and drifts
-     upward on a collision, which is a worse failure than the literal because nothing names the port
-     at all. Measured 2026-10-05: printlab and what-is-next were both in exactly that state.
+   - **A port the registry assigns this repo that no launch-determining file here asks for** — the
+     same files as above, so a sentence in a README or `CLAUDE.md` naming the tool is not one. An
+     absent literal is not resolution: a dev script with no `-p` and no resolver takes its
+     framework's default and drifts upward on a collision, which is a worse failure than the literal
+     because nothing names the port at all. Measured 2026-10-05: printlab and what-is-next were both
+     in exactly that state.
 
    Only when it reports neither is the migration a no-op here, and then record the version and stop.
 
@@ -117,8 +123,8 @@ Nothing here requires inventing a Node dependency a repo does not have.
   build watcher that binds nothing.
 - **Every port it assigns this repo is a `pinned` claim.** The report is empty and the registry carries
   the reason each number cannot move. A repo of externally-fixed ports is conforming, not exempt — the
-  dotfiles repo itself is this case, its own four ports being a module constant and three literals
-  written into recipes a person types.
+  dotfiles repo itself is this case, its own ports being a module constant, Chrome's DevTools default,
+  and literals written into scripts and recipes a person runs by hand.
 - **No launch-determining file tracked at all,** with no claim either: nothing to scan and nothing
   owed. An absent `config/deploy.env` is not evidence of any of these on its own — it is per-machine,
   so it says only that this machine has no local deploy configured.
@@ -127,4 +133,4 @@ Nothing here requires inventing a Node dependency a repo does not have.
 
 `ports-from-registry` — every port literal in a launch-determining file is a `pinned` claim in the ports
 registry owned by this repo, and every unpinned port the registry assigns this repo is asked for by a
-tracked file here.
+launch-determining file here.

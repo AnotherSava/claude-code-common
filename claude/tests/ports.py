@@ -272,6 +272,13 @@ def main() -> int:
                                                               owner="scanned", pinned="the origin")]},
                                scan), ([], []))
 
+        # A document naming the tool is not a resolver. Every repo's CLAUDE.md or README carries this
+        # sentence once it documents the skill, so counting a marker outside the launch-path files
+        # silences the finding on exactly the repos that have started resolving their ports.
+        track("CLAUDE.md", "Run `python3 ~/.claude/skills/ports/scripts/ports.py check --repo .` before a commit.\n")
+        found, _ = ports.check_repo(unpinned, scan)
+        check("a doc naming the tool does not count as a resolver", len(found), 1)
+
         track("scripts/dev.mjs", "import { run } from '.../ports/scripts/dev-port.mjs'\n")
         check("a tracked file naming the resolver settles it", ports.check_repo(unpinned, scan), ([], []))
 

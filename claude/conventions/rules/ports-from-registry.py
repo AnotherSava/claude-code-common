@@ -8,10 +8,12 @@ Two halves, because the absence of a literal proves only half of it. A dev scrip
 resolver is not resolving the port: it takes its framework's default and drifts upward on a collision,
 which is worse than the literal, since then no file names the port at all. Measured 2026-10-05, printlab
 and what-is-next both reported zero literals in exactly that state. So the second half asks the registry
-which unpinned ports it assigns this repo, and requires a tracked file that asks for each.
+which unpinned ports it assigns this repo, and requires a launch-determining file that asks for each — the
+same files the literal scan reads, so a doc sentence naming the tool is not evidence of a resolver.
 
 What stays is the literal that cannot be resolved at launch, and it carries its reason in the registry
-instead — a number fixed by an outside party, a default compiled into a binary, a vendor's own port. The
+instead — a number fixed by an outside party, a default compiled into a binary, a vendor's own port, or a
+literal in a file no launch path ever runs, such as a recipe a person follows by hand. The
 `pinned` field is where that reason lives, and requiring it is what separates a deliberate literal from
 a forgotten one. A pinned claim belonging to a *different* repo is still reported here: two repos cannot
 both own a number, and the registry naming one of them is the answer.

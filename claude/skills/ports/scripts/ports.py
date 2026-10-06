@@ -471,21 +471,28 @@ def _launch_path_files(repo: Path) -> List[Path]:
     return [repo / name for name in result.stdout.split("\0") if name]
 
 
-def launch_path_literals(repo: Path) -> List[Tuple[Path, int, int, str]]:
-    """Every port literal in a launch-determining file: -> [(file, line number, port, the line)].
+def _launch_path_texts(repo: Path) -> List[Tuple[Path, str]]:
+    """Every launch-determining file git tracks in `repo`, with its text.
 
     Raises on a tracked launch file that will not read as text. A scanner that skips what it cannot
     classify is a scanner whose verification is scoped to its own blind spots.
     """
-    found = []
+    texts = []
     for path in _launch_path_files(repo):
         try:
-            text = path.read_text(encoding="utf-8")
+            texts.append((path, path.read_text(encoding="utf-8")))
         except FileNotFoundError:
             continue  # tracked but not checked out — a sparse checkout, nothing to read
         except (OSError, UnicodeDecodeError) as exc:
             raise RuntimeError(f"{path} is tracked as a launch-path file and will not read as text ({exc}), so "
                                f"whether it hardcodes a port could not be established")
+    return texts
+
+
+def launch_path_literals(repo: Path) -> List[Tuple[Path, int, int, str]]:
+    """Every port literal in a launch-determining file: -> [(file, line number, port, the line)]."""
+    found = []
+    for path, text in _launch_path_texts(repo):
         for number, line in enumerate(text.splitlines(), 1):
             for pattern in LITERAL_PATTERNS:
                 match = pattern.search(line)
@@ -495,9 +502,12 @@ def launch_path_literals(repo: Path) -> List[Tuple[Path, int, int, str]]:
     return found
 
 
-# What a tracked file mentions when the repo resolves a port at launch: the shared resolver the
+# What a launch-determining file mentions when the repo resolves a port at launch: the shared resolver the
 # per-repo `scripts/dev.mjs` shim imports, or the allocator called directly by a script of its own.
 RESOLVER_MARKERS = ("dev-port.mjs", "ports.py")
+
+# The allocator's own directory, whose files hold every marker above as implementation.
+ALLOCATOR_DIR = "claude/skills/ports/"
 
 
 def _owned_by(claim: Dict, name: str) -> bool:
@@ -506,23 +516,26 @@ def _owned_by(claim: Dict, name: str) -> bool:
 
 
 def _resolves_at_launch(repo: Path) -> bool:
-    """Does any tracked file in `repo` ask the registry for a port?
+    """Does a launch-determining file in `repo` ask the registry for a port?
 
     Read from the repo rather than assumed from the version record: a repo can record v15 and then
     lose the shim to a revert or a bad merge, and the record would still say it adopted.
+
+    Scoped to the same files the literal scan reads, because only those decide where a server listens.
+    A marker counted anywhere in the tree is also counted in the sentence a CLAUDE.md or README writes
+    when it documents this skill — so the finding goes quiet on the repos that have started paying
+    attention, and a doc line reads as a resolver that no process runs.
 
     The allocator's own directory is excluded, so the dotfiles repo — which contains every one of these
     markers by definition — is answered on the same evidence as anywhere else rather than passing for
     holding the implementation.
     """
-    patterns = [arg for marker in RESOLVER_MARKERS for arg in ("-e", marker)]
-    result = subprocess.run(["git", "-C", str(repo), "grep", "-lI", *patterns,
-                             "--", ".", ":(exclude)claude/skills/ports/*"],
-                            capture_output=True, encoding="utf-8", errors="replace", timeout=30)
-    # 1 is "no match", which is the answer rather than a failure. Anything else went unanswered.
-    if result.returncode not in (0, 1):
-        raise RuntimeError(f"git grep in {repo} exited {result.returncode}: {result.stderr.strip()}")
-    return bool(result.stdout.strip())
+    for path, text in _launch_path_texts(repo):
+        if path.relative_to(repo).as_posix().startswith(ALLOCATOR_DIR):
+            continue
+        if any(marker in text for marker in RESOLVER_MARKERS):
+            return True
+    return False
 
 
 def check_repo(data: Dict, repo: Path) -> Tuple[List[str], List[str]]:

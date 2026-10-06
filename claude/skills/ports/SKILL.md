@@ -51,6 +51,12 @@ says on stderr what it stepped over. A live holder nothing claims is a finding: 
 allocation happened while working in another project, report that diff to the session that owns the dotfiles
 repo (the `peer` skill) and leave the commit to it.
 
+## Correcting a claim that already exists
+
+Edit `registry.json` directly, then run `check`. Re-running `allocate` for a use case that already holds a
+port prints that number and returns, so a corrected `--notes` or a newly discovered `--pinned` reason passed
+to it is read, accepted and dropped — and the command exits 0 either way.
+
 ## Answering "what is on port N?"
 
 ```bash
@@ -88,8 +94,11 @@ anything:
 - **A port literal in a launch-determining file** — `package.json` scripts, `scripts/`, a compose host
   publish, a Vite config, `src-tauri/src/config.rs`, `build.gradle.kts` — which is a second copy of a
   number the registry owns, and the copy the process reads. Allowed once the registry records it as
-  `pinned`: a number fixed by an outside party, a default compiled into a binary, a vendor's own port.
-- **An unpinned port the registry assigns this repo that no tracked file asks for.** An absent literal
+  `pinned`: a number fixed by an outside party, a default compiled into a binary, a vendor's own port,
+  or a literal in a file no launch path ever runs — a recipe a person follows by hand.
+- **An unpinned port the registry assigns this repo that no launch-determining file asks for.** The
+  resolver is looked for in the same files as the literal above, because a marker counted anywhere in the
+  tree is also counted in the sentence a CLAUDE.md writes about this skill. An absent literal
   proves nothing on its own: a dev script with no `-p` and no resolver takes its framework's default and
   drifts upward on a collision, which is worse, because then no file names the port at all. Measured
   2026-10-05, printlab and what-is-next were both in that state while reporting zero literals. A claim
