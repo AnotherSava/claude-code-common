@@ -68,7 +68,7 @@
       "owner": "printlab",
       "scope": "machine",
       "status": "assigned",
-      "notes": "Its dev script is `doppler run -- next dev` (web/package.json), so it takes Next's default. With no explicit -p, Next retries upward on EADDRINUSE and silently starts on 3001 instead, which is why this number needs a record even though no config file states it. It is also deploy-dev-server.sh's DEV_PORT fallback."
+      "notes": "The Next dev server, started by web/package.json's `dev` script, which runs `doppler run -- node ../scripts/dev.mjs next dev` and asks this registry for the number at launch. Add the new port to one outside allowlist before reassigning this claim: the Google Maps Embed API key that renders the About-page map restricts referrers to `http://localhost:3000/*`, and on any other port the map degrades to its `Open in Google Maps` link with no error — the same output the page gives when the key is missing. Not pinned, since that allowlist can move with the port."
     },
     {
       "port": 3000,

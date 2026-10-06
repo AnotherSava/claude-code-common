@@ -1,6 +1,6 @@
 ---
 name: registry-prose-audited-against-repos
-description: The ports registry's per-claim prose was read against each owning repo on 2026-10-05 — what that settled, and the rows no repo read can reach
+description: The ports registry's per-claim prose was read against each owning repo on 2026-10-05 — what that settled, the rows no repo read can reach, and why a v15 adoption falsifies a note with nothing reporting it
 metadata:
   type: project
 ---
@@ -23,3 +23,9 @@ range; it says nothing about the other box.
 Still open: 52631 records a number that does not recur, because rapportd takes a fresh ephemeral port each
 boot (it answered on 63790 that day). The note now says so; releasing the row instead was offered and not
 decided. See [[port-uniqueness-not-a-rule]] for why this registry's checks live in this repo's gate.
+
+**An audit settles the notes for as long as the repos hold still, which is not long.** printlab's went
+stale one day after this one: it still described a bare `next dev` taking Next's default after printlab's
+v15 walk had moved the port behind `scripts/dev.mjs`. Nothing here reported it — the printlab session
+saying so is what surfaced it, which is the route to expect. The standing trigger, and why no check on
+this side can catch it, are in the ports skill under "Correcting a claim that already exists".

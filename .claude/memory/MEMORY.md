@@ -13,4 +13,4 @@
 - [v9 stock-take is inventory only](v9-stocktake-inventory-only.md) — nothing runs before the commit-gate question; running candidates was rejected 2026-09-26, don't re-propose it
 - [Commit and wrap-up stay separate](commit-wrapup-stay-separate.md) — merging them was rejected 2026-09-30; they are already composed and the assumed overlap is absent
 - [Port uniqueness is not a rule](port-uniqueness-not-a-rule.md) — it lives in this repo's gate because three port-claiming repos have no gate at all; v15 does the per-repo replacement instead
-- [Registry prose audited against repos](registry-prose-audited-against-repos.md) — 2026-10-05: 29 claims read against their owning repos, 5 notes wrong, numbers all held; which rows no repo read can reach
+- [Registry prose audited against repos](registry-prose-audited-against-repos.md) — 2026-10-05: 29 claims read against their owning repos, numbers all held; a v15 adoption falsifies a note and nothing here reports it

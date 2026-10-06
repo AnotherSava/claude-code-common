@@ -20,7 +20,7 @@ use case. `scripts/ports.py` is the only writer. Read its module docstring befor
 the scope model and why liveness is not an oracle in either direction.
 
 **Never choose a port by reading a config file, grepping for a free-looking number, or defaulting to 3000.**
-That is what produced the collisions this registry exists to end, 3000 among them — it is printlab's dev port and the deploy script's own fallback.
+That is what produced the collisions this registry exists to end, 3000 among them — printlab's dev port, and the fallback of the guess-from-`package.json` rule the deploy script used before it asked the registry.
 
 ## Assigning a port to a new use case
 
@@ -56,6 +56,12 @@ repo (the `peer` skill) and leave the commit to it.
 Edit `registry.json` directly, then run `check`. Re-running `allocate` for a use case that already holds a
 port prints that number and returns, so a corrected `--notes` or a newly discovered `--pinned` reason passed
 to it is read, accepted and dropped — and the command exits 0 either way.
+
+**Re-read a repo's notes whenever its convention adoption number moves.** A dev-server note restates the
+owning repo's dev script, so that repo adopting v15 replaces the script and leaves the note describing a
+launch path that is gone. Nothing reports it: `check` reads the registry's structure and this machine's live
+ports without comparing a note to the repo it describes, and `ports-from-registry` runs in the owning repo's
+gate, where the registry's wording is out of reach.
 
 ## Answering "what is on port N?"
 
