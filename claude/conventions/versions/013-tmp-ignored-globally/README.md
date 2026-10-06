@@ -26,9 +26,18 @@ Fetch first, and do not run this on a branch behind its upstream: the edit is to
 2. **Delete the line.** In the root `.gitignore`, remove the `/tmp/` line, along with any comment
    above it that explains only that line. A comment that also covers neighbouring lines stays, edited
    so it no longer mentions `tmp/`.
-3. **Check the result.** `git check-ignore -q --no-index tmp/x` must exit 0, now answered by the
-   global file, and `python ~/.claude/conventions/check.py .` must report no `gitignore-scope-global`
-   finding.
+
+   **Where that empties the file, remove the file** — `git rm .gitignore`. A tracked zero-byte
+   `.gitignore` ignores nothing, and the "when it does not apply" clause below already treats a repo
+   committing no root `.gitignore` as conforming; `gitignore-unhides-committed` says the same in its
+   own `check()`. Two repos reached that state on 2026-10-06 and both removed the file.
+3. **Check the result, with something that can tell the edit happened.** Run
+   `git check-ignore -v --no-index tmp/x` and read the source it prints: it must name the global
+   excludes file, where before step 2 it named this repo's own `.gitignore`. The `-q` form exits 0 in
+   both states — the project line answers it just as well as the global one — so on its own it cannot
+   say whether step 2 ran. Read the printed source, never this command's exit status, which is 0 on a
+   `!` negation match too. Then `python ~/.claude/conventions/check.py .` must report no
+   `gitignore-scope-global` finding.
 
 Leave two lookalikes alone, because neither is a duplicate and the gate does not report them:
 

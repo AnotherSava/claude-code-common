@@ -207,7 +207,8 @@ exception being a declined version taken on later, which §1 describes.
    refuses outside a fork and for a version not marked optional.
 
 6. **Run the checker:** `python ~/.claude/conventions/check.py "<repo root>"`. Exit 0 is done; exit 1 —
-   a violation or a rule that could not be measured — is a §3 stop. It runs *after* the number moves
+   a violation or a rule that could not be measured — is a §3 stop, except for the one kind of finding
+   the **Findings this walk did not cause** heading below carves out. It runs *after* the number moves
    because it runs the versioned rules introduced at or below the adopted version, so the rule this
    version brings in is unmeasurable until the record names it. That order is safe in the direction that
    matters: the number only ever claims the migration ran, and this repo's commit gate re-runs the same
@@ -216,20 +217,34 @@ exception being a declined version taken on later, which §1 describes.
    `<name> (universal)`, so a version whose `## Continuing rule` says `None` adds nothing to the first
    count, and that count is how you can tell.
 
-A finding labelled `(universal)` is not this walk's doing. Those rules are gated by no version, so that
-one was failing here before `/adopt` was typed, and adopting nothing would have left it failing just the
-same. It still exits 1 like any other, and the repo's commit gate refuses for the same reason, so it is a
-§3 stop all the same — say which of the two kinds stopped the run, since a versioned rule says the
-migration you just performed is incomplete and a universal one says nothing about it. Report the `fix:`
-line printed under the finding verbatim: the rule names the command that repairs what it found, and that
-command can reach outside the repo's tree — this machine's project-memory cache link is the case that
-exists today — so running it is the user's decision rather than a step of the walk.
+### Findings this walk did not cause
+
+Only a finding numbered **above** the version this walk started from says the migration just performed is
+incomplete. The other two kinds were already failing in this repo before `/adopt` was typed, and they are
+not read the same way.
+
+A finding labelled `(universal)` is a §3 stop. Those rules are gated by no version, so adopting nothing
+would have left it failing just the same, and the walk cannot clear it: the remedy is a command that can
+reach outside the repo's tree — this machine's project-memory cache link is the case that exists today —
+so running it is the user's decision rather than a step of the walk. Report the `fix:` line printed under
+the finding verbatim.
+
+**A finding numbered at or below the walk's starting number is not a stop.** That rule was entitled to run
+before the walk began, so the finding predates it, and the thing that clears it may be a version still
+pending in this very walk: v13 is written to delete the project `/tmp/` line that v2's
+`gitignore-scope-global` reports, so a repo at v11 carrying that line meets the finding the moment v12
+records its number — before the remedy is reachable. Stopping there cannot be right, because the stop
+forbids the one version that fixes it. Carry on to the next version, say in the report that you did and
+which finding you carried, and read the checker again after each one. It becomes the stop only if it still
+stands once the last pending version is done; name it then with whatever printed it, and say the walk
+completed with the gate still refusing for a reason older than the walk. Nothing is skipped by this — the
+version just recorded was performed in full — so §3's reason for refusing a skip does not reach it.
 
 ## 3. The first failure stops the run
 
 A migration you cannot complete, an `apply.py` exiting non-zero, an `adopt` or `decline` refusal, a
-`check.py` exit 1, or a user who wants the convention's work not done where no decline is on offer — any
-of these ends the walk. Leave the tree exactly
+`check.py` exit 1 that **Findings this walk did not cause** does not carve out, or a user who wants the
+convention's work not done where no decline is on offer — any of these ends the walk. Leave the tree exactly
 as it is, name the failing items whatever printed them reported, and say which versions were adopted
 before it. Do not skip the failing version and carry on with the next: later migrations may depend on it,
 and the engine will refuse the skip regardless. The repo stays behind at that number, and the
