@@ -1,4 +1,4 @@
-"""No committed .gitignore repeats a line that belongs in the global excludes file.
+"""No .gitignore this repo would commit repeats a line that belongs in the global excludes file.
 
 An ignore rule for a user-specific artifact — an IDE folder, an OS cache, a per-machine wrapper a
 personal skill writes — belongs in the global excludes file, where one line covers every repo. A
@@ -141,14 +141,19 @@ def global_excludes(root: str) -> Globals:
     return Globals(path, frozenset(entries - {same_rule(owned) for owned in PROJECT_OWNED}))
 
 
-def tracked_ignore_files(root: str) -> list[str]:
-    """Every `.gitignore` this repo commits, repo-relative. Raises when git would not say.
+def owned_ignore_files(root: str) -> list[str]:
+    """Every `.gitignore` this repo would commit, repo-relative. Raises when git would not say.
 
-    Tracked rather than found on disk, because a virtualenv, a build directory and an IDE each write
-    a `.gitignore` this repo neither owns nor should be judged on — the fleet holds nine such files
-    under `.venv/`, `.next/` and `.idea/`. What git tracks is exactly what the repo owns.
+    Ignored ones are excluded, because a virtualenv, a build directory and an IDE each write a
+    `.gitignore` this repo neither owns nor should be judged on — the fleet holds nine such files under
+    `.venv/`, `.next/` and `.idea/`, every one of them inside an ignored directory.
+
+    An untracked one still counts. `/commit` unstages everything at skill load before running the gate,
+    so a `.gitignore` this change set creates is in no index when the rule looks, and reading `--cached`
+    alone measured none of it while reporting a pass.
     """
-    done = _git.git(root, "ls-files", "-z", "--", "*.gitignore")
+    done = _git.git(root, "ls-files", "-z", "--cached", "--others", "--exclude-standard",
+                    "--", "*.gitignore")
     if done.returncode != 0:
         detail = (done.stderr or done.stdout or "").strip().splitlines()
         raise _git.GitRefused(f"git ls-files exited {done.returncode} rather than naming the .gitignore "
@@ -189,7 +194,7 @@ def targets_in(root: str, source: str, known: Globals) -> list[Target]:
 
 
 def check(root: str) -> list[str]:
-    """Every committed ignore line that belongs in the global excludes file, one line each."""
+    """Every ignore line this repo would commit that belongs in the global excludes file, one line each."""
     known = global_excludes(root)
     return [f"{target.source}:{target.line_no}  {target.text.strip()}  — {target.reason}"
-            for source in tracked_ignore_files(root) for target in targets_in(root, source, known)]
+            for source in owned_ignore_files(root) for target in targets_in(root, source, known)]

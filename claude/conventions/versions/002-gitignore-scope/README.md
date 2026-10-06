@@ -159,7 +159,10 @@ them as ignored. A rule in the global excludes file fails it too, even though no
 repo can remove one: the repo is genuinely not in the target shape, and the question belongs to a
 human rather than to a check that quietly passes.
 
-`gitignore-scope-global` — no line in any `.gitignore` this repo commits duplicates an entry in the
-global excludes file, and no bare `scripts/` line exists. Both sides are re-read from disk on every
-run, so a later change to the global file is measured rather than frozen into whatever was true on
-the day the repo adopted this.
+`gitignore-scope-global` — no line in any `.gitignore` this repo *would commit* duplicates an entry
+in the global excludes file, and no bare `scripts/` line exists. That set is tracked and merely
+untracked files alike, with the ignored ones left out: a `.gitignore` a virtualenv or a build
+directory wrote is nobody's declaration, while one this change set adds is on its way into the commit
+the rule gates, and the index does not hold it when `/commit` runs the gate. Both sides are re-read
+from disk on every run, so a later change to the global file is measured rather than frozen into
+whatever was true on the day the repo adopted this.

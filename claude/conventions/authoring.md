@@ -171,7 +171,12 @@ Two things every rule has to get right, both already paid for once:
   scratch `tmp/`, is not something a person maintains — two repos in the fleet had their only
   manifest inside a virtualenv. Use `_git.ignored_untracked(root, paths)`, the index-consulting
   form, so a force-added file inside an ignored directory still counts. Any git exit outside
-  `{0, 1}` means the question went unanswered: raise.
+  `{0, 1}` means the question went unanswered: raise. A rule that *enumerates* the files it judges
+  asks for the set a commit would carry — `git ls-files --cached --others --exclude-standard` — not
+  the index alone, which cannot see a file the migration has just written, since the commit flow
+  unstages before running the gate. Both of this repo's file-listing rules failed on that, one by
+  reporting a missing resolver already present and one by printing a pass over zero files;
+  `learnings/git-checking-what-a-commit-will-contain.md` has the measurements.
 - **Abort rather than skip.** A parser that meets a line it cannot classify stops and prints it
   verbatim. Do not skip it, log it and continue, or fall back to a looser pattern. The reference
   case is the memo migration's first draft: it matched one checklist shape, ignored every line that
