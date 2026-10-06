@@ -223,6 +223,20 @@ CASES = (
         Tree({"src-tauri/Cargo.lock": '[[package]]\nname = "tray-icon"\nversion = "0.25.1"\n'}, repo=False),
         "it is outside a work tree, so git will not say which Cargo.lock files it hides",
     ),
+    Case(
+        "ports-from-registry",
+        # The dev script runs the shim, so the number is nowhere in the tree. Committed because the rule
+        # asks git which launch files this repo tracks — an untracked package.json is nobody's declaration.
+        Tree({"web/package.json": '{\n  "scripts": {\n    "dev": "node ../scripts/dev.mjs next dev"\n  }\n}\n',
+              "scripts/dev.mjs": "// resolves the port from the registry\n"}, committed=True),
+        # A `-p` flag. No pinned claim can own it, since the registry's claims name real repos and this
+        # tree's name is a scratch directory — which is the point: a literal here is always unowned.
+        Tree({"web/package.json": '{\n  "scripts": {\n    "dev": "next dev -p 3940"\n  }\n}\n'}, committed=True),
+        # Tracked as a launch file and not readable as text, so whether it hardcodes a port is unknown.
+        # The rule raises on that rather than reporting a repo with no literals.
+        Tree({"web/package.json": b"\xff\xfe\x00{ not text\n"}, committed=True),
+        "a tracked package.json is there and will not read as text",
+    ),
 )
 
 
