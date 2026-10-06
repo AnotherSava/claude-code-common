@@ -11,9 +11,9 @@ server had to bind.
 So one record, committed in the dotfiles repo, keyed by use case:
 
     ports.py allocate --use-case <slug> --owner <repo> --notes <text> [--port N] [--front-for N]
-    ports.py get <slug>                    # the recorded port, exit 1 if the use case has none
+    ports.py get --use-case <slug>         # the recorded port, exit 1 if the use case has none
     ports.py list [--scope S] [--status S]
-    ports.py release <slug>
+    ports.py release --use-case <slug>
     ports.py check [--live] [--repo PATH]
 
 `allocate` is the only writer, it is idempotent on the use case, and it prints the port alone on
@@ -411,6 +411,28 @@ def _deploy_env_value(repo: Path, key: str) -> Optional[str]:
     return None
 
 
+def _deploy_env_literals(repo: Path) -> List[Tuple[str, int]]:
+    """Every port a repo's `config/deploy.env` still pins: -> [(key, port)].
+
+    That file is per-machine and gitignored, so it is the one place a migration cannot be checked
+    into and the one place a stale override survives unnoticed. Two keys can carry a port: `DEV_PORT`,
+    which the deploy script no longer reads at all, and `DEV_CMD`, where a `-p 3939` left in the
+    command overrides the `PORT` the script exports — the duplicate one line lower, which dropping
+    `DEV_PORT` alone leaves in place. Found by the what-is-next session on 2026-10-05, removing both.
+    """
+    found = []
+    for key in ("DEV_PORT", "DEV_CMD"):
+        raw = _deploy_env_value(repo, key)
+        if raw is None:
+            continue
+        for pattern in LITERAL_PATTERNS:
+            match = pattern.search(raw if key == "DEV_CMD" else f"PORT={raw}")
+            if match:
+                found.append((key, int(match.group(1))))
+                break
+    return found
+
+
 # The files that decide where a server actually listens. Scanning wider than this is what makes the
 # check unreadable: a README telling a human to open `localhost:3940`, an `.env.example` default, a test
 # asserting a URL and a compose healthcheck on a container-internal port are all literals that cannot be
@@ -557,14 +579,16 @@ def check_repo(data: Dict, repo: Path) -> Tuple[List[str], List[str]]:
                         f"scripts/, point the dev script at it, and drop any port literal — or record the number "
                         f"`--pinned` if it genuinely cannot be resolved at launch.")
 
-    # Only the presence of DEV_PORT is worth a word. Its absence used to mean "nothing declared a port
-    # here", which was unmeasured; the registry answers that now, so an absent key is the settled state
-    # and saying NOT CHECKED about it would report a gap that has been closed.
-    raw = _deploy_env_value(repo, "DEV_PORT")
-    if raw is not None:
-        notices.append(f"{repo}/config/deploy.env still sets DEV_PORT={raw}. The deploy script reads the registry "
-                       f"now, so that line is a dead copy; removing it keeps the number in one place. That file is "
-                       f"per-machine, so the other machine's copy needs the same edit.")
+    # A notice rather than a problem: the file is gitignored and per-machine, so no commit here can fix
+    # it and the rule must not fail a repo for one machine's leftovers. Its absence says nothing either
+    # way, which is why only a present key is worth a word.
+    for key, port in _deploy_env_literals(repo):
+        dead = ("The deploy script reads the registry now, so that line is a dead copy"
+                if key == "DEV_PORT" else
+                "A `-p` in DEV_CMD overrides the PORT the deploy script exports, so this is the copy that wins")
+        notices.append(f"{repo}/config/deploy.env still pins port {port} in {key}. {dead}; removing it keeps the "
+                       f"number in one place. That file is per-machine, so the other machine's copy needs the "
+                       f"same edit.")
     return problems, notices
 
 
@@ -584,21 +608,25 @@ def check(args: argparse.Namespace) -> int:
     if args.live:
         notices += check_live(data)
 
-    for notice in notices:
-        print(f"  {notice}")
-    if notices:
-        print()
+    # The summary leads and every finding follows it, problems and notices alike. Printing notices first
+    # put two kinds of per-repo output on either side of the summary line, so the one above it read as
+    # belonging to a previous command — reported by the what-is-next session on 2026-10-05.
+    def report() -> None:
+        for problem in problems:
+            print(f"  {problem}\n")
+        for notice in notices:
+            print(f"  {notice}\n")
 
     if problems:
         print(f"ports: {len(problems)} problem(s) across {len(data['claims'])} claim(s)\n")
-        for problem in problems:
-            print(f"  {problem}\n")
+        report()
         return 1
-    # Never a bare "clean" while a notice is standing: a repo that declared nothing was not checked, and a
-    # live listener nothing claims is a gap in the record whatever the document says.
+    # Never a bare "clean" while a notice is standing: a live listener nothing claims is a gap in the
+    # record whatever the document says, and a per-machine override is one no commit here can close.
     if notices:
-        print(f"ports: no problems in the registry, with {len(notices)} line(s) above reporting what it does not "
-              f"cover ({len(data['claims'])} claim(s) checked)")
+        print(f"ports: no problems in the registry, with {len(notices)} line(s) below reporting what it does not "
+              f"cover ({len(data['claims'])} claim(s) checked)\n")
+        report()
         return 0
     print(f"ports: clean ({len(data['claims'])} claim(s) checked)")
     return 0
@@ -617,15 +645,18 @@ def main(argv: List[str]) -> int:
     p.add_argument("--pinned", help="why the number cannot be changed (an OAuth redirect, a URL restriction)")
     p.add_argument("--front-for", type=int, help="the origin port this one proxies to via `tailscale serve`")
 
+    # `--use-case` on every command that takes one, matching `allocate`. A positional here and on
+    # `release` made them disagree with `allocate` on how the registry's own key is named, which costs a
+    # round trip to discover — reported by the what-is-next session on 2026-10-05.
     p = sub.add_parser("get", help="the port recorded for a use case")
-    p.add_argument("use_case")
+    p.add_argument("--use-case", dest="use_case", required=True, help="the registry's key")
 
     p = sub.add_parser("list", help="the claims, newest-port last")
     p.add_argument("--scope", choices=SCOPES)
     p.add_argument("--status", choices=STATUSES)
 
     p = sub.add_parser("release", help="drop an assigned use case's claim")
-    p.add_argument("use_case")
+    p.add_argument("--use-case", dest="use_case", required=True, help="the registry's key")
 
     p = sub.add_parser("check", help="the registry as a document, and optionally against this machine")
     p.add_argument("--live", action="store_true", help="also report what listens here that no claim records")

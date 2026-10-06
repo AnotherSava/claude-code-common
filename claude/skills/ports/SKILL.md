@@ -55,7 +55,7 @@ repo (the `peer` skill) and leave the commit to it.
 
 ```bash
 python3 ~/.claude/skills/ports/scripts/ports.py list              # every claim
-python3 ~/.claude/skills/ports/scripts/ports.py get <slug>        # one use case's port
+python3 ~/.claude/skills/ports/scripts/ports.py get --use-case <slug>   # one use case's port
 python3 ~/.claude/skills/shared/port_probe.py verdict <port>      # what holds it right now
 ```
 
@@ -68,7 +68,7 @@ what holds it.
 ## Retiring a port
 
 ```bash
-python3 ~/.claude/skills/ports/scripts/ports.py release <slug>
+python3 ~/.claude/skills/ports/scripts/ports.py release --use-case <slug>
 ```
 
 Only an `assigned` claim can be released. A `reserved` one records something this machine does not control —
@@ -101,8 +101,11 @@ a test asserting a URL, a compose healthcheck on a container-internal port — n
 and all are correct to leave. Measured 2026-10-05: ten launch-path literals across the fleet against
 134 in prose, examples and tests, so a scan that read everything would bury its own findings.
 
-A `--live` notice never changes the exit status, and nor does the one about a `DEV_PORT` line still sitting
-in a `config/deploy.env`: the deploy script reads the registry now, so that line is dead rather than wrong.
+A `--live` notice never changes the exit status, and nor does the one about a port still pinned in a
+`config/deploy.env` — in `DEV_PORT`, which the deploy script no longer reads, or in a `-p` left inside
+`DEV_CMD`, which overrides the `PORT` the script exports and is therefore the copy that wins. That file
+is gitignored and per-machine, so no commit here can fix it and the rule must not fail a repo for one
+machine's leftovers.
 
 `check` runs in this repo's commit gate. In a project repo the same scan runs as the convention rule
 `ports-from-registry`, which version 015 introduces — so a repo that has adopted it is checked at every

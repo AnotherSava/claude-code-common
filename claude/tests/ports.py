@@ -68,12 +68,20 @@ def check(label: str, got: object, want: object) -> None:
 
 
 def run(argv: list, registry: Path) -> tuple:
-    """-> (exit code, stdout, stderr) for one CLI invocation against `registry`."""
+    """-> (exit code, stdout, stderr) for one CLI invocation against `registry`.
+
+    SystemExit is caught because argparse raises it rather than returning on a usage error, and an
+    uncaught one takes the whole suite down mid-run with no report — which is how a case asserting a
+    rejected argument once produced an empty pass.
+    """
     ports.REGISTRY = registry
     ports.LOCK = registry.with_suffix(".lock")
     out, err = io.StringIO(), io.StringIO()
     with contextlib.redirect_stdout(out), contextlib.redirect_stderr(err):
-        code = ports.main(argv)
+        try:
+            code = ports.main(argv)
+        except SystemExit as exit_code:
+            code = exit_code.code if isinstance(exit_code.code, int) else 1
     return code, out.getvalue().strip(), err.getvalue().strip()
 
 
@@ -134,14 +142,18 @@ def main() -> int:
         ports.port_probe = FakeProbe()
 
         # ---- release ---------------------------------------------------------------------------------
-        code, _, _ = run(["release", "fresh"], registry)
+        # `--use-case` on get and release as well as allocate: a positional on two of the three made them
+        # disagree on how the registry's own key is named.
+        code, _, _ = run(["release", "--use-case", "fresh"], registry)
         check("an assigned claim can be released", code, 0)
-        check("and the use case is gone", run(["get", "fresh"], registry)[0], 1)
-        check("releasing an unknown use case fails", run(["release", "fresh"], registry)[0], 1)
+        check("and the use case is gone", run(["get", "--use-case", "fresh"], registry)[0], 1)
+        check("releasing an unknown use case fails", run(["release", "--use-case", "fresh"], registry)[0], 1)
+        check("a positional use case is refused, so the three commands cannot drift apart",
+              run(["get", "fresh"], registry)[0], 2)
 
         reserved = seed(directory, [{"port": 5000, "use_case": "os-held", "owner": "macOS", "scope": "machine",
                                      "status": "reserved", "notes": "the OS holds it"}])
-        code, _, err = run(["release", "os-held"], reserved)
+        code, _, err = run(["release", "--use-case", "os-held"], reserved)
         check("a reserved claim cannot be released", (code, "5000" in err), (1, True))
 
         # ---- pool exhaustion -------------------------------------------------------------------------
@@ -263,17 +275,30 @@ def main() -> int:
         track("scripts/dev.mjs", "import { run } from '.../ports/scripts/dev-port.mjs'\n")
         check("a tracked file naming the resolver settles it", ports.check_repo(unpinned, scan), ([], []))
 
-        # ---- the dead DEV_PORT key ------------------------------------------------------------------
-        track("web/package.json", '{"scripts": {"dev": "node ../scripts/dev.mjs next dev"}}\n')
+        # ---- a port still pinned in the per-machine deploy.env ---------------------------------------
+        # Both keys can carry one, and dropping DEV_PORT alone leaves the duplicate a line lower in
+        # DEV_CMD, where it overrides the PORT the deploy script exports.
         (scan / "config").mkdir()
         env = scan / "config" / "deploy.env"
+
         env.write_text("DEV_PORT=3940  # was read here once\n", encoding="utf-8")
         found, notices = ports.check_repo(pinned, scan)
-        check("a DEV_PORT line still in deploy.env is a notice, not a problem", (found, len(notices)), ([], 1))
-        check("and the notice carries the value, comment stripped", "DEV_PORT=3940." in notices[0], True)
+        check("a DEV_PORT still set is a notice, not a problem", (found, len(notices)), ([], 1))
+        check("and the notice carries the port, comment stripped", "port 3940 in DEV_PORT" in notices[0], True)
+
+        env.write_text("DEV_CMD=npm run dev -- -p 3939\n", encoding="utf-8")
+        found, notices = ports.check_repo(pinned, scan)
+        check("a -p hiding in DEV_CMD is reported too", (found, len(notices)), ([], 1))
+        check("and names DEV_CMD as the copy that wins", "port 3939 in DEV_CMD" in notices[0], True)
+
+        env.write_text("DEV_PORT=8765\nDEV_CMD=npm run dev -- -p 3939\n", encoding="utf-8")
+        check("both keys at once give two notices", len(ports.check_repo(pinned, scan)[1]), 2)
+
+        env.write_text("DEV_CMD=npm run dev\nDEV_PRESTART_CMD=node seed.mjs --count 12\n", encoding="utf-8")
+        check("a DEV_CMD with no port is silent", ports.check_repo(pinned, scan), ([], []))
 
         env.unlink()
-        check("its absence is the settled state now, reported as nothing",
+        check("an absent deploy.env is the settled state, reported as nothing",
               ports.check_repo(pinned, scan), ([], []))
 
     if FAILURES:

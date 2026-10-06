@@ -90,9 +90,13 @@ Do this in the repo that is behind, not in the dotfiles repo.
    inventing a new slug, or the server comes up on a freshly allocated port while everything else still
    expects the old one.
 
-4. **Delete the dead copy.** Remove the `DEV_PORT=` line from `config/deploy.env` if it has one. The
-   deploy script reads the registry now. That file is gitignored and per-machine, so this is not part of
-   the commit, and the other machine's copy needs the same edit when it gets there.
+4. **Delete the dead copies — both of them.** Remove the `DEV_PORT=` line from `config/deploy.env`,
+   which the deploy script no longer reads, **and any `-p <n>` left inside `DEV_CMD`**. Dropping the
+   first alone leaves the duplicate one line lower, where it overrides the `PORT` the script exports and
+   so wins silently; `ports.py check --repo .` reports each separately. Measured 2026-10-05 in
+   what-is-next: with both gone and `DEV_CMD=npm run dev`, the exported `PORT` reaches `next dev` through
+   `doppler run` and the server still comes up on the registry's number. That file is gitignored and
+   per-machine, so this is not part of the commit, and the other machine's copy needs the same edit.
 
 5. **Check it runs, both ways in.** `bash scripts/deploy.sh` for the deploy path, and `npm run dev` from
    the directory holding the dev script for the hand-run path. Both must come up on the registry's number
