@@ -93,7 +93,7 @@
       "owner": "what-is-next",
       "scope": "machine",
       "status": "assigned",
-      "notes": "Its dev script is `doppler run -- next dev` (web/package.json) with no port flag; deploy-dev-server.sh exports this number as PORT, which Next reads. Wildcard-bound. Needs a separate tailnet front port: a serve mapping on 3939 stops this server rebinding after a restart."
+      "notes": "The Next dev server, started by web/package.json's `dev` script, which runs `doppler run -- node ../scripts/dev.mjs next dev` and asks this registry for the number at launch, exporting it as PORT; deploy-dev-server.sh exports the same number for its own path. Wildcard-bound. Needs a separate tailnet front port: a serve mapping on 3939 stops this server rebinding after a restart."
     },
     {
       "port": 3940,

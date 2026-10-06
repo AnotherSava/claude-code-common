@@ -26,6 +26,9 @@ decided. See [[port-uniqueness-not-a-rule]] for why this registry's checks live 
 
 **An audit settles the notes for as long as the repos hold still, which is not long.** printlab's went
 stale one day after this one: it still described a bare `next dev` taking Next's default after printlab's
-v15 walk had moved the port behind `scripts/dev.mjs`. Nothing here reported it — the printlab session
-saying so is what surfaced it, which is the route to expect. The standing trigger, and why no check on
-this side can catch it, are in the ports skill under "Correcting a claim that already exists".
+v15 walk had moved the port behind `scripts/dev.mjs`. what-is-next's went the same way hours later, while
+that very mechanism was being written up. So a repo's `/adopt` walk falsifies its own note on the day it
+runs, and the re-read belongs beside the walk rather than in a periodic sweep like this one. Nothing here
+reported either — each owning session saying so is what surfaced it, which is the route to expect. The
+standing trigger, and what the check does instead of comparing a note to its repo, are in the ports skill
+under "Correcting a claim that already exists".
