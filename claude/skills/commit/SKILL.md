@@ -117,12 +117,28 @@ Read `~/.claude/skills/shared/bash-rules.md` for bash command constraints.
    - **Plan files (`docs/plans/**`)**: bundle each plan file into the SAME commit as the implementation it describes. Match by filename slug / content keywords against the changed source paths. Only emit a separate `docs(plans):` commit if the plan file is the ONLY change (e.g. editing a plan mid-design without implementing yet, or archiving unrelated historical plans).
    - **Project memory (`.claude/memory/**`)**: the *Wire project memory* context step version-controls it — the first time it runs in a project it migrates the machine-local memory cache into `<repo>/.claude/memory/` and junctions the cache to it (idempotent; it skips already-wired or memory-less repos, so most runs are a no-op). When it *did* migrate files, they show up as untracked in **Uncommitted changes** — fold them into a commit (their own `chore: version-control project memory`, or alongside the session's docs). The Sanitize step already stripped `originSessionId` telemetry, but these are running work-logs that often carry machine-specific absolute paths and ids — the confidentiality check (step 5) MUST still pass over them and genericize/redact before they land.
    - Draft and validate commit messages following the shared rules
-   - **Then count, before presenting anything.** For each message: subject characters, body
-     paragraphs, body lines. Over 50 / over 1 / over 3 means rewrite it, not defend it. Do this
-     as an explicit pass rather than an impression formed while writing — a body reads as
+   - **Then run the checker on every message, before presenting anything.** Write each one to a
+     file and validate it:
+
+     ```bash
+     python ~/.claude/scripts/check-commit-message.py --file <path>   # python3 on macOS
+     ```
+
+     Exit 0 is the only permission to present that message; over 50 / over 1 / over 3 means
+     rewrite it, not defend it. **Counting the characters yourself does not satisfy this step** —
+     this instruction used to say "count, as an explicit pass", and that is a mental act satisfied
+     by believing you performed it, which is why four messages in one plan reached the pre-push
+     hook on 2026-10-05 with every countable rule broken and a `/reset` was needed to fix them.
+     The same failure is recorded in `shared/commit-message-rules.md` from 2026-09-14, at 58
+     characters, "because it was eyeballed". The script is the only instrument here whose output a
+     later reader can check, and the plan at step 8 carries its verdict.
+
+     What the script cannot judge stays yours, and is the rest of the shared rules: the imperative
+     mood, whether a body restates a comment the diff already carries, and whether the reason is
+     yours to give at all. Ask of each line: would a reader six months from now, looking at this
+     diff, make a worse decision without it? Almost always no, and then it goes — a body reads as
      proportionate to whoever just did the work, because they are the one person for whom every
-     sentence is still live. Ask of each line: would a reader six months from now, looking at
-     this diff, make a worse decision without it? Almost always no, and then it goes.
+     sentence is still live.
 
 7. **Validate plan filenames:**
    For every plan file under `docs/plans/` that's part of this change set (new, modified, or renamed — check both `docs/plans/*.md` and `docs/plans/completed/*.md`):
@@ -145,6 +161,11 @@ Read `~/.claude/skills/shared/bash-rules.md` for bash command constraints.
         ```
 
         Paste its output verbatim. It emits a fenced code block with the paths padded to a common width, which is the only way the columns survive — rendered markdown collapses runs of spaces, so hand-padding (or `&nbsp;` entities, which render literally in a terminal) does not align.
+   - Above the closing line, state the checker's verdict over the drafted messages in one line —
+     `check-commit-message.py: N message(s) checked, all pass`. It is step 6's output rather than a
+     new run, and it is here because a plan is the last place the messages can be fixed cheaply: a
+     plan presented without it is asking for approval of text nothing has measured, which is how
+     four unpushable messages were approved on 2026-10-05.
    - End with: "I plan to create **N** commit(s) with these changes. Shall I proceed?"
 
 9. **Execute upon confirmation:**
