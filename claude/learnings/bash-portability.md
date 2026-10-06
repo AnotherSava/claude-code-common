@@ -129,6 +129,11 @@ cmd > /tmp/out.txt 2>&1; echo "exit: $?"; tail -3 /tmp/out.txt
 Portable to bash, zsh and `sh`, and it keeps the status beside the command that produced
 it rather than behind an array whose name depends on the shell.
 
+The redirect buys a second thing on a long-running command: the file fills as the command
+writes, so its output is readable while it still runs. A pipe into `tail` or `head` withholds
+every line until the command exits — so a command the harness moves to the background has an
+empty output file for as long as it runs, and a 240-second wait on one taught nothing.
+
 **zsh has special INTEGER parameters that bash leaves free, and assigning a string to one
 is an arithmetic error.** `GID`, `UID`, `EUID`, `PPID` and friends are typed, so a
 plain-looking assignment fails — and the message names the *value* rather than the
@@ -747,6 +752,28 @@ cd "$(mktemp -d)" && bash -c 'set -euo pipefail; echo hi | tee tmp/x.log; echo N
 Same shape for any scratch path a script writes to rather than reads: a coverage file, a profile
 dump, a captured diff. The directory is part of the dependency, and only a tracked file in it — or a
 `mkdir -p` — makes it exist for anyone else.
+
+## `ps -e` cancels `-p` and prints every process
+
+Select one process with `ps -o pid,ppid,command -p "$PID"`, never `ps -eo …`. On macOS `-e` is
+identical to `-A` — every process on the machine — and it overrides a `-p` beside it, exiting 0
+with no mention of the flag it ignored:
+
+```sh
+ps -eo pid,command -p "$PID" | wc -l   # ~600 — whatever `ps -Ao pid,command` prints
+ps -o  pid,command -p "$PID" | wc -l   # 2, the header and the one process
+```
+
+Measured 2026-10-05. Nothing reports the mistake, and the cost arrives as context: that dump was
+131 KB, large enough that the harness persisted it to a file instead of returning it. The flag is
+easy to reach for because `man ps` on macOS defines `-e` twice — as `-A` among the options, and as
+"display the environment" under the BSD forms.
+
+**To learn which project a process belongs to, read its working directory:** `lsof -a -p "$PID" -d
+cwd -Fn`, whose last line is `n<path>`. Projects that share a launcher script produce identical
+`ps` output, so the command line cannot answer it — two `deploy-dev-server.sh` processes running at
+once differed only by cwd, and killing by that pattern would have stopped the wrong project's
+server.
 
 ## Small differences between the Mac's userland and Git Bash's
 
