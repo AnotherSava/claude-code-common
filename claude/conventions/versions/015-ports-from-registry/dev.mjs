@@ -7,8 +7,8 @@
 //
 // Usage, from a package.json script:  node ../scripts/dev.mjs next dev
 //
-// Copy this file into the repo's scripts/ and set the two constants below. Everything else lives in the
-// shared implementation, so a fix there reaches every project at once.
+// The two constants below are this repo's. Everything else lives in the shared implementation, so a fix
+// there reaches every project at once.
 
 import { homedir } from 'node:os'
 import { join } from 'node:path'
