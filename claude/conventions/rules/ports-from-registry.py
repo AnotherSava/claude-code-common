@@ -78,7 +78,7 @@ def check(root: str) -> List[str]:
     try:
         problems, _ = ports.check_repo(registry, ports.Path(root))
     except RuntimeError as exc:
-        # The scanner raises on a tracked launch file it cannot read and on a git call that did not
-        # answer. Both are this rule being unable to look, not a repo that holds nothing.
+        # The scanner raises on a launch file it cannot read and on a git call that did not answer.
+        # Both are this rule being unable to look, not a repo that holds nothing.
         raise Unanswerable(str(exc))
     return problems

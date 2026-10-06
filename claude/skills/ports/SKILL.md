@@ -53,9 +53,26 @@ repo (the `peer` skill) and leave the commit to it.
 
 ## Correcting a claim that already exists
 
-Edit `registry.json` directly, then run `check`. Re-running `allocate` for a use case that already holds a
-port prints that number and returns, so a corrected `--notes` or a newly discovered `--pinned` reason passed
-to it is read, accepted and dropped — and the command exits 0 either way.
+```bash
+python3 ~/.claude/skills/ports/scripts/ports.py amend \
+  --use-case <slug> [--notes "<text>"] [--pinned "<why>"] [--front-for N]
+```
+
+It needs at least one of the three, it refuses a use case the registry does not hold, and it re-checks the
+whole registry before writing, so a change that would leave a document `check` rejects writes nothing.
+Changing nothing is reported rather than passed over in silence.
+
+`amend` never moves a port. A number that has to change is `release` followed by `allocate --port <n>` with
+the new number given explicitly: those are two commands with the old number unclaimed between them, and
+naming the port makes the second one refuse if something took it rather than quietly pick another.
+
+**Do not reach for `allocate` here.** It is idempotent on the use case because a launch script calls it on
+every run, so it never writes to a claim it found: a `--pinned` or `--front-for` disagreeing with the record
+exits 1 and names `amend`. A disagreeing `--notes` is dropped without a word, since `dev-port.mjs` sends a
+generic note at every launch and a hand-written one differs from it by design.
+
+A field `amend` does not reach — the port, the owner, the scope, `machines` — is still a hand-edit of
+`registry.json` followed by `check`.
 
 **Re-read a repo's notes whenever its convention adoption number moves.** A dev-server note restates the
 owning repo's dev script, so that repo adopting v15 replaces the script and leaves the note describing a

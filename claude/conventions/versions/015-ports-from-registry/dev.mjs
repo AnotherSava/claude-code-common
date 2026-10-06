@@ -2,8 +2,10 @@
 // Runs this project's server on the port the ports registry holds for it.
 //
 // The number is deliberately not in this repo. It lives in one place — the registry at
-// ~/.claude/skills/ports/ — so that two projects cannot quietly claim the same port and a literal
-// anywhere in here is a defect rather than a second opinion.
+// ~/.claude/skills/ports/ — so that two projects cannot quietly claim the same port, and a literal in a
+// file that decides where a server listens is a defect rather than a second opinion. Prose is not: a
+// README naming a URL, an `.env.example` default and a test asserting one are literals no launch-time
+// resolution can replace, and the `ports-from-registry` rule does not look at them.
 //
 // Usage, from a package.json script:  node ../scripts/dev.mjs next dev
 //

@@ -65,14 +65,24 @@ Do this in the repo that is behind, not in the dotfiles repo.
    Only when it reports neither is the migration a no-op here, and then record the version and stop.
 
 2. **Decide each literal: resolve it, or pin it.** A port the project's own server listens on and that
-   nothing outside the machine depends on gets resolved at launch (step 3). A port in one of the three
-   classes above gets recorded instead:
+   nothing outside the machine depends on gets resolved at launch (step 3). A port in one of the kinds
+   above gets recorded instead, and step 1 says with which command: a literal the registry already
+   assigns this repo has a claim to amend, and one no claim mentions has a claim to create.
 
    ```bash
+   # a claim already holds this number — use the slug `ports.py list` shows, not a new one
+   python3 ~/.claude/skills/ports/scripts/ports.py amend \
+     --use-case <slug> \
+     --pinned "<why this number and no other>" --notes "<what listens, and how it starts>"
+
+   # no claim holds it yet
    python3 ~/.claude/skills/ports/scripts/ports.py allocate \
      --use-case <repo>-<what-listens> --owner <repo> --port <n> \
      --pinned "<why this number and no other>" --notes "<what listens, and how it starts>"
    ```
+
+   Handing `--pinned` to `allocate` for a use case the registry already holds exits 1 and names `amend`:
+   `allocate` never writes to a claim it found, because a launch script calls it on every run.
 
    The `--pinned` text is what a reader gets instead of the session this decision came from. "Mapbox
    restrictions take no wildcards or port ranges" is a reason; "it has always been 8000" is not — if that
@@ -107,10 +117,9 @@ Do this in the repo that is behind, not in the dotfiles repo.
 5. **Check it runs, both ways in.** `bash scripts/deploy.sh` for the deploy path, and `npm run dev` from
    the directory holding the dev script for the hand-run path. Both must come up on the registry's number
    — the second one is the entry point this version exists to fix, since a bare `next dev` with no flag
-   and no `PORT` starts on 3000 and drifts upward on a collision. Then `git add` the new `scripts/dev.mjs`
-   and re-run step 1; it must report nothing. Staging comes first because the check reads tracked files,
-   so while the script is untracked it still reports the registry's port as one no file here asks for, and
-   the migration reads as having failed.
+   and no `PORT` starts on 3000 and drifts upward on a collision. Then re-run step 1; it must report
+   nothing. Staging the new `scripts/dev.mjs` first is not needed: the check reads what this repo would
+   commit, which excludes a gitignored file and includes a merely untracked one.
 
 A project whose server is not started by a Node-capable script — a Gradle task, a Swift test harness, a
 shell script with no Node nearby — pins its port in step 2 with that as the reason, and skips step 3.

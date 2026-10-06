@@ -11,13 +11,16 @@ server had to bind.
 So one record, committed in the dotfiles repo, keyed by use case:
 
     ports.py allocate --use-case <slug> --owner <repo> --notes <text> [--port N] [--front-for N]
+    ports.py amend --use-case <slug> [--notes <text>] [--pinned <why>] [--front-for N]
     ports.py get --use-case <slug>         # the recorded port, exit 1 if the use case has none
     ports.py list [--scope S] [--status S]
     ports.py release --use-case <slug>
     ports.py check [--live] [--repo PATH]
 
-`allocate` is the only writer, it is idempotent on the use case, and it prints the port alone on
-stdout so a shell script can take the answer inline. Diagnostics go to stderr.
+`allocate` assigns and `amend` corrects, and they are the only writers. `allocate` is idempotent on
+the use case and never changes a claim it finds, so a launch script may call it on every run; what a
+recorded claim says is changed by `amend` instead. Both print the port alone on stdout so a shell
+script can take the answer inline. Diagnostics go to stderr.
 
 Three scopes, because only one of them is a namespace where sharing is a defect:
 
@@ -192,6 +195,18 @@ def allocate(args: argparse.Namespace) -> int:
                 _note(f"use case '{args.use_case}' already holds port {existing['port']}, so {args.port} was not "
                       f"assigned. Release it first if the number really has to change.")
                 return 1
+            # Refusing beats applying: this branch runs on every server launch through dev-port.mjs, so a
+            # writer here would rewrite the registry at each start. `notes` is deliberately not among the
+            # flags checked — dev-port.mjs sends a generic one every time, so a hand-written note differs
+            # from it by design, and `amend` is where a note is corrected.
+            differs = [field for field, value in (("pinned", args.pinned), ("front_for", args.front_for))
+                       if value is not None and value != existing.get(field)]
+            if differs:
+                flags = ", ".join(f"--{field.replace('_', '-')}" for field in differs)
+                _note(f"use case '{args.use_case}' already holds port {existing['port']}, and allocate never "
+                      f"changes a claim it found, so {flags} had no effect. `amend --use-case "
+                      f"{args.use_case}` is what changes what a recorded claim says.")
+                return 1
             print(existing["port"])
             return 0
 
@@ -238,6 +253,49 @@ def allocate(args: argparse.Namespace) -> int:
     _note(f"recorded port {port} for '{args.use_case}' in {REGISTRY}. That file is committed — the dotfiles repo "
           f"now has an uncommitted change.")
     print(port)
+    return 0
+
+
+def amend(args: argparse.Namespace) -> int:
+    """Change what an existing claim says, leaving the number it holds alone.
+
+    Its own command rather than a flag on `allocate`, which is called on every launch and so has to stay a
+    read; and rather than release-then-allocate, which is two lock acquisitions with the number unclaimed
+    in between, where `_pick_port` can hand it to the next caller.
+    """
+    if args.notes is None and args.pinned is None and args.front_for is None:
+        _note("amend changes what a claim says, so it needs at least one of --notes, --pinned, --front-for.")
+        return 1
+    with file_lock.locked(LOCK):
+        data = read_registry()
+        claim = _by_use_case(data, args.use_case)
+        if claim is None:
+            _note(f"no use case '{args.use_case}' is recorded, so nothing was amended. `list` shows the keys this "
+                  f"registry holds, and `allocate` is what records a new one.")
+            return 1
+        changed = []
+        for field, value in (("notes", args.notes), ("pinned", args.pinned), ("front_for", args.front_for)):
+            if value is None or claim.get(field) == value:
+                continue
+            was = f"{claim[field]!r} -> " if field in claim else ""
+            changed.append(f"{field}: {was}{value!r}")
+            claim[field] = value
+        problems = check_registry(data)
+        if problems:
+            _note("the registry would not pass its own checker with that change, so nothing was written:")
+            for line in problems:
+                _note(f"  {line}")
+            return 1
+        if changed:
+            write_registry(data)
+
+    if changed:
+        for line in changed:
+            _note(f"amended '{args.use_case}' — {line}")
+        _note(f"{REGISTRY} is committed, so the dotfiles repo now has an uncommitted change.")
+    else:
+        _note(f"'{args.use_case}' already says exactly that, so nothing was written.")
+    print(claim["port"])
     return 0
 
 
@@ -459,12 +517,18 @@ LITERAL_PATTERNS = (
 
 
 def _launch_path_files(repo: Path) -> List[Path]:
-    """Every launch-determining file git tracks in `repo`, or raise when git will not say.
+    """Every launch-determining file this repo would commit, or raise when git will not say.
 
-    Tracked only: a `package.json` inside a gitignored `node_modules/` or a scratch `tmp/` is nobody's
-    declaration, and two repos in this fleet have their only manifest inside a virtualenv.
+    Ignored files are excluded, not untracked ones: a `package.json` inside a gitignored `node_modules/`
+    or a scratch `tmp/` is nobody's declaration, and two repos in this fleet have their only manifest
+    inside a virtualenv. A file merely untracked is a different thing — it is on its way into the commit
+    this check gates, and the index at that moment does not hold it. `/commit` unstages everything at
+    skill load before running the gate, so a resolver added by a migration is invisible to `--cached`
+    alone: the rule then reported a port nothing resolves and told the reader to copy in a file already
+    sitting in `scripts/`, which is what every v15 adoption hit.
     """
-    result = subprocess.run(["git", "-C", str(repo), "ls-files", "-z", "--", *LAUNCH_GLOBS],
+    result = subprocess.run(["git", "-C", str(repo), "ls-files", "-z", "--cached", "--others",
+                             "--exclude-standard", "--", *LAUNCH_GLOBS],
                             capture_output=True, encoding="utf-8", errors="replace", timeout=30)
     if result.returncode != 0:
         raise RuntimeError(f"git ls-files in {repo} exited {result.returncode}: {result.stderr.strip()}")
@@ -472,19 +536,19 @@ def _launch_path_files(repo: Path) -> List[Path]:
 
 
 def _launch_path_texts(repo: Path) -> List[Tuple[Path, str]]:
-    """Every launch-determining file git tracks in `repo`, with its text.
+    """Every launch-determining file this repo would commit, with its text.
 
-    Raises on a tracked launch file that will not read as text. A scanner that skips what it cannot
-    classify is a scanner whose verification is scoped to its own blind spots.
+    Raises on one that will not read as text. A scanner that skips what it cannot classify is a scanner
+    whose verification is scoped to its own blind spots.
     """
     texts = []
     for path in _launch_path_files(repo):
         try:
             texts.append((path, path.read_text(encoding="utf-8")))
         except FileNotFoundError:
-            continue  # tracked but not checked out — a sparse checkout, nothing to read
+            continue  # in the index but not checked out — a sparse checkout, nothing to read
         except (OSError, UnicodeDecodeError) as exc:
-            raise RuntimeError(f"{path} is tracked as a launch-path file and will not read as text ({exc}), so "
+            raise RuntimeError(f"{path} is a launch-path file here and will not read as text ({exc}), so "
                                f"whether it hardcodes a port could not be established")
     return texts
 
@@ -550,7 +614,7 @@ def check_repo(data: Dict, repo: Path) -> Tuple[List[str], List[str]]:
     on its own proves nothing: a repo with no `-p` flag and no resolver is not resolving the port, it is
     taking its framework's default and drifting upward on a collision. Measured 2026-10-05, printlab and
     what-is-next both reported zero literals in exactly that state. So an unpinned claim this repo owns
-    requires either a literal already reported above or a tracked file that asks for the number.
+    requires either a literal already reported above or a file here that asks for the number.
 
     A claim carrying `front_for` is exempt: a tailnet front port is allocated by `deploy-dev-server.sh`
     at the moment it publishes, and the repo it belongs to never names it.
@@ -586,7 +650,8 @@ def check_repo(data: Dict, repo: Path) -> Tuple[List[str], List[str]]:
                    key=lambda c: c["port"])
     if owned and not _resolves_at_launch(repo):
         ports = ", ".join(f"{c['port']} ('{c['use_case']}')" for c in owned)
-        problems.append(f"the registry assigns this repo port {ports} and no tracked file here asks for it, so "
+        problems.append(f"the registry assigns this repo port {ports} and no launch-determining file here asks for "
+                        f"it, so "
                         f"nothing resolves it: the server takes its framework's default instead and drifts upward "
                         f"on a collision. Copy `dev.mjs` from conventions/versions/015-ports-from-registry/ into "
                         f"scripts/, point the dev script at it, and drop any port literal — or record the number "
@@ -652,11 +717,19 @@ def main(argv: List[str]) -> int:
     p = sub.add_parser("allocate", help="record a port for a use case, assigning one if it has none")
     p.add_argument("--use-case", required=True, help="the registry's key: lowercase words joined by hyphens")
     p.add_argument("--owner", required=True, help="the repo or app the use case belongs to")
-    p.add_argument("--notes", required=True, help="why this number, for whoever reads the record later")
+    p.add_argument("--notes", required=True,
+                   help="why this number, for whoever reads the record later; recorded when the claim is "
+                        "created, and changed afterwards by `amend`")
     p.add_argument("--scope", default="machine", choices=SCOPES)
     p.add_argument("--port", type=int, help="a specific number, for a port fixed outside this machine")
     p.add_argument("--pinned", help="why the number cannot be changed (an OAuth redirect, a URL restriction)")
     p.add_argument("--front-for", type=int, help="the origin port this one proxies to via `tailscale serve`")
+
+    p = sub.add_parser("amend", help="change what a recorded claim says, leaving the port it holds alone")
+    p.add_argument("--use-case", dest="use_case", required=True, help="the registry's key")
+    p.add_argument("--notes", help="replace the note")
+    p.add_argument("--pinned", help="replace the reason the number cannot be changed")
+    p.add_argument("--front-for", type=int, help="replace the origin port this one proxies to")
 
     # `--use-case` on every command that takes one, matching `allocate`. A positional here and on
     # `release` made them disagree with `allocate` on how the registry's own key is named, which costs a
@@ -683,7 +756,8 @@ def main(argv: List[str]) -> int:
     except (OSError, ValueError, json.JSONDecodeError) as exc:
         _note(f"the registry at {REGISTRY} could not be read — {type(exc).__name__}: {exc}")
         return 1
-    return {"allocate": allocate, "get": get, "list": show_list, "release": release}[args.cmd](args)
+    return {"allocate": allocate, "amend": amend, "get": get, "list": show_list,
+            "release": release}[args.cmd](args)
 
 
 if __name__ == "__main__":

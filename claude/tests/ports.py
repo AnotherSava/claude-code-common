@@ -91,6 +91,12 @@ def seed(directory: str, claims: list) -> Path:
     return registry
 
 
+def claim_for(use_case: str, registry: Path) -> dict:
+    """The claim as it is on disk. Written claims are sorted by port, so an index would move under them."""
+    claims = json.loads(registry.read_text(encoding="utf-8"))["claims"]
+    return next(claim for claim in claims if claim["use_case"] == use_case)
+
+
 MACHINE = {"scope": "machine", "status": "assigned", "notes": "a claim"}
 
 
@@ -116,6 +122,14 @@ def main() -> int:
         check("a use case cannot be moved by re-allocating it", code, 1)
         check("and it says which port it already holds", str(ports.POOL_LOW + 1) in err, True)
 
+        # A pin reaching an existing claim is what v15's step 2 does in every repo whose port the registry
+        # already assigns, and it used to exit 0 having written nothing.
+        code, _, err = run(["allocate", "--use-case", "fresh", "--owner", "repo", "--notes", "why",
+                            "--port", str(ports.POOL_LOW + 1), "--pinned", "an outside party"], registry)
+        check("a --pinned allocate cannot pin a claim that exists", code, 1)
+        check("and it names the command that can", "amend --use-case fresh" in err, True)
+        check("the claim is unchanged", "pinned" in claim_for("fresh", registry), False)
+
         code, _, err = run(["allocate", "--use-case", "other", "--owner", "repo", "--notes", "why",
                             "--port", str(ports.POOL_LOW)], registry)
         check("a claimed port is refused", (code, "taken" in err), (1, True))
@@ -140,6 +154,34 @@ def main() -> int:
         check("a live port with no claim is skipped", (code, out), (0, str(ports.POOL_LOW + 3)))
         check("and the skip is reported", f"{ports.POOL_LOW + 2}" in err, True)
         ports.port_probe = FakeProbe()
+
+        # ---- amend -----------------------------------------------------------------------------------
+        code, out, err = run(["amend", "--use-case", "fresh", "--pinned", "an outside party",
+                              "--notes", "a corrected note"], registry)
+        check("amend records a pin on an existing claim", (code, out), (0, str(ports.POOL_LOW + 1)))
+        check("and writes both fields", (claim_for("fresh", registry)["pinned"],
+                                         claim_for("fresh", registry)["notes"]),
+              ("an outside party", "a corrected note"))
+        check("and says the dotfiles repo is now dirty", "uncommitted change" in err, True)
+
+        code, _, err = run(["amend", "--use-case", "fresh", "--pinned", "an outside party"], registry)
+        check("amending to what is already there is not silent", (code, "already says" in err), (0, True))
+
+        code, _, err = run(["amend", "--use-case", "fresh"], registry)
+        check("amend with no field to change is refused", (code, "--notes" in err), (1, True))
+
+        code, _, err = run(["amend", "--use-case", "never-recorded", "--notes", "n"], registry)
+        check("amending an unknown use case fails", (code, "nothing was amended" in err), (1, True))
+
+        # The whole registry is re-checked before the write, so an amend cannot leave behind a document the
+        # gate would then reject in a repo that never ran this command.
+        code, _, err = run(["amend", "--use-case", "fresh", "--notes", "   "], registry)
+        check("an amend that breaks the registry writes nothing", code, 1)
+        check("and the claim keeps what it had", claim_for("fresh", registry)["notes"], "a corrected note")
+
+        code, _, err = run(["amend", "--use-case", "fresh", "--front-for", str(ports.POOL_HIGH - 1)], registry)
+        check("a front port with no origin claim is refused by amend too",
+              (code, claim_for("fresh", registry).get("front_for")), (1, None))
 
         # ---- release ---------------------------------------------------------------------------------
         # `--use-case` on get and release as well as allocate: a positional on two of the three made them
@@ -233,8 +275,20 @@ def main() -> int:
         check("a -p flag with no claim is reported", len(found), 1)
         check("and the message names the file and line", "web/package.json:1" in found[0], True)
 
-        (scan / "untracked.json").write_text('{"port": 4321}\n', encoding="utf-8")
-        check("an untracked launch file is nobody's declaration", len(ports.check_repo(pinned, scan)[0]), 1)
+        # The scan reads what the repo would commit, so staging is not what makes a file count — only a
+        # gitignored one is nobody's declaration. `/commit` unstages at skill load before running the
+        # gate, so a resolver a migration just added is never in the index when the rule looks.
+        (scan / "scripts" / "unstaged.sh").write_text("PORT=4321\n", encoding="utf-8")
+        found, _ = ports.check_repo(pinned, scan)
+        check("an untracked launch file counts, being on its way into the commit", len(found), 2)
+        check("and is named like any other", any("scripts/unstaged.sh:1" in line for line in found), True)
+        (scan / "scripts" / "unstaged.sh").unlink()
+
+        (scan / ".gitignore").write_text("/node_modules/\n", encoding="utf-8")
+        (scan / "node_modules").mkdir()
+        (scan / "node_modules" / "package.json").write_text('{"port": 9999}\n', encoding="utf-8")
+        check("a gitignored launch file is nobody's declaration", len(ports.check_repo(pinned, scan)[0]), 1)
+        (scan / "node_modules" / "package.json").unlink()
 
         track("web/package.json", '{"scripts": {"dev": "node ../scripts/dev.mjs next dev"}}\n')
         (scan / "web" / "package.json").write_bytes(b"\xff\xfe\x00{ not text\n")
@@ -279,8 +333,15 @@ def main() -> int:
         found, _ = ports.check_repo(unpinned, scan)
         check("a doc naming the tool does not count as a resolver", len(found), 1)
 
+        # Unstaged first, which is the state /commit's `git reset HEAD` probe leaves a migration's new
+        # resolver in. Measured in tripit 2026-10-06: v15 step 5 staged it, the probe un-staged it, and the
+        # gate then told the reader to copy in a file already sitting in scripts/.
+        (scan / "scripts" / "dev.mjs").write_text("import { run } from '.../ports/scripts/dev-port.mjs'\n",
+                                                  encoding="utf-8")
+        check("an unstaged resolver settles it", ports.check_repo(unpinned, scan), ([], []))
+
         track("scripts/dev.mjs", "import { run } from '.../ports/scripts/dev-port.mjs'\n")
-        check("a tracked file naming the resolver settles it", ports.check_repo(unpinned, scan), ([], []))
+        check("and so does the same file staged", ports.check_repo(unpinned, scan), ([], []))
 
         # ---- a port still pinned in the per-machine deploy.env ---------------------------------------
         # Both keys can carry one, and dropping DEV_PORT alone leaves the duplicate a line lower in
