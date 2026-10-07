@@ -29,3 +29,13 @@ When tempted to explain why a piece of legacy code, documentation, or workflow s
   wrong for the 298 that followed. So cite the comment to explain why something exists, and measure the
   current data before arguing it should stay — the query is usually one command, and the code cannot tell
   you what has changed around it.
+- **Someone else's implementation does not carry its own why, and a doc turns the why into a rule.** Reading
+  the structure right is what lets a wrong reason survive: on 2026-10-07 I described landlord's backup probe
+  correctly — a null `daysFromStartingToCancelingUnfinishedLargeFiles` is a note beside its verdict, not a
+  failure — and wrote that into a machine-wide learnings file justified by severity, that the field costs
+  money without breaking retention. The peer confirmed the structure and corrected the reason: its repository
+  sits below B2's minimum part size, so no unfinished large file can exist there at all. Above that floor the
+  same unset field accrues billed, invisible parts and a verdict is the honest severity, so the rule as
+  written would have told a session with a multi-megabyte repository to keep it a note. Ask what measurement
+  made the choice right and state the choice as conditional on it; where the implementation cannot tell you,
+  ask its owner rather than inferring.
