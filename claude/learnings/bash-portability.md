@@ -508,6 +508,28 @@ it — a guessed prefix check rejected a perfectly good key here, and the fix wa
 store only on success. That keeps the value in a variable and a pipe, never in a command line or a script
 body.
 
+## Piping a script that leaves a server running hangs until the timeout kills it
+
+**Redirect to a file, never a pipe, when a script detaches a process that outlives it** —
+`bash scripts/deploy.sh > tmp/deploy.log 2>&1`, not `… | tail -40`. The detached child inherits the
+pipe's write end, so the reader at the far end waits for an EOF that arrives only when that child
+exits, which for a dev server is never.
+
+Measured 2026-10-06 on a `deploy` wrapper. The script had finished — the server was up and its
+health check had answered `GET / 200` — while the `tail` behind it sat for the whole seven-minute
+tool timeout. The SIGTERM that ended the timeout reached the entire pipeline, so it also killed the
+server the script had just started, and the output `tail` was holding went unprinted. The terminal
+showed a timeout and a dead server; the script's own log file showed a clean run.
+
+A file redirection carries no such wait: the child inherits the descriptor and nothing reads from
+the other end. `tee` does not keep the live view either, because its stdin is that same pipe — write
+the file and read it afterwards.
+
+Job control is not the workaround from the Bash tool. `set -m`, which would put the child in its own
+process group so `kill -- -$PGID` could clean it up, fails in the harness's top-level zsh with
+`(eval):set:6: can't change option: -m`. It works inside `bash <<'EOF'`, which is where a script
+needing a process group belongs.
+
 ## Reading uptime: two mechanisms, and a parse that fails by returning a plausible number
 
 There is no portable way to ask how long a machine has been up, and the macOS form has a trap that
@@ -783,6 +805,10 @@ Each of these made a test pass on one machine and prove nothing, or fail for a r
   prints 4 on Git Bash and 5 on macOS. An awk program that strips CR itself behaves the same on both, but a test
   that removes the strip only fails on the Mac.
 - **BSD `head` rejects `-c 0`** (`head: illegal byte count -- 0`); GNU `head` prints nothing.
+- **BSD `cat` has no `-A`** (`cat: illegal option -- A`, exit 1, usage to stderr). The file's content never
+  prints, so a probe run to reveal line endings or trailing whitespace shows nothing at all — which reads as
+  an empty file rather than as a rejected flag, and the next command in a `;`-joined chain runs regardless.
+  `cat -te` displays the same thing on both userlands.
 - **Only bash 4.4 and later warn about a NUL in `$( )`** (`warning: command substitution: ignored null byte in
   input`). Every version drops the NUL, but `/bin/bash` 3.2 does it silently, so a test asserting the warning is
   gone cannot fail on the Mac. `tr -d '\000'` inside the substitution removes the warning without changing the
