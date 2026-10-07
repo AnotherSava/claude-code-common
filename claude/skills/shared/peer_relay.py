@@ -136,9 +136,10 @@ def send_to_project(project: str, text: str, from_label: str | None = None) -> l
 # different folder names — which the relay's own wording, correct that this is an address rather than an
 # ended session, leaves a reader to guess at. Three pushes' notices failed in both directions on
 # 2026-10-06 that way, and were read as nobody being there.
-UNKNOWN_PROJECT_HINT = ("that id is this clone's folder name, so the peer's clone sits under a different one — "
-                        "read /api/agents there for the name it registers, and rename whichever folder does "
-                        "not match its GitHub repository with /move-project.")
+UNKNOWN_PROJECT_HINT = ("two causes share this receipt: no live session for that project there, AND no "
+                        "directory its dashboard knows derives that id. Retry once — a session started "
+                        "over there turns this into `written` with nothing renamed. Only if it refuses "
+                        "again is the folder name worth reading, from /api/agents on that machine.")
 
 
 def describe(target: str, receipt: dict) -> str:
