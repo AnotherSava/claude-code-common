@@ -146,14 +146,18 @@ docker rm -f <container>            # the old container belongs to the now-renam
 docker compose up -d --no-deps <new-service-name>
 ```
 
-**The `rm` has to come first when the old service had no `container_name`.** A rename that gives a service the
-name its container already carried makes the next `up` abort on `Conflict. The container name … is already in
-use`, which is safe. A service that never set `container_name` ran as the derived `<project>-<service>-1`, which
-the renamed service does not reuse, so nothing conflicts: a plain `docker compose up -d` — which is what the
-shared publish script runs — starts the renamed service beside the old container and only warns about orphans.
-The old one keeps running, still answering to its old aliases. For a database service that means two servers
-opening the same named volume, since the volume is keyed by the project and not the service. Remove every old
-container before the first `up` after the rename, or make that one `up -d --remove-orphans`.
+**The `rm` has to come first whenever the renamed service's container name differs from the old container's.**
+A rename that gives a service the name its container already carried makes the next `up` abort on `Conflict. The
+container name … is already in use`, which is safe. Any other name does not conflict, whether the old container
+ran under a derived `<project>-<service>-1` or an explicit `container_name` the rename also changed: a plain
+`docker compose up -d` — which is what the shared publish script runs — starts the renamed service beside the old
+container and only warns about orphans. The old one keeps running, still answering to its old aliases. For a
+database service that means two servers opening the same named volume, since the volume is keyed by the project
+and not the service. It also keeps every host port it published, and a `restart: unless-stopped` policy brings it
+back with the Docker daemon after a reboot. Measured 2026-10-06 on a dev database renamed with both names
+explicit: the orphan returned at the next Docker start still publishing `0.0.0.0:5432`, so the renamed service's
+`127.0.0.1:5432` could not bind. Remove every old container before the first `up` after the rename, or make that
+one `up -d --remove-orphans`.
 
 **Do that recreate immediately, because until it happens the OLD name still resolves.** A running container
 keeps the aliases it was created with; editing the compose file changes what the *next* container answers to
