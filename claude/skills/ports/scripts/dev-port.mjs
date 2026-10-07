@@ -27,7 +27,7 @@
 // itself, and should refuse to start without it rather than falling back to a default.
 
 import { spawnSync } from 'node:child_process'
-import { existsSync } from 'node:fs'
+import { lstatSync, statSync } from 'node:fs'
 import { homedir } from 'node:os'
 import { join } from 'node:path'
 
@@ -38,12 +38,38 @@ function fail(message) {
   process.exit(1)
 }
 
+/** Which of three states `PORTS_PY` is in: `present`, `absent`, or `unreadable` with the reason. */
+function registryScript() {
+  let linked = true
+  try { lstatSync(PORTS_PY) } catch (error) {
+    if (error.code === 'ENOENT') linked = false
+    else return { state: 'unreadable', why: `could not be read (${error.code})` }
+  }
+  try { statSync(PORTS_PY) } catch (error) {
+    if (error.code !== 'ENOENT') return { state: 'unreadable', why: `could not be read (${error.code})` }
+    if (linked) return { state: 'unreadable', why: 'is a symlink resolving to nothing, so the dotfiles checkout it points into has moved or been removed' }
+    return { state: 'absent' }
+  }
+  return { state: 'present' }
+}
+
 /** The port the registry holds for `useCase`, assigning one on the first call. */
 function resolvePort({ useCase, owner, notes }) {
-  if (!existsSync(PORTS_PY)) {
+  // One `existsSync` cannot carry this message: it answers false for a path that is missing and for a
+  // symlink resolving to nothing alike, and this path runs through `~/.claude/`, a tree symlinked out of the
+  // dotfiles checkout — so moving that checkout produces the second state and the first one's wording sends
+  // the reader to install what is already installed. Errno table in
+  // `~/.claude/learnings/absence-versus-unreadable.md`.
+  const found = registryScript()
+  if (found.state === 'absent') {
     fail(`${PORTS_PY} is not there. This project's port comes from the claude dotfiles' ports registry, `
        + `which is not installed on this machine — install it and retry, or read the port out of the `
        + `registry by hand and run the server with PORT=<n> set.`)
+  }
+  if (found.state === 'unreadable') {
+    fail(`${PORTS_PY} ${found.why}. That is a repair rather than an install: the dotfiles' install block `
+       + `re-creates the link, or read the port out of the registry by hand and run the server with `
+       + `PORT=<n> set.`)
   }
   const python = process.platform === 'win32' ? 'python' : 'python3'
   const result = spawnSync(python, [

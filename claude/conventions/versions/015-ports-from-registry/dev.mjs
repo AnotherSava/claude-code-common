@@ -25,11 +25,15 @@ let run
 try {
   ;({ run } = await import(pathToFileURL(shared).href))
 } catch (error) {
+  // Name both states rather than asserting the absent one: this catch also fires on a dangling symlink
+  // after the dotfiles checkout moves, on an unreadable directory and on a syntax error in the shim, and
+  // "not installed" sends the reader to install what is already there. The quoted error says which it is.
   console.error(
     `dev.mjs: could not load ${shared} (${error.message}).\n` +
-    `This project's port comes from the claude dotfiles' ports registry, which is not installed on this ` +
-    `machine. Install the dotfiles, or look the port up in that registry and run the server yourself with ` +
-    `PORT=<n> set.`,
+    `This project's port comes from the claude dotfiles' ports registry. Either it is not installed on ` +
+    `this machine, or it is installed and that file could not be read — the error above says which. ` +
+    `Install or repair the dotfiles, or look the port up in that registry and run the server yourself ` +
+    `with PORT=<n> set.`,
   )
   process.exit(1)
 }

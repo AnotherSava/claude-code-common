@@ -21,7 +21,7 @@
 // Exit:   0 every case that ran behaves, 1 one does not
 
 import { spawnSync } from 'node:child_process'
-import { chmodSync, mkdirSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from 'node:fs'
+import { chmodSync, mkdirSync, mkdtempSync, readFileSync, rmSync, symlinkSync, writeFileSync } from 'node:fs'
 import { tmpdir } from 'node:os'
 import { dirname, join } from 'node:path'
 import { fileURLToPath } from 'node:url'
@@ -141,7 +141,37 @@ function argvBranchCases() {
   passed.push('an embedded quote on the argv branch')
 }
 
+// `resolvePort` fails before it needs an interpreter or a branch, so these cases run natively on either
+// host. They redirect both home variables because `os.homedir()` reads a different one per platform and the
+// forced platform has no say in which — `absence-versus-unreadable.md` measures that.
+function registryStateCases() {
+  const home = join(scratch, 'scratch home')
+  const scripts = join(home, '.claude', 'skills', 'ports', 'scripts')
+  mkdirSync(scripts, { recursive: true })
+  const homeEnv = { HOME: home, USERPROFILE: home }
+
+  const absent = execute('native', [], homeEnv)
+  check('a missing registry script reports an install',
+        [absent.status, /is not installed on this machine/.test(absent.err)], [1, true])
+  passed.push('the absent registry script')
+
+  // The state that motivates the predicate: `~/.claude/` is symlinked out of the dotfiles checkout, so
+  // moving that checkout leaves exactly this, and `existsSync` cannot tell it from the case above.
+  try {
+    symlinkSync(join(scratch, 'no such tree', 'ports.py'), join(scripts, 'ports.py'))
+  } catch (error) {
+    uncovered.push(`the dangling-symlink state: this host refused to create the link (${error.code})`)
+    return
+  }
+  const dangling = execute('native', [], homeEnv)
+  check('a dangling symlink reports a repair, naming the link',
+        [dangling.status, /symlink resolving to nothing/.test(dangling.err), /is not installed/.test(dangling.err)],
+        [1, true, false])
+  passed.push('the dangling-symlink state')
+}
+
 try {
+  registryStateCases()
   shellBranchCases()
 
   // Forcing the argv branch on Windows makes `resolvePort` ask for `python3`, and a `.cmd` stand-in cannot
