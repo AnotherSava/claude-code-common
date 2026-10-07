@@ -1,8 +1,35 @@
 # Keeping a unit alive, and being told when it isn't
 
 Hardening a systemd service so a transient fault doesn't become a permanent one — and wiring an alert that
-actually fires. Six traps here, and **every one of them fails silently**: the unit loads, `daemon-reload`
-succeeds, and the file reads as though it took effect.
+actually fires. Every trap below **fails silently**: the unit loads, `daemon-reload` succeeds, and the file
+reads as though it took effect.
+
+## A trailing `#` comment voids the directive it sits on
+
+Put every comment on its own line. systemd's syntax reference allows only one form — "Empty lines and lines
+starting with `#` or `;` are ignored" — so *starting with* is the whole rule, there is no inline comment, and
+a trailing one is read as part of the value:
+
+```ini
+Persistent=true # run on next boot if the machine was off at the scheduled time
+```
+
+The value is then the entire string `true # run on next boot …`, which fails boolean parsing. systemd logs a
+warning, drops the directive, and carries on: the unit loads, the timer arms, and `systemctl status` reads
+clean.
+
+Ask the unit what it parsed rather than reading the file, because the file is the instrument that lies:
+
+```bash
+systemctl show <unit> -p Persistent      # Persistent=no, from a file that says true
+```
+
+Measured 2026-10-06 on a nightly backup timer that had carried the comment since it was written — so every
+run missed to downtime had silently failed to catch up, which is the one thing `Persistent=` exists to do.
+
+This voids any directive, not only booleans, and the worse case is quieter still. A value systemd parses as a
+string or an argument list swallows the comment *into* the value with no warning at all, so an `ExecStart=`
+written this way runs with `#` and each following word as extra arguments.
 
 ## StartLimit* are `[Unit]` options, not `[Service]`
 
