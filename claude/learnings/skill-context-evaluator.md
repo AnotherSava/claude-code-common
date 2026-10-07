@@ -190,3 +190,57 @@ The general rule for these probes: anything the evaluator might read as a variab
 extension `$(...)` — is a hazard, and the safest probes are plain pipelines of `grep`, `cut`, `test`, `ls` and
 `wc`.
 
+## `$(…)` is refused by the permission check, which is a different failure from the mangling above
+
+Write the argument plainly. A command substitution inside a probe whose command matches one of the skill's
+own `allowed-tools` Bash patterns is refused before it runs, and the refusal aborts the whole skill load —
+the same outcome a non-zero exit produces, with the body never read. Measured 2026-10-06 on `commit`, whose
+probe was:
+
+```
+!`git diff --stat $(git rev-parse -q --verify HEAD || echo 4b825dc642cb6eb9a060e54bf8d69288fbee4904)`
+```
+
+Invoking the skill returned this in place of the skill:
+
+```
+Shell command permission check failed for pattern "!`git diff --stat $(…)`": Contains command_substitution
+```
+
+That error is the one good thing here: it names the offending probe and the reason, where the positional-field
+corruption in the section above surfaces as a syntax error from whatever tool received the garbage, blaming
+the skill for what the loader did.
+
+**Removing the substitution is the fix; removing the argument is not.** The idiom being replaced was there to
+name a revision, so the plain form has to go on naming it — `git diff --stat HEAD 2>/dev/null || true`, where
+the fallback covers a repo with no commits, in which `HEAD` does not resolve. Dropping the revision instead
+changes what the probe measures, silently and in the quiet direction: a bare `git diff --stat` compares the
+working tree against the **index**, so every staged path disappears from it. Verified 2026-10-06 in a
+throwaway repo with one of two modified files staged — the bare form reported 1 changed file, `HEAD` reported
+2. This is why `git diff --stat` and `git diff` sit in the reliable-commands list in this file and are still
+the wrong probe wherever the base matters: a skill whose Context claims to carry the total change set gets
+part of it, on exactly the runs where an unstage lost its `index.lock` race.
+
+**Not every `$(…)` in one Context block is refused, and the discriminator is not isolated.** In the same
+block, `R=$(git rev-parse --show-toplevel …)` as an assignment and
+`gh issue list --repo "$(git remote get-url origin | sed …)"` as a quoted argument value both load without
+complaint, while the bare-argument form above does not — and `gh issue list` has an `allowed-tools` entry of
+its own, so matching a pattern cannot be the whole rule. Treat a plain argument as the only shape known to be
+safe rather than concluding that quoting or assignment launders a substitution.
+
+**The leading hypothesis is the permission mode, not the shape.** Two sessions hit the refusal on the same
+day, on `commit` here and on `publish`'s `git remote get-url origin … || echo none` probe, which was refused
+with a different reason again — "This Bash command contains multiple operations". A third session invoked
+`commit` from the same checkout repeatedly across that day with both `$(…)` lines still in place and never
+saw a refusal, which rules out the file. The session that hit it had asked its user to switch to manual
+partway through, and its *earlier* refusals — ordinary Bash calls, not probes — had named "the Claude Code
+auto mode classifier" in so many words, so the modes in play were different at the two moments. Nobody has
+read the mode back programmatically at the moment of a refusal, so this stays a lead.
+
+That matters for how much weight the shape reading above carries. If the checker's strictness is a property
+of the mode, then "an assignment and a quoted argument load while a bare argument does not" is one mode's
+threshold rather than a rule about the three shapes, and the advice survives while its stated reason does
+not. **Settle it by invoking one skill carrying a `$(…)` probe from the same checkout under each mode and
+comparing** — one run each, and the answer holds for every skill in the directory. Until then, prefer the
+plain argument and expect a probe that loads for you to be refused for somebody else.
+

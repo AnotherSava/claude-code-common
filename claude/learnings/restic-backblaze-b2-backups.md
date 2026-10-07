@@ -124,6 +124,12 @@ calls, so nothing is hidden and the new rule has nothing to reclaim. Without it,
 hiding, and every prune since has been accumulating — those versions are all past a one-day threshold, so the
 rule collects them on its next daily pass.
 
+Read them at `apiInfo.storageApi.capabilities`, which is where v3 puts them — beside `bucketId`,
+`bucketName` and `namePrefix` in the same object, with no top-level `allowed` anywhere in the response.
+That object is a v4 addition, and reaching for it against a v3 reply returns nothing rather than failing,
+so the probe reports an empty capability list and a key that holds everything reads as a key that holds
+nothing. Verified 2026-10-06 by printing the response's own key names after two reads had answered `[]`.
+
 One field is worth adding beyond the console preset's three:
 `"daysFromStartingToCancelingUnfinishedLargeFiles": 1` collects interrupted multipart uploads, which are
 billed and appear in neither restic's view nor an S3 LIST.
@@ -223,6 +229,18 @@ console trip per project.
   reason to avoid holding one.
 - **`b2_create_bucket` takes `lifecycleRules` inline**, so the rule that section above calls mandatory can be
   set at creation rather than remembered afterwards.
+- **Amending that rule later needs the master key too**, which is the half "set it at creation" leaves
+  implicit. A project's bucket-scoped key is minted with file capabilities only, so `b2_update_bucket` is
+  closed to it and the box that owns the backup cannot repair its own bucket's rule. Measured 2026-10-06
+  while adding `daysFromStartingToCancelingUnfinishedLargeFiles` to a bucket that already existed: the key
+  in that box's `backup.env` listed `listBuckets, listAllBucketNames, listFiles, readFiles, shareFiles,
+  writeFiles, deleteFiles` and no `writeBuckets`, and the amendment had to run from a workstation under the
+  master key. Not a contradiction of the console-key note above — that one describes an "All buckets / Read
+  and Write" key, which is a different credential from the scoped one this pattern puts on the box.
+- **`b2_update_bucket` replaces the rules array wholesale.** Read the bucket first, amend the array you got
+  back, and send all of it — a field omitted from the request is a field removed from the bucket. Pass
+  `ifRevisionIs` with the `revision` that read returned, so a concurrent change fails the call instead of
+  being silently overwritten.
 
 Give each project its own bucket and its own key scoped to it, with file capabilities only and no
 bucket-management rights — then a compromise of one project's box cannot read, reconfigure or delete another
