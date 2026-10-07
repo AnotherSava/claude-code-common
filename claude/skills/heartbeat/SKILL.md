@@ -177,6 +177,18 @@ Re-run without `--dry-run` on approval. Notes that matter:
   to send both for that reason.
 - The upsert is keyed on the name: re-running updates rather than duplicating (HTTP 201 created,
   200 updated). Read which one you got — an unexpected 200 means the name was already taken.
+- **Then read the check back and confirm each field is what you asked for.** The API fills anything
+  the request omitted with its own default, so a field you believed you set and a field you never
+  named are indistinguishable afterwards. The grace is the one that bites, because its default is 1h
+  and *both* a right and a wrong value leave the check reading `up` — there is no state to notice.
+  `hc.py list` is the whole comparison and it costs one call.
+
+  Measured 2026-10-06, and it had been true since the check was created: one repo's dead-man's
+  switch sat at the default 1h grace while that repo's constant, its contract and its test all
+  asserted 30h. Each side was self-consistent and neither read the other, so nothing anywhere was
+  in a position to report it — the test compared a constant against a timer, both local files. Where
+  a repo keeps its own copy of the grace, that copy and the deployed check are two originals; change
+  one and you have to change the other, and this read-back is the only thing that says so.
 
 ### 4. Put the ping URL where the job's other credentials live
 
