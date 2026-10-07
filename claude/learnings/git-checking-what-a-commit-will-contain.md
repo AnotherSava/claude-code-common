@@ -12,6 +12,9 @@ unstages — and `/commit` runs `git reset HEAD` among its context probes, befor
 Every new file in the change set is therefore invisible to a check reading `--cached` at the one moment the
 check actually runs.
 
+Which *repo* the check is in is the separate question, answered in
+`git-identifying-the-repo-a-check-is-in.md`; `ports-from-registry` had both defects at once.
+
 ## Ask for what the repo would commit
 
 ```bash

@@ -128,6 +128,15 @@ anything:
   carrying `front_for` is exempt, since the deploy script allocates a tailnet front port at publish time
   and the repo never names it.
 
+Both halves turn on which repo `<path>` names, and that is read from the **main worktree** rather than from
+the path's own basename — so a linked worktree or a subdirectory is judged as the checkout containing it,
+and a `--repo` pointed anywhere inside a project answers about the project. An `owner` naming several
+repos spells them comma-separated and is matched as whole tokens, so `travel` no longer takes
+`travel-map`'s exemption. Getting either wrong failed in two directions at one exit status: every pinned
+literal read as another repo's while the genuine finding disappeared. The commands behind this, and the
+two shapes that still fall back to the directory name, are in
+`~/.claude/learnings/git-identifying-the-repo-a-check-is-in.md`.
+
 Prose is deliberately out of scope. A README telling a human which URL to open, an `.env.example` default,
 a test asserting a URL, a compose healthcheck on a container-internal port — none can be resolved at launch
 and all are correct to leave. Measured 2026-10-05: ten launch-path literals across the fleet against
