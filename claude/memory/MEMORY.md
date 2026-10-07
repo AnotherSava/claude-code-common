@@ -117,7 +117,7 @@
 - [Status colour vs the page](feedback_status_colour_vs_page.md) — a tinted badge passes ink contrast and is still invisible; measure the fill against the page too (1.09:1), fill it solid with inverting ink
 - [Re-read the lead after appending](feedback_reread_the_lead_after_appending.md) — an appended correction is true while the opening sentence it sits under has silently gone false
 - [Verify at the layer the user sees](feedback_verify_at_the_user_visible_layer.md) {always} — your write succeeding at every layer you own is not the outcome; read the value at the last consumer before saying it works
-- [Assert the syntax, not the spelling](feedback_assert_the_syntax_not_the_spelling.md) — an absence check must match a directive; the file's own warning against the thing contains the word
+- [Assert the syntax, not the spelling](feedback_assert_the_syntax_not_the_spelling.md) — an absence check must match a directive; the file's own warning against the thing contains the word, and a probe reporting an absence runs against a known positive first
 - [Don't re-check a known answer](feedback_dont_recheck_known_answers.md) — cite the earlier probe's result with its scope; re-run only if something changed that could change it
 - [ASCII paths, ordering in the manifest](feedback_ascii_repo_paths.md) — transliterate committed/served paths, keep the heading in its own script; no numeric filename prefixes
 - [Indicators must not over-claim certainty](feedback_indicator_certainty.md) — healthy/green needs confirmed evidence; unconfirmed gets its own pending rung, never green (false +) nor off (false −)
