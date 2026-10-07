@@ -123,9 +123,21 @@ def send_to_project(project: str, text: str, from_label: str | None = None) -> l
     return [(f"{device}/{project}", _send(f"{device}/{project}", text, current_project(), from_label)) for device in peer_devices()]
 
 
+# What the refusal cannot say, because only this side knows how the address was built: the project id is
+# this clone's folder name, handed over as the peer's. The dashboards' display-name fallback covers two
+# clones whose folders differ, so reaching here means one of them lacks that half or the two rows are
+# named differently — which the relay's own wording, correct that this is an address rather than an
+# ended session, leaves a reader to guess at. Three pushes' notices failed in both directions on
+# 2026-10-06, before the fallback existed, and were read as nobody being there.
+UNKNOWN_PROJECT_HINT = ("that id is this clone's folder name. Where the two clones' folders differ the "
+                        "dashboards' display-name fallback is what carries it, and only a dashboard built "
+                        "with that half has it — so read /api/agents there for the name it registers.")
+
+
 def describe(target: str, receipt: dict) -> str:
     extra = " — ".join(str(receipt[k]) for k in ("reason", "detail") if receipt.get(k))
-    return f"{target}: {receipt.get('outcome', '?')}{' — ' + extra if extra else ''}"
+    line = f"{target}: {receipt.get('outcome', '?')}{' — ' + extra if extra else ''}"
+    return f"{line}\n  {UNKNOWN_PROJECT_HINT}" if receipt.get("reason") == "unknown_project" else line
 
 
 def main() -> int:
