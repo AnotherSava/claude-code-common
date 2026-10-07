@@ -369,6 +369,58 @@ def main() -> int:
         check("an absent deploy.env is the settled state, reported as nothing",
               ports.check_repo(pinned, scan), ([], []))
 
+        # ---- the repo's identity is not whichever directory the caller named -------------------------
+        # A pinned claim is what exempts a literal, so getting the owner wrong fabricates a violation
+        # against every pinned literal AND drops the genuine finding, at one count and one exit status.
+        check("an owner is matched as whole tokens, never as a substring",
+              ports._owned_by({"owner": "travel-map"}, "travel"), False)
+        check("a repo still matches its own owner",
+              ports._owned_by({"owner": "travel-map"}, "travel-map"), True)
+        check("a claim several repos share matches each of them and nothing else",
+              [ports._owned_by({"owner": "what-is-next, scheduler, printlab"}, n)
+               for n in ("what-is-next", "scheduler", "printlab", "what-is")],
+              [True, True, True, False])
+
+        ident = Path(directory) / "identity"
+        (ident / "scripts").mkdir(parents=True)
+        subprocess.run(["git", "-C", str(ident), "init", "-q"], check=True)
+        for setting, value in (("user.email", "t@t"), ("user.name", "t")):
+            subprocess.run(["git", "-C", str(ident), "config", setting, value], check=True)
+        (ident / "scripts" / "dev.sh").write_text("PORT=8000\n", encoding="utf-8")
+        subprocess.run(["git", "-C", str(ident), "add", "-A"], check=True)
+        subprocess.run(["git", "-C", str(ident), "commit", "-qm", "base"], check=True)
+        owned = {"version": 1, "claims": [dict(MACHINE, port=8000, use_case="identity-dev-server",
+                                               owner="identity", pinned="an outside party")]}
+        check("a pinned literal is allowed in the repo that owns it",
+              ports.check_repo(owned, ident), ([], []))
+
+        # The case a forked sub-skill hits on every run: same repo, basename no owner matches.
+        linked = Path(directory) / "identity-sandbox"
+        subprocess.run(["git", "-C", str(ident), "worktree", "add", "--detach", "-q",
+                        str(linked), "HEAD"], check=True)
+        check("and from a linked worktree, whose own basename matches no owner",
+              ports.check_repo(owned, linked), ([], []))
+        check("the name comes from the main worktree, not the path given",
+              ports._repo_name(linked), "identity")
+        subprocess.run(["git", "-C", str(ident), "worktree", "remove", "--force", str(linked)], check=True)
+
+        # A subdirectory is not a repo. Scoping the scan to it misses a resolver sitting above it, so the
+        # repo's port reads as one nothing asks for — measured in tripit/web, whose scripts/dev.mjs is at
+        # the root. The name alone being right does not fix this; the scan root has to move too.
+        subprocess.run(["git", "-C", str(ident), "rm", "-q", "--cached", "scripts/dev.sh"], check=True)
+        (ident / "scripts" / "dev.sh").unlink()
+        (ident / "web").mkdir()
+        (ident / "web" / "package.json").write_text(
+            '{"scripts": {"dev": "node ../scripts/dev.mjs next dev"}}\n', encoding="utf-8")
+        (ident / "scripts" / "dev.mjs").write_text(
+            "import { run } from '.../ports/scripts/dev-port.mjs'\n", encoding="utf-8")
+        subprocess.run(["git", "-C", str(ident), "add", "-A"], check=True)
+        resolved = {"version": 1, "claims": [dict(MACHINE, port=3951, use_case="identity-dev-server",
+                                                  owner="identity")]}
+        check("the repo resolves its port at launch", ports.check_repo(resolved, ident), ([], []))
+        check("and a subdirectory is judged as the repo containing it",
+              ports.check_repo(resolved, ident / "web"), ([], []))
+
     if FAILURES:
         print(f"ports tests: {len(FAILURES)} case(s) failed\n")
         for failure in FAILURES:

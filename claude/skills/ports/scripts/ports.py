@@ -575,8 +575,14 @@ ALLOCATOR_DIR = "claude/skills/ports/"
 
 
 def _owned_by(claim: Dict, name: str) -> bool:
-    """Is `claim` this repo's? The substring arm matches a claim several repos share as one owner."""
-    return claim["owner"] == name or name in str(claim["owner"])
+    """Is `claim` this repo's? A claim several repos share spells its owners comma-separated.
+
+    Whole tokens, never a substring: `name in str(claim["owner"])` let the repo named `travel` own
+    `travel-map`'s pinned claim, and a pinned claim is what exempts a port literal from the
+    `ports-from-registry` rule — so one repo's pin silenced the finding in another. Measured against
+    this registry on 2026-10-06.
+    """
+    return name in {part.strip() for part in str(claim.get("owner", "")).split(",")}
 
 
 def _resolves_at_launch(repo: Path) -> bool:
@@ -602,6 +608,43 @@ def _resolves_at_launch(repo: Path) -> bool:
     return False
 
 
+def _worktree_root(repo: Path) -> Path:
+    """The checkout `repo` sits in, so a path inside a project is read as that project.
+
+    Handed a subdirectory, the scan would otherwise look for a resolver only under it and report the
+    repo's port as one nothing asks for — `tripit/web` did exactly that, because `scripts/dev.mjs` is at
+    the root. A linked worktree resolves to its OWN root rather than the main one, which is deliberate:
+    the content under review is the one in that worktree, while the repo's *name* comes from the main
+    worktree instead (see `_repo_name`). The two questions take different roots.
+    """
+    result = subprocess.run(["git", "-C", str(repo), "rev-parse", "--show-toplevel"],
+                            capture_output=True, encoding="utf-8", errors="replace", timeout=30)
+    top = result.stdout.strip() if result.returncode == 0 else ""
+    return Path(top) if top else repo
+
+
+def _repo_name(repo: Path) -> str:
+    """This repo's name as a claim's `owner` spells it: the MAIN worktree's directory name.
+
+    Not `repo.name`, which is whichever directory the caller pointed at. A linked worktree — which a
+    forked sub-skill creates for every run — and a `--repo <subdirectory>` both have a basename no owner
+    matches, and the consequences run both ways at one count and one exit status: every pinned literal
+    is reported as pinned to some other repo, while the genuine finding about a port nothing resolves
+    disappears, because the claim no longer reads as this repo's.
+
+    `git worktree list --porcelain` names the main worktree on its first line from any position inside
+    the repo, a bare one included. Two shapes it still gets wrong, measured 2026-10-06: a clone sitting
+    in a directory named differently from its owner, and a repo created with `--separate-git-dir`. Both
+    fall through to the directory name, which is as close as anything here can get — the registry also
+    records an owner for a project that is not a git repo at all, so no git-derived identity covers
+    every claim.
+    """
+    result = subprocess.run(["git", "-C", str(repo), "worktree", "list", "--porcelain"],
+                            capture_output=True, encoding="utf-8", errors="replace", timeout=30)
+    first = result.stdout.splitlines()[0] if result.returncode == 0 and result.stdout else ""
+    return Path(first[len("worktree "):].strip()).name if first.startswith("worktree ") else repo.name
+
+
 def check_repo(data: Dict, repo: Path) -> Tuple[List[str], List[str]]:
     """Does this repo get every port it owns from the registry: -> (problems, notices).
 
@@ -619,8 +662,8 @@ def check_repo(data: Dict, repo: Path) -> Tuple[List[str], List[str]]:
     A claim carrying `front_for` is exempt: a tailnet front port is allocated by `deploy-dev-server.sh`
     at the moment it publishes, and the repo it belongs to never names it.
     """
-    repo = repo.resolve()
-    name = repo.name
+    repo = _worktree_root(repo.resolve())
+    name = _repo_name(repo)
     claims = _machine_ports(data)
     problems, notices = [], []
     literal_ports = set()
