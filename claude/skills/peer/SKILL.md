@@ -81,7 +81,7 @@ Cross-machine, your identity is a claim — the receiver sees the peer dashboard
 | `refused` / `unknown_device` (`devices heard from: none`) | The peer's dashboard is not running | Confirm: `peers` empty while `sync_listening` is true, the peer host pings, its sync port times out, no dashboard process in `tasklist`/`ps` over SSH; then start it there |
 | `refused` / `messages_not_accepted` | The receiver has `sync.accept_messages` off | Its owner decides; state still syncs |
 | `refused` / `local_target` | The target is on this machine | Use `SendMessage` |
-| `refused` / `start_not_listed` | Nothing runs there and its owner has not allowed the dashboard to start it | The sending dashboard may prompt on this screen for up to 90 s |
+| `refused` / `start_not_listed` | Nothing runs there and its owner has not allowed the dashboard to start it | Where the ask was `/pull`, skip the session entirely: `skills/github-status/scripts/repos-status.py --repo .` fetches both clones and fast-forwards the clean one, which is the whole of what that request would have achieved. Otherwise a prompt may appear on **this** screen for up to 90 s, offering directories from the *peer's* filesystem since only that machine can name them. No prompt means it sent no candidates, and that has two causes worth separating: no directory there derives this project's id, or its dashboard predates the field and contributes none whatever it holds — read its build date before concluding the clone is missing |
 | `unreachable` | Nothing was written | Check the peer dashboard as for `unknown_device` |
 | `unknown` | The answer was lost; the frame may exist | **Never retry** — read the receiving transcript first |
 
