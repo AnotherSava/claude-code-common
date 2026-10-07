@@ -18,8 +18,18 @@ Read `~/.claude/skills/shared/bash-rules.md` for bash command constraints.
 - Unstage all (keep: diffing a partially-staged tree once produced a commit message describing edits that were never in the repo): !`git reset HEAD 2>/dev/null || true`
 - Remote ahead by: !`git fetch origin --quiet 2>/dev/null || echo "FETCH-FAILED (count below is against a stale ref)"; git rev-list --count HEAD..@{upstream} 2>/dev/null || echo "n/a"`
 - Uncommitted changes: !`git status --short`
-- Diff summary: !`git diff --stat $(git rev-parse -q --verify HEAD || echo 4b825dc642cb6eb9a060e54bf8d69288fbee4904)`
-- Full diff: !`git diff --no-textconv $(git rev-parse -q --verify HEAD || echo 4b825dc642cb6eb9a060e54bf8d69288fbee4904)`
+<!-- `HEAD` written plainly on the two diffs below, and nothing may put it back inside a $(…): the
+     permission check refuses command substitution in a command matching an allowed-tools Bash pattern,
+     and that refusal fails the WHOLE skill load rather than just the one line — the skill does not run
+     at all. Naming the revision is not decoration, though, so do not drop it either: without it these
+     diff against the INDEX, and the unstage above can lose the `index.lock` race undetectably, which
+     step 9 says outright. Measured 2026-10-06 — with one file staged, the bare form reported 1 changed
+     file where `HEAD` reported 2, so a failed unstage silently hides every staged file from the one
+     input step 1 calls the total change set. That is the defect the unstage's own note describes. In a
+     repo with no commits `HEAD` does not resolve, both print nothing, and `git status --short` on the
+     line above is what lists the files there. -->
+- Diff summary: !`git diff --stat HEAD 2>/dev/null || true`
+- Full diff: !`git diff --no-textconv HEAD 2>/dev/null || true`
 - Recent commits: !`git log --oneline -10 2>/dev/null || echo "(no commits yet)"`
 - Open issues: !`gh issue list --repo "$(git remote get-url origin 2>/dev/null | sed -E 's#^.*github\.com[:/]##; s#\.git$##; s#/$##')" --state open --limit 30 2>/dev/null || echo "n/a"`
 - Pending memos: !`python ~/.claude/skills/memo/memos.py list --width 120 2>&1 || echo "(the backlog could not be read — the line above says why; it is NOT an empty backlog)"`
