@@ -57,8 +57,9 @@ restic's own documentation steers away from the backend named after the service:
 > utilize Backblaze B2 is by using its S3-compatible API.
 
 Backblaze's own restic guide uses S3 as well. The `b2:` backend is not formally deprecated and does work —
-a sibling project has run on it nightly for months — but a fresh setup should start on S3, because migrating
-later is strictly more work than starting there.
+a sibling project ran on it nightly for months — but a fresh setup should start on S3. Moving an existing
+repository across later costs one URL change, as the next section measures; what it adds is the bucket
+lifecycle rule the native backend never needed.
 
 ```
 b2:<bucket>:<path>                                  # native, not recommended
@@ -72,6 +73,40 @@ the standard AWS names whatever endpoint sits behind them.
 AWS_ACCESS_KEY_ID       = the Backblaze application key ID
 AWS_SECRET_ACCESS_KEY   = the Backblaze application key
 ```
+
+## Moving an existing repository from `b2:` to `s3:` is a URL change
+
+The two backends address byte-identical object keys. Each parses its own URL down to a bucket and a prefix,
+runs the prefix through `path.Clean`, and builds the same `DefaultLayout` over it — so `b2:<bucket>:<path>`
+and `s3:s3.<region>.backblazeb2.com/<bucket>/<path>` name the same objects, and restic chooses the backend
+purely from the URL scheme. Nothing is re-initialised, migrated or re-indexed: `restic init` is wrong here and
+would be refused anyway. The same Backblaze application key becomes the S3 pair unchanged, so the work is
+renaming two environment variables and rewriting one URL.
+
+**Set the bucket's lifecycle rule before the switch, not after.** The rule is inert while the native backend
+is still in use, because that backend really deletes, so there is no window in which applying it does harm —
+whereas the very first `forget --prune` over S3 starts hiding objects, and a rule that arrives afterwards
+leaves that night's garbage uncollected with nothing reporting it. Measured 2026-10-06 on a repository of 11
+snapshots: 0 hide markers under the prefix before the switch, 12 after the first prune over S3.
+
+**Prove the new URL reached the same repository, not an empty prefix beside it.** A wrong bucket or prefix
+authenticates and then finds nothing, which reads as an empty repo rather than a wrong address, so an
+existence check proves nothing. Compare the repository id against the one recorded at `init`, on a cold cache
+so the answer cannot come from `/var/cache/restic`:
+
+```bash
+RESTIC_CACHE_DIR=$(mktemp -d) restic cat config    # "id" must match the id you recorded
+```
+
+**Whether a hidden backlog already exists is answerable before you start.** Read the key's capabilities from
+`b2_authorize_account`: with `deleteFiles` the native backend was issuing real `b2_delete_file_version`
+calls, so nothing is hidden and the new rule has nothing to reclaim. Without it, the backend fell back to
+hiding, and every prune since has been accumulating — those versions are all past a one-day threshold, so the
+rule collects them on its next daily pass.
+
+One field is worth adding beyond the console preset's three:
+`"daysFromStartingToCancelingUnfinishedLargeFiles": 1` collects interrupted multipart uploads, which are
+billed and appear in neither restic's view nor an S3 LIST.
 
 ## The lifecycle rule is mandatory on S3, and its absence is invisible
 
