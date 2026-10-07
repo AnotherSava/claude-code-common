@@ -52,7 +52,7 @@
 - [Edit replace_all scope safety](feedback_edit_replace_all_scope.md) — replace_all is only safe when matches share indentation/scope; multi-line new_string will mis-indent across different blocks
 - [Side-panel actions refresh, don't navigate](feedback_actions_refresh_not_navigate.md) — explicit clicks navigate the host page; action consequences refresh in place to preserve user context
 - [Store raw data, derive display fields](feedback_store_raw_derive_display.md) — persist full/rich data; truncate or compute booleans at display time, not storage time
-- [Don't state assumptions as facts](feedback_assumptions_vs_facts.md) — label inferences explicitly; verify before presenting causal explanations as conclusions
+- [Don't state assumptions as facts](feedback_assumptions_vs_facts.md) — label inferences explicitly, including one borrowed from a tool's own error text; verify before presenting a cause as a conclusion
 - [Stash-pop sides flipped](feedback_stash_pop_conflict_sides.md) — `--ours` = post-pull tree, `--theirs` = stash; checkout from a named ref when unsure
 - [Migrate, don't degrade persistence](feedback_migrate_dont_degrade_persistence.md) — fix stale persisted data with a one-time cleanup; don't switch compute-once/first-write-wins into recompute-every-time
 - [Fold by visual volume, not line count](feedback_fold_by_visual_volume.md) — budget folds by lines AND chars; expand control on its own line
@@ -248,3 +248,4 @@
 - [Minimal v1 first](feedback_minimal_v1_first.md) — design a feature's smallest end-to-end version first; enrichments go under "Later"
 - [A style rule applies forward, not backward](feedback_style_rule_no_history_sweep.md) {always} — don't sweep existing files for a newly banned phrase, and don't offer to
 - [Ralphex is deprecated](feedback_ralphex_deprecated.md) {always} — don't name it in anything newly written; ask before invoking the `plan-ralphex` skill, whose fate is unstated
+- [Don't quote a foreign heading](feedback_dont_quote_a_foreign_heading.md) — cite another repo's doc by file and fact, never heading text
