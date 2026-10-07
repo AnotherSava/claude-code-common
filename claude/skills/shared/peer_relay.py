@@ -80,7 +80,15 @@ def local_session(project: str) -> tuple[str | None, str]:
 
     The dashboard owns this match: it reads Claude Code's session registry and derives the project id
     from each session's cwd, so it finds a session renamed away from its directory name, which a
-    `ListAgents` name-prefix match misses. Raises PeerUnmeasured when the dashboard cannot answer.
+    `ListAgents` name-prefix match misses.
+
+    **PeerUnmeasured is terminal: stop and tell the user, and reach for no other instrument.** All three
+    of its causes are infrastructure — the dashboard not answering, the registry unreadable, a dashboard
+    too old to carry the session name — so none of them means a session is absent, and the answer stays
+    unknown however it is retried. A `ListAgents` name-prefix fallback is worse than no answer, because
+    it misses exactly the renamed session this function exists to find: measured 2026-10-06, two sessions
+    hit the stale-dashboard raise and one of them fell back that way. `None` is the different thing — a
+    measured absence, and safe to act on.
     """
     try:
         roster = _request("/api/agents")
