@@ -139,7 +139,13 @@ if [ "$OS" = "win" ]; then
     powershell.exe -NoProfile -Command "try { Start-Process -WindowStyle Hidden -FilePath 'cmd.exe' -ArgumentList '/c','$DEV_CMD' -WorkingDirectory '$RUN_WIN' -RedirectStandardOutput '$OUT_WIN' -RedirectStandardError '$ERR_WIN' -ErrorAction Stop } catch { Set-Content -LiteralPath '$ERR_WIN' -Value ('launch failed: ' + \$_); exit 1 }" </dev/null >/dev/null 2>&1 \
         || echo "  !! the launch itself failed — the reason is in $DEV_DIR/dev-server.err.log"
 else
-    ( cd "$RUN_DIR" && nohup $DEV_CMD </dev/null >"$LOG" 2>"$ERR" & )
+    #    The trailing redirection is on the SUBSHELL, and it is the half that matters here: the inner
+    #    redirections cover the server, but the forked subshell keeps this script's own stdout and
+    #    stderr, and it outlives the script holding them. Measured on macOS 2026-10-06 — the server's
+    #    descriptors were /dev/null, the two logs and its listen socket, while a surviving `bash` held
+    #    the caller's pipe on fds 1 and 2, and EOF never arrived in 90 s. Same shape as the
+    #    `</dev/null >/dev/null 2>&1` on the PowerShell call above.
+    ( cd "$RUN_DIR" && nohup $DEV_CMD </dev/null >"$LOG" 2>"$ERR" & ) </dev/null >/dev/null 2>&1
 fi
 
 # 4. Wait for the port to come up.
