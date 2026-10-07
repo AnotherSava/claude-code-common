@@ -12,7 +12,14 @@ Only a path this session actually wrote makes a peer repo its business.
 
 Limit worth knowing: a file written by a shell command (`sed -i`, a generator, a build) is
 invisible here, because only Edit/Write/NotebookEdit record their target as a tool argument.
-The report says so rather than implying the list is exhaustive.
+
+Saying so is not enough on its own, so a repo already on the list gets its remaining dirty paths
+named as `undecided:` rather than counted away. Those two populations cannot be told apart from the
+transcript — one is another session's work, the other is this session's own shell output — and the
+difference matters most for a generated file whose generator the receiving repo's gate re-runs.
+Measured 2026-10-06: a `/reflect` wrote a memory with Edit and re-rendered `claude/CLAUDE.md` by
+running `render-memory-index.py`, so the renderer's output was counted as "not yours to mention"
+and the handoff would have dropped the one file whose absence fails that repo's gate.
 """
 from __future__ import annotations
 
@@ -28,6 +35,11 @@ from peer_relay import PeerUnmeasured, local_session  # noqa: E402  (the shared 
 
 WRITE_TOOLS = ("Edit", "Write", "NotebookEdit", "MultiEdit")
 PATH_KEYS = ("file_path", "notebook_path")
+
+# How many `undecided:` paths one repo prints before the rest are reported as a remainder. A repo
+# reaching that block is one this session already wrote to, so its dirty set is normally small; the
+# cap is for a peer session mid-work, and the count that follows is why it is not a silent truncation.
+SHOW_UNDECIDED = 10
 
 
 def _resolve_transcript() -> tuple[str | None, str]:
@@ -191,9 +203,16 @@ def main() -> int:
         print(f"  session: {_session_line(os.path.basename(root))}")
         for path in sorted(outstanding):
             print(f"  uncommitted: {os.path.relpath(path, root)}")
-        others = len(dirty) - len(outstanding)
-        if others:
-            print(f"  ({others} more file(s) dirty there that this session did not touch — not yours to mention)")
+        undecided = sorted(dirty - set(by_repo[root]))
+        if undecided:
+            print(f"  {len(undecided)} more file(s) dirty there, which this check cannot attribute: a file one of "
+                  f"your own shell commands wrote sits here rather than above, since only file-tool writes are "
+                  f"visible. Recognise yours — a generator's output especially — and hand those over as well; the "
+                  f"rest are that project's own business and not yours to mention.")
+            for path in undecided[:SHOW_UNDECIDED]:
+                print(f"  undecided: {os.path.relpath(path, root)}")
+            if len(undecided) > SHOW_UNDECIDED:
+                print(f"  undecided: and {len(undecided) - SHOW_UNDECIDED} more, not listed")
 
     if not reported:
         print("peer-repos: none — every file this session wrote elsewhere is already committed there")
