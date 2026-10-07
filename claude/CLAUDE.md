@@ -390,6 +390,7 @@ Cross-project preferences and feedback. Memory files live in `~/.claude/memory/`
 - [Rate realism before hardening](~/.claude/memory/feedback_realism_before_hardening.md) — a rare edge case a review found, harmless or cheap to handle by hand, is reported and gets a warning or a doc line, not code; an automated review-and-fix loop runs through the saved `review-and-fix` workflow, whose verify step rates who reaches each finding
 - [Don't re-ask what you measured](~/.claude/memory/feedback_dont_reask_what_you_measured.md) — ask only about the undecided remainder, never from scratch
 - [A style rule applies forward, not backward](~/.claude/memory/feedback_style_rule_no_history_sweep.md) — don't sweep existing files for a newly banned phrase, and don't offer to
+- [Ralphex is deprecated](~/.claude/memory/feedback_ralphex_deprecated.md) — don't name it in anything newly written; ask before invoking the `plan-ralphex` skill, whose fate is unstated
 <!-- END generated -->
 
 ## Memos
