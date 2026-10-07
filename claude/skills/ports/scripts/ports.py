@@ -136,7 +136,9 @@ def write_registry(data: Dict) -> None:
     data["claims"] = sorted(data["claims"], key=lambda c: (c.get("port", 0), c.get("use_case", "")))
     handle, tmp = tempfile.mkstemp(dir=str(REGISTRY.parent), prefix="registry.", suffix=".tmp")
     try:
-        with os.fdopen(handle, "w", encoding="utf-8") as fh:
+        # Text mode translates "\n" to CRLF on Windows, which rewrites every line ending of a file the
+        # repo keeps LF on disk (core.autocrlf=input).
+        with os.fdopen(handle, "w", encoding="utf-8", newline="\n") as fh:
             json.dump(data, fh, indent=2, ensure_ascii=False)
             fh.write("\n")
         # mkstemp creates at 0600 and os.replace carries the mode onto the registry, which is a committed
