@@ -249,3 +249,4 @@
 - [A style rule applies forward, not backward](feedback_style_rule_no_history_sweep.md) {always} — don't sweep existing files for a newly banned phrase, and don't offer to
 - [Ralphex is deprecated](feedback_ralphex_deprecated.md) {always} — don't name it in anything newly written; ask before invoking the `plan-ralphex` skill, whose fate is unstated
 - [Don't quote a foreign heading](feedback_dont_quote_a_foreign_heading.md) — cite another repo's doc by file and fact, never heading text
+- [Clone folder matches the repo](feedback_clone_folder_matches_repo.md) — name local clones after their GitHub repo; fix a mismatch with /move-project, never relay aliasing
