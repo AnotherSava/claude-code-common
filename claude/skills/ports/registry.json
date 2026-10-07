@@ -43,15 +43,7 @@
       "owner": "tauri-dashboard",
       "scope": "machine",
       "status": "assigned",
-      "notes": "Vite dev server with strictPort set, so it fails rather than drifting when the port is taken."
-    },
-    {
-      "port": 1421,
-      "use_case": "tauri-dashboard-vite-hmr",
-      "owner": "tauri-dashboard",
-      "scope": "machine",
-      "status": "assigned",
-      "notes": "The HMR websocket beside the dev server on 1420. Only its vite config names it."
+      "notes": "Vite dev server with strictPort set, so it fails rather than drifting when the port is taken. Resolved at launch by the repo's scripts/dev.mjs, which fronts 'npm run tauri'; it hands the number to Vite as PORT and to the Tauri CLI as a build.devUrl override, since tauri.conf.json cannot name a port chosen at launch."
     },
     {
       "port": 2019,
