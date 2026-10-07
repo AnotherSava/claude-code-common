@@ -53,6 +53,10 @@ no migration reads — the edit is safe and the freeze has nothing to protect. R
 field on 2026-09-17 passed that test: the gate answered identically at every adopted number, and one
 repo held a record.
 
+Finding the repos that adopted a number is a scan of their committed `.claude/conventions` records, and
+because that integer is committed, one machine's scan answers for a repo cloned on both. It cannot see a
+repo that exists only on the other box, so an answer resting on this scan says which machine it read.
+
 So a **stricter** rule is a new version, and a **better-detecting** rule is an edit to the rule
 file. The first changes what a repo is required to be; the second changes only how accurately the
 requirement is measured, and a repo that starts failing on it was mismeasured rather than changed.
