@@ -88,6 +88,24 @@
       "front_for": 3939
     },
     {
+      "port": 3901,
+      "use_case": "tripit-dev-tailnet",
+      "owner": "tripit",
+      "scope": "machine",
+      "status": "assigned",
+      "notes": "Tailnet front port for tripit's dev server on 3941. Allocated by deploy-dev-server.sh; the origin cannot share its own number.",
+      "front_for": 3941
+    },
+    {
+      "port": 3902,
+      "use_case": "scheduler-dev-tailnet",
+      "owner": "scheduler",
+      "scope": "machine",
+      "status": "assigned",
+      "notes": "Tailnet front port for scheduler's dev server on 3940. Allocated by deploy-dev-server.sh; the origin cannot share its own number.",
+      "front_for": 3940
+    },
+    {
       "port": 3939,
       "use_case": "what-is-next-dev-server",
       "owner": "what-is-next",
@@ -101,7 +119,7 @@
       "owner": "scheduler",
       "scope": "machine",
       "status": "assigned",
-      "notes": "`next dev -p 3940`, pinned in package.json as well as config/deploy.env."
+      "notes": "The Next dev server, started by web/package.json's `dev` script, which runs `doppler run -- node ../scripts/dev.mjs next dev` and asks this registry for the number at launch, exporting it as PORT; scripts/dev.sh and deploy-dev-server.sh both reach it through that script. Wildcard-bound. Needs a separate tailnet front port: a serve mapping on 3940 would stop this server rebinding after a restart."
     },
     {
       "port": 3941,
@@ -117,7 +135,8 @@
       "owner": "tripit",
       "scope": "machine",
       "status": "assigned",
-      "notes": "The booking-extract sidecar, published to host loopback by docker-compose.dev.yml, which gives it no healthcheck. The only `/health` probe on 3942 is in the production docker-compose.yml, against the container's own loopback where the port is exposed but not published. The second host port in one repo."
+      "notes": "The booking-extract sidecar, published to host loopback by docker-compose.dev.yml, which gives it no healthcheck. The only `/health` probe on 3942 is in the production docker-compose.yml, against the container's own loopback where the port is exposed but not published. The second host port in one repo. Brought up by `npm run db:up`; the dev Next app runs on the host and posts to it at EXTRACT_URL. Container-internal 3942 is fixed by web/extract/Dockerfile (ENV PORT, EXPOSE).",
+      "pinned": "The host publish must equal the port inside EXTRACT_URL, a stored env value (web/.env.example) that no launch-time script rewrites. Compose could interpolate a resolved number, but its consumer's copy could not follow it."
     },
     {
       "port": 3949,
@@ -200,7 +219,8 @@
       "owner": "jsonl-logs-intellij-plugin",
       "scope": "machine",
       "status": "assigned",
-      "notes": "The IntelliJ Remote Robot screenshot sandbox. Two hardcoded copies in two languages must agree on it."
+      "notes": "The IntelliJ Remote Robot server in the documentation-screenshot sandbox. Started by `./gradlew runIdeForScreenshots`; `docs/screenshots/capture/capture.py` connects to the same number to stage state and paint components over HTTP. Two hardcoded copies in two languages must agree on it: `build.gradle.kts` and `capture.py`.",
+      "pinned": "Nothing resolves it at launch: the Gradle task `runIdeForScreenshots` passes it to the sandbox IDE as a `-Drobot-server.port` JVM argument, and the repo tracks no Node-capable file for a registry resolver to run from."
     },
     {
       "port": 8731,
