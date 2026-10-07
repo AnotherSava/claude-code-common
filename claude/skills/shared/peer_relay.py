@@ -132,14 +132,17 @@ def send_to_project(project: str, text: str, from_label: str | None = None) -> l
 
 
 # What the refusal cannot say, because only this side knows how the address was built: the project id is
-# this clone's folder name, handed over as the peer's, so reaching here means the two clones sit under
-# different folder names — which the relay's own wording, correct that this is an address rather than an
-# ended session, leaves a reader to guess at. Three pushes' notices failed in both directions on
-# 2026-10-06 that way, and were read as nobody being there.
+# this clone's folder name, handed over as the peer's, so nothing over there derives it — which the
+# relay's own wording, correct that this is an address rather than an ended session, leaves a reader to
+# guess at. Three pushes' notices failed in both directions on 2026-10-06 because the two clones sat
+# under different folder names, and were read as nobody being there. A folder name is not the only way
+# to get here, though: a repo that was never cloned on that machine derives nothing there either, and
+# on 2026-10-07 that one was reported to the user as a clone three commits behind.
 UNKNOWN_PROJECT_HINT = ("two causes share this receipt: no live session for that project there, AND no "
                         "directory its dashboard knows derives that id. Retry once — a session started "
                         "over there turns this into `written` with nothing renamed. Only if it refuses "
-                        "again is the folder name worth reading, from /api/agents on that machine.")
+                        "again is the id worth reading: list that machine's projects root before hunting "
+                        "for a folder name in /api/agents, since a repo not cloned there refuses alike.")
 
 
 def describe(target: str, receipt: dict) -> str:
