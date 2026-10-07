@@ -199,7 +199,8 @@ folder names, that every README carries all four sections, that the requirements
 column exactly where a version says `optional: forks`, that every name in a `rules:` field has
 a file and every rule file is named by some version, that no universal rule is also named by a
 version and no filename sits in both rule directories, that every universal rule names a `FIX`, and
-that each rule holds on a conforming tree, fails on one that is not, and raises rather than passing
+that each rule holds on a conforming tree, fails on every violating tree its case builds — one per
+route to a finding, where a rule has more than one — and raises rather than passing
 when git cannot answer. It also builds a scratch fork and asserts that only a fork may decline, only
 a version marked `optional: forks`, that a declined version's rules stop running unless a later
 adopted version names them too, and that a fresh clone of the fork with no `upstream` keeps its

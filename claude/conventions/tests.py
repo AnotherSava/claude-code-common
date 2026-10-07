@@ -85,13 +85,16 @@ class Tree(NamedTuple):
 
 
 class Case(NamedTuple):
-    """A rule, a tree it must pass, a tree it must fail, and a tree it must refuse to judge."""
+    """A rule, a tree it must pass, one or more trees it must fail, and a tree it must refuse to judge."""
 
     rule: str
     conforming: Tree
     violating: Tree
     unanswerable: Tree
     why: str  # what the third tree takes away, in the words the assertion is printed with
+    # Further trees the rule must fail, for a rule with more than one route to a finding: each
+    # route returns its own message, and a route no tree reaches is one nothing here has run.
+    also_violating: tuple[Tree, ...] = ()
 
 
 # One case per rule. Each tree is the smallest shape that reaches the rule's own question: a
@@ -207,6 +210,9 @@ CASES = (
         Tree({"docs/_config.yml": "title: Docs\nexclude:\n  - plans/\n",
               "docs/screenshots/raw/hero.png": b"\x89PNG raw\n"}, repo=False),
         "outside a work tree, git cannot say whether the raw is one it hides",
+        # A raw in place and no exclusion: the route that names how many would go live.
+        also_violating=(Tree({"docs/_config.yml": "title: Docs\nexclude:\n  - plans/\n",
+                              "docs/screenshots/raw/hero.png": b"\x89PNG raw\n"}),),
     ),
     Case(
         "tray-icon-macos-click",
@@ -519,7 +525,8 @@ def rule_behaviour(gate: Gate, base: str, outside_repo: bool) -> None:
             gate.ok(False, f"{case.rule} is a rule some version introduces",
                     "this file builds trees for a rule the version set does not name")
             continue
-        for label, tree, expect in (("conforming", case.conforming, True), ("violating", case.violating, False)):
+        extra = tuple((f"violating-{n}", tree, False) for n, tree in enumerate(case.also_violating, start=2))
+        for label, tree, expect in (("conforming", case.conforming, True), ("violating", case.violating, False)) + extra:
             root, failure = build(base, f"{case.rule}-{label}", tree)
             if failure:
                 gate.ok(False, f"{case.rule}: the {label} tree is built", failure)
