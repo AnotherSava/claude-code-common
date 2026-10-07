@@ -74,6 +74,26 @@ AWS_ACCESS_KEY_ID       = the Backblaze application key ID
 AWS_SECRET_ACCESS_KEY   = the Backblaze application key
 ```
 
+**Require restic 0.18.0 or newer on any host running an S3 backup, and assert it during provisioning.** From
+0.18.0 restic refuses outright when those two are missing or only half-set; before that it could fall back to
+anonymous access instead, logging nothing above debug. The changelog entry is change #5162 in 0.18.0
+(2025-03-27), "Graduate feature flags": `explicit-s3-anonymous-auth` and three others "are now stable and can
+no longer be disabled".
+
+The difference only shows up on the day something else goes wrong, which is what makes it worth a line in the
+runbook. Pair it with a rendered credential file — the shape the whole "render from a workstation" section
+below describes — and an older restic turns a mis-rendered file into a nightly job that authenticates as
+nobody, finds an empty repository, exits 0 and stores nothing. **A dead-man's switch does not catch this**: the
+run completes, so it pings success. Nor does the lifecycle check, nor asserting the exit status. One line at
+provisioning time does:
+
+```bash
+restic version      # 0.18.0 or newer, or stop
+```
+
+Ubuntu noble's archive carries 0.16.4, so a distribution a release or two behind is enough to land on the
+wrong side of this. Check the archive rather than assuming a current image is current enough.
+
 ## Moving an existing repository from `b2:` to `s3:` is a URL change
 
 The two backends address byte-identical object keys. Each parses its own URL down to a bucket and a prefix,
