@@ -32,14 +32,17 @@ Move or rename the current project folder while preserving all associated Claude
 
 3. **Compute Claude data directory names.** Apply the path-mangling rule documented in `~/.claude/skills/skill/references/claude-project-memory-paths.md` to both `OLD_PATH` and `NEW_PATH` to derive `OLD_KEY` and `NEW_KEY`. That file is the canonical reference for the mangling rule, the cross-platform CWD recipe, and common mistakes.
 
-4. **Preview and confirm.** Show the user what will happen:
+4. **Rename the repo's ports registry claims, where it owns any.** A folder's basename is what identifies a repo to the ports registry: `ports.py check --repo` derives it from the main worktree and matches it against each claim's `owner`. Rename the folder and leave the registry alone, and that check reports every pinned literal in the repo as pinned to some other repo while silently dropping the genuine finding about a port nothing resolves — a repo with a pinned claim then fails its own commit gate on a defect it does not have. Run `python3 ~/.claude/skills/ports/scripts/ports.py list` and read the `owner` column for the old folder name; where nothing carries it, say so and move on. Where something does, edit `owner` in `claude/skills/ports/registry.json` — `amend` does not reach that field, so this is a hand edit — changing only the old name and leaving the other entries of a shared comma-separated `owner` alone. Then run `ports.py check` to prove the document still passes, and `ports.py check --repo NEW_PATH` once the move has happened. That registry lives in the dotfiles repo rather than this one, so report the diff to the session that owns it and leave the commit there.
+
+5. **Preview and confirm.** Show the user what will happen:
    ```
    Project folder:  OLD_PATH → NEW_PATH
    Claude data:     ~/.claude/projects/OLD_KEY → ~/.claude/projects/NEW_KEY
+   Ports registry:  <N> claim(s) owned by OLD_NAME → NEW_NAME   (or: none)
    ```
    Ask: "Proceed? (y/n)"
 
-5. **Execute on confirmation.** Run these commands (the user must run them outside this session since the working directory is about to move):
+6. **Execute on confirmation.** Run these commands (the user must run them outside this session since the working directory is about to move):
 
    Print the commands for the user to copy and run, chained so each runs only if the one before it succeeded (drop the second `mv` when `OLD_KEY` does not exist):
    ```
@@ -51,7 +54,7 @@ Move or rename the current project folder while preserving all associated Claude
    The `curl` tells the Claude Code dashboard about the move, so the project's history, custom name and start grant follow it to the new name, and synced peers re-file their copy of the history. The dashboard checks that the folder has actually moved, so the call must come after the `mv`. Write both paths in its JSON body with forward slashes (`D:/work/my-app`), since a backslash would have to be escaped there; a path containing a quote character needs escaping for both the shell and JSON. Tell the user:
    - If the dashboard is installed but not running, start it before running the commands: its data stays under the old name until this call is made, and once a session in the new folder has built history there the two can no longer be combined. Skip the call only where the dashboard is not installed; the connection is then refused and nothing else depends on it.
    - `HTTP 409` means nothing was changed, and the `detail` in the reply says what clears it. A Claude Code session still running in the project clears once it exits: run the last command (`curl` or `Invoke-RestMethod`) alone again. A folder that has not moved, an index Claude Code had not finished writing, or another folder of the same name sharing the row (renaming or removing that folder clears it) each say so. A new name that already has history of its own will not clear. A row left behind by a session that exited without telling the dashboard is not a refusal; the call removes it and carries its history over.
-   - It must run before step 3 below, because a session opened in the new folder first holds the new id and the call refuses.
+   - It must run before a session is opened in the new folder, because such a session holds the new id and the call refuses.
    - A clone of the project on another machine needs this skill run there as well; each dashboard re-files its own data.
 
    **Important:** Claude Code must NOT be running from the project directory when the move happens. Tell the user to:
