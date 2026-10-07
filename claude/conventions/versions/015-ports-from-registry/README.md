@@ -112,18 +112,42 @@ Do this in the repo that is behind, not in the dotfiles repo.
    so `server.port` comes from its config alone. Delete the `-p` and nothing else, and the server quietly
    takes Vite's own 5173 while the registry records a number nobody binds, which step 5's check cannot
    see because there is no literal left to report. So the project's `vite.config.ts` reads
-   `process.env.PORT` itself and refuses to start without it:
+   `process.env.PORT` itself and refuses to **serve** without it.
+
+   **Refuse during server creation, never at config load.** A `throw` at the top level of the config
+   breaks every command that merely loads it — `vite build`, a typecheck, `svelte-check` — and does so in
+   whichever of two bad ways that project's setup picks. Measured in a Tauri/Svelte repo on 2026-10-07
+   with the throw at load time and `PORT` unset: `npm run check` exited **0** with `failed to load config`
+   and `0 ERRORS`, so the check ran with none of the config's resolution and reported success; the same
+   shape in a stripped copy of that repo exited 1 with nine errors that were artefacts of the missing
+   config. Neither output mentions `PORT`. A plugin's `configureServer` hook runs during server creation
+   and before listen, so the refusal lands on exactly the run that needs the port:
 
    ```ts
-   const port = Number(process.env.PORT)
-   if (!port) throw new Error('PORT is unset — start through scripts/dev.mjs, which resolves it')
-   export default defineConfig({ server: { port, strictPort: true } })
+   function devPort(): number | null {
+     const port = Number(process.env.PORT)
+     return Number.isInteger(port) && port >= 1 && port <= 65535 ? port : null
+   }
+
+   const requireResolvedPort: Plugin = {
+     name: 'require-resolved-port',
+     configureServer() {
+       if (devPort() === null) throw new Error('PORT is unset — start through scripts/dev.mjs')
+     },
+   }
+
+   export default defineConfig(async () => ({
+     plugins: [svelte(), requireResolvedPort],
+     server: { port: devPort() ?? undefined, strictPort: true },
+   }))
    ```
 
-   `strictPort` is what makes a taken port an error rather than a silent drift to the next one, which is
-   the same property `next dev` gets from an env-sourced port. Where a second launch-time consumer needs
-   the same number — a Tauri `build.devUrl`, a proxy target — it cannot come from `tauri.conf.json`,
-   which is static; resolve once and hand the value to both.
+   The range test is not fussiness: a bare `if (!port)` rejects unset, `0` and `NaN` while accepting
+   `65536`, `-1` and `1420.5`, each of which then fails somewhere else with a message about something
+   else. `strictPort` is what makes a taken port an error rather than a silent drift to the next one,
+   which is the same property `next dev` gets from an env-sourced port. Where a second launch-time
+   consumer needs the same number — a Tauri `build.devUrl`, a proxy target — it cannot come from
+   `tauri.conf.json`, which is static; resolve once and hand the value to both.
 
 4. **Delete the dead copies — both of them.** Remove the `DEV_PORT=` line from `config/deploy.env`,
    which the deploy script no longer reads, **and any `-p <n>` left inside `DEV_CMD`**. Dropping the
