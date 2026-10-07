@@ -53,6 +53,18 @@ itself rather than concluding the file is absent.
 -N` it there, or the patch silently loses a new file. The `patch` subcommand warns on stderr about
 any it finds, which is the one output of this flow that must not be ignored.
 
+**A fan-out that MEASURES something returns confident false negatives from these worktrees.** The
+gap above is missing files while one agent edits; it becomes wrong answers when many agents
+measure, because a verdict carries no trace of which tree produced it. Mutation-testing an
+uncommitted test suite on 2026-10-06, six of eleven `isolation: worktree` agents ran against `HEAD`
+— the pre-fix code, with the new suite absent altogether — and returned 32 `SURVIVED` and 13
+`NOT_APPLICABLE` verdicts. Each reads exactly like a finding, since a surviving mutant is the
+headline result such a run exists to produce. Re-measuring in the real checkout killed 41 of the
+45. What exposed it was the agents' own free-text notes, so a schema without a notes field would
+have published the table intact. Carry the change set in with this script, or have each agent copy
+the few files under test into its own scratch directory, and require every result to name the tree
+it measured.
+
 **Put the sandbox outside the repository.** `.claude/worktrees/` is where `EnterWorktree` puts its
 own, and it is not in every repo's `.gitignore` — the dotfiles repo does not ignore it. A sandbox
 there shows up as untracked in the very change set being reviewed.
