@@ -40,8 +40,11 @@ Build a second copy with `--baseurl ""` and serve that one. The real build's lin
 
 ```bash
 ( cd docs && GEM_HOME="$GW" GEM_PATH="$GW" ruby "$GW/gems/$J/exe/jekyll" build -s . -d "$SW/_local" --baseurl "" )
-( cd "$S/_local" && nohup python -m http.server 8765 --bind 127.0.0.1 > "$S/http.log" 2>&1 & )
+( cd "$S/_local" && nohup python -m http.server 8765 --bind 127.0.0.1 </dev/null > "$S/http.log" 2>&1 & ) </dev/null >/dev/null 2>&1
 ```
+
+The outer redirection is what lets the command return: the subshell that runs the backgrounded list
+keeps the caller's output streams otherwise (see `detached-process-holds-caller-pipe.md`).
 
 `python -m http.server` does not map `/pages/configuration` to `configuration.html` the way Pages
 does. Request the `.html` URL, or you get a 404 page that screenshots as a plausible blank page.

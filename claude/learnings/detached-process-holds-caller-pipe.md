@@ -13,7 +13,8 @@ reader blocks, and nothing reports an error.
 - The same script run directly, or through something that waits for the *process* to exit rather
   than for the stream to end, returns promptly. That is why the defect survives: the usual
   invocation path does not show it.
-- `ps` shows the launcher gone and only the background process (and its children) still alive.
+- `ps` shows the launcher gone and only the background process, its children and possibly the
+  shell that launched it still alive.
 
 Measured 2026-10-06 with a dev-server deploy script on Windows: a plain run returned in 13 s, and the
 same run piped through `tail -30` sat for 120 s until killed. With the fix it returned in 8 s.
@@ -50,11 +51,29 @@ Python's `subprocess.Popen` does not have it either when the child's three strea
 explicitly (`stdin=DEVNULL, stdout=fh, stderr=fh`): on Windows it restricts inheritance to exactly
 those handles.
 
-## Unix: `nohup` leaves stdin alone when it is not a terminal
+## Unix: the shell that launches the job holds the pipe
 
-`nohup cmd >log 2>err &` redirects the two output streams, so it does not cause the EOF hang, but
-`nohup` replaces stdin only when stdin is a terminal. Under a pipe or a tool, the background process
-keeps the caller's stdin. Add `</dev/null` to cut the last stream.
+Redirecting the server's own streams is not enough when the background job is a list. In
+`( cd "$dir" && nohup cmd </dev/null >log 2>err & )`, the `&` applies to the whole `cd && nohup …`
+list, so bash forks a subshell to run it. That subshell keeps the script's stdout and stderr, since
+the redirections belong to `nohup` alone, and it waits on `nohup` for as long as the server runs. The
+server's own descriptors are clean, and the reader still never sees EOF.
+
+Redirect the launching construct as well, the same shape as the Windows fix:
+
+```bash
+( cd "$dir" && nohup cmd </dev/null >log 2>err & ) </dev/null >/dev/null 2>&1
+```
+
+Measured 2026-10-06. On macOS, `lsof` on the surviving server showed only `/dev/null`, its two log
+files and its listen socket. The pipe was held on fd 1 and fd 2 by a surviving `bash`, found by
+matching lsof's device token for the pipe; macOS lsof prints a kernel address for a pipe rather than
+an inode, so a match on inode finds nothing and reads as "no other holder". In Git Bash, piping the
+list form into `cat` with a 6 s `sleep` as the job took 7 s, while the same line with the outer
+redirection took 0 s and a single backgrounded command, which bash execs directly, took 1 s.
+
+`nohup` replaces stdin only when stdin is a terminal, so under a pipe or a tool the job also keeps
+the caller's stdin unless it gets `</dev/null`.
 
 ## Testing for it
 
