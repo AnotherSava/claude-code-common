@@ -85,6 +85,14 @@ run "ingress-lint.py" python3 claude/tests/ingress-lint.py
 run "ports.py" python3 claude/tests/ports.py
 run "ports registry" python3 claude/skills/ports/scripts/ports.py check
 
+# The shim those dev servers start through, driven for real on both its branches against a scratch registry.
+# The suite above writes its filename into fixtures and never calls it, so until this ran, the one piece of
+# the ports skill no check executed was the piece every launch goes through. Its Windows half is where that
+# costs: an argv array under `shell: true` is concatenated unescaped, cmd.exe re-splits every argument at its
+# spaces, and a checkout under `C:\Users\First Last\` then cannot start — reporting a missing file rather
+# than anything about a port.
+run "dev-port.mjs" node claude/tests/dev-port.mjs
+
 # The dev-server deploy, run for real against a stand-in server, a scratch registry and no tailnet. A server
 # that inherits the caller's output stream hangs anything reading the deploy to EOF while the script itself
 # exits 0, so no other check notices, and a tool that waits only for the process to exit never shows it.

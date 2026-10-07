@@ -603,6 +603,37 @@ const { stdout } = await execFileAsync(cmd, finalArgs);
 
 Seen in `claude-mermaid` 1.6.2 — fix submitted upstream at [veelenga/claude-mermaid#117](https://github.com/veelenga/claude-mermaid/pull/117).
 
+**Where the target is itself a Node CLI, skip the shell and spawn its JS.** Both working patterns above
+hand the argument list to `cmd.exe`, which parses it a second time after Node has built the command
+line, so every argument's quoting has to survive two parsers. An npm `.bin` shim almost always wraps a
+JS entry point named in its own package's `bin` field, and that entry runs under the current interpreter
+on every platform with no shim and no shell:
+
+```js
+const dir = join(repoRoot, "node_modules", "<name>");
+const bin = JSON.parse(readFileSync(join(dir, "package.json"), "utf8")).bin;
+const entry = typeof bin === "string" ? bin : bin["<command>"];
+spawnSync(process.execPath, [join(dir, entry), ...args], { stdio: "inherit" });
+```
+
+Measured 2026-10-06 against `@tauri-apps/cli`, whose `.bin/tauri` is a symlink to its `tauri.js`: the
+spawn needs no `shell` option on either platform, the `.cmd` shim having been the only reason for the
+flag. What the flag costs, in its POSIX analogue — `spawnSync("/tmp/a b/bin/cli", ["--config", "/tmp/a
+b/cfg.json"])` exits 0, while the identical call under `shell: true` exits 127 with `/bin/sh: /tmp/a: No
+such file or directory`, so a clone under `C:\Users\First Last\…` breaks and the error names a path
+fragment. No help for a shim wrapping a native binary or a batch file, where `cmd.exe /c` is still the
+answer.
+
+**Where a shell is unavoidable, pass one pre-quoted command line and no args array.** Measured on
+Windows 11 with Node v24.19.0 against a `.cmd` shim sitting under `C:\Users\Public\ccd space probe`:
+`spawnSync(shim, args, { shell: true })` exits 1 with `'C:\Users\Public\ccd' is not recognized`, while
+the same command with every whitespace-bearing token double-quoted into a single string exits 0 and the
+shim reads all three arguments whole, the one holding a space included. DEP0190 fires on the array form
+only. Node wraps a shell command as `cmd /d /s /c "<line>"` and `/s` strips just that outer pair, so the
+inner quotes reach cmd.exe standing. Quote on whitespace and on `& | < > ^ ( )`; an argument containing a
+`"` has no escape that survives, so refuse it by name instead of mangling it, as
+`~/.claude/skills/ports/scripts/dev-port.mjs` does.
+
 ## Renderer-facing gotchas
 
 - Hooks load at session start; existing sessions don't pick up `settings.json` changes until `/exit` + relaunch.

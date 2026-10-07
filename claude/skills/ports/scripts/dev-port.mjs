@@ -60,17 +60,30 @@ function resolvePort({ useCase, owner, notes }) {
   return port
 }
 
+/** `argv` as one cmd.exe command line, quoting every token the shell would otherwise split or interpret. */
+function windowsCommandLine(argv) {
+  return argv.map((arg) => {
+    if (arg.includes('"')) fail(`cannot run ${JSON.stringify(arg)} through cmd.exe — an embedded double quote has no escape that survives \`cmd /d /s /c\`. Put the value in a file the command reads instead.`)
+    return /[\s&|<>^()]/.test(arg) ? `"${arg}"` : arg
+  }).join(' ')
+}
+
 /** Resolve the port, then exec `command` with PORT set. Exits with the command's own status. */
 export async function run({ useCase, owner, notes, command }) {
   if (!command || command.length === 0) fail('no command given — usage: dev.mjs <command> [args...]')
   const port = resolvePort({ useCase, owner, notes })
   console.error(`dev-port: ${useCase} -> ${port}`)
-  // shell:true on Windows: npm-installed binaries are .cmd shims there, which CreateProcess will not run.
-  const child = spawnSync(command[0], command.slice(1), {
-    env: { ...process.env, PORT: port },
-    stdio: 'inherit',
-    shell: process.platform === 'win32',
-  })
+  // Windows needs a shell at all: npm-installed binaries are `.cmd` shims there, which CreateProcess will
+  // not run. But Node concatenates an argv array under that flag with no escaping — the DEP0190 warning
+  // says so — and cmd.exe then re-splits on the spaces, so a checkout under `C:\Users\First Last\` fails
+  // naming half a path and nothing about a port. Handing it one already-quoted line is the form that
+  // reaches the shim and survives the split: Node wraps it as `cmd /d /s /c "<line>"`, and `/s` strips
+  // only that outer pair, leaving these quotes standing. POSIX needs no shell and so keeps the argv array,
+  // where no quoting question arises.
+  const options = { env: { ...process.env, PORT: port }, stdio: 'inherit' }
+  const child = process.platform === 'win32'
+    ? spawnSync(windowsCommandLine(command), { ...options, shell: true })
+    : spawnSync(command[0], command.slice(1), options)
   if (child.error) fail(`could not run ${command.join(' ')}: ${child.error.message}`)
   process.exit(child.status === null ? 1 : child.status)
 }
