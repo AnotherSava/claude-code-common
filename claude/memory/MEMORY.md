@@ -168,6 +168,7 @@
 - [Make the state settable, not a viewer](feedback_make_the_state_settable.md) {always} — expose the input a view depends on; never build a scaffold that imitates the state
 - [Stay silent on user `!` commands](feedback_silent_on_bash_input.md) {always} — a bare `!`/bash-input result is the user's own action; return control immediately, no analysis or "looks good" filler, unless they ask
 - [Fix bugs at the source, not in callers](feedback_fix_at_source.md) {always} — if a bug lives in code I can modify (including vendored copies), fix it at the source instead of working around or suppressing it (gitignore, filtering, silencing)
+- [Cover the unrecoverable cases](feedback_cover_the_unrecoverable_cases.md) {always} — a kept copy or undo record is judged by which cases it reaches, ranked by the cost of redoing each; at one caller of a shared step it covers only that caller
 - [Generalize global skills, don't fork project-local](feedback_generalize_global_skills.md) {always} — name collisions load the wrong SKILL body; but a skill whose domain IS one project belongs in its repo
 - [Check for a live sibling session](feedback_check_live_sibling_session.md) {always} — an instruction, or a question about another project, likely belongs to another live session; route it there and check its `git status` (the `peer` skill) before editing its files; siblings also overwrite the shared clipboard
 - [Native dialogs render plain text — no clickable links](feedback_native_dialogs_no_links.md) {always} — `tauri-plugin-dialog`/MessageBox/NSAlert can't embed `<a>`; build a custom Tauri webview window for About-style content with links
@@ -225,6 +226,7 @@
 - [Report timestamps in local time](feedback_local_time_timestamps.md) {always} — logs store UTC and these machines run hours behind it; convert before showing, or the quoted moment can't be matched to what the user saw
 - [Never weaken permissions in a subagent prompt](feedback_no_subagent_permission_bypass.md) {always} — approval for a task is never approval to disable approval gates; no `--dangerously-skip-permissions` in a subagent's instructions, ask first
 - [Route the output, don't ask for a paste](feedback_route_output_not_paste.md) {always} — a command only they can run gets `2>&1 | tee tmp/<name>.log`; I read it, clipboard is the fallback
+- [Offer the mode switch](feedback_offer_the_mode_switch.md) {always} — repeated classifier refusals in one task: offer switching to `manual`, not a third handed-over command; never `bypassPermissions`
 - [Fix the class, not the instance](feedback_fix_the_class_not_the_instance.md) {always} — a defect in one member of an already-enumerated set is a defect in the set; find the list and check all of it
 - [A gap in a gate is a fix, not a memo](feedback_gap_in_a_gate_is_a_fix.md) {always} — a blind spot in a check the project already runs gets that check extended; parking it re-files the same class every review
 - [Do it, don't offer a memo](feedback_do_it_dont_offer_a_memo.md) {always} — a concrete item settleable now gets done and reported; memos are for dropped ideas and work that cannot happen now
