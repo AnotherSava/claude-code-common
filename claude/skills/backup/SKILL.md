@@ -178,6 +178,16 @@ Update the project's deploy doc, and say in one line where the snapshots live an
 If the project has a self-check, add an assertion on the backup's *freshness and content* — not on the
 unit's exit status, which stays green while the repository rots.
 
+**Assert the bucket's lifecycle rule in that same self-check, and assert each field's value.** Freshness
+and content both stay correct while the rule is wrong, because that failure lives entirely in B2: the S3
+backend only hides what it deletes, so `forget --prune` reclaims nothing while every run exits 0 and
+`restic stats` reports its own post-prune view. The box needs no new credential for this — its
+bucket-scoped key can read `b2_list_buckets` over the native API, no master key and no SigV4 signer — and
+the shape to require is in `~/.claude/learnings/restic-backblaze-b2-backups.md`. Checking that a field is
+*present* asserts nothing: B2 fills a field it holds no value for with `null` rather than omitting it, so
+every rule carries every key. Measured 2026-10-07 across four tenants on one account, one carried
+`daysFromStartingToCancelingUnfinishedLargeFiles` as `null` with every backup-side check green.
+
 ### 9. Make its silence audible — invoke `heartbeat`
 
 Everything above is watched from inside the box. A timer that is disabled, a machine that is rebuilt

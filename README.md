@@ -330,6 +330,7 @@ Gives a project on the shared VPS a nightly off-box backup, or works on one it a
 - Renders credentials from a workstation over an ssh pipe with `umask 077`, since the box deliberately has no Doppler and `>` then `chmod` leaves the passphrase world-readable for a window
 - Keeps backup credentials out of the publish-time required-secrets list, so a durability credential can never refuse a change to what the box is serving
 - Catches the failures that report success: restic's exit 3 writes a *partial* snapshot, `Type=oneshot` disables systemd's start timeout by default, and an `ExecStart` under the repo directory name rather than the deploy path dies 203/EXEC on every fire
+- Asserts the bucket's lifecycle rule field by field from the box's own self-check — the one failure that lives entirely in B2, where every backup-side check stays green while `forget --prune` reclaims nothing; a presence check passes anything, because B2 returns an unset field as `null` rather than omitting it
 - Proves the restore by counting what came back — and, where the box still serves, by matching a restored artefact's digest against the live one
 - A per-engine table for taking a consistent copy (SQLite online backup, `pg_dump` with credentials read inside the container, `mongodump` from the image that matches the server), and the authorization boundary in `references/b2-provisioning.md` for what may be created without asking
 

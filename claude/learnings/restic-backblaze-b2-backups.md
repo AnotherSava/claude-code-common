@@ -130,9 +130,20 @@ That object is a v4 addition, and reaching for it against a v3 reply returns not
 so the probe reports an empty capability list and a key that holds everything reads as a key that holds
 nothing. Verified 2026-10-06 by printing the response's own key names after two reads had answered `[]`.
 
-One field is worth adding beyond the console preset's three:
-`"daysFromStartingToCancelingUnfinishedLargeFiles": 1` collects interrupted multipart uploads, which are
-billed and appear in neither restic's view nor an S3 LIST.
+Set the four-field rule the mandatory-lifecycle-rule section specifies, not the console preset's three. The
+fourth field, `"daysFromStartingToCancelingUnfinishedLargeFiles": 1`, collects interrupted multipart uploads,
+which are billed and appear in neither restic's view nor an S3 LIST.
+
+**Whether a repository is even exposed to that is decidable without knowing the client's threshold.**
+B2's `absoluteMinimumPartSize`, read from `b2_authorize_account` — 5,000,000 bytes on an ordinary account —
+is a hard floor under the whole multipart mechanism, so an object below it went up in one part whatever restic's
+S3 backend would have chosen, and no unfinished large file can exist to collect. So the question is settled
+by the largest object under the prefix, which `b2_list_file_versions` already returns as `contentLength`
+beside the `action` field a lifecycle probe reads; `b2_list_unfinished_large_files` then confirms it
+directly. Measured 2026-10-07 across three repositories on one account: largest objects of 180 KB, 1.8 MB
+and 12 MB, so only the 12 MB one is exposed at all, and `b2_list_unfinished_large_files` returned 0 for every
+one of them. Set the field on every bucket regardless: it costs nothing, and a repository under that floor
+today crosses it as it grows, with nothing reporting the omission at that point.
 
 ## The lifecycle rule is mandatory on S3, and its absence is invisible
 
@@ -167,14 +178,36 @@ b2_list_file_versions -> files[].action == "hide" for each hide marker awaiting 
 A correct rule reads exactly:
 
 ```json
-{"daysFromHidingToDeleting": 1, "daysFromUploadingToHiding": null, "fileNamePrefix": ""}
+{"daysFromHidingToDeleting": 1, "daysFromStartingToCancelingUnfinishedLargeFiles": 1,
+ "daysFromUploadingToHiding": null, "fileNamePrefix": ""}
 ```
 
-**Assert the shape, not the presence.** Two wrong rules both satisfy "a lifecycle rule exists" and neither
-does the job: one whose `fileNamePrefix` scopes it to a different path never touches this repository's
-objects, and one with `daysFromUploadingToHiding` set hides *live* backup data on a timer. So require a rule
-whose prefix is empty or a prefix of the repository path, with a small integer `daysFromHidingToDeleting` and
-a null `daysFromUploadingToHiding`.
+**Assert each field's value, not that a rule exists or that a key is there.** B2 fills a field it holds no
+value for with `null` instead of omitting it, so every rule carries all four keys and a presence check passes
+anything. Three shapes satisfy "a lifecycle rule exists" and none does the job: one whose `fileNamePrefix`
+scopes it to a different path never touches this repository's objects, one with `daysFromUploadingToHiding`
+set hides *live* backup data on a timer, and one whose `daysFromStartingToCancelingUnfinishedLargeFiles` is
+null leaves interrupted multipart uploads uncollected and billed.
+
+**Whether the cancellation field belongs in the verdict or beside it is settled by the repository's object
+sizes, not by severity.** The other three are pass/fail wherever they appear: a `fileNamePrefix` that
+covers the repository, a small integer `daysFromHidingToDeleting` and a null `daysFromUploadingToHiding`
+each decide whether retention works at all, so one wrong value grows the repository without bound or loses
+live data. The cancellation field turns on the `absoluteMinimumPartSize` floor. Under that floor no
+unfinished large file can exist to collect, so an unset field reports convention drift on a rebuilt bucket
+rather than an accrual, and a note is the honest reading — landlord reads it off a prefix-applicable rule
+into its stamp and renders `NOT COLLECTED` rather than failing a repository measured well below the floor.
+Above the floor the same unset field accrues parts that are billed and invisible to both restic and an S3
+LIST, with nothing reporting them, and a verdict is then the honest severity. So measure the largest object
+under the prefix before choosing, and record which answer the choice rests on.
+
+Keep a verdict's failure text true either way. Where that text says the bucket never reclaims hidden
+versions, folding in an unset cancellation field makes the sentence false about a bucket whose
+hidden-version rule is exactly right.
+
+Measured 2026-10-07 reading four buckets on one account under the master key: each rule carried all four
+keys, and the one bucket missing the cancellation threshold carried it as `null`. Confirmed the same day by
+a second unfiltered read from another session, with `absoluteMinimumPartSize` at 5,000,000 on this account.
 
 Prefer this over a size threshold. Absolute byte floors are the intuitive check and they are useless at
 small scale: a few-hundred-KB repository accumulates single-digit KB of unreclaimed garbage per night, so a
@@ -241,6 +274,14 @@ console trip per project.
   back, and send all of it — a field omitted from the request is a field removed from the bucket. Pass
   `ifRevisionIs` with the `revision` that read returned, so a concurrent change fails the call instead of
   being silently overwritten.
+
+- **It is also the only credential that can audit across buckets**, which the "necessary for provisioning"
+  heading undersells. A per-project key carries `bucketName` in `apiInfo.storageApi`, and B2 shows it no
+  other bucket at all — `b2_list_buckets` with a neighbour's name returns an empty list rather than an
+  error, which reads as "that bucket has no rules" if the caller is not expecting it. So a question of the
+  form "do all my buckets still have the right lifecycle rule?" cannot be answered from any one project's
+  box; it is one master-key call that returns every bucket. Measured 2026-10-07 reading three tenants'
+  rules in a single loop, after the same read from one tenant's own key had seen only its own bucket.
 
 Give each project its own bucket and its own key scoped to it, with file capabilities only and no
 bucket-management rights — then a compromise of one project's box cannot read, reconfigure or delete another

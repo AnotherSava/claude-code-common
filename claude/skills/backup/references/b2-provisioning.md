@@ -58,9 +58,13 @@ BUCKET     = '<bucket>'
 DP_PROJECT = '<shard>'               # the Doppler project, now shared with other apps
 DP_CONFIG  = 'prd_<app>'             # this app's own branch config — never the bare 'prd' root
 
-# "Keep only the last version of the file". MANDATORY for the S3-compatible endpoint: that backend only
-# HIDES what it deletes, so without this `forget --prune` reclaims nothing while every run exits 0.
-LIFECYCLE = [{'fileNamePrefix': '', 'daysFromHidingToDeleting': 1, 'daysFromUploadingToHiding': None}]
+# "Keep only the last version of the file", plus a fourth field no console preset sets. MANDATORY for the
+# S3-compatible endpoint: that backend only HIDES what it deletes, so without `daysFromHidingToDeleting` a
+# `forget --prune` reclaims nothing while every run exits 0. The fourth field collects interrupted multipart
+# uploads, which are billed and appear in neither restic's view nor an S3 LIST. Both belong here because
+# amending a rule afterwards needs `b2_update_bucket` under the master key, closed to the box's own key.
+LIFECYCLE = [{'fileNamePrefix': '', 'daysFromHidingToDeleting': 1, 'daysFromUploadingToHiding': None,
+              'daysFromStartingToCancelingUnfinishedLargeFiles': 1}]
 
 # Exactly what restic's S3 backend issues — ListBucket, GetObject, PutObject, DeleteObject. Delete is
 # required because prune deletes; a read-only key fails only at the prune step, months in.
@@ -148,6 +152,11 @@ b2_list_buckets        -> buckets[0].lifecycleRules
 b2_list_file_versions  -> files[].action == "hide"   (hide markers awaiting collection)
 ```
 
-Assert the rule's **shape**, not its presence. A rule whose `fileNamePrefix` scopes it elsewhere never
-touches this repository, and one with `daysFromUploadingToHiding` set hides live backup data on a timer.
-Both read as "a lifecycle rule exists".
+Assert the rule's **shape**, not its presence, and assert each field's **value**, not that the key is
+there. B2 returns every lifecycle field on every rule, filling an unset one with `null`, so no key is ever
+absent and a check for presence passes anything. Three shapes all read as "a lifecycle rule exists": one
+whose `fileNamePrefix` scopes it elsewhere never touches this repository, one with
+`daysFromUploadingToHiding` set hides live backup data on a timer, and one whose
+`daysFromStartingToCancelingUnfinishedLargeFiles` is `null` leaves interrupted multipart uploads to
+accumulate and be billed. That last is the state the console's "Keep only the last version of the file"
+preset produces, so it is what a bucket created outside this script will be in.
