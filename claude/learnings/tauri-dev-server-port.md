@@ -76,6 +76,21 @@ So the static `devUrl` keeps a real port and is overridden every run. The commit
 only by something that bypasses the wrapper, where it is the difference between a loud wait on a
 reachable address and a silent stale bundle.
 
+## The wrapper goes on the script that starts the CLI
+
+The Tauri CLI runs `beforeDevCommand` itself, so the frontend dev script is invoked by the CLI rather than
+by whoever started the app. That settles where the port has to be resolved: before the CLI runs, because it
+reads `devUrl` from its config before any frontend server exists. So the wrapper replaces the script that
+launches the CLI, and the frontend script stays bare and inherits `PORT` from the environment the CLI was
+handed. In tauri-dashboard that is `"tauri": "node scripts/dev.mjs"` against `"dev": "vite"`, with
+`"beforeDevCommand": "npm run dev"` in `src-tauri/tauri.conf.json`.
+
+Wrapping the frontend script instead resolves the port after the CLI has already read `devUrl`, so the
+frontend server binds the registry's number while the webview opens on the committed one. A wrapper that
+forwards its unrecognised subcommands to the CLI turns that into a loop: the CLI runs `npm run dev`, which
+re-enters the wrapper, which hands the frontend command back to the CLI as a subcommand. Read off those
+three files rather than run — starting the chain opens a window.
+
 ## Where the frontend half lives
 
 Getting the resolved port into the frontend dev server is the other half of the same launch, and it is

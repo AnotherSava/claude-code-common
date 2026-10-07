@@ -149,6 +149,13 @@ Do this in the repo that is behind, not in the dotfiles repo.
    consumer needs the same number — a Tauri `build.devUrl`, a proxy target — it cannot come from
    `tauri.conf.json`, which is static; resolve once and hand the value to both.
 
+   **In a Tauri repo, wrap the script that starts the Tauri CLI and leave the frontend dev script bare.**
+   The CLI runs `beforeDevCommand` itself, so rewriting `"dev"` resolves the port after the CLI has read
+   `devUrl`: the frontend server binds the registry's number while the webview opens on the committed one.
+   Wrap `"tauri"` and leave `"dev": "vite"` alone — it inherits `PORT` from the environment the CLI was
+   handed. That wrapper is also what writes the `devUrl` override described next, being the only step that
+   holds the resolved port before the CLI reads its config. tauri-dashboard is in that shape.
+
    **Leave a real port in `build.devUrl` and override it per run**, with `tauri dev -c <file>` merging a
    written-at-launch JSON file over the committed config. Emptying that field is the shortcut to avoid:
    it selects the Tauri CLI's own built-in dev server on 1430, which serves `frontendDist` — usually the
