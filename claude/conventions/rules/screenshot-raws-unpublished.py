@@ -6,6 +6,11 @@ Jekyll publishes every file under `docs/` it is not told to leave out, so withou
 entry each raw goes live next to the frame made from it: a second copy of every screenshot, with no
 page linking it and nothing reporting that it is there.
 
+The exclusion is read as soon as the repo takes screenshots by script, not only once a raw is
+committed. A capture script is what writes a raw, so a repo with `docs/screenshots/capture/` is
+one capture away from publishing one; and a rule that waited for the first raw would report a pass
+it never measured for as long as the directory stayed empty.
+
 The config is read as lines rather than parsed as YAML, for the reason `docs-theme-pinned` gives:
 PyYAML is not in every interpreter this runs under, and the line numbers are what make a finding
 point somewhere. A line inside the `exclude:` block that does not read as a list item is reported
@@ -21,6 +26,7 @@ import _git
 
 CONFIG = "docs/_config.yml"
 RAW = "docs/screenshots/raw"
+CAPTURE = "docs/screenshots/capture"
 # The entry, as Jekyll resolves it: relative to `docs/`, the source directory. Jekyll 3.10, which
 # GitHub Pages runs, joins each entry onto the source with File.join and matches a path that starts
 # with the result or that File.fnmatch? matches as a glob, so a leading `/` collapses harmlessly,
@@ -99,14 +105,14 @@ def read_excludes(path: str) -> tuple[list[str], list[str]]:
 
 
 def check(root: str) -> list[str]:
-    """One line per reason the raws would be published, empty when they are kept out or there are none."""
-    if not os.path.isdir(os.path.join(root, *RAW.split("/"))):
-        return []
-    raws = raw_files(root)
+    """One line per reason raws would be published, empty when they are kept out or none can arise."""
     config = os.path.join(root, *CONFIG.split("/"))
-    if not raws or not os.path.isfile(config):
-        # No raw git keeps, or no Jekyll site to publish one: both are looked for and absent, and
-        # nothing here creates either.
+    if not os.path.isfile(config):
+        # No Jekyll site, so nothing publishes a raw wherever it sits.
+        return []
+    raws = raw_files(root) if os.path.isdir(os.path.join(root, *RAW.split("/"))) else []
+    if not raws and not os.path.isdir(os.path.join(root, *CAPTURE.split("/"))):
+        # No raw git keeps and no capture script to write one: v12's own does-not-apply case.
         return []
     entries, problems = read_excludes(config)
     if problems:
@@ -119,6 +125,10 @@ def check(root: str) -> list[str]:
         return [f"{CONFIG} excludes the bare `{ENTRY}`, which keeps the raws off the site but, matched by "
                 f"prefix, also drops every published file whose path begins `{ENTRY}` — replace it with "
                 f"`{ENTRY}/`"]
+    if not raws:
+        return [f"{CAPTURE}/ takes screenshots by script and {CONFIG} does not exclude {ENTRY}/, so the "
+                f"first raw a capture writes to {RAW}/ goes live beside its frame — add `- {ENTRY}/` to its "
+                f"exclude: list"]
     return [f"{RAW}/ holds {len(raws)} raw capture(s) and {CONFIG} does not exclude {ENTRY}/, so the "
             f"site publishes every one of them beside the frame made from it — add `- {ENTRY}/` to its "
             f"exclude: list"]

@@ -52,26 +52,34 @@ Fetch first, and do not run this on a branch behind its upstream: the work edits
    capture scripts dot-source the skill's `windows-capture.ps1`. Captures built on a library of their
    own, as achievement-overlay's are, give it nothing to check, and it fails on them.
 3. **Bring over the raws this machine already holds.** Look in `tmp/screenshot-raws/` and
-   `tmp/raw/`. A frame whose capture has no frame step (step 2) has no raw: leave its `tmp/` copy
-   where it is, however exactly it matches, and name it in the report. Otherwise a raw belongs in the
-   commit only when it is the capture its committed frame was made from, and a leftover from an
-   uncommitted re-shoot is not — so test each one before moving it:
+   `tmp/raw/`. A frame taken by hand rather than by a capture script may still have its original
+   where the screenshot tool saved it, `~/CropStage` on Windows and `~/Desktop` on macOS, so search
+   there too: read only each PNG's dimensions first, and run the tests below on a file whose size
+   is one the frame's step could have started from: the frame's own, or that less the stroke or
+   border width on each side the step grew, which is every side for `hairline.py`'s outward ring
+   and `--grow`, and each cut side for `--cut`. Measured 2026-10-06 in bga-assistant, three
+   hand-taken frames had their originals in `~/CropStage` and in neither `tmp/` directory. A frame
+   whose capture has no frame step (step 2) has no raw: leave its `tmp/` copy where it is, however
+   exactly it matches, and name it in the report. Otherwise a raw belongs in the commit only when
+   it is the capture its committed frame was made from, and a leftover from an uncommitted
+   re-shoot is not — so test each one before moving it:
    - a frame `hairline.py` grew outward is the raw with a ring of the stroke width round it, so the
      frame cropped by that width on every side equals the raw pixel for pixel, except inside the
      corner squares `--radius` clipped when the frame is rounded;
    - a frame `hairline.py` traced inside a shaped raw has the raw's size and alpha, and differs only
      in a band the stroke width wide inside the silhouette;
-   - a frame `winframe.py` drew has the raw's size, or the raw's plus twice the border thickness under
-     `--grow`, and equals it wherever the content clip covers a pixel fully. Without `--grow` that
-     clip is the frame inset by the border thickness t = floor((dpi + 48) / 96) px on every side, 2 px
-     at 144 DPI, with its corners rounded; under `--grow`, offset the frame by t on each axis first,
+   - a frame `winframe.py` drew has the raw's size, or the raw's plus the border thickness on each
+     `--cut` side, or plus twice it on each axis under `--grow`, and equals it wherever the content
+     clip covers a pixel fully. Without `--grow` that clip is the frame inset by the border
+     thickness t = floor((dpi + 48) / 96) px on every side, 2 px at 144 DPI, with its corners
+     rounded; under `--grow`, offset the frame by t on each axis first,
      after which the clip is the raw's own extent less its corner arcs.
 
    Move each raw that passes to `docs/screenshots/raw/<frame file name>`. Leave one that fails where
    it is and name it in the report; nothing is lost either way, since `tmp/` is gitignored and was
-   never the record. The other machine's `tmp/` may hold raws too: name that in the report rather
-   than reaching for them, because a frame with no committed raw is re-framed by re-shooting it,
-   which is how every frame was re-framed before this version.
+   never the record. The other machine's `tmp/` and screenshot folder may hold raws too: name that
+   in the report rather than reaching for them, because a frame with no committed raw is re-framed
+   by re-shooting it, which is how every frame was re-framed before this version.
 
 Afterwards, `git status` should show the moved raws as new files under `docs/screenshots/raw/` and
 the edits to `docs/_config.yml` and the capture code. Once pushed, confirm the Pages build succeeded
@@ -90,10 +98,10 @@ raw behind at that point, and the continuing rule reads the exclusion then.
 
 ## Continuing rule
 
-`screenshot-raws-unpublished` — when `docs/screenshots/raw/` holds a file git does not hide and
-`docs/_config.yml` exists, the config's top-level `exclude:` list carries `screenshots/raw/`,
-`screenshots/raw/*` or `screenshots/raw/**`, optionally with a leading `/`. Two near misses do not
-count: `./screenshots/raw/` excludes nothing, because Jekyll joins entries onto the source without
-normalising them, and the bare `screenshots/raw` also drops every published frame whose name begins
+`screenshot-raws-unpublished` — when `docs/_config.yml` exists and either `docs/screenshots/raw/`
+holds a file git does not hide or `docs/screenshots/capture/` exists, the config's top-level
+`exclude:` list carries `screenshots/raw/`, `screenshots/raw/*` or `screenshots/raw/**`, optionally
+with a leading `/`. Two near misses do not count: `./screenshots/raw/` excludes nothing, because
+Jekyll joins entries onto the source without normalising them, and the bare `screenshots/raw` also drops every published frame whose name begins
 `raw`, because Jekyll matches entries by prefix. A line inside that list the rule cannot read as an
 item is reported rather than skipped, since it could be the entry the rule is looking for.

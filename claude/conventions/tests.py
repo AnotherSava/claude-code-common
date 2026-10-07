@@ -198,8 +198,10 @@ CASES = (
         "screenshot-raws-unpublished",
         Tree({"docs/_config.yml": "title: Docs\nexclude:\n  - plans/\n  # inputs to the frame step\n  - screenshots/raw/\n",
               "docs/screenshots/raw/hero.png": b"\x89PNG raw\n"}),
+        # No raw committed yet: a capture script is enough to need the exclusion, or an empty raw
+        # directory reads as a pass nobody measured.
         Tree({"docs/_config.yml": "title: Docs\nexclude:\n  - plans/\n",
-              "docs/screenshots/raw/hero.png": b"\x89PNG raw\n"}),
+              "docs/screenshots/capture/hero.sh": "#!/bin/bash\n"}),
         # Outside a work tree git cannot say whether the raw is one it hides, so the rule cannot
         # tell a published raw from a scratch file nobody commits.
         Tree({"docs/_config.yml": "title: Docs\nexclude:\n  - plans/\n",
