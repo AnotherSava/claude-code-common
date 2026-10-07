@@ -290,3 +290,28 @@ So budget a stage that executes, and point it at the real population rather than
 same author wrote. Fixtures encode the shapes the author already thought of; a fleet of fifteen
 repositories contains the ones they did not. Give that stage the standing permission to copy real
 data into scratch and mutate the copy, and the standing prohibition on touching the originals.
+
+## Ask the critic whether the premise holds, and let it answer "build nothing"
+
+A panel told to design a thing designs it. Measured 2026-10-06 on a workflow asked how a desktop
+app should surface an installed build that had fallen behind its repo: three independent designers
+produced three mechanisms, and three judging lenses — does it fire, what does it cost, is the signal
+honest — scored all three without once asking whether a mechanism was warranted. One completeness
+critic, given explicit license to reject the premise and to propose doing nothing, measured the base
+rate from cargo's own fingerprint directories: the installed build lagged the tree in 32 of 38
+recoverable compile events, so all three designs were detectors for the resting state, and a gate on
+one would have blocked most commits. The same critic found the harm correlated with a far narrower
+predicate, present in 17 of 182 commits and including the one that caused the incident.
+
+The lenses could not have found it. Each was scoped to judging the designs against one another, and
+on that question they were right — the strongest design was the strongest design. The unasked
+question sits a level above the candidate set, and nothing scoped to comparing candidates reaches it.
+
+So budget a critic stage, and write the license into its prompt rather than hoping a sceptical agent
+infers it: ask whether the premise holds, whether a simpler answer exists outside the candidate set,
+and whether the right output is no code at all. A critic prompted only to find gaps in the designs
+returns gaps in the designs.
+
+Give it the standing instruction to settle a cheap factual question itself rather than listing it as
+unknown. The base rate above was not in the evidence pack any designer read; the critic measured it
+during its own pass, which is the only reason the finding exists.
