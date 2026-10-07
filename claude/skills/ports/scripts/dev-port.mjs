@@ -15,9 +15,16 @@
 //     import { run } from '<this file>'
 //     await run({ useCase: 'scheduler-dev-server', owner: 'scheduler', command: process.argv.slice(2) })
 //
-// Next, Vite and most servers read PORT from the environment. Next classifies an env-supplied port as
-// source `env` rather than `default`, which keeps its retry-on-collision path off — so the server binds
-// the allocated number or exits, instead of drifting silently to the next free one.
+// Next reads PORT from the environment, and classifies an env-supplied port as source `env` rather than
+// `default`, which keeps its retry-on-collision path off — so the server binds the allocated number or
+// exits, instead of drifting silently to the next free one.
+//
+// **Vite does not read PORT, and a project served by it needs one more line than this.** Measured
+// 2026-10-06 across six installed copies, vite 6.4.1 through 8.2.1: no file under `vite/dist/` matches
+// `env.PORT` at all. Its `server.port` comes from config only, so exporting PORT here and deleting the
+// `-p` literal leaves Vite on its own 5173 — a worse state than the literal, because the registry then
+// records a number nothing binds. Such a project's `vite.config.ts` has to read `process.env.PORT`
+// itself, and should refuse to start without it rather than falling back to a default.
 
 import { spawnSync } from 'node:child_process'
 import { existsSync } from 'node:fs'

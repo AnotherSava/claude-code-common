@@ -106,6 +106,25 @@ Do this in the repo that is behind, not in the dotfiles repo.
    inventing a new slug, or the server comes up on a freshly allocated port while everything else still
    expects the old one.
 
+   **A Vite-served project needs one more edit, and removing its literal without that edit is worse than
+   leaving it.** Vite does not read `PORT` from the environment — measured 2026-10-06 across six installed
+   copies, 6.4.1 through 8.2.1, none of which has a single file under `vite/dist/` matching `env.PORT` —
+   so `server.port` comes from its config alone. Delete the `-p` and nothing else, and the server quietly
+   takes Vite's own 5173 while the registry records a number nobody binds, which step 5's check cannot
+   see because there is no literal left to report. So the project's `vite.config.ts` reads
+   `process.env.PORT` itself and refuses to start without it:
+
+   ```ts
+   const port = Number(process.env.PORT)
+   if (!port) throw new Error('PORT is unset — start through scripts/dev.mjs, which resolves it')
+   export default defineConfig({ server: { port, strictPort: true } })
+   ```
+
+   `strictPort` is what makes a taken port an error rather than a silent drift to the next one, which is
+   the same property `next dev` gets from an env-sourced port. Where a second launch-time consumer needs
+   the same number — a Tauri `build.devUrl`, a proxy target — it cannot come from `tauri.conf.json`,
+   which is static; resolve once and hand the value to both.
+
 4. **Delete the dead copies — both of them.** Remove the `DEV_PORT=` line from `config/deploy.env`,
    which the deploy script no longer reads, **and any `-p <n>` left inside `DEV_CMD`**. Dropping the
    first alone leaves the duplicate one line lower, where it overrides the `PORT` the script exports and
