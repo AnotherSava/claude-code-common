@@ -124,14 +124,13 @@ def send_to_project(project: str, text: str, from_label: str | None = None) -> l
 
 
 # What the refusal cannot say, because only this side knows how the address was built: the project id is
-# this clone's folder name, handed over as the peer's. The dashboards' display-name fallback covers two
-# clones whose folders differ, so reaching here means one of them lacks that half or the two rows are
-# named differently — which the relay's own wording, correct that this is an address rather than an
+# this clone's folder name, handed over as the peer's, so reaching here means the two clones sit under
+# different folder names — which the relay's own wording, correct that this is an address rather than an
 # ended session, leaves a reader to guess at. Three pushes' notices failed in both directions on
-# 2026-10-06, before the fallback existed, and were read as nobody being there.
-UNKNOWN_PROJECT_HINT = ("that id is this clone's folder name. Where the two clones' folders differ the "
-                        "dashboards' display-name fallback is what carries it, and only a dashboard built "
-                        "with that half has it — so read /api/agents there for the name it registers.")
+# 2026-10-06 that way, and were read as nobody being there.
+UNKNOWN_PROJECT_HINT = ("that id is this clone's folder name, so the peer's clone sits under a different one — "
+                        "read /api/agents there for the name it registers, and rename whichever folder does "
+                        "not match its GitHub repository with /move-project.")
 
 
 def describe(target: str, receipt: dict) -> str:
