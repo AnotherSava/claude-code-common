@@ -149,6 +149,13 @@ Do this in the repo that is behind, not in the dotfiles repo.
    consumer needs the same number — a Tauri `build.devUrl`, a proxy target — it cannot come from
    `tauri.conf.json`, which is static; resolve once and hand the value to both.
 
+   **Leave a real port in `build.devUrl` and override it per run**, with `tauri dev -c <file>` merging a
+   written-at-launch JSON file over the committed config. Emptying that field is the shortcut to avoid:
+   it selects the Tauri CLI's own built-in dev server on 1430, which serves `frontendDist` — usually the
+   last build, sitting in a gitignored `dist/` — and opens a window on it with no error at all.
+   Measurements, and why the override goes in a file rather than inline JSON, are in
+   `learnings/tauri-dev-server-port.md`.
+
 4. **Delete the dead copies — both of them.** Remove the `DEV_PORT=` line from `config/deploy.env`,
    which the deploy script no longer reads, **and any `-p <n>` left inside `DEV_CMD`**. Dropping the
    first alone leaves the duplicate one line lower, where it overrides the `PORT` the script exports and

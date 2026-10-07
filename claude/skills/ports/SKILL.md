@@ -164,8 +164,15 @@ the registry for the same use case and arrive at the same answer:
   drifts upward on a collision. That shim is a committed per-repo file loading `scripts/dev-port.mjs` from
   this skill, so a fix here reaches every project. Version 015's folder holds the template.
 
-Next and Vite both read `PORT`. Next classifies an env-supplied port as source `env` rather than `default`,
-which keeps its retry path off — so the server binds the registry's number or exits, rather than drifting.
+Next reads `PORT` and classifies an env-supplied port as source `env` rather than `default`, which keeps its
+retry path off — so the server binds the registry's number or exits, rather than drifting. Vite reads no
+`PORT` at all: `server.port` comes from its config, so a Vite project's `vite.config.ts` has to read the
+variable itself and refuse to serve without it, which version 015's step 3 spells out.
+
+A Tauri dev run needs the same number in a second place — `build.devUrl`, in a `tauri.conf.json` that is
+static — so that project's `scripts/dev.mjs` writes a per-run override file and passes `tauri dev -c <file>`.
+Leaving the field empty selects the CLI's own dev server on 1430, which serves the last build with no error;
+`~/.claude/learnings/tauri-dev-server-port.md` has the measurements.
 
 Before changing an *assigned* port, still grep the owning repo for it: prose, `.env.example` files and
 tests quote the number even when no launch path does, and they go stale silently.
