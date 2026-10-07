@@ -85,6 +85,11 @@ run "ingress-lint.py" python3 claude/tests/ingress-lint.py
 run "ports.py" python3 claude/tests/ports.py
 run "ports registry" python3 claude/skills/ports/scripts/ports.py check
 
+# The dev-server deploy, run for real against a stand-in server, a scratch registry and no tailnet. A server
+# that inherits the caller's output stream hangs anything reading the deploy to EOF while the script itself
+# exits 0, so no other check notices, and a tool that waits only for the process to exit never shows it.
+run "deploy dev server" python3 claude/tests/deploy-dev-server.py
+
 # The message checker the pre-push hook below calls in every repo that has adopted these
 # conventions, so a false positive there stops real work while a false negative is the hole the
 # checker exists to close.

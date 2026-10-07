@@ -126,12 +126,20 @@ fi
 #    off — so the server binds this number or exits, instead of drifting to the next free one and leaving
 #    the wait below polling a port nothing will ever open. A dev script that resolves the port itself
 #    (`node scripts/dev.mjs`) asks the same registry for the same use case and arrives at the same answer.
+#
+#    None of this command's own streams may reach the server. It outlives the script, so a stream it holds
+#    never closes, and whoever reads this script's output to EOF — `deploy | tail`, a tool capturing it —
+#    waits for as long as the server runs. Start-Process with redirection creates the child with handle
+#    inheritance on, passing it every stream PowerShell holds, so PowerShell gets none of the caller's: its
+#    launch error goes to the server's error log instead, where the timeout message below already points.
+#    claude/tests/deploy-dev-server.py reads the output through a pipe and fails on a held stream.
 export PORT="$DEV_PORT"
 if [ "$OS" = "win" ]; then
     RUN_WIN="$(cygpath -w "$RUN_DIR")"; OUT_WIN="$(cygpath -w "$LOG")"; ERR_WIN="$(cygpath -w "$ERR")"
-    powershell.exe -NoProfile -Command "Start-Process -WindowStyle Hidden -FilePath 'cmd.exe' -ArgumentList '/c','$DEV_CMD' -WorkingDirectory '$RUN_WIN' -RedirectStandardOutput '$OUT_WIN' -RedirectStandardError '$ERR_WIN'" >/dev/null
+    powershell.exe -NoProfile -Command "try { Start-Process -WindowStyle Hidden -FilePath 'cmd.exe' -ArgumentList '/c','$DEV_CMD' -WorkingDirectory '$RUN_WIN' -RedirectStandardOutput '$OUT_WIN' -RedirectStandardError '$ERR_WIN' -ErrorAction Stop } catch { Set-Content -LiteralPath '$ERR_WIN' -Value ('launch failed: ' + \$_); exit 1 }" </dev/null >/dev/null 2>&1 \
+        || echo "  !! the launch itself failed — the reason is in $DEV_DIR/dev-server.err.log"
 else
-    ( cd "$RUN_DIR" && nohup $DEV_CMD >"$LOG" 2>"$ERR" & )
+    ( cd "$RUN_DIR" && nohup $DEV_CMD </dev/null >"$LOG" 2>"$ERR" & )
 fi
 
 # 4. Wait for the port to come up.
