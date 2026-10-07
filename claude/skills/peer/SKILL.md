@@ -49,7 +49,7 @@ python ~/.claude/skills/shared/peer_relay.py send --project <project> --label "<
 EOF
 ```
 
-Use `python3` on macOS. `--project` defaults to this repo's. The helper reads the roster only for the peer device names, then sends to `{device}/{project}` on each with your own project id as the reply address. It prints one receipt line per device, exits non-zero unless every one was `written` or `duplicate`, and prints `NOT SENT … unmeasured` when the dashboard is down, not syncing, or hears no peer. It assumes the peer's clone sits under the same folder name as this one.
+Use `python3` on macOS. `--project` defaults to this repo's. The helper reads the roster only for the peer device names, then sends to `{device}/{project}` on each with your own project id as the reply address. It prints one receipt line per device, exits non-zero unless every one was `written` or `duplicate`, and prints `NOT SENT … unmeasured` when the dashboard is down, not syncing, or hears no peer. It addresses the peer by this clone's folder name. Where the two clones' folders differ, the dashboard falls back to the name given to the row in its UI: the sending one retries an `unknown_project` refusal under its own row's display name, and the receiving one resolves an id no directory derives to the one local project carrying that display name. Each half works only on a dashboard built with it, and nothing checks that the two names are one repository.
 
 Never hand-write the POST. If you must: `target` is `{device}/{project}`, and `from_agent` is your own project id **with no device prefix** — a prefixed one mints an unroutable reply address such as `CHROME/CHROME/claude`. Both are project ids, never `ListAgents` names; take your own from a `/api/agents` row where `local` is true.
 
