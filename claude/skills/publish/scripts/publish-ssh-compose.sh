@@ -608,11 +608,26 @@ RESTARTS="$($SSH "docker inspect $APP_CONTAINER --format '{{.RestartCount}}'" 2>
 STATUS="$($SSH "docker inspect $APP_CONTAINER --format '{{.State.Status}}'" 2>/dev/null)"
 echo "  container: status=$STATUS restarts=$RESTARTS"
 
+# A vhost carrying `lb_try_duration` makes the proxy HOLD a request while the app is absent instead of
+# answering 502 (learnings/caddy-reverse-proxy-restart-window.md), so a per-attempt timeout below that
+# duration aborts inside the hold and reports `000` — which reads as an unreachable host rather than as an
+# app that never bound. Keep this above any duration a vhost is likely to carry; a tenant cannot lower
+# the duration to compensate, having sized it to its own measured restart window.
+VERIFY_TIMEOUT=45
+
 check_url() {
-    local url="$1" code
+    local url="$1" code rc
     for attempt in 1 2 3 4 5 6; do
-        code="$(curl -sS -o /dev/null -w '%{http_code}' --max-time 20 "$url" 2>/dev/null || echo 000)"
+        code="$(curl -sS -o /dev/null -w '%{http_code}' --max-time "$VERIFY_TIMEOUT" "$url" 2>/dev/null)"; rc=$?
         [ "$code" = "200" ] && { echo "  $url -> 200"; return 0; }
+        # Name the timeout rather than letting `000` stand for it: this script keeps "wrong app" and "could
+        # not check" from sharing a sentence elsewhere, and the wording is what an operator acts on.
+        if [ "$rc" = 28 ]; then
+            code="no response within ${VERIFY_TIMEOUT}s — held or unreachable, NOT an app error"
+            # The timeout already waited; a further sleep only lengthens a failing publish.
+            [ "$attempt" != 6 ] && { echo "  attempt $attempt: $url -> $code"; continue; }
+        fi
+        [ -z "$code" ] && code="curl exit $rc"
         [ "$attempt" != 6 ] && { echo "  attempt $attempt: $url -> $code, waiting"; sleep 10; }
     done
     echo "  $url -> $code"
