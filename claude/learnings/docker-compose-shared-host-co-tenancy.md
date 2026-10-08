@@ -277,6 +277,20 @@ That does not relax Landmine 1. The proxy joins every tenant's network, so its r
 union of all of them, and a generic service name still collides across two bridges it straddles. A service name
 has to be unique across the proxy's whole set, whichever single network the service itself sits on.
 
+**Move the tenants one at a time and drop the shared bridge last.** Running `docker network connect <net>
+<container>` attaches a live proxy to a new network with no restart, so it can sit on the shared bridge and
+every per-tenant one at once while tenants migrate in any order. Each tenant's own half is one line in its
+compose file, and it takes effect when that tenant's next deploy recreates the container — until then the old
+reach is still open whatever the file says. The shared network comes off the proxy once the last tenant has
+left, and only then can a check refusing any network carrying two tenants be switched on: added sooner it is a
+true violation, and one red verdict refuses every tenant's publish rather than the offender's.
+
+**A checker keyed on the shared network's literal name goes blind on the tenant that moves.** The rules that
+matter most about a joined network — a `container_name` equal to the service name, no generic name — are gated
+on membership of it, and a predicate matching the old name skips the moved service while still reporting that
+names agree. Key it on `external: true` in the top-level `networks:` block instead, which is what says this
+project joins a network rather than owning it, and is as true of a two-party bridge as of a host-wide one.
+
 ## Caddy `basic_auth`, for gating an app that has no sign-in yet
 
 ```caddyfile
