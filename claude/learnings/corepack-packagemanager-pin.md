@@ -37,8 +37,30 @@ to download it). yarn/pnpm need only plain `corepack enable`: `"packageManager":
 
 Caveat: Corepack's npm support is the least battle-tested of the three (known "version doesn't
 switch" reports; a `COREPACK_ENABLE_AUTO_PIN=0` workaround exists). If it misbehaves, the fallback
-is to treat `packageManager` as metadata (CI's `actions/setup-node` still honors it) and align the
-local npm manually with `npm install -g npm@<version>` on each machine.
+is to align the local npm manually with `npm install -g npm@<version>` on each machine.
+
+## In CI, and why a local `npm -v` is the wrong instrument
+
+Measured 2026-10-08 in a `node:24.19.0` container, against a project pinned to `npm@11.18.0`:
+
+```
+bundled npm:                 11.17.0
+after `corepack enable`:     11.17.0    <- the pin is ignored, silently
+after `corepack enable npm`: 11.18.0    <- downloads it on first call
+```
+
+So a CI step has to say `corepack enable npm`, the same exception as above. The trap is that **the
+development machine is the wrong place to check whether that step works**: a host whose npm already
+matches the pin — a global install among the reasons — reports the pinned version either way, so a
+bare `corepack enable` looks proven while doing nothing. Take the measurement somewhere with no
+prior reason to agree with you; `ci-workflow-local-rehearsal.md` carries the container recipe and the
+general form of that mistake.
+
+**Do not assume `actions/setup-node` installs the pinned version.** Its own `action.yml` at v7
+describes `packageManager` only as an input to the *caching* decision — caching is enabled when
+either `devEngines.packageManager` or the top-level `packageManager` field specifies npm. Whether it
+also switches the npm binary is not measured here, and an explicit `corepack enable npm` step
+removes the question rather than depending on the answer.
 
 ## Windows gotcha: `corepack enable` needs admin
 
