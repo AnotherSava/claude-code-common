@@ -50,7 +50,7 @@ This looks alarming for esbuild (which needs a native binary), but esbuild still
 
 ## GitHub Actions on Node 20 are deprecated — bump majors, but verify inputs first
 
-`actions/checkout@v4`, `actions/setup-node@v4`, `actions/upload-artifact@v4`, `actions/download-artifact@v4` run on Node 20 (GitHub forces them onto Node 24 with a deprecation annotation, pending removal). Latest majors use Node 24: checkout **v7**, setup-node **v6**, upload-artifact **v7**, download-artifact **v8** (each action versions independently — mismatched major numbers are normal).
+`actions/checkout@v4`, `actions/setup-node@v4`, `actions/upload-artifact@v4`, `actions/download-artifact@v4` run on Node 20 (GitHub forces them onto Node 24 with a deprecation annotation, pending removal). Latest majors use Node 24, measured 2026-10-08: checkout **v7**, setup-node **v7**, upload-artifact **v7**, download-artifact **v8** (each action versions independently — mismatched major numbers are normal). Read the current major rather than quoting that list — `github-action-version-bumps.md` carries the one-command query, and a major named here can be three months out of date before anything notices: setup-node 7.0.0 shipped on 2026-07-14.
 
 Before a multi-major jump, confirm the inputs your workflow uses still exist in the target major (don't assume):
 

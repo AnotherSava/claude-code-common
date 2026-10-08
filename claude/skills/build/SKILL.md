@@ -77,6 +77,8 @@ If **GitHub workflow** is `none`:
 
 Generate `.github/workflows/build.yml` following these patterns. Omit commented lines that don't apply; do not leave comments in the output.
 
+**Read each action's current major before emitting it — the pins below are a sample, not a currency claim.** They were correct on 2026-10-08 and each action versions independently, so a copied set goes stale a major at a time with nothing reporting it: this skill shipped `checkout@v5`/`setup-node@v5`/`setup-dotnet@v4` for long enough that a generated workflow's first run was its own staleness check. `github-action-version-bumps.md` carries the one-command query and the inputs to re-confirm at the new ref; `ci-workflow-local-rehearsal.md` carries how to run the result before pushing it.
+
 **npm** (reference: bga-assistant):
 ```yaml
 name: Build
@@ -91,12 +93,17 @@ jobs:
   build:
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v5
+      - uses: actions/checkout@v7
 
-      - uses: actions/setup-node@v5
+      - uses: actions/setup-node@v7
         with:
           node-version-file: .nvmrc  # or node-version: '24' if no .nvmrc
           cache: npm
+
+      # `corepack enable` alone leaves npm at the image's bundled version — measured 2026-10-08 in a
+      # node:24.19.0 container, 11.17.0 against a pin of 11.18.0. npm is the exception among the three
+      # managers and needs naming; without this the run ignores the `packageManager` pin v5 requires.
+      - run: corepack enable npm
 
       - run: npm ci
 
@@ -121,9 +128,9 @@ jobs:
   build:
     runs-on: ubuntu-latest  # or windows-latest for Windows-only targets
     steps:
-      - uses: actions/checkout@v5
+      - uses: actions/checkout@v7
 
-      - uses: actions/setup-dotnet@v4
+      - uses: actions/setup-dotnet@v6
         with:
           dotnet-version: '9.x'
 
@@ -151,9 +158,9 @@ jobs:
         os: [windows-latest, macos-latest]
     runs-on: ${{ matrix.os }}
     steps:
-      - uses: actions/checkout@v5
+      - uses: actions/checkout@v7
 
-      - uses: actions/setup-node@v5
+      - uses: actions/setup-node@v7
         with:
           node-version: '24'  # or node-version-file: .nvmrc
           cache: npm
@@ -163,6 +170,8 @@ jobs:
       - uses: Swatinem/rust-cache@v2
         with:
           workspaces: src-tauri -> target
+
+      - run: corepack enable npm   # see the npm template above for why npm needs naming
 
       - run: npm ci
 
