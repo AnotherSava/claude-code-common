@@ -86,6 +86,14 @@ framework that compiles or warms on boot is still refusing connections after the
 the container timings cannot see that part at all. The 502 observed above was taken while the container
 had been up 14 seconds, which is the evidence that these two are different moments.
 
+The application's own log closes that gap wherever it prints a line on becoming ready. Subtracting the
+database's start from that line's timestamp measures the whole window, the part `docker inspect` is blind
+to included — on a second stack of a database, a one-shot migration and the app, 8.3 seconds, of which the
+migration was 1.66. **Take the sample from a publish nobody has touched by hand.** That one had its
+database container removed beforehand for an unrelated reason, so it paid for a cold start that a publish
+reusing the volume and the image layers does not: it overstates the window, which is the safe direction
+for sizing a duration and the wrong one to quote as a figure.
+
 Raise it when the migration step grows. A schema change that adds minutes of migration silently pushes
 the window back past the duration.
 
@@ -132,3 +140,38 @@ turned on and what interval or fail window it carries.
 Run `caddy adapt` with a local binary of the **same version** as the server. The Caddyfile adapter is
 version-specific, so a directive accepted locally by a newer binary can be rejected by an older server,
 and the failure then surfaces during the install rather than here.
+
+**Ask the running proxy instead, wherever you can reach it.** Adapting a file says what that file means,
+and the admin API says what the server is holding, which is the one that answers whether the retry is live
+on the host right now — a file installed since the proxy last read it adapts correctly and is serving
+nothing. The endpoint is `localhost:2019/config/` inside the container:
+
+```bash
+ssh <box> "docker exec <proxy-container> wget -qO- http://localhost:2019/config/" | python3 <filter>
+```
+
+**Filter it before it reaches a terminal, and print no more than the keys you came for.** A proxy's running
+config carries whatever credentials its own plugins hold, an ACME DNS provider's API token among them. The
+walk above, narrowed to each `reverse_proxy` handler's `dial`, `load_balancing` and `health_checks`, prints
+one line per upstream — which on a shared proxy doubles as a census of which tenants hold the retry and
+which still answer 502 through their own publishes.
+
+## The publish that installs the directive is not protected by it
+
+Check whether the deploy recreates the upstream before it installs the proxy config. In that order the
+publish carrying the retry for the first time runs its own outage window under the config the proxy was
+already holding, which is the one with no retry in it. A 200 afterwards and a `try_duration` in the
+adapted JSON are both true at that point and neither says a request was ever held; the publish after it is
+the first that exercises the setting.
+
+The publish path these projects share has that order. Its script — `publish-ssh-compose.sh` in the
+`publish` skill — brings the stack up with `docker compose up -d` in one step and reaches the vhost only in
+the next, which covers all three of its shapes, since the gated gate call, the ungated co-tenant install
+and the proxy-owner recreate all sit in that later step. A proxy-owner repo is no exception for having its
+config reset into the checkout earlier: the running proxy keeps reading the old file until that step
+recreates the container.
+
+Prove the setting with a `docker restart <app-container>` under a per-second probe instead of waiting for a
+publish. It isolates what is being tested, the proxy config staying put throughout, so the retry is the
+only thing that can be holding a request: one such run held a request 11.36 s and answered it 200, with
+zero 502s across 140 probes.
