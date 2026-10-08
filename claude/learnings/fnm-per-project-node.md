@@ -73,6 +73,36 @@ A monorepo-ish layout with `web/.nvmrc` covers `web/`, not the repo root. Gate s
 with the previous point, a project can be fully pinned and still be built on the wrong runtime by both an
 agent and a fresh terminal.
 
+## A pin naming only a major is satisfied by more than one installed runtime
+
+Pin the patch version wherever a test can tell two patches apart. A `.nvmrc` holding `24` is satisfied by every
+installed 24.x, so which one a shell resolves decides the answer — and which one it resolves varies per shell,
+by both mechanisms above.
+
+The difference that costs most is the embedded tz database, because `Intl` reads it and nothing in a project
+pins it:
+
+| Node | `process.versions.tz` | `America/Vancouver` on 2026-12-01 |
+|---|---|---|
+| v24.15.0 | 2026a | PST |
+| v24.19.0 | 2026b | PDT |
+
+British Columbia moved to permanent DST in 2026b, so a test asserting a Vancouver December wall time against
+UTC-8 passed three gate runs and failed the fourth with no file changed. `America/Los_Angeles` is untouched by
+that release, so a suite can hold several zone assertions and have exactly one flip — which reads as a flaky
+test rather than as a runtime difference.
+
+Do not expect the abbreviation to be where it shows up. The rendered wall-clock moves with the offset, so the
+same instant formats an hour apart on the two runtimes — `12:00:00 PM PST` against `1:00:00 PM PDT` — and an
+assertion carrying no `timeZoneName` at all still flips. Nor is the tz database the only thing that moves with
+the patch: ICU went 78.2 to 78.3 across those two, so collation and formatting output can shift on the same
+upgrade. Measured 2026-10-08, and the 24 line is not special — Node 22.23.2 carries 2026a and renders Vancouver
+exactly as 24.15.0 does.
+
+Two fixes, independent of each other: pin the runtime fully so the gate is reproducible, and date every zone
+assertion in the past, where the offsets are settled. A future offset is a prediction held in whichever copy of
+the database the runtime was built with, and a container base image tagged by major floats the same way.
+
 ## `fnm install <major>` takes the `default` alias
 
 If the default was deliberately aliased to `system` so fnm only overrides inside pinned projects, installing a
