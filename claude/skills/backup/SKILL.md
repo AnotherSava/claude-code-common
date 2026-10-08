@@ -74,7 +74,10 @@ Identify every store holding real data, and never snapshot a live database file:
 | files | copy if immutable/content-addressed; otherwise stage them |
 
 Write the dump to a `.partial` path and `mv` it into place only on success — a dump that dies halfway must
-not leave a truncated archive for restic to snapshot as though it were good. Address containers by their
+not leave a truncated archive for restic to snapshot as though it were good. Check any dump you did not just
+write against the position-independent marker grep in `pg-dump-restore-verification.md` before a restore
+relies on it: the rename cannot catch one that arrived already truncated, and a plain `pg_dump` cut
+mid-`COPY` restores at exit 0 with no complaint. Address containers by their
 project-specific name (`<app>-db`, never `db` or `postgres`): on this box a generic name is a claim on a
 shared namespace, which is how a hostname once served a neighbour's app for 41 hours with every check green.
 
