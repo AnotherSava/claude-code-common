@@ -101,3 +101,8 @@ stops covering the table added last week, leaving stale rows in that one only.
 
 `pg_dump --data-only` emits tables in foreign-key dependency order, so a straight restore works for an acyclic
 schema without deferring constraints.
+
+## Related
+
+- `pg-dump-restore-verification.md` — why the completion-marker check has to be position-independent, and what
+  `ON_ERROR_STOP=1` with `--single-transaction` does not catch on a dump that was cut short.

@@ -111,3 +111,6 @@ as proof.
   there the question is whether anything still needs the data, here it is which of two live servers owns it.
 - `docker-compose-shared-host-co-tenancy.md` — the service rename that strands these containers usually also
   leaves them answering to generic DNS aliases on a shared bridge, which is its own hazard.
+- `pg-dump-restore-verification.md` — how to check a dump is complete and how to load it back. Worth reading
+  before relying on one: a dump truncated mid-`COPY` restores silently, and the completion marker is not where
+  a `tail` will find it.
