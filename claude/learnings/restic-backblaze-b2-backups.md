@@ -31,6 +31,32 @@ print(len({(x["hostname"], tuple(x["paths"])) for x in s}), "group(s) for", len(
 The fixed path pays twice: the restore procedure can quote a path that will actually exist, and
 parent-snapshot selection works, so nightly runs stay incremental.
 
+## A young repository keeps one snapshot more than the ladder asks for
+
+`--keep-daily 7` reads as "one per day", so a day holding three runs looks like it should leave one — and it
+leaves two. From `restic forget --help`:
+
+> If there are not enough snapshots to keep one for each duration related `--keep-{within-,}*` option, the
+> oldest snapshot in the group is kept additionally.
+
+The extra is **conditional on the ladder being underfull**, not a per-window pin: a repository with fewer
+snapshots than the policy has slots keeps its oldest on top of whatever matched, and the extra goes once there
+are enough to fill them. Reading it as a per-window pin predicts two snapshots every day forever, which is
+wrong in the direction that makes a correct repository look broken.
+
+Read `forget`'s own reason column rather than inferring the policy, because it labels the additional one:
+
+```
+2c917b9b  …  oldest daily snapshot / oldest weekly snapshot / oldest monthly snapshot
+1981eb22  …  daily snapshot / weekly snapshot / monthly snapshot
+```
+
+Measured 2026-10-08 on a one-day-old repository with three hand-started runs: the first and last survived and
+the middle one was pruned. This matters mainly because it looks like the group-of-one defect above and is not —
+a count exceeding the ladder by exactly one on a young repository is this, while a count equal to every
+snapshot ever taken is that. `forget --dry-run` distinguishes them for free, where arithmetic on the flags does
+not.
+
 ## Exit code 3 creates a snapshot and reports partial success
 
 `restic backup` exits **3** when some source files could not be read. A snapshot **is** written — it is
@@ -213,6 +239,28 @@ Prefer this over a size threshold. Absolute byte floors are the intuitive check 
 small scale: a few-hundred-KB repository accumulates single-digit KB of unreclaimed garbage per night, so a
 "fail above 100 MiB of excess" rule is thousands of nights from firing. Counting hide markers measures the
 artefact directly and fires immediately.
+
+## The bucket name is global to all of Backblaze, not to your account
+
+Pick `<project>-backups` and it will eventually be refused, because B2 bucket names are unique across every
+Backblaze customer. Common nouns are already taken by strangers.
+
+The refusal is confusing rather than obvious, because the two API calls disagree and both answers are true:
+
+```
+b2_list_buckets  {"bucketName": "scheduler-backups"}  -> {"buckets": []}        # not on YOUR account
+b2_create_bucket {"bucketName": "scheduler-backups"}  -> duplicate_bucket_name  # taken on SOMEONE's
+```
+
+A provisioning script that pre-checks with a filtered list therefore reports the name as free and then fails
+creating it. **`b2_create_bucket` is the authoritative answer; the list only ever describes your own account.**
+Nothing you can call will say who holds the name, so there is no diagnosis to pursue — pick another name.
+
+Prefix the owner rather than mangling the project: `sava-scheduler-backups` stays globally distinctive and
+still sorts and reads as that project's bucket. Expect a convention like `<project>-backups` to acquire
+exceptions over time and keep the exceptions written down, since the bucket name is baked into
+`RESTIC_REPOSITORY`, into the key's scope and into every runbook that quotes either. Measured 2026-10-08, on an
+account whose four existing `<project>-backups` buckets had simply been lucky.
 
 ## The application key
 

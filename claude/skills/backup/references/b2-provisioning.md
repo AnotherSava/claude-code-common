@@ -47,6 +47,12 @@ Substitute `<app>` (the project being backed up), `<bucket>` (conventionally `<a
 `prd_<app>` — never a bare `prd`, which is the shard's root and is inherited, values included, by every
 app beside it.
 
+**On `duplicate_bucket_name`, pick another name — the script's own pre-check cannot see the conflict.** B2
+bucket names are unique across every Backblaze customer, so `b2_list_buckets` reports a name as free while a
+stranger holds it and `b2_create_bucket` is the only call that knows. Prefix the owner
+(`<owner>-<app>-backups`) rather than hunting for whoever has it, which no API will tell you. The learning's
+*bucket name is global to all of Backblaze* section has the measurement.
+
 ```bash
 B2MK=$(doppler secrets get B2_MASTER_KEY -p tools -c prd --plain) \
 B2ID=$(doppler secrets get B2_MASTER_KEY_ID -p tools -c prd --plain) python3 <<'EOF'
