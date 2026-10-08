@@ -66,6 +66,13 @@ run "memos.py" python3 claude/tests/memos.py
 # by hand until this ran.
 run "install links" python3 claude/tests/install-links.py
 
+# The scanner /commit step 5 runs before every commit, against its own controls. It replaced prose
+# that each run reimplemented, and both failures the prose warns about recurred on 2026-10-08: a
+# scan reading no files and reporting "none", and a candidate set of English words whose 1083
+# matches buried every real hit. A control that cannot fail loudly is the one thing this scanner
+# must not ship, so its self-test asserts each one fires rather than that a clean tree is clean.
+run "confidentiality scan" python3 claude/scripts/scan-commit-confidentiality.py --self-test
+
 # Every .py here against the oldest interpreter a caller can hand it. macOS ships 3.9 as
 # /usr/bin/python3, and a non-interactive ssh resolves to it rather than to the Homebrew 3.14 the
 # same machine uses interactively — so nine `tuple[...] | None` annotations under
