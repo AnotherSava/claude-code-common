@@ -38,6 +38,26 @@ body = re.match(r'[A-Za-z0-9+/=_-]*', text[m.end():]).group(0)
 verdict = "real" if len(body) >= 40 else "prefix only"
 ```
 
+**Plant the known positive outside the subject the tool resolves, or the control tests the wrong
+thing and still reports clean.** A checker that takes a path and widens it to the repo containing
+it — anything calling `git rev-parse --show-toplevel`, which is the ordinary way to accept "a path
+inside a project" — reads the *enclosing* repo rather than the file you planted. Put the fixture in
+a scratch directory under the repo under test and the tool measures that repo, finds it conforming,
+and prints the same clean line it prints for a working detector; the fixture is never consulted.
+Measured 2026-10-08: a port-literal rule was handed a planted violation in `tmp/` inside the repo,
+reported clean, and read as a broken detector until the function's own docstring named the trap. Build
+the control as a standalone repo somewhere the tool cannot widen out of — `git init` in a temp dir —
+and name it after whatever identity the tool derives, since that identity is usually the directory
+name and decides which rules apply.
+
+**A scratch directory hides a fixture a second way, so the standalone repo does not rescue it on its
+own.** A scanner that enumerates with `git ls-files --exclude-standard` — which the port rule's
+`_launch_path_files` does, saying in its own docstring that a `package.json` in a scratch `tmp/` is
+nobody's declaration — skips every ignored path whatever root it was given, and `/tmp/` is ignored at
+the root of every repo on this machine by the global excludes file. So a fixture under `tmp/` is
+unread in a fresh `git init` dir too. Plant it where the tool's own globs look, and confirm the
+enumeration lists it before reading any verdict from the run.
+
 ## Two of these are commands whose silence is routine, and both destroyed something
 
 The cases above are searches somebody wrote. The sharper version is a *standard tool* whose
