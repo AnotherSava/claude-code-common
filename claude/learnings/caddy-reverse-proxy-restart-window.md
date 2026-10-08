@@ -144,10 +144,13 @@ and the failure then surfaces during the install rather than here.
 **Ask the running proxy instead, wherever you can reach it.** Adapting a file says what that file means,
 and the admin API says what the server is holding, which is the one that answers whether the retry is live
 on the host right now — a file installed since the proxy last read it adapts correctly and is serving
-nothing. The endpoint is `localhost:2019/config/` inside the container:
+nothing. The endpoint sits on `127.0.0.1:2019` inside the container, and the literal address is the part
+that matters: these images map `localhost` to `::1` in `/etc/hosts` while Caddy's admin listener is IPv4
+only, so the hostname form reports `Connection refused` from an endpoint that is perfectly up — measured
+at exit 1 against exit 0 for the address, in the same container.
 
 ```bash
-ssh <box> "docker exec <proxy-container> wget -qO- http://localhost:2019/config/" | python3 <filter>
+ssh <box> "docker exec <proxy-container> wget -qO- http://127.0.0.1:2019/config/" | python3 <filter>
 ```
 
 **Filter it before it reaches a terminal, and print no more than the keys you came for.** A proxy's running
