@@ -142,6 +142,7 @@
 - [Use the tool you built](feedback_use_the_tool_you_built.md) {always} — make the new instrument the ask, not a fallback; undo hand-done work so the tested path runs it instead
 - [Sort keys live in metadata, not the name](feedback_sort_key_not_in_identifier.md) {always} — an ordering baked into a filename costs a mass rename to change or extend; use a field
 - [Keep your half of the task](feedback_keep_your_half.md) {always} — hand back only what needs a human; reading the log and saying what it shows stays mine
+- [Do the prerequisite](feedback_do_the_prerequisite.md) {always} — an outcome implies the one step it cannot be reached without; do it and say so, don't ask the order
 - [Message a sibling agent](peer_messaging.md) {always} — messages to other agents need no approval to send; each starts a real turn there, so never send one to chat, confirm or thank; the other machine's half goes to its live session, not to a memo or the user's keyboard. **Invoke the `peer` skill before finding, messaging or routing to another session** — `SendMessage` here, `shared/peer_relay.py` across machines; an empty `ListAgents` means local-only, not unreachable.
 - [Rules without dated stories](feedback_rules_without_dated_stories.md) — consolidating rule docs: each rule plus a one-clause reason; drop dated "real case" narratives
 - [Verify the conclusion, not the quotes](feedback_verify_peer_conclusions.md) {always} — a peer's evidence and its inference fail independently; re-derive it
@@ -250,3 +251,4 @@
 - [Ralphex is deprecated](feedback_ralphex_deprecated.md) {always} — don't name it in anything newly written; ask before invoking the `plan-ralphex` skill, whose fate is unstated
 - [Don't quote a foreign heading](feedback_dont_quote_a_foreign_heading.md) — cite another repo's doc by file and fact, never heading text
 - [Clone folder matches the repo](feedback_clone_folder_matches_repo.md) — name local clones after their GitHub repo; fix a mismatch with /move-project, never relay aliasing
+- [Match the use, not the name](feedback_match_the_use_not_the_name.md) — a "does anything consume X" check must match the construct; a repo's own docs satisfy a grep for X
