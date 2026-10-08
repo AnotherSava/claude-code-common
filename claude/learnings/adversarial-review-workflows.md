@@ -113,6 +113,30 @@ output looks rigorous. Spell out what counts as refutation, and that nothing els
 and then add the counterweight explicitly — *"be honest in both directions; do not dismiss a real defect for
 tidiness, and do not pass a nit to look thorough."* Without that sentence the refuters converge on dismissal.
 
+## Re-derive a refutation that closes a question you were going to build on
+
+The orchestrator's own scepticism is usually spent on the confirmed bucket, and that is the half it can
+afford to trust: a confirmed finding gets acted on, so implementing it re-measures it. A **refutation**
+is the verdict that makes you stop looking, and nothing downstream ever checks it.
+
+Measured 2026-10-08, on a review of a capability where a snippet argument completed the name of an
+environment variable. One finder claimed the argument could escape the placeholder and concatenate a
+second read; two independent skeptics, on different lenses, both returned `refuted`. Four lines of
+`caddy adapt` showed it works exactly as the finder described — and the design's whole enforcement rested
+on which way that went, because an argument that cannot escape needs no check on the resulting value.
+
+So: before you write off a refuted finding, ask what you would build differently if it were true. Where
+the answer is "nothing", let the vote stand. Where the answer is a check you were about to leave out,
+re-run the finder's own command yourself. One reproduction is cheap; the review had already paid for two
+agents to get it wrong.
+
+The failure has a shape worth recognising in the refutation text. Both skeptics here confirmed the
+*mechanism* and then refuted the *finding* — one on the grounds that another rule already documented the
+gap, the other that the damage was bounded. "Already documented" is not "already handled", and a bound
+on the damage is not an argument that the mechanism does not exist. A refutation that concedes the
+measurement and argues about consequence is a triage judgement wearing a verify verdict, and it belongs
+in front of you rather than in the discard pile.
+
 ## Count the votes as a majority, and never require unanimity to survive
 
 The gate's polarity is easier to get backwards than it looks, and getting it backwards returns a
