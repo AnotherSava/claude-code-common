@@ -798,6 +798,32 @@ cwd -Fn`, whose last line is `n<path>`. Projects that share a launcher script pr
 once differed only by cwd, and killing by that pattern would have stopped the wrong project's
 server.
 
+## `$!` names the subshell, so `kill` leaves the real child running
+
+Background a *command* and `$!` is that command's PID. Background anything else — a shell function, a
+compound list, a subshell with a `sleep` in front of it — and `$!` is the **subshell's** PID, with the
+program you meant running as its child. A `kill "$!"` then stops the wrapper, the child is reparented to
+`1`, and nothing says so:
+
+```sh
+serve() { python3 server.py "$PORT"; }
+serve & PID=$!          # PID is the subshell's; python3 is its child
+kill -9 "$PID"          # exits 0, python3 keeps serving
+
+( exec python3 server.py "$PORT" ) & PID=$!   # exec replaces the subshell, so PID IS python3
+```
+
+Any form whose last act is `exec` works, which is what makes the delayed-start idiom safe:
+`( sleep 3; exec python3 … ) &` gives a `$!` that is the shell during the sleep and the program
+afterwards.
+
+Measured 2026-10-08, and the failure is quiet in the worst way: a harness measuring whether a proxy
+truncates a response killed the wrapper instead of the server, so every case — including the control that
+existed to *fail* — reported a complete body and read as a clean experiment. The orphan was found with
+`ps -ax -o pid,ppid,command`, holding its port with a `ppid` of 1. Verify the kill rather than the exit
+status: `kill -0 "$PID"` still succeeding, or the port still accepting, is the assertion worth making,
+because `kill` reports on the process it reached and not on the one you wanted.
+
 ## Small differences between the Mac's userland and Git Bash's
 
 Each of these made a test pass on one machine and prove nothing, or fail for a reason unrelated to its subject:
