@@ -291,6 +291,35 @@ on membership of it, and a predicate matching the old name skips the moved servi
 names agree. Key it on `external: true` in the top-level `networks:` block instead, which is what says this
 project joins a network rather than owning it, and is as true of a two-party bridge as of a host-wide one.
 
+**Assert the route a neighbour has lost, with the positives in the same command.** Every other probe here runs
+from the tenant's own side and asks whether the right thing answers; none of them can see the property the split
+buys, which is that a neighbour no longer reaches the app at all. Docker's embedded DNS answers a name only for
+a container sharing a network with the target, so one resolver asked for several names separates the two
+states — provided the same invocation includes names it *does* share a network with. Those are the control: a
+later run that loses them is reporting a broken instrument, and without them a uniformly negative answer and a
+dead probe are the same output.
+
+```bash
+docker exec <a-tenant-container> node -e '
+const d=require("dns");
+for (const n of ["<a name it shares a network with>","<another>","<a moved tenant>","<another>"])
+  d.lookup(n,(e,a)=>console.log((e?"NO-ANSWER "+e.code:"RESOLVED  "+a).padEnd(22), n));
+setTimeout(()=>process.exit(0),6000);'
+```
+
+Node rather than `getent`, which these images do not carry; the proxy's image does, which is why an on-box
+checker running there can use it and a tenant container cannot. Name the controls by that property rather than
+by container, because membership moves as tenants migrate and a hard-coded pair rots into a false alarm. Read
+answer against no-answer and not the error code: verified 2026-10-08 on two throwaway networks, the negatives
+came back `ENOTFOUND` where a real split host reported `EAI_AGAIN` for the same situation.
+
+**A reachability probe shaped `wget … && echo REACHABLE || echo UNREACHABLE` proves nothing.** With `-q` and
+stderr discarded, every non-zero exit collapses into one word, so an absent route, a refused port, a 404 and a
+redirect are indistinguishable — and so is a missing binary. Measured 2026-10-08 from a container that had
+`wget`, on a network it shared with the target, resolving that target's name to an address: the probe still
+printed `UNREACHABLE`, because nothing was listening on the port. A negative from this shape is not evidence
+about the network.
+
 ## Caddy `basic_auth`, for gating an app that has no sign-in yet
 
 ```caddyfile
