@@ -1,11 +1,13 @@
 #!/usr/bin/env python3
-"""PostToolUse: a compose or Caddy file just written that stakes a generic name on a shared bridge.
+"""PostToolUse: a compose or Caddy file just written that stakes a generic name in a shared namespace.
 
 On a box where several projects sit behind one reverse proxy, compose publishes a *service's* name as a DNS
-alias on every network it joins — so a service called `app` claims `app` on the shared network, and the proxy
-resolves whichever container the daemon hands back. That put a commercial storefront on a neighbour's
-application for 41 hours: HTTP 200 throughout, healthchecks green, `caddy validate` clean. The same goes for a
-vhost dropped into a shared conf.d, where the basename is the only thing keeping tenants apart.
+alias on every network it joins — so a service called `app` claims `app` wherever it sits, and the proxy,
+whose resolver searches every network it is itself attached to, resolves whichever container the daemon hands
+back even when the two claimants sit on networks of their own. That put a commercial storefront on a
+neighbour's application for 41 hours: HTTP 200 throughout, healthchecks green, `caddy validate` clean. The
+same goes for a vhost dropped into a shared conf.d, where the basename is the only thing keeping tenants
+apart.
 
 Nothing downstream catches it early. The rules live in `claude/scripts/ingress-lint.py`, which is also what a
 repo's `commit-checks.sh` should call; this file is only the adapter that feeds it one changed path. Loaded by

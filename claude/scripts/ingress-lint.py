@@ -16,11 +16,12 @@ apply — and a `VHOST_SRC` naming a file that does not exist, where they ran ag
 `$CLAUDE_LANDLORD` if the checkout is not a sibling of the repo being linted.
 
 Why: docker compose publishes a service's NAME as a DNS alias on EVERY network the service joins, shared
-external ones included. Two projects each with a service called "app" therefore both answer to "app" on the
-shared bridge, and a proxy attached to it resolves whichever the daemon hands back. In August 2026 that put a
-commercial storefront on a neighbour's application for 41 hours — HTTP 200 throughout, every healthcheck
-green, the config valid. Nothing detects this after the fact except an identity assertion; this prevents it
-instead, at the moment the name is written.
+external ones included. Two projects each with a service called "app" therefore each publish an "app" alias,
+and a proxy attached to both networks resolves whichever the daemon hands back — a resolver searches every
+network the asking container holds, so one external network per tenant does not separate the two claims. In
+August 2026 that put a commercial storefront on a neighbour's application for 41 hours — HTTP 200 throughout,
+every healthcheck green, the config valid. Nothing detects this after the fact except an identity assertion;
+this prevents it instead, at the moment the name is written.
 
 Deliberately stdlib-only, with a hand-rolled reader for the small YAML subset it needs: Claude Code hooks run
 `python -S`, which drops site-packages, so PyYAML is not importable there.
@@ -40,7 +41,7 @@ import os
 import re
 import sys
 
-# Names no single project may own on a bridge it shares with others.
+# Names no single project may own in a namespace it shares with others.
 GENERIC = {
     "app", "web", "api", "db", "database", "redis", "postgres", "mysql", "proxy", "nginx", "caddy",
     "traefik", "worker", "admin", "main", "site", "server", "backend", "frontend", "cache", "queue",

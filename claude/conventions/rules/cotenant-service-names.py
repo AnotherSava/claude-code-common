@@ -2,7 +2,7 @@
 
 Compose publishes a *service's* key as a DNS alias on every network the service joins, so `app`,
 `db`, `caddy` and friends are claims staked in a namespace the neighbours also write to. Two
-projects each calling a service `app` both answer to `app` on the shared bridge, and the proxy
+projects each calling a service `app` both answer to `app`, and a proxy joined to both their networks
 dials whichever the daemon hands back: that is the 41 hours a commercial storefront spent serving a
 neighbour's application, at HTTP 200, with every container healthy and the config valid
 (learnings/docker-compose-shared-host-co-tenancy.md).
@@ -369,7 +369,7 @@ def check(root: str) -> list[str]:
     composes, refusals, unreadable = read_composes(root)
     if unreadable:
         raise OSError(f"{len(unreadable)} compose file(s) could not be opened ({', '.join(unreadable)}), so the "
-                      f"names they publish on the shared bridge were never read")
+                      f"names they publish to the proxy's resolver were never read")
     if refusals:
         # A line this reader cannot classify is a service it would have asserted about without
         # looking, which is why it stops instead. Raised rather than reported as a violation: the
@@ -378,8 +378,8 @@ def check(root: str) -> list[str]:
                          f"key, one of a service's own keys, or a value belonging to the key above it, so nothing "
                          f"was read past them: " + " | ".join(refusals))
     if not composes:
-        # No compose file, so this repo brings nothing up on the shared bridge and claims no name in
-        # a namespace another project writes to. Read off a walk of the whole tree, not off one path.
+        # No compose file, so this repo brings nothing up on the host and claims no name in a
+        # namespace another project writes to. Read off a walk of the whole tree, not off one path.
         return []
     nameless = [compose.path for compose in composes if not compose.project]
     if nameless:

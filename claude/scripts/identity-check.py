@@ -3,8 +3,9 @@
 
 The failure this catches returns HTTP 200. A commercial storefront once served a co-tenant's application for
 41 hours because docker compose publishes a service's name as a DNS alias on every network it joins, two
-projects both had a service called "app", and the proxy — attached to both bridges — resolved the wrong one. Uptime monitoring, container healthchecks and `caddy validate` were all green the entire time. Only
-an identity assertion can see it.
+projects both had a service called "app", and the proxy — attached to both bridges — resolved the wrong one.
+Uptime monitoring, container healthchecks and `caddy validate` were all green the entire time. Only an
+identity assertion can see it.
 
 So this checks two things per target, and the second is the one that matters:
 

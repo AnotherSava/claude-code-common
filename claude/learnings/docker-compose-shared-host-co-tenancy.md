@@ -10,11 +10,17 @@ Companion notes: `tailscale-docker-caddy-gating.md` (the `remote_ip` gate and sp
 
 ## The shape
 
-- One network, created outside every project so no stack's `down` can delete it:
-  `docker network create edge`. Each compose file declares it `external: true`.
-- The proxy joins `edge` **plus** its own project network. Every co-tenant app joins **only** `edge`.
+- **One network per tenant**, each created outside every project so no stack's `down` can delete it:
+  `docker network create <tenant>-edge`. Each compose file declares its own, `external: true`.
+- The proxy joins every tenant's network **plus** its own project network. A tenant's app joins its own network
+  and its own project's internal one, so the proxy is the only container outside that project that reaches it.
 - Each project ships its own vhost file, copied into a directory the proxy imports
   (`import /etc/caddy/conf.d/*.caddy`), and reaches its app **by container name**.
+
+Put every tenant on one shared `edge` instead and each of them reaches all the others' apps directly, past
+every rule in any vhost — the authentication-bypass landmine below. Splitting a shared network costs one
+container recreation per tenant and no vhost change, since the proxy resolves the same container name on the
+new network, and tenants can move one at a time.
 
 ## Landmine 1: the compose *service* name becomes a DNS alias on every network it joins
 
@@ -22,10 +28,27 @@ This is the one that caused the outage. Compose registers **both** the container
 as network aliases, on *every* network the service is attached to. `container_name:` adds an alias; it does not
 suppress the service-name one, and there is no way to turn it off (`networks.<net>.aliases` only ever adds).
 
-So two projects that both call their service `app` publish two `app` aliases onto the shared `edge` bridge. A
-proxy attached to `edge` resolves `app` to whichever Docker's embedded DNS hands back — walked in sandbox
-endpoint order, and not something you control. Worse, if the proxy's *own* vhost also uses a bare `app:3000` for
-its own service on its private network, that name is now ambiguous across two networks at once.
+So two projects that both call their service `app` publish an `app` alias each, and the proxy resolves `app` to
+whichever Docker's embedded DNS hands back — walked in sandbox endpoint order, and not something you control.
+Separate networks do not separate the two claims: a resolver searches every network its own container is
+attached to, so the proxy straddling both is all it takes. A third claimant arrives if the proxy's *own* vhost
+uses a bare `app:3000` for its own service on its private network.
+
+Measured 2026-10-08 on Docker 29.5.2, with two throwaway containers aliased `app` on their own networks and a
+third joined to both: the straddling container answered with one tenant's address on every query, and with the
+same one from a second container attached in the reverse order — so attachment order is not the lever. It
+switched to the other tenant only once that network was disconnected from it, so the resolver namespace is
+exactly the union of the networks the asking container holds. Which rule picks the winner was not established.
+
+```bash
+docker network create t1
+docker network create t2
+docker run -d --name t1-app --network t1 --network-alias app alpine:3.20 sleep 900
+docker run -d --name t2-app --network t2 --network-alias app alpine:3.20 sleep 900
+docker run -d --name probe --network t1 alpine:3.20 sleep 900
+docker network connect t2 probe
+docker exec probe getent hosts app      # one address, and nothing says which of the two it is
+```
 
 What it looks like: the storefront returns HTTP 200 with a perfectly healthy page — belonging to the neighbour.
 No error anywhere. The proxy re-resolves a static upstream on every dial, so it needs no restart to flip, and
@@ -50,7 +73,7 @@ docker inspect <container> --format '{{.NetworkSettings.Networks.<net>.IPAddress
 services:
   calendar-app:                   # NOT `app`
     container_name: calendar-app  # both aliases collapse to one unambiguous name
-    networks: [default, edge]
+    networks: [default, calendar-edge]   # this tenant's own, not a bridge shared with neighbours
 ```
 
 And in the proxy's own vhosts, reverse-proxy to **container names**, never to bare service names — a bare name
@@ -241,9 +264,18 @@ else's, and blindly removing your own file won't clear it. Re-validate after rem
 ## Landmine 5: the shared network is an authentication bypass
 
 Every access rule enforced at the proxy — basic auth, IP gates, path 404s — is bypassed entirely by anything
-already on `edge`, which reaches the app by container name on its own port. `expose:` documents a port; it
-restricts nothing. For an app whose only access control lives in its vhost, membership of the shared network
-*is* full access. Only put trusted co-tenants on it.
+sharing a network with the app, which dials it by container name on its own port. `expose:` documents a port;
+it restricts nothing. For an app whose only access control lives in its vhost, membership of that network *is*
+full access.
+
+**Give each tenant its own network rather than vetting who shares one.** Trust does not hold the line: a
+co-tenant you trust is also whatever its next dependency pulls in, and nothing in your own repo can restrict
+what a container on the same bridge does. With one network per tenant the only other member is the proxy, so
+the bypass has nobody to serve.
+
+That does not relax Landmine 1. The proxy joins every tenant's network, so its resolver namespace stays the
+union of all of them, and a generic service name still collides across two bridges it straddles. A service name
+has to be unique across the proxy's whole set, whichever single network the service itself sits on.
 
 ## Caddy `basic_auth`, for gating an app that has no sign-in yet
 
@@ -340,7 +372,7 @@ Three routes, and only the last is bad luck:
   nothing warns. This qualifies the "renaming a service is safe" note above: renaming a *service* is,
   renaming the **project** is not.
 
-The fix is the one already applied to the shared network — declare it external, create it out of band, so no
+The fix is the one already applied to the tenant networks — declare it external, create it out of band, so no
 stack's `down` can reach it:
 
 ```yaml
