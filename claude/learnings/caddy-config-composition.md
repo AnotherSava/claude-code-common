@@ -96,6 +96,57 @@ not only against the fixed file.
   nothing, so a site expecting it falls back to defaults. If a capability is unavailable, omit the file and
   take the loud import error.
 
+## A snippet argument is substituted inside a token, and can escape it
+
+`import <name> ARG` fills `{args[0]}` in the snippet body, and the substitution is textual rather than
+value-level — so it reaches **inside** another placeholder. That is what lets one snippet carry a
+different value per caller:
+
+```caddyfile
+(mark) {
+	header_up X-Mark {env.PREFIX_{args[0]}}
+}
+```
+
+Called as `import mark ALPHA` that adapts to `{env.PREFIX_ALPHA}`. The same property means the argument
+is not confined to the name it appears to complete. Measured against v2.11.4, every row at exit 0:
+
+| written | adapted value |
+|---|---|
+| `import mark ALPHA` | `{env.PREFIX_ALPHA}` |
+| `import mark BETA}{env.OTHER` | `{env.PREFIX_BETA}{env.OTHER}` |
+| `import mark "BETA} {env.OTHER"` | `{env.PREFIX_BETA} {env.OTHER}` |
+| `import mark` | `{env.PREFIX_{args[0]}}` |
+
+So an argument arriving from somewhere you do not control can read any variable in the process, in two
+spellings, and quoting does not stop it. Where that matters, judge the **adapted value** rather than the
+argument's text: the text has several spellings and the value has one.
+
+The last row is its own trap. With no argument the placeholder survives literally, Caddy warns on stderr
+(`Placeholder {args[0]} index is out of bounds, only 0 argument(s) exist`) and exits 0; at runtime the
+replacer looks up `PREFIX_{args[0]` — unset — and leaves the trailing `}` as the value, so the header
+goes out as the single character `}`. A checker walking the adapted JSON for `{env.NAME}` finds nothing
+in that row, because there is no well-formed placeholder in it to find.
+
+Two neighbouring facts, same version: `header_up NAME value` produces `headers.request.set`, so a value
+an outside client sent in the same field is replaced rather than appended to; and `header_up` outside a
+`reverse_proxy` block is `unrecognized directive`, so a shared layer cannot inject an upstream header
+for every site at once — only a snippet the site itself imports can.
+
+## `{env.NAME}` and `{$NAME}` resolve at different times, and only one is inspectable
+
+- `{env.NAME}` is a **runtime** placeholder. It survives adaptation verbatim, so the adapted JSON shows
+  which variables a config will read.
+- `{$NAME}` is substituted while the Caddyfile is **parsed**, which happens inside the adapt. Unset, it
+  renders as an empty string and leaves nothing behind; set, the real value is baked into the output.
+
+The consequence is the useful half: **an adapt run without the variables cannot see the second form at
+all** — not in its output, and not by reading the file either when the read sits in a heredoc body,
+which a line-based lint normally skips on purpose. To see it, run the adapt *with* a recognisable value
+per variable and search the output for that value. That shape generalises to any templating or config
+system whose substitution happens before the artifact you inspect exists: supply a sentinel instead of
+hoping to spot a placeholder.
+
 ## Import cycles are caught only in the absolute form
 
 A file inside the imported directory that re-imports that directory by **absolute** path gives
