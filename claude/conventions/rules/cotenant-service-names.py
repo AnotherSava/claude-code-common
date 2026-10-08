@@ -15,11 +15,13 @@ the site down behind an HTTP 200, which is the failure mode this convention exis
 Three decisions worth knowing before reading the code.
 
 **The scan is not scoped to services that join an `external:` network**, which is how
-`scripts/ingress-lint.py` scopes the same rule. One tenant here is the measured reason: two of its
-services declare no `networks:` key at all, and the host's own compose file joins that tenant's
-default network to reach them — so the proxy straddles the bridge those two sit on, and "it is not
-on the shared network today" is exactly the defence that does not hold. The real incident had its
-two claimants of `app` on different bridges with the proxy across both.
+`scripts/ingress-lint.py` scopes the same rule. The measured reason is a shape any tenant can be in:
+a service declaring no `networks:` key sits on its project's default bridge, and where the host's own
+compose file joins that bridge to reach the tenant's app, the proxy straddles it — so "it is not on
+the shared network today" is exactly the defence that does not hold. Moving an app onto its own
+ingress network does not settle it either, since whatever services keep no `networks:` key are left
+in exactly that state. The real incident had its two claimants of `app` on different bridges with the
+proxy across both.
 
 **The generic denylist is imported from that lint rather than copied**, so the gate that blocks a
 commit and the rule that reports a repo cannot disagree about what generic means. Two names the

@@ -106,9 +106,9 @@ template field selector rejects the hyphen — so index the inspect JSON instead
 |---|---|---|---|
 | `ingress-lint.py` | the dotfiles `scripts/` dir (global) | prevent, per repo | **nothing yet — run it by hand or from a repo's `commit-checks.sh`** |
 | `ingress-lint.py` (hook adapter) | the dotfiles `hooks/` dir (global) | the same check, on `PostToolUse` | **written and tested, not registered** — see below before writing another |
-| `verify-tenancy.py` | the proxy-owning project's `deploy/` dir | on-box structural check | run by hand |
+| `verify-tenancy.py` | the proxy-owning project's `bin/` dir, reaching the box as `/opt/landlord/bin/verify-tenancy.py` — no tenant keeps a copy | on-box structural check | run by hand |
 | `identity-check.py` | the dotfiles `scripts/` dir (global) | external identity assertion | every publish, via `IDENTITY_CHECK` |
-| `identity-manifest.json` | `hosts/<host>/` in the PRIVATE repo owning the box — **fetched** at publish time, never copied | the per-host data the checker reads | the same `IDENTITY_CHECK` string |
+| the per-host identity manifest | emitted on the box by `/opt/landlord/bin/host-manifest`, which publish finds with `test -x` over the ssh connection it already holds and then runs there | the per-host data the checker reads | the same `IDENTITY_CHECK` string |
 
 **The lint is repo-local and cannot see a collision between two repos** — it catches "this repo claims a generic
 name", never "these two repos claim the same one". That gap is covered downstream: `verify-tenancy.py` sees the
