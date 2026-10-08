@@ -19,7 +19,9 @@ reverse_proxy app-container:3000 {
 
 - `lb_try_duration` — how long to keep selecting an upstream for one request. **Default: zero, meaning
   retries are off.** This is the setting that decides whether a restart costs latency or errors.
-- `lb_try_interval` — how long to wait between attempts. Default `250ms`, which needs no change.
+- `lb_try_interval` — how long to wait between attempts, default `250ms`. Together with the duration it
+  sets how many times one request can reach the upstream, which is the reason to raise it in front of a
+  handler that is expensive or has side effects.
 
 Caddy's own documentation names this exact use: with retries enabled it "can also be used with one or
 more upstreams, to hold requests until a healthy upstream can be selected (e.g. to wait and mitigate
@@ -34,9 +36,10 @@ window. A status code the upstream itself returned is never retried either — a
 the app's answer.
 
 **Count the retries a GET can produce before putting this in front of an expensive or side-effecting
-handler.** The bound is `lb_try_duration` divided by `lb_try_interval`, so the default 250 ms interval
-under a 30-second duration delivers one client request to the application 120 times — measured at exactly
-that, which is also what the arithmetic predicts. Raise the interval, shorten the duration, or both.
+handler.** The count is roughly `lb_try_duration` divided by `lb_try_interval`, with the initial attempt
+sometimes making it one more: a 30-second duration at the default 250 ms interval delivered one client
+request to the application 120 times, and a 5-second duration gave 21 arrivals at that interval against 6
+at a one-second one. Raise the interval, shorten the duration, or both.
 
 ## What health checking costs, and the one setting that wastes the window
 
