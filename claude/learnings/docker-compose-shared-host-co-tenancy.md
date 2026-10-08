@@ -5,8 +5,10 @@ vhost into. The pattern works, but the failure modes are all *silent* — nothin
 starts serving. Learned the hard way when a commercial storefront spent 41 hours serving a completely
 different application.
 
-Companion notes: `tailscale-docker-caddy-gating.md` (the `remote_ip` gate and split-DNS), and
-`nextjs16-prisma7-docker-deploy.md` (compose project naming, per-repo deploy keys).
+Companion notes: `tailscale-docker-caddy-gating.md` (the `remote_ip` gate and split-DNS),
+`nextjs16-prisma7-docker-deploy.md` (compose project naming, per-repo deploy keys), and
+`caddy-reverse-proxy-restart-window.md` — a tenant's own upstream restart, which is one tenant's
+outage where recreating the proxy is everyone's, so the two stay apart.
 
 ## The shape
 

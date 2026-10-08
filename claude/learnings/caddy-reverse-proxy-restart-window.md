@@ -9,6 +9,11 @@ Found while a neighbouring session happened to be probing the host during a publ
 returning 502 with the app container showing `Up 14 seconds`. The publish itself reported success,
 because it verifies after a settle delay — by which time the window has closed.
 
+Companion notes: `docker-compose-shared-host-co-tenancy.md`, for the case this one is not — recreating
+the shared proxy interrupts every tenant at once, where everything below concerns one tenant's own
+upstream going away; and `hand-rolled-tar-streaming.md` for the archive-truncation mechanics this file
+only points at.
+
 ## Turn retries on, and that is the whole fix
 
 ```caddyfile
@@ -143,13 +148,11 @@ indistinguishable from it. **A truncated response carries a success status**, so
 codes reports a healthy site through exactly this failure. What notices is the byte count against the
 declared length, curl's exit, or a check on the content itself.
 
-**Pick that content check by what it reads to, not by what it parses.** A `.tar.gz` missing gzip's last
-eight bytes fails `gzip -t` ("unexpected end of file") and fails bsdtar's `-tzf`, while Python's `tarfile`
-in `r:gz` mode iterates every member and reads all of their bytes without raising — a tar's end-of-archive
-block precedes the gzip trailer, so a consumer satisfied by its members never reaches the part that would
-have told it. Draining the decompressor is what raises, with `EOFError: Compressed file ended before the
-end-of-stream marker was reached`, and reading the members is not draining it. Measured on python 3.14.7
-against a 257-byte archive, which is small enough to decompress in one buffer and still was not caught.
+**Pick that content check by what it reads to, not by what it parses.** A truncated `.tar.gz` fails
+`gzip -t` while a library reader walks every member of it without complaint, so the check you reach for
+decides whether a truncation is caught at all. The mechanism, the measurements and the error's own shape
+live in `hand-rolled-tar-streaming.md`, which is where that archive format is the subject; what matters
+here is only that a parse is not a read.
 
 ## Verify the directive took effect, not just that it parsed
 
@@ -175,6 +178,14 @@ a `selection_policy` key beside the duration. The `HEALTH CHECKS PRESENT` line a
 `health_uri` or `fail_duration` is set, which is how you see which kind of checking a config actually
 turned on and what interval or fail window it carries.
 
+**An absent `try_interval` in that output is not an absent interval in effect.** The adapter emits only
+what the Caddyfile set, so a config carrying the duration alone prints a `load_balancing` object of one
+key while the server still spaces its retries 250 ms apart — which makes this the one value the adapted
+JSON cannot be read to confirm. Write `lb_try_interval` wherever the spacing matters and it becomes
+assertable here. Measured on v2.11.4: `lb_try_duration 45s` on its own adapted to
+`{'try_duration': 45000000000}`, and adding `lb_try_interval 1s` to `{'try_duration': 45000000000,
+'try_interval': 1000000000}`.
+
 Run `caddy adapt` with a local binary of the **same version** as the server. The Caddyfile adapter is
 version-specific, so a directive accepted locally by a newer binary can be rejected by an older server,
 and the failure then surfaces during the install rather than here.
@@ -182,20 +193,51 @@ and the failure then surfaces during the install rather than here.
 **Ask the running proxy instead, wherever you can reach it.** Adapting a file says what that file means,
 and the admin API says what the server is holding, which is the one that answers whether the retry is live
 on the host right now — a file installed since the proxy last read it adapts correctly and is serving
-nothing. The endpoint sits on `127.0.0.1:2019` inside the container, and the literal address is the part
-that matters: these images map `localhost` to `::1` in `/etc/hosts` while Caddy's admin listener is IPv4
-only, so the hostname form reports `Connection refused` from an endpoint that is perfectly up — measured
-at exit 1 against exit 0 for the address, in the same container.
+nothing. The endpoint sits on `127.0.0.1:2019` inside the container, and writing the literal address is
+what keeps the command working whatever client runs it: these images give `localhost` both a `127.0.0.1`
+and a `::1` entry in `/etc/hosts` while Caddy's admin listener is IPv4 only, so a client that tries one
+address and stops reports `Connection refused` from an endpoint that is perfectly up.
+
+Which client it is decides whether the hostname works at all, so a recipe that runs is no evidence the
+hostname is safe for the next one. Measured in one container on v2.11.4: `wget` on `localhost` exits 1,
+`curl` on `localhost` returns 200, and `wget` on the literal address exits 0 — curl carries on to the
+next address for the name and wget stops at the first.
 
 ```bash
 ssh <box> "docker exec <proxy-container> wget -qO- http://127.0.0.1:2019/config/" | python3 <filter>
 ```
+
+**Confirm the image has the client before reading an empty answer as an empty config.** Measured
+2026-10-08 on one proxy image, `command -v curl wget` named only curl. A `docker exec` of a binary the
+image lacks prints nothing on stdout and sends `executable file not found` to stderr, so the `2>/dev/null`
+a command like this tends to acquire turns a missing client into a server holding no sites.
 
 **Filter it before it reaches a terminal, and print no more than the keys you came for.** A proxy's running
 config carries whatever credentials its own plugins hold, an ACME DNS provider's API token among them. The
 walk above, narrowed to each `reverse_proxy` handler's `dial`, `load_balancing` and `health_checks`, prints
 one line per upstream — which on a shared proxy doubles as a census of which tenants hold the retry and
 which still answer 502 through their own publishes.
+
+## Find the installed vhost through the proxy's mounts
+
+Read the container's mounts rather than searching the host for a `conf.d`:
+
+```bash
+docker inspect <proxy-container> --format '{{range .Mounts}}{{.Source}} -> {{.Destination}}{{"\n"}}{{end}}'
+```
+
+Two host directories can both present as the import target. The one mounted at `/etc/caddy` carries a
+`conf.d` of its own, and a separate bind mount can cover `/etc/caddy/conf.d` with a different host
+directory, which leaves the first empty and shadowed while every vhost lives in the second. Measured
+2026-10-08: a `find` for a caddy `conf.d` returned the shadowed directory, holding nothing, while the admin
+API was serving six sites out of the other one.
+
+**A tenant whose installed vhost lacks a directive its repo carries has usually not published since.**
+Compare the installed file's modification time against the commit that introduced the directive, both in
+one timezone. An install older than that commit needs no explanation beyond the ordering — measured
+2026-10-08 at a 44-minute gap. Only an install *newer* than the commit points at a path that is dropping
+the directive, and this comparison is what keeps the first case from being reported to that tenant as the
+second.
 
 ## The publish that installs the directive is not protected by it
 
