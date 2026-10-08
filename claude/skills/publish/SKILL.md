@@ -50,12 +50,12 @@ grew from one target to four.
 ## 2. Co-tenant on a shared host: what the landlord must do first
 
 Skip this when the project owns its own box. It applies when the target fronts several projects behind one
-proxy: a separate private repo (`landlord`) owns that host, and four things must exist there before this
-project's first publish can succeed. None of them is a tenant's to do, and three a tenant *cannot* do — they
-need the host's own credentials, and a tenant holding those is the boundary the whole arrangement exists to
+proxy: a separate private repo (`landlord`) owns that host, and several things must exist there before this
+project's first publish can succeed. None of them is a tenant's to do, and whatever among them needs the host's
+own credentials a tenant *cannot* do — a tenant holding those is the boundary the whole arrangement exists to
 draw. A tenant that finds itself reaching for them has taken a wrong turn, not hit an obstacle.
 
-Ask the landlord session for all four in one message, and wait for confirmation before writing anything below.
+Ask the landlord session for all of them in one message, and wait for confirmation before writing anything below.
 
 | What landlord adds | Why it must come first |
 |---|---|
@@ -63,6 +63,7 @@ Ask the landlord session for all four in one message, and wait for confirmation 
 | A resolver answer — a line in `hosts/<host>/dns/dnsmasq.conf.template`, then `bin/host-publish` and a rebuild of the DNS container | The rendered file is baked into the image at build time, so nothing short of a rebuild applies it. `host-publish` refuses to run without the host credentials, which is exactly why it is not yours to run. |
 | A tailnet split-DNS entry pointing the hostname at the host's tailnet address | Without it the name resolves publicly and never traverses the tailnet. |
 | A manifest entry, under `_not_yet_covered` — **not** `targets` | The gate judges arriving targets absolutely, so a target naming a hostname whose certificate has not issued fails the probe and rolls the whole install back. |
+| An ingress network of this project's own, created on the host with the proxy attached to it | The proxy reaches a tenant only over a network they both hold, so a vhost installed first dials a container it cannot resolve. Nothing automates this: every network is declared `external: true` so that no stack's `down` can delete one, which leaves creating it to something outside compose, and attaching the proxy needs the host's own credentials. Landlord's `CONTRACT.md` states how the network is named and who does which half — read it there rather than copying it here, since it changes in landlord first. |
 
 **Both DNS halves, or neither.** A resolver line without the split-DNS entry is worse than having neither: the
 name resolves publicly, the request arrives from a public address, and any `remote_ip` gate in the vhost locks
