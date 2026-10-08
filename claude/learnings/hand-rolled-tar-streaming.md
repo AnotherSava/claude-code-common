@@ -81,8 +81,12 @@ through one translator rather than only the ones on the payload path, because th
 distinguish them by. A damaged-bytes stream is said to give `Z_DATA_ERROR`; only truncation was exercised
 here.
 
-**Catch both ends.** The rejection fires on the readable and the writable side of the stream, and handling
-one leaves the other unhandled, which exits the process.
+**A discarded `pipeTo` promise loses the error twice.** Reading the readable yourself — `pipeThrough` and
+then `getReader()` — surfaces the rejection once, where a `try` around the read loop catches it and nothing
+is left over. Wiring the same stream with two `pipeTo` calls and discarding both returned promises leaves
+two unhandled rejections instead, one per pipe, which exits the process; awaiting both, or a `Promise.all`
+over them, catches it in one place. Measured on v24.19.0 against a gzip short by eight bytes: nought, two
+and nought unhandled rejections across those three shapes.
 
 **The general shape:** when an inner format carries its own terminator and an outer one carries an
 integrity check, finishing on the inner terminator skips the outer check. Tar inside gzip is one
