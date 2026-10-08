@@ -36,10 +36,19 @@ window. A status code the upstream itself returned is never retried either — a
 the app's answer.
 
 **Count the retries a GET can produce before putting this in front of an expensive or side-effecting
-handler.** The count is roughly `lb_try_duration` divided by `lb_try_interval`, with the initial attempt
-sometimes making it one more: a 30-second duration at the default 250 ms interval delivered one client
-request to the application 120 times, and a 5-second duration gave 21 arrivals at that interval against 6
-at a one-second one. Raise the interval, shorten the duration, or both.
+handler — and read the condition, which is an upstream that accepts the connection and then drops it.**
+While the port is simply closed nothing reaches the application at all, so the amplification is zero
+during a restart window and this paragraph says nothing about that case. Where the upstream does accept,
+the arrival count is roughly `lb_try_duration` divided by `lb_try_interval`: a 30-second duration at the
+default 250 ms interval delivered one client request 120 times, and a 5-second duration gave 21 then 22
+arrivals across two runs at that interval, against 6 then 7 at a one-second one. Approximate, so size
+from the ratio rather than from those figures. Raise the interval, shorten the duration, or both.
+
+**Do not read the zero as a reason to leave the interval alone.** A peer took the amplification as
+covering the dial-refused publish window, found correctly that a closed port delivers nothing, and
+concluded from that incorrectly that `lb_try_interval` buys nothing — then shipped without it. The two
+cases are different failures: a closed port cannot amplify, and an upstream that accepts while unable to
+answer is exactly what a crashing or half-started app does.
 
 ## What health checking costs, and the one setting that wastes the window
 
@@ -59,6 +68,14 @@ exclusion then outlives the retry, so the request fails without ever trying the 
 a 60-second fail window against a 30-second duration gave a 502 at 30.05 s while the upstream had been
 listening for 24 of those seconds, and the next request waited out the remaining exclusion before being
 served.
+
+The mechanism offered for that, read off Caddy's source by another session rather than measured here:
+`max_fails` defaults to 1, so one failed dial marks the single upstream down for the whole
+`fail_duration`, and while it is down Caddy stops attempting the dial at all — which is why an app that
+binds shortly afterwards goes unnoticed. The same reading has `tryAgain`'s guard excluding
+`errNoUpstream` since 2.7.5, which would date the empty-pool retry rather than make it new. Both agree
+with what the measurements above show; the version boundary is unverified here, and an adapted config
+emits no `max_fails` key, consistent with the default.
 
 Active checking answers **503** with `no upstreams available` rather than the 502 a dial failure gives, so
 a probe that matches on 502 misses that case entirely. `fail_duration` defaults to `0`, off — an adapted
@@ -105,13 +122,34 @@ producing errors, and a real outage takes longer to report one. For a site whose
 whose outages are rare, holding is the better default, and it is the reason to size the duration to the
 measured window rather than padding it generously.
 
+**A readiness check pointed at the proxy stops answering while the upstream is down.** The hold applies to
+it exactly as to real traffic, so a probe that used to take its 502 at once now gets nothing until the
+duration expires — and one with a shorter timeout cannot distinguish a proxy that has not started from a
+proxy that is up and holding, because both give it the same silence. Probe the listener with a TCP connect
+instead, or allow the check more time than the duration. A 3-second HTTP readiness loop against a held
+port retried fifty times and hung for 160 seconds.
+
 **It covers selecting an upstream, so it does nothing for a response already in flight.** Caddy's own
 wording is how long to "try selecting available backends for each request", and selection happens before
 any bytes reach the client; once headers and part of a body have gone out they cannot be retracted, and a
 status the upstream returned is never retried. A long streaming route — a download that writes a whole
 database out, an event stream — therefore gives a truncated body when its upstream restarts mid-response,
-and no duration protects it. Reasoned from the documented behaviour and that HTTP constraint rather than
-measured: nobody here has killed an upstream part-way through a download.
+and no duration protects it.
+
+Measured on v2.11.4 against a local upstream that declared a `Content-Length` of 100000 and took ten
+seconds to write it. Killed three seconds in, the client got HTTP 200 with 26624 bytes and curl exited 18,
+`CURLE_PARTIAL_FILE`; the same kill with no `lb_try_duration` at all gave 200 and 28672 bytes,
+indistinguishable from it. **A truncated response carries a success status**, so a probe reading status
+codes reports a healthy site through exactly this failure. What notices is the byte count against the
+declared length, curl's exit, or a check on the content itself.
+
+**Pick that content check by what it reads to, not by what it parses.** A `.tar.gz` missing gzip's last
+eight bytes fails `gzip -t` ("unexpected end of file") and fails bsdtar's `-tzf`, while Python's `tarfile`
+in `r:gz` mode iterates every member and reads all of their bytes without raising — a tar's end-of-archive
+block precedes the gzip trailer, so a consumer satisfied by its members never reaches the part that would
+have told it. Draining the decompressor is what raises, with `EOFError: Compressed file ended before the
+end-of-stream marker was reached`, and reading the members is not draining it. Measured on python 3.14.7
+against a 257-byte archive, which is small enough to decompress in one buffer and still was not caught.
 
 ## Verify the directive took effect, not just that it parsed
 
