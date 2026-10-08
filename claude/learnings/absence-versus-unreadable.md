@@ -75,3 +75,37 @@ The same reasoning decides what counts as damage rather than absence further in.
 present and *fails* — a syntax error, a pruned subdirectory, a refusal from the tool it wraps — is
 damage too, so a `try`/`catch` around the load belongs on the damaged side of the same split rather than
 quietly falling through to the default.
+
+## The same collapse in a reachability probe, and the fix is a control in the same command
+
+A network probe written as `cmd … && echo REACHABLE || echo UNREACHABLE` has the shape this file is
+about: the failing branch fires for no route, a missing tool, a wrong path, a refused port and a
+timeout alike, and prints one word for all of them. Unlike `existsSync` there is no three-answer
+variant to reach for, because the states are not local.
+
+What works instead is a **positive control inside the same invocation** — ask about something that must
+answer alongside the thing that must not:
+
+    docker exec <prober> node -e '
+    const d=require("dns");
+    for (const n of ["<shares-a-network>","<does-not>"])
+      d.lookup(n,(e,a)=>console.log((e?"NO-ANSWER "+e.code:"RESOLVED  "+a).padEnd(22), n));
+    setTimeout(()=>process.exit(0),6000);'
+
+A run that loses the positive is reporting a broken instrument; one that keeps it has measured the
+negative. Two separate commands cannot do this — the control has to share the process, the resolver and
+the moment, or it is evidence about a different run.
+
+Measured 2026-10-08 on Docker 29.5.2, on a box being migrated from one shared bridge to a network per
+tenant. That one-word form, with `wget` as the command, answered `UNREACHABLE` between two containers
+that **do** share a bridge and can reach each other, so a negative from it proved nothing; the DNS
+form distinguished
+`EAI_AGAIN`/`ESERVFAIL` for a container on no shared network from a resolved address for one on a shared
+one, from the same resolver in the same call. `getent` is not available for this: the application images
+on that box ship no `getent`, while the proxy's image does — so a probe that works from one container
+silently fails from another, which is this file's trap in yet another spot.
+
+One more state worth separating here, because it is the one that looked like a result: the *premise* can
+move under the probe. A control run against a container that had migrated minutes earlier returned the
+negative for the right reason and the wrong subject. Read the current membership in the same breath as
+the probe, rather than from a measurement taken earlier in the session.
