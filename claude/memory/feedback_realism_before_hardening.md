@@ -30,6 +30,15 @@ thousand of those lines again.
   and name the ones worth code.
 - A reviewer confirming that the code mishandles a scenario is not evidence that anyone will be in
   it. Ask for the writer or the report before building.
+- **Realism rates an edge case, never a duplication.** A rare scenario earns a warning instead of
+  code because the scenario is what costs little. Two copies of one function cost whatever the next
+  divergence costs, whoever hits it, so "the divergence is unreachable today" does not license
+  parking the consolidation — it is what makes consolidating cheap and safe right now. Seen
+  2026-10-09: three sites resolved a project root by two different rules, the divergence measured
+  unreachable on every configured project on this machine, and it was offered as a memo on exactly
+  that ground; the user asked "why don't we consolidate it right away", and one shared function plus
+  a seven-case test replaced all of it. CLAUDE.md's **Single Source of Logic** governs that call,
+  not this memory.
 - This narrows [[feedback_loud_errors]] beside its self-healing exception: a rare case that is cheap
   to handle by hand gets a log line and a docs sentence without the in-UI error row. Loud surfacing
   still applies to a failure the user cannot notice and act on, and a case whose unhandled path
