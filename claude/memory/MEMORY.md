@@ -186,6 +186,7 @@
 - [Never dump a secret-bearing config section](feedback_never_dump_secret_bearing_config.md) {always} — to check a setting, print only the named keys or masked values; a printed notifications block once leaked a bot token
 - [Classify a dumped secret file first](feedback_classify_before_rotating.md) — committed coordinates need no rotation or scrub; measure reach first
 - ["Not run" must not look like "passed"](feedback_not_run_is_not_pass.md) {always} — a check that can't tell success from never-ran turns an open problem into a closed-looking one; probe the precondition, assert the artifact, print NOT COVERED
+- [Exempt the safe value](feedback_exempt_the_safe_value.md) {always} — a gate for a mandatory step enumerates what it exempts, never what triggers it, so an unknown value still takes the step
 - [A contradiction is the finding](feedback_contradiction_is_the_finding.md) {always} — two instruments disagreeing names the next command; test the subject, don't re-run the liar
 - [Reproduce infra locally before asking](feedback_reproduce_infra_locally_before_asking.md) {always} — a versioned binary plus a topology you can recreate is measurable here; don't ask to touch production for it
 - [Sampling a level misses an edge](feedback_sample_level_miss_edge.md) {always} — polling "is it in state X" can't catch "did X happen"; a shorter interval narrows the blind window and never closes it — get an event, or state the limit
