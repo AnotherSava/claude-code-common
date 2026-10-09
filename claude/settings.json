@@ -101,8 +101,8 @@
           {
             "type": "command",
             "command": "python -S \"$HOME/.claude/hooks/workflow-realism.py\"",
-            "async": false,
-            "timeout": 10
+            "timeout": 10,
+            "async": false
           }
         ]
       }
@@ -311,7 +311,8 @@
     "rust-analyzer-lsp@claude-plugins-official": true,
     "notion-workspace-plugin@notion-plugin-marketplace": true,
     "swift-lsp@claude-plugins-official": true,
-    "firecrawl@claude-plugins-official": true
+    "firecrawl@claude-plugins-official": true,
+    "cc-plugin-diff@builtin": false
   },
   "extraKnownMarketplaces": {
     "claude-code-plugins": {
