@@ -33,10 +33,10 @@ make a picture look better does not.
 ## Capture: where the Screen Recording grant goes matters
 
 Not to the agent's own binary. A native Claude Code install is a bare executable
-named after its version (`~/.local/share/claude/versions/2.1.251`), so:
+named after its version (`~/.local/share/claude/versions/<version>`), so:
 
-- the TCC prompt shows **"2.1.251"** — the filename, because an unbundled binary
-  has no `Info.plist` and no display name;
+- the TCC prompt shows that bare version number — the filename, because an
+  unbundled binary has no `Info.plist` and no display name;
 - the grant goes stale on every update, since the next version is a different
   path;
 - it hands whole-display access to *every* agent session, permanently, for one

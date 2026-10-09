@@ -2,7 +2,7 @@
 //
 // It exists as a separate app bundle for one reason: macOS TCC grants Screen
 // Recording to a *binary*, and the agent that wants the screenshot is a bare
-// executable named after its version (`~/.local/share/claude/versions/2.1.251`).
+// executable named after its version (`~/.local/share/claude/versions/<version>`).
 // Granting it there is both too broad — Screen Recording lets a process read the
 // whole display at any time, for every session, forever — and too fragile, since
 // the next update installs under a new name and the grant goes stale.
