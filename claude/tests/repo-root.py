@@ -35,6 +35,7 @@ Exit:   0 all hold, 1 one does not or a case could not be set up
 
 import os
 import pathlib
+import shutil
 import subprocess
 import sys
 import tempfile
@@ -43,11 +44,13 @@ from typing import List, Optional
 HELPER = pathlib.Path(__file__).resolve().parent.parent / "skills" / "shared" / "repo-root.sh"
 
 
-def resolve(cwd: pathlib.Path, anchors: List[str]) -> Optional[str]:
+def resolve(bash: str, cwd: pathlib.Path, anchors: List[str]) -> Optional[str]:
     """Run resolve_repo_dir with the given anchors from cwd; return its realpath, or None on error."""
     args = " ".join(anchors)
-    script = 'source "%s"\nresolve_repo_dir %s\n' % (HELPER, args)
-    proc = subprocess.run(["bash", "-c", script], cwd=str(cwd), capture_output=True, text=True)
+    # On Windows the answer comes back as an MSYS path (/c/Users/...), which realpath would read as
+    # relative to the current drive; cygpath turns it into the native form the expectations use.
+    script = 'source "%s"\nout="$(resolve_repo_dir %s)" || exit 1\nif command -v cygpath >/dev/null; then cygpath -w "$out"; else printf "%%s\\n" "$out"; fi\n' % (HELPER.as_posix(), args)
+    proc = subprocess.run([bash, "-c", script], cwd=str(cwd), capture_output=True, text=True)
     if proc.returncode != 0:
         return None
     out = proc.stdout.strip()
@@ -70,6 +73,12 @@ def main() -> int:
     if not HELPER.is_file():
         print("repo-root tests: NOT COVERED — %s is missing" % HELPER)
         return 1
+    # A bare "bash" handed to CreateProcess finds System32's WSL launcher before Git Bash on PATH;
+    # spawning which()'s result never reaches System32. learnings/windows-spawning-bash.md.
+    bash = shutil.which("bash")
+    if not bash:
+        print("repo-root tests: NOT COVERED — no bash on PATH")
+        return 1
 
     failures = 0
     checked = 0
@@ -91,14 +100,14 @@ def main() -> int:
         inner = outer / "web"
         seed(outer, ["config/deploy.env"])
         (outer / "plain").mkdir(parents=True, exist_ok=True)
-        check("from-root", resolve(outer, ["config/deploy.env"]), os.path.realpath(str(outer)))
-        check("from-subdir", resolve(outer / "plain", ["config/deploy.env"]), os.path.realpath(str(outer)))
+        check("from-root", resolve(bash, outer, ["config/deploy.env"]), os.path.realpath(str(outer)))
+        check("from-subdir", resolve(bash, outer / "plain", ["config/deploy.env"]), os.path.realpath(str(outer)))
         # Probed one level below the inner root, so the case discriminates: asked from the inner
         # root itself, the $PWD fallback would return it too and a broken anchor match would pass.
         seed(inner, ["config/deploy.env"])
         inner_sub = inner / "src"
         inner_sub.mkdir(parents=True, exist_ok=True)
-        check("nearest-wins", resolve(inner_sub, ["config/deploy.env"]), os.path.realpath(str(inner)))
+        check("nearest-wins", resolve(bash, inner_sub, ["config/deploy.env"]), os.path.realpath(str(inner)))
 
         # anchor-isolation and multi-anchor — a publish-only project.
         #
@@ -112,12 +121,12 @@ def main() -> int:
         pub_sub.mkdir(parents=True, exist_ok=True)
         check(
             "anchor-isolation",
-            resolve(pub_sub, ["config/deploy.env"]),
+            resolve(bash, pub_sub, ["config/deploy.env"]),
             os.path.realpath(str(pub_sub)),
         )
         check(
             "multi-anchor",
-            resolve(pub_sub, ["config/deploy.env", "config/publish.env"]),
+            resolve(bash, pub_sub, ["config/deploy.env", "config/publish.env"]),
             os.path.realpath(str(pub)),
         )
 
@@ -125,7 +134,7 @@ def main() -> int:
         repo = base / "bare-repo"
         (repo / "sub").mkdir(parents=True, exist_ok=True)
         if git_init(repo):
-            check("git-fallback", resolve(repo / "sub", ["config/deploy.env"]), os.path.realpath(str(repo)))
+            check("git-fallback", resolve(bash, repo / "sub", ["config/deploy.env"]), os.path.realpath(str(repo)))
         else:
             uncovered += 1
             print("  NOT COVERED git-fallback — git init failed in the scratch tree")
@@ -138,7 +147,7 @@ def main() -> int:
             ["git", "rev-parse", "--show-toplevel"], cwd=str(lone), capture_output=True, text=True
         )
         if probe.returncode != 0:
-            check("pwd-fallback", resolve(lone, ["config/deploy.env"]), os.path.realpath(str(lone)))
+            check("pwd-fallback", resolve(bash, lone, ["config/deploy.env"]), os.path.realpath(str(lone)))
         else:
             uncovered += 1
             print("  NOT COVERED pwd-fallback — the scratch tree sits inside a git repository")
