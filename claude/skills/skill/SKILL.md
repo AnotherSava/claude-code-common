@@ -117,6 +117,8 @@ When a new skill covers ground an existing memory or learning already documents,
 
 Update the pointer sites in the same change: the `CLAUDE.md` index line, and any hook whose injected reminder cites the old file. Keep in the memory only what the skill can't carry — the preference itself and the *why* — since a memory is always loaded while a skill is invoked on demand.
 
+**A skill that fronts another skill's script states neither its preconditions nor its refusals.** The memory-and-learning case resolves the other way — the skill takes the detail and the older file becomes a pointer — while a fronted skill still owns and enforces its own guard, so the detail stays with it. Offer, run it, and report what it said. Measured 2026-10-09: `/wrap-up`'s ship step asserted that the publish script refuses an unpushed tree, which a project setting `ALLOW_DIRTY_PUBLISH=1` waives, so the copy contradicted the `publish` skill's own page and would have withheld the offer for good on exactly the projects carrying that waiver.
+
 ### Extract optional depth into `references/`
 
 SKILL.md should carry only what every invocation needs. Deep, situational, or rarely-touched knowledge belongs in `references/<topic>.md` with a short pointer from SKILL.md describing *when* to consult it. The model reads the reference on demand, so the entry point stays lean and the detail loads only when relevant.
