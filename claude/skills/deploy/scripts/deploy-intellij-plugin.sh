@@ -10,6 +10,7 @@ esac
 START=${1:-1}
 # Resolve the repo root that holds config/deploy.env, so this works from any subdir — not only the repo root.
 source "$(dirname "${BASH_SOURCE[0]}")/../../shared/repo-root.sh"
+source "$(dirname "${BASH_SOURCE[0]}")/app-process.sh"
 REPO_DIR="$(resolve_repo_dir config/deploy.env)"
 DEPLOY_ENV="$REPO_DIR/config/deploy.env"
 
@@ -112,15 +113,7 @@ case "$OS" in
         # by a "Quit IntelliJ IDEA?" confirmation dialog (returns -128 "User
         # canceled"); without this check the install step would race a live IDE.
         if [ "$stopped" = "1" ] && [ -n "$IDE_PROCESS" ]; then
-            for _ in 1 2 3 4 5; do
-                pgrep -x "$IDE_PROCESS" >/dev/null || break
-                sleep 1
-            done
-            if pgrep -x "$IDE_PROCESS" >/dev/null; then
-                echo "  IDE did not exit gracefully — sending SIGKILL."
-                pkill -9 -x "$IDE_PROCESS" 2>/dev/null || true
-                sleep 1
-            fi
+            wait_for_app_exit "$IDE_PROCESS" "IDE" || echo "  WARNING: the IDE is still running — the install below will race it."
             echo "Done."
         elif [ "$stopped" = "1" ]; then
             sleep 1

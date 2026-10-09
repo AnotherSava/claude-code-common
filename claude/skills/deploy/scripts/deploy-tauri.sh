@@ -18,6 +18,7 @@ fi
 START=${1:-1}
 # Resolve the repo root that holds config/deploy.env, so this works from any subdir — not only the repo root.
 source "$(dirname "${BASH_SOURCE[0]}")/../../shared/repo-root.sh"
+source "$(dirname "${BASH_SOURCE[0]}")/app-process.sh"
 REPO_DIR="$(resolve_repo_dir config/deploy.env)"
 DEPLOY_ENV="$REPO_DIR/config/deploy.env"
 
@@ -151,9 +152,11 @@ case "$OS" in
         pkill -x "$BIN_NAME" 2>/dev/null \
             || osascript -e "quit app \"${PRODUCT_NAME:-$BIN_NAME}\"" 2>/dev/null \
             || true
+        wait_for_app_exit "$PROC_NAME" "${PRODUCT_NAME:-$BIN_NAME}" || echo "  WARNING: it is still running — Step 3 is about to overwrite a live process."
         ;;
     linux)
         pkill -x "$BIN_NAME" 2>/dev/null || true
+        wait_for_app_exit "$PROC_NAME" || echo "  WARNING: it is still running — Step 3 is about to overwrite a live process."
         ;;
 esac
 echo "Done."
@@ -191,7 +194,9 @@ case "$OS" in
         powershell.exe -Command "Start-Process '$INSTALL_DIR\\$INSTALLED_NAME'"
         ;;
     mac)
-        open "$DEST"
+        # A non-zero status here is not the outcome: LaunchServices reports -600 for a request it
+        # went on to honour, so Step 5 decides whether the app started.
+        open "$DEST" || echo "  open reported a failure — Step 5 checks whether the app started anyway."
         ;;
     linux)
         ( "$DEST" >/dev/null 2>&1 & )
@@ -200,22 +205,10 @@ esac
 echo "Done."
 
 echo "=== Step 5: Verifying app started..."
-sleep 2
-case "$OS" in
-    win)
-        if powershell.exe -Command "Get-Process '$PROC_NAME' -ErrorAction Stop" > /dev/null 2>&1; then
-            echo "$BIN_NAME is running. Deploy successful!"
-        else
-            echo "ERROR: $BIN_NAME process not found."
-            exit 1
-        fi
-        ;;
-    mac|linux)
-        if pgrep -x "$BIN_NAME" >/dev/null; then
-            echo "$BIN_NAME is running. Deploy successful!"
-        else
-            echo "ERROR: $BIN_NAME process not found."
-            exit 1
-        fi
-        ;;
-esac
+if wait_for_app_start "$PROC_NAME"; then
+    echo "$PROC_NAME is running. Deploy successful!"
+else
+    echo "ERROR: $PROC_NAME process not found."
+    echo "       The build is installed at $DEST — start it by hand to see what it reports."
+    exit 1
+fi
