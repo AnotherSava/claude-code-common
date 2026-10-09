@@ -350,6 +350,7 @@ Cross-project preferences and feedback. Memory files live in `~/.claude/memory/`
 - [No guessed facts](~/.claude/memory/feedback_no_guessed_facts.md) — don't state a guessed URL/path/endpoint or capability claim as known, or widen a supplied fact when paraphrasing; verify or flag it
 - [Report the divergence](~/.claude/memory/feedback_report_the_divergence.md) — when what you shipped differs from what was approved, say so beside the outcome
 - [Measure the composite](~/.claude/memory/feedback_measure_the_composite.md) — a measured unit times an assumed count is not a measurement; observe the whole from outside
+- [Measure what the optimisation serves](~/.claude/memory/feedback_measure_what_the_optimisation_serves.md) — justify it by the size of the data it operates on, never the mechanism; an empty store with no writer saves nothing
 - [Dedupe before you compare](~/.claude/memory/feedback_dedupe_before_you_compare.md) — a paginated source's record count isn't a count of distinct things; reduce both sides to sets on the identity key before comparing or reporting
 - [Read the evidence you have](~/.claude/memory/feedback_read_the_evidence_you_have.md) — a root cause is read, not constructed; print the output you captured and read the log the failing thing wrote before theorising
 - [Reading an email includes its attachments](~/.claude/memory/feedback_read_email_means_attachments.md) — "check the original email" always means the whole message; the body alone answers a question nobody asked
