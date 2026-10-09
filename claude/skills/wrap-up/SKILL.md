@@ -277,22 +277,37 @@ first-time configuration, and the script is the path for a project already confi
 type** other than `dev-server` as relaunching an app with a window, so the offer *is* the ask `CLAUDE.md`'s
 **Taking Over the Machine** section requires: name the app that gets raised and roughly how long it takes,
 and keep the ask immediately before the run. A `dev-server` binds a port and raises nothing, so it needs no
-such warning. Exempt that one value rather than listing the window-raising ones, because `unknown` is a
-reading that happens on a repo whose deploy does raise a window — `tauri-dashboard` carries no `DEPLOY_TYPE`
-key at all — and an unrecognised type has to land on the asking side. Report what the run printed, a failure
+such warning. Exempt that one value rather than listing the window-raising ones: `dev-server` is the only
+value `/deploy` ever writes, and every other project type is detected structurally — Tauri from
+`src-tauri/tauri.conf.json` — leaving the key absent. So listing the window-raising types would name values
+nothing produces, and skip the ask on every project that has one. Report what the run printed, a failure
 included.
 
-**publish — ship it outward.** Offer it only when `publish: present` **and** step 7's push succeeded. The
-script refuses an unpushed tree unless that project set `ALLOW_DIRTY_PUBLISH=1` — a staging arrangement
-almost nothing has — so offering it after a declined push is offering what cannot happen. The
-`publish` skill's **Authorization** section binds this offer as much as a typed `/publish`: the user has to
-name publishing, so a "yes" carried over from the deploy offer does not clear it — ask for the verb. That
+**publish — ship it outward.** Offer it whenever `publish: present`, with one exception: a push the user
+declined in step 7. Withhold it there and say why — a project carrying `ALLOW_DIRTY_PUBLISH=1` would ship
+that work regardless, and a decision not to put something on the remote is the one thing the script cannot
+see, because it reads a configuration.
+
+**Do not restate the script's own shipping guard here.** It decides what is shippable, and a second copy of
+that rule in this file drifts from it: writing "the script refuses an unpushed tree" without the
+`ALLOW_DIRTY_PUBLISH=1` waiver makes this step contradict the `publish` skill's own page, and withholds the
+offer for good on the projects that carry the waiver. Offer, and report the refusal as the outcome where one
+comes back.
+
+Step 7 also permits a clean tree with nothing to commit, in which case no push happens at all. That still
+gets the offer: the work may have been pushed earlier in the session, and this step is the last thing that
+will mention it before the context is cleared. What the offer cannot know is whether the target is already
+serving that commit, so it may propose a publish that changes nothing — reading the deployed revision is
+the script's business, not a precondition to guess at here.
+
+The `publish` skill's **Authorization** section binds this offer as much as a typed `/publish`: the user has
+to name publishing, so a "yes" carried over from the deploy offer does not clear it — ask for the verb. That
 script proves success by observing the live target rather than by building cleanly; report what it
 observed, and never call a publish done on a green build.
 
 **Do not fold either offer into step 5's gate.** Both have to be asked after `/commit` has run: the
-machine-takeover ask is valid only immediately before the thing it drives, and a publish agreed to before
-the push is agreement to run a script that will refuse.
+machine-takeover ask is valid only immediately before the thing it drives, and a publish agreed to at the
+gate is agreed to before the user has decided whether to push the work it would ship.
 
 ### 9. Hand over to `/clear`
 
@@ -318,8 +333,12 @@ on it.
 - Do NOT configure a deploy or a publish path here, or raise a missing wrapper as a finding. Step 8
   offers what the repo already has; `/deploy` and `/publish` own the configuration, and a project
   that publishes from CI is supposed to have no publish wrapper at all.
-- Do NOT run a publish before step 7's push, and do NOT treat the gate in step 5 as consent for
-  either run.
+- Do NOT offer a publish where the user declined step 7's push, and do NOT treat the gate in step 5
+  as consent for either run.
+- Do NOT predict in step 8 what `deploy` or `publish` will refuse. Offer, run, and report what the
+  script said; its preconditions are its own to enforce. Reading **deploy type** to decide whether
+  the machine-takeover ask needs a window warning is not that — it is this skill's own obligation,
+  and it fails to the asking side.
 - Do NOT claim to have cleared the context.
 
 ## Important
