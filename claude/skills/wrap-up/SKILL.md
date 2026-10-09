@@ -3,19 +3,19 @@ name: wrap-up
 description: >-
   Close out a section of work. Reviews the current session's transcript for questions
   you never answered, concerns you passed over, ideas worth memoing, and follow-ups
-  Claude promised but never delivered; settles each one with you, then runs /commit and
-  hands over to /clear.
+  Claude promised but never delivered; settles each one with you, runs /commit, offers
+  the project's own deploy and publish, and hands over to /clear.
   TRIGGER when: the user runs /wrap-up, or says they are ready to finalize, close out,
   or wrap up the current section of work.
   DO NOT TRIGGER when: the user only wants to commit (use /commit), to park a single
   idea (/memo), or to persist durable knowledge (/reflect).
-allowed-tools: Bash(python ~/.claude/skills/wrap-up/scripts/session_scan.py:*), Bash(python ~/.claude/skills/memo/memos.py:*), Bash(git rev-parse:*), Bash(git status:*), Bash(git log:*), Bash(python ~/.claude/skills/shared/peer_relay.py:*), Bash(python3 ~/.claude/skills/shared/peer_relay.py:*), ListAgents, ToolSearch, SendMessage, Read, Edit, Write, Glob, Grep, Skill
+allowed-tools: Bash(python ~/.claude/skills/wrap-up/scripts/session_scan.py:*), Bash(bash ~/.claude/skills/wrap-up/scripts/ship_wrappers.sh), Bash(python ~/.claude/skills/memo/memos.py:*), Bash(git rev-parse:*), Bash(git status:*), Bash(git log:*), Bash(python ~/.claude/skills/shared/peer_relay.py:*), Bash(python3 ~/.claude/skills/shared/peer_relay.py:*), Bash(bash scripts/deploy.sh), Bash(bash scripts/publish.sh), ListAgents, ToolSearch, SendMessage, Read, Edit, Write, Glob, Grep, Skill
 ---
 
 # Wrap Up
 
 Review everything said in this session for business left unfinished, settle each item with
-the user, then commit, push, and hand over to `/clear`.
+the user, then commit, push, offer to run and ship what was committed, and hand over to `/clear`.
 
 The review exists because the end of a stretch of work is where things quietly go missing:
 a question asked while the user was reading something else, a concern raised in passing, an
@@ -27,6 +27,7 @@ neither will a context that has been compacted. The transcript on disk still hol
 - Uncommitted changes: !`git status --short`
 - Pending memos: !`python ~/.claude/skills/memo/memos.py list --width 120 2>&1 || echo "(the backlog could not be read — the line above says why; it is NOT an empty backlog)"`
 - Session digest: !`python ~/.claude/skills/wrap-up/scripts/session_scan.py`
+- Ship wrappers: !`bash ~/.claude/skills/wrap-up/scripts/ship_wrappers.sh`
 
 ## Working directory
 
@@ -104,6 +105,9 @@ handled. Drop a candidate when:
 - a later step of this skill already owns it: `/commit` runs the remote sync check, `/reflect`,
   `/clean-code`, `/docs-relevance` and the confidentiality scan, so none of those is ever a
   finding here, however live it looks in the transcript
+- step 8 already owns it: the change not having been run on this machine, and not having been
+  shipped to where its users are, are the two offers that step makes, so neither is a finding —
+  a *failure* either one produced during the session still is
 - the other machine's own `/commit` will surface it — an untracked file in that machine's clone of
   this repo is listed in its next commit's **Uncommitted changes** and bundled by the plan-file rule,
   so a wrap-up here adds nothing. Raised as an `answer` on 2026-09-28 (an archived plan left
@@ -254,7 +258,43 @@ dispositions, usually), and let it decide. Do not skip `/commit` itself on these
 unpushed-commit audit in its step 1 and the push in its step 9 have not happened yet, and they
 are why this step exists.
 
-### 8. Hand over to `/clear`
+### 8. Offer to run it here, then to ship it
+
+A section of work closed without either of these leaves the committed change unrun on this machine and
+its users on the previous version, and nothing later in the flow mentions it: `/commit` stops at the
+push, and the context that knew a publish was pending is about to be cleared.
+
+**Ship wrappers** says which of the two per-machine wrappers this repo has. A verb reported `absent` is
+not configured here, and configuring it is `/deploy`'s and `/publish`'s own job, not this skill's — say
+nothing about that verb at all. Where both are absent this step produces no output.
+
+Offer the two separately and in this order, and run each through the repo's wrapper —
+`bash scripts/deploy.sh` and `bash scripts/publish.sh`. Not the `/deploy` or `/publish` skill: those own
+first-time configuration, and the script is the path for a project already configured
+(`~/.claude/memory/feedback_deploy_script_not_skill.md`).
+
+**deploy — run the committed code on this machine.** Offer it when `deploy: present`. Treat every **deploy
+type** other than `dev-server` as relaunching an app with a window, so the offer *is* the ask `CLAUDE.md`'s
+**Taking Over the Machine** section requires: name the app that gets raised and roughly how long it takes,
+and keep the ask immediately before the run. A `dev-server` binds a port and raises nothing, so it needs no
+such warning. Exempt that one value rather than listing the window-raising ones, because `unknown` is a
+reading that happens on a repo whose deploy does raise a window — `tauri-dashboard` carries no `DEPLOY_TYPE`
+key at all — and an unrecognised type has to land on the asking side. Report what the run printed, a failure
+included.
+
+**publish — ship it outward.** Offer it only when `publish: present` **and** step 7's push succeeded. The
+script refuses an unpushed tree unless that project set `ALLOW_DIRTY_PUBLISH=1` — a staging arrangement
+almost nothing has — so offering it after a declined push is offering what cannot happen. The
+`publish` skill's **Authorization** section binds this offer as much as a typed `/publish`: the user has to
+name publishing, so a "yes" carried over from the deploy offer does not clear it — ask for the verb. That
+script proves success by observing the live target rather than by building cleanly; report what it
+observed, and never call a publish done on a green build.
+
+**Do not fold either offer into step 5's gate.** Both have to be asked after `/commit` has run: the
+machine-takeover ask is valid only immediately before the thing it drives, and a publish agreed to before
+the push is agreement to run a script that will refuse.
+
+### 9. Hand over to `/clear`
 
 Once the push is confirmed, close with a single line telling the user to run `/clear`, and say
 what it buys: the next transcript begins at that point, which is what keeps a future `/wrap-up`
@@ -263,7 +303,9 @@ scoped to exactly one section of work.
 This skill cannot run it. Clearing the context is a built-in CLI command, not a skill or a
 tool, so the user has to type it. Recommend it, do not claim to have done it, and do not
 recommend it at all if the user declined the push in step 7, since clearing on top of unpushed
-work throws away the context needed to finish it.
+work throws away the context needed to finish it. A run in step 8 that failed and left something
+to fix withholds it for the same reason: the session holding the output is the one that can act
+on it.
 
 ## Out of scope
 
@@ -273,6 +315,11 @@ work throws away the context needed to finish it.
   digest is the only session source this skill uses.
 - Do NOT do `/reflect`'s job. It captures durable knowledge; this skill captures unfinished
   business. Both run, and they do not overlap.
+- Do NOT configure a deploy or a publish path here, or raise a missing wrapper as a finding. Step 8
+  offers what the repo already has; `/deploy` and `/publish` own the configuration, and a project
+  that publishes from CI is supposed to have no publish wrapper at all.
+- Do NOT run a publish before step 7's push, and do NOT treat the gate in step 5 as consent for
+  either run.
 - Do NOT claim to have cleared the context.
 
 ## Important

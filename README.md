@@ -410,7 +410,7 @@ Parks an off-task idea in the project's memo backlog so it isn't lost — withou
 
 ### Wrap Up
 
-Closes out a section of work. Before anything is committed it re-reads the current session's transcript from disk and surfaces the business left unfinished: questions Claude asked that were never answered, concerns raised and passed over, ideas that should have been memo'd, and follow-ups promised but never delivered. Each finding is settled individually, then `/commit` runs and the section ends at a `/clear`.
+Closes out a section of work. Before anything is committed it re-reads the current session's transcript from disk and surfaces the business left unfinished: questions Claude asked that were never answered, concerns raised and passed over, ideas that should have been memo'd, and follow-ups promised but never delivered. Each finding is settled individually, then `/commit` runs, the committed change is offered to whichever of the project's own `deploy` and `publish` paths exist, and the section ends at a `/clear`.
 
 **Command:** `/wrap-up`
 
@@ -422,7 +422,9 @@ Closes out a section of work. Before anything is committed it re-reads the curre
 - Gates the commit: every finding is answered now, memo'd for later, pinged to the session that owns it, or dropped, and nothing is committed until the list is disposed of
 - Routes work only the other machine can do to the live session there rather than parking it as a memo, and holds that message until the push when the peer has to pull this session's work before it can act
 - Reports a finding in a file the project's upstream owns and goes no further — no memo and no ping — unless it touches a change carried on the user's own branch or an issue they already raised upstream
-- Hands the rest to `/commit` (remote sync, reflect, clean-code, documentation, confidentiality scan, push), then recommends the `/clear` that scopes the next wrap-up to exactly one section
+- Hands the rest to `/commit` (remote sync, reflect, clean-code, documentation, confidentiality scan, push)
+- Offers to run the committed code on this machine and then to ship it outward, so a closed section is not left unrun here or on the previous version for its users — one offer per wrapper the repo actually has, invoking the wrapper rather than the skill that configures it, and nothing said about a verb the project has not configured. A deploy that relaunches an app with a window carries the machine-takeover ask immediately before it, which every deploy type other than `dev-server` gets — including a project whose `config/deploy.env` names no type, since an unrecognised type has to land on the asking side. The publish offer waits for the push, which is what the publish script requires of every project that has not waived that guard with `ALLOW_DIRTY_PUBLISH=1`, and asks for the verb by name, which is what its authorization bar requires
+- Recommends the `/clear` that scopes the next wrap-up to exactly one section, and withholds it where the push was declined or a run left something to fix
 
 ---
 
