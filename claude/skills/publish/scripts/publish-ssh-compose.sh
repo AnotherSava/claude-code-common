@@ -38,8 +38,8 @@
 # Publishes only committed, pushed code. Never bumps a version or creates a tag — that is the `release` verb.
 set -uo pipefail
 
-source "$(dirname "${BASH_SOURCE[0]}")/_repo-dir.sh"
-REPO_DIR="$(resolve_repo_dir)"
+source "$(dirname "${BASH_SOURCE[0]}")/../../shared/repo-root.sh"
+REPO_DIR="$(resolve_repo_dir config/publish.env)"
 ENV_PATH="$REPO_DIR/config/publish.env"
 if [ ! -f "$ENV_PATH" ]; then
     echo "ERROR: no config/publish.env found (looked upward from $PWD, settled on $REPO_DIR)."

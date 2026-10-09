@@ -105,6 +105,14 @@ run "dev-port.mjs" node claude/tests/dev-port.mjs
 # exits 0, so no other check notices, and a tool that waits only for the process to exit never shows it.
 run "deploy dev server" python3 claude/tests/deploy-dev-server.py
 
+# The repo-root resolver those two share. One function now answers "which directory is this project" for every
+# deploy and publish target plus wrap-up's wrapper reporter, where two near-identical copies and an inline
+# git-top-level lookup stood before — so a defect in it reaches every one of them at once, and the anchor being
+# an argument makes a caller passing the wrong one a failure the separate copies could not have. The deploy
+# suite above covers one caller from the root; the subdirectory walk, the anchor isolation and both fallbacks
+# are only pinned here.
+run "repo-root.sh" python3 claude/tests/repo-root.py
+
 # The message checker the pre-push hook below calls in every repo that has adopted these
 # conventions, so a false positive there stops real work while a false negative is the hole the
 # checker exists to close.
