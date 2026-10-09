@@ -25,7 +25,10 @@ value for that key, so a config that looks like it pins the top level does not. 
    change the level and tells you to clear it first.
 2. **`claude --effort <level>`** — that invocation only.
 3. **`/effort <level>`** — live, mid-session. Its own help: *"`/effort` controls how long Claude thinks
-   before answering. `high` for tricky bugs, `low` when you just need a quick edit."*
+   before answering. `high` for tricky bugs, `low` when you just need a quick edit."* In its slider,
+   `s` applies the level to this session only and writes nothing, while Enter saves it as a default
+   and so writes `modelSettings` into user settings — which is a tracked file wherever `~/.claude` is
+   a symlinked checkout. `s` needs 2.1.257 or later, past the 2.1.251 this file was read from.
 4. **`"ultracode": true`** in settings — forces `xhigh` outright.
 5. **`"effortLevel"`** in settings — the standing default.
 6. **`"modelSettings": { "<canonical-model-name>": { "effortLevel": ... } }`** — per-model, same
