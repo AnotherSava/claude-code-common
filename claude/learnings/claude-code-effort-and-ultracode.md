@@ -35,6 +35,19 @@ value for that key, so a config that looks like it pins the top level does not. 
 The effort resolver reads the *merged* settings across all sources (user → project → local → flag →
 policy), so the key works in `~/.claude/settings.json` like any other.
 
+**The standing default and the per-model override are not simply ranked.** Within one settings file the
+per-model entry wins over that file's own `effortLevel`; the precedence list's order holds across files,
+where a stronger file's `effortLevel` beats a weaker file's per-model value. The resolver builds a
+`{default, byModel}` table and prefers a model's own entry wherever it has one:
+
+```js
+return Object.hasOwn(e.byModel, t) ? e.byModel[t] : e.default
+```
+
+Read out of 2.1.251 beside the layer walk that fills `byModel`. How `default` is itself resolved across
+cli, env and settings was not traced, so the across-file half rests on the precedence list rather than on
+this snippet.
+
 ## `ultracode` is a settings key, despite what its description says
 
 ```json
