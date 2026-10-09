@@ -37,8 +37,8 @@ async function parallel(thunks) {
 function finding(id, overrides = {}) {
   return { file: `src/${id}.ts`, summary: `defect ${id}`, failure_scenario: `scenario ${id}`, reached_by: 'none found', frequency: 'rare', cost_unhandled: 'cosmetic', ...overrides }
 }
-function verdict(real, reached, frequency, cost) {
-  return { real, reached, reached_by: reached ? 'call site' : 'none found', frequency, cost_unhandled: cost, reasoning: 'scripted' }
+function verdict(real, reached, frequency, cost, overrides = {}) {
+  return { real, reached, reached_by: reached ? 'call site' : 'none found', frequency, cost_unhandled: cost, duplicates_logic: false, reasoning: 'scripted', ...overrides }
 }
 
 // The ids a fix prompt lists, in the `- [r1-2] file: summary` shape the script writes them.
@@ -87,6 +87,8 @@ async function triageAndStop() {
       finding('false'),
       finding('theoretical-severe', { frequency: 'theoretical', cost_unhandled: 'crash' }),
       finding('theoretical-cosmetic', { frequency: 'theoretical' }),
+      finding('rare-duplication'),
+      finding('unreached-duplication'),
     ],
     2: [finding('common'), finding('round-two-rare')],
   }
@@ -97,6 +99,11 @@ async function triageAndStop() {
     'defect false': verdict(false, true, 'common', 'crash'),
     'defect theoretical-severe': verdict(true, true, 'theoretical', 'crash'),
     'defect theoretical-cosmetic': verdict(true, true, 'theoretical', 'cosmetic'),
+    'defect rare-duplication': verdict(true, true, 'rare', 'cosmetic', { duplicates_logic: true }),
+    // reached_by is overridden because the helper derives 'none found' from reached=false, and a fix-class item
+    // carrying that string would make the 'verifier's evidence, not the reviewer's' check below pass vacuously.
+    // It is also what a verifier marking a duplication would actually write: the copies are there to point at.
+    'defect unreached-duplication': verdict(true, false, 'rare', 'cosmetic', { duplicates_logic: true, reached_by: 'both copies are in the source' }),
     'defect round-two-rare': verdict(true, true, 'rare', 'recoverable'),
   }
   const { result, calls } = await run(ARGS, reviews, verdicts)
@@ -107,6 +114,11 @@ async function triageAndStop() {
   check('untrue is refuted', disposition['defect false'], 'refuted')
   check('reached with a severe cost is fixed even when theoretical', disposition['defect theoretical-severe'], 'fix')
   check('theoretical and cosmetic is dropped', disposition['defect theoretical-cosmetic'], 'drop')
+  // Same ratings as 'defect rare' above, which warns: the flag is the only difference, so this pins the flag.
+  check('a duplication is fixed on the same ratings that warn without it', disposition['defect rare-duplication'], 'fix')
+  // Same ratings as 'defect unreached-severe' above, which drops. The copies are in the source whether or not their
+  // divergence has fired yet, so the flag has to sit above the reached test and not merely above frequency.
+  check('a duplication is fixed even where nothing reaches the divergence', disposition['defect unreached-duplication'], 'fix')
   check('a finding seen in round one is not verified again', result.triage.filter(r => r.finding === 'defect common').length, 1)
   check('round two with nothing fix-class stops the loop', result.stop_reason, 'round 2 found nothing that earns code')
 

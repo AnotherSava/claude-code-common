@@ -20,6 +20,11 @@ const SEVERE = ['data_loss', 'crash', 'wrong_core_output', 'identity_leak']
 const FREQUENCIES = ['common', 'plausible', 'rare', 'theoretical']
 const COSTS = [...SEVERE, 'recoverable', 'cosmetic']
 
+// What duplicates_logic means, held once. The verdict schema's field description and the verifier's step 3 both
+// define this flag for the same reader, so two wordings of it would tell that reader two different things — which is
+// the class `triage` below routes to a fix rather than to a log line.
+const DUPLICATION = 'one computation or step-sequence exists in more than one place, so what it costs is the next divergence between the copies rather than anything the rated scenario does'
+
 const HANDS_OFF = 'Never deploy, start, restart or stop any app, and never open a window. Run no command that launches one.'
 const READ_ONLY = 'You are read-only: do not edit, create or delete any file in the repo. Scratch files go only in a fresh temp directory, which you remove afterwards.'
 
@@ -53,9 +58,10 @@ const VERDICT = {
     reached_by: { type: 'string', description: 'that evidence, or why there is none' },
     frequency: { type: 'string', enum: FREQUENCIES },
     cost_unhandled: { type: 'string', enum: COSTS },
+    duplicates_logic: { type: 'boolean', description: `the finding is that ${DUPLICATION}` },
     reasoning: { type: 'string' },
   },
-  required: ['real', 'reached', 'reached_by', 'frequency', 'cost_unhandled', 'reasoning'],
+  required: ['real', 'reached', 'reached_by', 'frequency', 'cost_unhandled', 'duplicates_logic', 'reasoning'],
 }
 
 const FIX_REPORT = {
@@ -74,6 +80,13 @@ const FIX_REPORT = {
 function triage(verdict) {
   if (!verdict) return 'unverified'
   if (!verdict.real) return 'refuted'
+  // Above the `reached` test, and above frequency, because both describe the scenario while a duplication's cost sits
+  // outside it: the next divergence between the copies, on whatever schedule they are edited. The copies are readable
+  // in the source, so `reached` has nothing to add — and asking a verifier for evidence that the divergence already
+  // fires invites the exact judgement ~/.claude/memory/feedback_realism_before_hardening.md records on 2026-10-09,
+  // where a divergence measured unreachable on every project here was used to argue for parking the consolidation.
+  // `real` still gates it: a finding claimed as a duplication that is not one must not reach the fixer.
+  if (verdict.duplicates_logic) return 'fix'
   if (!verdict.reached) return 'drop'
   if (SEVERE.includes(verdict.cost_unhandled)) return 'fix'
   if (verdict.frequency === 'common' || verdict.frequency === 'plausible') return 'fix'
@@ -115,7 +128,7 @@ function reviewPrompt(lens, round, earlier) {
 }
 
 function verifyPrompt(finding, lens) {
-  return `${CONTEXT}\n\nScope: ${args.scope}\n\n${READ_ONLY} ${HANDS_OFF}\n\nAdversarially verify this finding from the ${lens.key} lens. Judge two things separately.\n1. Truth: does the code mishandle the scenario as described? Reproduce it in scratch space or show why it cannot happen, is already handled, or is a deliberate documented limit. real=false if you cannot demonstrate it.\n2. Realism: find the evidence that something actually puts the code in this state — a call site that passes that input, a log line, a stored record, a user report. A reviewer confirming the code mishandles a case is not evidence that anyone is in it. reached=false when you find none. Then give your own frequency and cost ratings; do not copy the reviewer's.\n\nFinding: ${finding.summary}\nFile: ${finding.file}\nScenario: ${finding.failure_scenario}\nReviewer's reached_by: ${finding.reached_by}\nReviewer's ratings: ${finding.frequency}, ${finding.cost_unhandled}`
+  return `${CONTEXT}\n\nScope: ${args.scope}\n\n${READ_ONLY} ${HANDS_OFF}\n\nAdversarially verify this finding from the ${lens.key} lens. Judge two things separately.\n1. Truth: does the code mishandle the scenario as described? Reproduce it in scratch space or show why it cannot happen, is already handled, or is a deliberate documented limit. real=false if you cannot demonstrate it.\n2. Realism: find the evidence that something actually puts the code in this state — a call site that passes that input, a log line, a stored record, a user report. A reviewer confirming the code mishandles a case is not evidence that anyone is in it. reached=false when you find none. Then give your own frequency and cost ratings; do not copy the reviewer's.\n3. Duplication: set duplicates_logic true when the defect is that ${DUPLICATION}. Your frequency and cost ratings then describe the wrong thing, so give them as you see them and let the flag carry the rest.\n\nFinding: ${finding.summary}\nFile: ${finding.file}\nScenario: ${finding.failure_scenario}\nReviewer's reached_by: ${finding.reached_by}\nReviewer's ratings: ${finding.frequency}, ${finding.cost_unhandled}`
 }
 
 // Each item carries the skeptic's evidence rather than the reviewer's: the reviewer may have had none for a case the
@@ -124,7 +137,7 @@ function verifyPrompt(finding, lens) {
 function fixPrompt(fixes, warns) {
   const list = items => items.map(r => `- [${r.id}] ${r.file}: ${r.summary}\n  scenario: ${r.failure_scenario}\n  reached by: ${r.verdict.reached_by}\n  verifier's reasoning: ${r.verdict.reasoning}`).join('\n')
   const sections = [
-    ...(fixes.length ? [`Fix these confirmed defects. Each was verified true and shown to be reached; where the verifier's reasoning confirms a narrower case than the scenario, fix the case it confirmed:\n${list(fixes)}`] : []),
+    ...(fixes.length ? [`Fix these confirmed defects. Each was verified true and shown to be reached; where the verifier's reasoning confirms a narrower case than the scenario, fix the case it confirmed. An item the verifier marked duplicates_logic is fixed by making one definition every site calls, never by patching the copies in place, since patching each one ships the duplication intact:\n${list(fixes)}`] : []),
     ...(warns.length ? [`For each of these rare cases, add only a log line or a sentence in the docs that names the case. Add no logic, no branch, no guard and no test for them:\n${list(warns)}`] : []),
   ]
   const gate = GATE

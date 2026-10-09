@@ -67,7 +67,12 @@ rest of this memory is written for, and its subagents see this memory only as on
 `CLAUDE.md` — an explicit prompt saying "fix these confirmed defects" overrides it. So the verify
 prompt asks for evidence that something reaches the case and rates frequency and cost, the fix prompt
 receives what earns code plus the rare cases with an instruction to add only a log line or a doc
-sentence, and the loop stops when a round finds nothing that earns code. Run such loops
+sentence, and the loop stops when a round finds nothing that earns code. The verify prompt also asks
+whether the finding is a duplication, and that flag sends it to the fix list whatever its frequency and
+without waiting for anything to reach the divergence — the copies are in the source either way —
+so *Realism rates an edge case, never a duplication* applies where nobody is reading the list either;
+the fix prompt tells the fixer to answer such an item with one definition every site calls rather
+than by patching the copies. Run such loops
 through the saved `review-and-fix` workflow (`claude/workflows/review-and-fix.js`, called as
 `Workflow({name: "review-and-fix", args: {scope, lenses, context, gate}})`), which carries all of it and
 returns the triage table to present. The `workflow-realism.py` hook warns when a workflow's inline
