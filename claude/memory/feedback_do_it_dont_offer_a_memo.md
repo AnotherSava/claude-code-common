@@ -11,7 +11,8 @@ ideas the user drops and for work that genuinely cannot happen now (another box 
 session, a decision that is theirs to make).
 
 **Why:** twice on 2026-09-26 an offered memo came back as "do it right away" and "why memo? if you
-want to do something with it, do it now". Again on 2026-10-08, as "2 fix it now".
+want to do something with it, do it now". Again on 2026-10-08, as "2 fix it now", and on 2026-10-09
+as "why don't you fix it".
 
 **How to apply:** before writing a park-it line, ask whether the fix is reachable now; if it is,
 the line becomes the fix. See [[feedback_gap_in_a_gate_is_a_fix]].
@@ -21,3 +22,9 @@ existing gate to extend is not thereby a memo: that an adoption is new machinery
 whether it can be done today. The 2026-10-08 case was a repo with no CI at all, recommended as a
 memo on exactly that reasoning while the adoption was one workflow file and a container rehearsal.
 Having answered "yes, reachable", that is the answer.
+
+**A step that forbids the fix defers it; it does not turn it into a report.** `/commit` may change no
+files outside its own sub-skills, so a sibling defect its `/docs-relevance` run found — the same race
+in `cleanup-tauri.sh` that the change set had just fixed elsewhere — was carried as "still open"
+through the end of `/wrap-up`. Once the fix is reachable, the blocking step ending is when it
+happens; the report goes beside it, never instead of it.
