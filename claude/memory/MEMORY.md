@@ -155,6 +155,7 @@
 - [Show the artifact with the ask](feedback_show_the_artifact_with_the_ask.md) {always} — a choice between specific artifacts gets the passage that decides each, not only your one-line reading of them
 - [Build the variant sheet, don't iterate](feedback_variant_sheet_for_visual_choices.md) {always} — second tweak to a colour/spacing means one HTML page of every candidate in real context, not another deploy
 - [A fixture must exceed the cap](feedback_fixture_must_exceed_the_cap.md) {always} — sized below a threshold it never reaches the branch and still reports success; count the caps before picking the size
+- [Break the subject to prove the test](feedback_break_the_subject_to_prove_the_test.md) {always} — a green suite proves nothing until a deliberate break fails specific cases; the silent ones aren't testing what they name
 - [Both sides of a comparison](feedback_comparison_you_supply_both_sides.md) {always} — supply both and it has stopped comparing; a term removed for wrong units gets relocated, never dropped
 - [Drive the transition in tests](feedback_drive_the_transition_in_tests.md) {always} — constructing the object at the state under test leaves the read field at its default, which is usually the value that hides the bug
 - [User GitHub account](user_github_account.md) {always} — handle is `AnotherSava`; use to filter "my repos" vs third-party clones
