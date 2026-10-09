@@ -37,11 +37,20 @@ wait_for_app_exit() {
     return 0
 }
 
-# Wait for a launched app to appear in the process table. Returns non-zero when it never does.
+# Wait for a launched app to appear in the process table, then require it to still be there 2s later.
+# Returns non-zero when it never appears or dies inside that window. Appearing alone proves little
+# outside macOS: `Start-Process` and a backgrounded exec create the process before they return, so
+# the first poll succeeds for an app that crashes a second later. Measured 2026-10-09 on Windows: an
+# exe exiting ~1s after launch passed the appear-only check in 2 of 3 trials —
+# learnings/windows-stop-and-relaunch-an-app.md.
 wait_for_app_start() {
     local proc="$1" waited=0
     while [ "$waited" -lt 15 ]; do
-        app_process_running "$proc" && return 0
+        if app_process_running "$proc"; then
+            sleep 2
+            app_process_running "$proc"
+            return
+        fi
         sleep 1
         waited=$((waited + 1))
     done

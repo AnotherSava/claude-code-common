@@ -15,6 +15,7 @@ fi
 START=${1:-1}
 # Resolve the repo root that holds config/deploy.env, so this works from any subdir — not only the repo root.
 source "$(dirname "${BASH_SOURCE[0]}")/../../shared/repo-root.sh"
+source "$(dirname "${BASH_SOURCE[0]}")/../../shared/app-process.sh"
 REPO_DIR="$(resolve_repo_dir config/deploy.env)"
 DEPLOY_ENV="$REPO_DIR/config/deploy.env"
 
@@ -77,10 +78,10 @@ powershell.exe -Command "Start-Process '$INSTALL_DIR\\$ASSEMBLY_NAME.exe'"
 echo "Done."
 
 echo "=== Step 5: Verifying app started..."
-sleep 2
-if powershell.exe -Command "Get-Process '$ASSEMBLY_NAME' -ErrorAction Stop" > /dev/null 2>&1; then
+if wait_for_app_start "$ASSEMBLY_NAME"; then
     echo "$ASSEMBLY_NAME is running. Deploy successful!"
 else
     echo "ERROR: $ASSEMBLY_NAME process not found."
+    echo "       The build is installed at $INSTALL_DIR — start it by hand to see what it reports."
     exit 1
 fi

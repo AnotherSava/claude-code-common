@@ -17,7 +17,7 @@ The same race also lands as `_LSOpenURLsWithCompletionHandler() failed with erro
 
 ## What to do instead
 
-Poll for the process to disappear after the kill, bounded, with a force-kill at the end of the grace; then confirm the launch against the process table rather than the launcher's status. Both waits live in `claude/skills/shared/app-process.sh`, sourced by the deploy and cleanup targets that stop a desktop app. A removal races the same way a relaunch does: `rm -rf` over a bundle whose process is still running unmaps the binary under it.
+Poll for the process to disappear after the kill, bounded, with a force-kill at the end of the grace; then confirm the launch against the process table rather than the launcher's status, and keep checking for long enough to catch a crash on startup (`windows-stop-and-relaunch-an-app.md` has why the process appearing is not enough). Both waits live in `claude/skills/shared/app-process.sh`, sourced by the deploy and cleanup targets that stop a desktop app. A removal races the same way a relaunch does: `rm -rf` over a bundle whose process is still running unmaps the binary under it.
 
 ## Reproducing it without taking the screen
 
