@@ -1,5 +1,6 @@
 #!/usr/bin/env bash
-# Shared helper for the deploy targets that stop and start a desktop app — sourced, never executed.
+# Shared helper for the deploy and cleanup targets that stop a desktop app, and for deploy's own
+# check that it started again — sourced, never executed.
 # Expects $OS (win | mac | linux) from the calling script.
 #
 # A launcher's exit status does not say a process is running, so both waits below ask the process
@@ -21,7 +22,7 @@ app_process_running() {
 # Wait for a signalled app to actually exit, then SIGKILL whatever is left. Called from the mac and
 # linux stop paths only — the Windows ones kill through `Stop-Process -Force` and do not wait.
 # Returns non-zero only when even the SIGKILL left it running — the caller is then about to
-# overwrite the files of a live process, which is worth saying out loud.
+# overwrite or remove the files of a live process, which is worth saying out loud.
 wait_for_app_exit() {
     local proc="$1" label="${2:-$1}" waited=0
     while [ "$waited" -lt 10 ]; do

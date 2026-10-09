@@ -7,6 +7,8 @@ case "$(uname -s)" in
     *) OS=linux ;;
 esac
 
+source "$(dirname "${BASH_SOURCE[0]}")/../../shared/app-process.sh"
+
 REPO_DIR="$(pwd)"
 DEPLOY_ENV="$REPO_DIR/config/deploy.env"
 
@@ -158,8 +160,15 @@ case "$OS" in
         pkill -x "$BIN_NAME" 2>/dev/null || true
         ;;
 esac
-# Wait briefly so the next rm doesn't race the running process's mmap'd binary.
-sleep 1
+# Every scope below wants the app gone rather than merely signalled: `rm -rf` over the bundle unmaps
+# the running process's binary, and app data or caches can still be written by a process that has not
+# exited — so the wait does not depend on which scopes were asked for. Windows keeps a brief sleep:
+# whether a handle outlives `Stop-Process` there is unmeasured, and `deploy-tauri.sh`'s Windows stop
+# path carries the same open question.
+case "$OS" in
+    win) sleep 1 ;;
+    *)   wait_for_app_exit "$PROC_NAME" "${PRODUCT_NAME:-$BIN_NAME}" || echo "  WARNING: it is still running — the removal below may fail." ;;
+esac
 echo "Done."
 
 # remove_path is a small helper so each branch reports the same way: a `gone`

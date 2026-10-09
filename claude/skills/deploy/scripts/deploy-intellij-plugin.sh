@@ -10,7 +10,7 @@ esac
 START=${1:-1}
 # Resolve the repo root that holds config/deploy.env, so this works from any subdir — not only the repo root.
 source "$(dirname "${BASH_SOURCE[0]}")/../../shared/repo-root.sh"
-source "$(dirname "${BASH_SOURCE[0]}")/app-process.sh"
+source "$(dirname "${BASH_SOURCE[0]}")/../../shared/app-process.sh"
 REPO_DIR="$(resolve_repo_dir config/deploy.env)"
 DEPLOY_ENV="$REPO_DIR/config/deploy.env"
 

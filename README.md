@@ -246,6 +246,7 @@ The destructive counterpart to `deploy`: stops the running app, removes the inst
 - Auto-configures `cleanup()` shell function in the platform-appropriate rc file (`~/.zshrc` on macOS, `~/.bashrc` on Windows Git Bash / Linux)
 - Creates `scripts/cleanup.sh` wrapper pointing to the global cleanup script
 - Always asks which of bundle / app data / caches to remove — never assumes
+- On macOS and Linux the stop step waits for the app to be gone before anything is removed, through the same wait the Tauri deploy target uses: `rm -rf` over a bundle whose process is still running unmaps the binary under it. The Windows path keeps a short sleep instead, since whether a handle outlives `Stop-Process` there is unmeasured
 - Backs up paths listed in `BACKUP_FILES=` to `.cleanup-backups/<timestamp>/` before wiping data
 - Recognizes Tauri projects; after first `/cleanup`, use `! cleanup` for instant runs
 
