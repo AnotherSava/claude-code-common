@@ -5,6 +5,7 @@
     python engine.py status <repo-root>        where this repo stands
     python engine.py adopt <repo-root> <n>     write the record
     python engine.py decline <repo-root> <n> <reason>   decline an optional version, in a fork
+    python engine.py fork <repo-root>          the upstream owner when this repo is a fork, else nothing
 
 One module owns both halves because every other surface asks one of them a question — the
 `/adopt` skill, the session-start notice, `memos.py`, the cross-machine status report — and a
@@ -684,7 +685,13 @@ def main() -> int:
         if len(rest) < 3:
             return _usage("decline <repo-root> <version> <reason>")
         return cmd_adopt(os.path.abspath(rest[0]), rest[1], " ".join(rest[2:]))
-    return _usage("{versions|status|adopt|decline}")
+    if command == "fork":
+        if len(rest) != 1:
+            return _usage("fork <repo-root>")
+        # The pre-push hook asks this to exempt upstream's commits, and must get /adopt's answer.
+        print(fork_of(os.path.abspath(rest[0])) or "")
+        return 0
+    return _usage("{versions|status|adopt|decline|fork}")
 
 
 if __name__ == "__main__":

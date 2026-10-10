@@ -107,6 +107,31 @@ git -C "$T/plain" checkout -q -b fresh; echo n > "$T/plain/n.txt"; commit "$T/pl
 check "$(push "$T/plain" origin fresh)" 1 "unsigned commit on a new branch rejected"
 git -C "$T/plain.git" update-ref -d refs/heads/fresh 2>/dev/null; git -C "$T/plain" checkout -q main
 
+# A fork pushing a rebase onto upstream: upstream's own commits are exempt, the fork's are not. The
+# remote URLs name owners for the engine's fork test, and pushurl sends the push to disk instead.
+git init -q --bare "$T/fork.git"; repo "$T/fork"
+echo a > "$T/fork/a.txt"; commit "$T/fork" a
+git -C "$T/fork" remote add origin "git@github.com:AnotherSava/thing.git"
+git -C "$T/fork" config remote.origin.pushurl "$(url "$T/fork.git")"
+git -C "$T/fork" push -q origin main 2>/dev/null
+git -C "$T/fork" update-ref refs/remotes/origin/main HEAD
+git -C "$T/fork" remote add upstream "git@github.com:someone-else/thing.git"
+echo b > "$T/fork/b.txt"; commit "$T/fork" "theirs" --no-gpg-sign
+git -C "$T/fork" update-ref refs/remotes/upstream/main HEAD
+echo c > "$T/fork/c.txt"; commit "$T/fork" ours
+check "$(push "$T/fork" origin main)" 0 "a fork's push carrying upstream's unsigned commit allowed"
+echo d > "$T/fork/d.txt"; commit "$T/fork" "ours unsigned" --no-gpg-sign
+check "$(push "$T/fork" origin main)" 1 "a fork's own unsigned commit still rejected"
+git -C "$T/fork" reset -q --hard HEAD~1
+echo e > "$T/fork/e.txt"; commit "$T/fork" "theirs again" --no-gpg-sign
+git -C "$T/fork" update-ref refs/remotes/upstream/main HEAD
+git -C "$T/fork" remote set-url upstream "git@github.com:AnotherSava/thing.git"
+check "$(push "$T/fork" origin main)" 1 "an upstream remote of our own exempts nothing"
+git -C "$T/fork" remote set-url upstream "git@github.com:someone-else/thing.git"
+git -C "$T/fork" remote set-url origin "git@github.com:someone-else/thing.git"
+git -C "$T/fork" config remote.origin.pushurl "$(url "$T/fork.git")"
+check "$(push "$T/fork" origin main)" 1 "a third-party clone's upstream exempts nothing"
+
 # Lines that carry no commits
 check "$(printf '' | hook_direct "$T/plain")" 0 "empty stdin"
 git -C "$T/plain" push -q origin main:tmpb 2>/dev/null

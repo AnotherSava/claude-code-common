@@ -11,6 +11,12 @@
 #      .claude/conventions record — a third-party clone keeps its own style, and core.hooksPath
 #      points every repo on the machine at this hook
 #
+# In a fork (origin ours, upstream someone else's, as ~/.claude/conventions/engine.py decides it),
+# commits reachable from the upstream remote are not checked: a rebase onto upstream pushes the
+# upstream author's commits to origin, and they carry that author's signature and message style.
+# Only `upstream` is exempted, never every remote: a commit on origin is ours, and an updated branch
+# still checks the ones its remote sha does not already hold.
+#
 # Git LFS installs its own hooks wherever core.hooksPath points, and stops at this non-LFS pre-push,
 # so no LFS hook runs anywhere and a push would send LFS pointers without their objects, silently.
 # So this hook calls `git lfs pre-push` itself, wherever the push can carry LFS content: the repo has a
@@ -32,6 +38,7 @@ errors=0
 declares_lfs=0
 new_commits=""
 MSG_CHECKER="$HOME/.claude/scripts/check-commit-message.py"
+ENGINE="$HOME/.claude/conventions/engine.py"
 
 # The null object id is 40 zeros under SHA-1 and 64 under SHA-256; blank counts as null too.
 is_null() {
@@ -40,6 +47,19 @@ is_null() {
 
 # Git gives the refs on stdin once, and `git lfs pre-push` needs them as well.
 input=$(cat)
+
+# A bare repo has no top level and is never a fork, so it checks everything.
+upstream_exempt=""
+top=$(git rev-parse --show-toplevel 2>/dev/null || true)
+if [ -z "$top" ]; then
+    :
+elif [ -f "$ENGINE" ]; then
+    if [ -n "$(python3 "$ENGINE" fork "$top")" ]; then
+        upstream_exempt="--not --remotes=upstream"
+    fi
+else
+    echo "WARNING: $ENGINE is missing, so a fork's upstream commits are checked as if they were ours." >&2
+fi
 
 while read -r local_ref local_sha remote_ref remote_sha; do
     # Skip the blank line an empty push leaves, and delete pushes
@@ -59,7 +79,7 @@ while read -r local_ref local_sha remote_ref remote_sha; do
     fi
 
     # Assigned first so a failing rev-list stops the push, rather than checking nothing and passing
-    commits=$(git rev-list $range)
+    commits=$(git rev-list $range $upstream_exempt)
 
     new_commits="$new_commits $commits"
 
