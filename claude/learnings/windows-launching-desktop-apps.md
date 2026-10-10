@@ -13,7 +13,7 @@ The flags around it:
 - **`ERROR_ELEVATION_REQUIRED` (740)** means the exe's manifest or compatibility setting asks for administrator rights. `CreateProcessW` cannot elevate, so report it as its own failure ("set to run as administrator") rather than as a generic one.
 - **The process handle** is how to tell a crash from a hand-over: `WaitForSingleObject` with a timeout, then `GetExitCodeProcess`. A launcher that hands over to a running instance usually exits 0. Close the thread handle at once and the process handle on drop.
 
-On macOS the equivalent is `/usr/bin/open -g -j -a <bundle>` (do not activate, launch hidden). Unverified there.
+On macOS the equivalent is `/usr/bin/open -g -j -a <bundle>` (do not activate, launch hidden). Verified 2026-10-09 on macOS 27 with TextEdit: `open` exited 0, the app ran, `lsappinfo` reported it `(hidden)`, and the frontmost app stayed the terminal that made the call. Read the hidden state from `lsappinfo info -only StatusLabel "$(lsappinfo find bundleID=<id>)"`, which needs no accessibility or automation permission — a System Events query for the same fact raises a permission dialog.
 
 ## Know whether it already runs
 
