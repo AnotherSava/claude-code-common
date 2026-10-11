@@ -267,6 +267,12 @@ for d in "$HOME/.local/bin" "$HOME/bin" /usr/local/bin; do
 done
 ```
 
+**A word starting with `=` is a command lookup in zsh.** zsh's `EQUALS` option expands `=name` to
+the path of the command `name`, so an unquoted separator like `echo ======` fails with
+`(eval):1: ===== not found`, and the rest of the line never runs. Measured 2026-10-10 on macOS: in
+`sed -n …; echo ======; sed -n …`, only the first `sed` printed and the call exited 1. Quote it
+(`echo '---'`), or use a separator that does not start with `=`.
+
 **Verify with the target shell, not the tool.** `bash -n file` / `sh -n file` catch parse
 errors, and running the script under each shell catches the splitting differences. Note
 `bash -n` on an *empty* file also passes — if extraction produced nothing, the check is
