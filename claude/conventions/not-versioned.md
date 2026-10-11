@@ -82,8 +82,9 @@ every line not yet written.
 
 - **Python style** — type hints on every parameter and return, imports at the top in stdlib /
   third-party / local groups, no early-return guard that changes nothing.
-- **Explicit state over an overloaded sentinel**, and splitting a field rather than adding a
-  discriminator whose only job is to say which meaning that field currently holds.
+- **Explicit state over an overloaded sentinel**, and removing the reason a field holds two meanings —
+  splitting it, or no longer storing a derived value in it — rather than adding a discriminator whose
+  only job is to say which meaning that field currently holds.
 - **Single source of logic**, and confirming the path you fix is the one that actually runs.
 - **Prose and UI style** — single-line expressions preferred, sentence case for UI strings, no backticked
   code opening a sentence, parallel enumerations sharing grammatical form, describing the thing as it is

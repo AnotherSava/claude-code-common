@@ -33,7 +33,7 @@ script need a port?" had no answer a rule could reach.
 
 Where a copy genuinely cannot go (a number fixed by an outside party, a compiled-in default, prose a
 human reads), declare each one with its reason in the single source so the check allows exactly those.
-The Explicit State rule in `CLAUDE.md` is the same move one size down: split a field rather than adding
-a discriminator for which meaning it holds.
+The Explicit State rule in `CLAUDE.md` is the same move one size down: split a field, or stop storing a
+derived value in it, rather than adding a discriminator for which meaning it holds.
 Related: [[feedback_no_permanent_logic_for_one_time]] on apparatus built for a single run, and
 [[feedback_not_run_is_not_pass]] on why a check with state can report a pass it never earned.
