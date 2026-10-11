@@ -159,6 +159,7 @@
 - [Both sides of a comparison](feedback_comparison_you_supply_both_sides.md) {always} — supply both and it has stopped comparing; a term removed for wrong units gets relocated, never dropped
 - [Drive the transition in tests](feedback_drive_the_transition_in_tests.md) {always} — constructing the object at the state under test leaves the read field at its default, which is usually the value that hides the bug
 - [User GitHub account](user_github_account.md) {always} — handle is `AnotherSava`; use to filter "my repos" vs third-party clones
+- [One session per folder](user_one_session_per_folder.md) — never two Claude Code sessions in one folder, no --fork-session; a second one is a fault
 - [Where supplied screenshots land](user_screenshot_location.md) {always} — "see the screenshot" with nothing attached means the newest PNG in `~/Desktop`, or `~/CropStage` on Windows; go look first
 - [Memos go through the wrapper and the skill](user_memo_access_paths.md) — `memo` calls only `add`/`list`, everything else comes via `/memo`; `memos.py` is never typed by hand, so weight wrapper and SKILL.md over CLI ergonomics
 - [Always report images with a contact sheet](feedback_image_report_always.md) {always} — reporting anything about screenshots means building the HTML sheet and linking it; prose and transcript images are not substitutes
