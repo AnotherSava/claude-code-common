@@ -397,6 +397,7 @@ Cross-project preferences and feedback. Memory files live in `~/.claude/memory/`
 - [Don't re-ask what you measured](~/.claude/memory/feedback_dont_reask_what_you_measured.md) — ask only about the undecided remainder, never from scratch
 - [A style rule applies forward, not backward](~/.claude/memory/feedback_style_rule_no_history_sweep.md) — don't sweep existing files for a newly banned phrase, and don't offer to
 - [Ralphex is deprecated](~/.claude/memory/feedback_ralphex_deprecated.md) — don't name it in anything newly written; ask before invoking the `plan-ralphex` skill, whose fate is unstated
+- [Claude drawn at 80 columns](~/.claude/memory/project_claude_80_column_frame.md) — open bug: a Claude pane at 80 cols in a wide tmux pane; read WSL `~/tmux-size.log` before resizing, record lives in the agwinterm repo
 <!-- END generated -->
 
 ## Memos

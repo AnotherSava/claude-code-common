@@ -259,3 +259,5 @@
 - [Don't quote a foreign heading](feedback_dont_quote_a_foreign_heading.md) — cite another repo's doc by file and fact, never heading text
 - [Clone folder matches the repo](feedback_clone_folder_matches_repo.md) — name local clones after their GitHub repo; fix a mismatch with /move-project, never relay aliasing
 - [Match the use, not the name](feedback_match_the_use_not_the_name.md) — a "does anything consume X" check must match the construct; a repo's own docs satisfy a grep for X
+- [Claude drawn at 80 columns](project_claude_80_column_frame.md) {always} — open bug: a Claude pane at 80 cols in a wide tmux pane; read WSL `~/tmux-size.log` before resizing, record lives in the agwinterm repo
+- [Keep instrumentation while the bug is open](feedback_keep_instrumentation_while_open.md) — clean runs mean no trigger, not no bug; recommend keeping probes/hooks, never offer removal as equal
