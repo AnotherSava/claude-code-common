@@ -1,7 +1,7 @@
-# MongoDB: constraints, memory, and backups
+# MongoDB: constraints, memory, backups, and aggregation
 
-Things that bite when a document store replaces a relational one. Verified August 2026 against MongoDB 8 in
-Docker.
+Things that bite when a document store replaces a relational one. Verified against MongoDB 8 in Docker, in
+August 2026 unless a section gives its own date.
 
 ## `partialFilterExpression` cannot express `$ne`
 
@@ -107,3 +107,41 @@ application next boots.
 - Put the database name in the URI path so it is configured in one place rather than two.
 - `db.command({ ping: 1 })` is the health check. It proves the server accepts a command, which is what a
   readiness probe wants — not that a collection exists.
+
+## A `$unwind` over `["$a", "$b"]` counts the absent ones, and `missing` is not `null`
+
+Fanning two sibling sub-documents into rows is the natural way to ask one question about both — every
+segment's origin *and* destination, both participants of a pair, either side of a transfer. It also emits a
+row for the end a document does not have, and two expression rules then let that row through every guard:
+
+- **`missing` and `null` are different values to `$eq`/`$ne`.** `{$ne: ["$p.iata", null]}` is **true** for an
+  absent field, so the clause written to keep absent rows out keeps them in.
+- **`missing` equals `missing`.** `{$eq: ["$p.loc", "$p.iata"]}` is **true** when neither exists, so any
+  "these two fields agree" test matches every absent row.
+
+Measured against MongoDB 8 on 2026-10-11, one document with `a` present and `b: null`:
+
+```js
+db.t.aggregate([
+  { $project: { p: ["$a", "$b"] } },
+  { $unwind: "$p" },
+  { $project: { iata_ne_null: { $ne: ["$p.iata", null] }, loc_eq_iata: { $eq: ["$p.loc", "$p.iata"] },
+                iata_type: { $type: "$p.iata" } } },
+])
+// row for a: iata_ne_null true, loc_eq_iata true, iata_type 'string'
+// row for b: iata_ne_null true, loc_eq_iata true, iata_type 'missing'   <-- both guards pass
+```
+
+Together they turn "how many places store their code where the city belongs" into "how many places exist at
+all, plus every slot that holds none". One such pipeline answered **123** where the true count was **0**, and
+the number was believed and acted on because it was plausible.
+
+Two ways out, and the first is cheaper to read:
+
+- Iterate in the shell — `find().forEach(d => d.segments.forEach(s => ["origin","destination"].forEach(…)))`
+  — where `if (!p) return` is one line and the comparison runs on real values.
+- Or test for presence by type rather than against `null`: `{ $match: { $expr: { $eq: [{ $type: "$p.iata" }, "string"] } } }`.
+  `$type` names `missing` explicitly, which is the only form that distinguishes it from a stored `null`.
+
+The same trap reaches `$lookup` pipelines and any `$match` on a field below an optional sub-document, so it is
+worth a sanity count — the total number of rows the `$unwind` produced — beside any figure taken from one.
