@@ -134,5 +134,5 @@ fi
 # The pane is forked by the holder's server either way, which is what keeps the Windows child out
 # of this connection's job object.
 remote_session_keep_failed_panes
-tmux new-session -d -s "$session" -c "$PWD" "$inner"
+remote_session_create "$session" "$PWD" "$inner"
 remote_session_attach "$session" "$REMOTE_SESSION_ORIGIN"

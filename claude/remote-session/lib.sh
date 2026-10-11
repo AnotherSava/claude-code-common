@@ -86,6 +86,25 @@ remote_session_keep_failed_panes() {
     tmux set-option -g remain-on-exit failed
 }
 
+# Creates a detached session at the calling terminal's size: remote_session_create <name> <directory>
+# <command> [<fallback-cols> <fallback-rows>]. The fallback applies when there is no terminal, and
+# with none given tmux uses its 80x24 default.
+#
+# With no client attached anywhere, tmux creates the window at its default size and relies on the
+# attach to resize it. After a boot Claude has been seen still drawing at the creation width in a
+# full-width pane, that first resize apparently lost on its way to claude.exe. Read with stty,
+# which fails without a terminal: tput answers 80x24 there instead of failing, so a fallback keyed
+# on it would never apply.
+remote_session_create() {
+    if remote_session_create_size=$(stty size 2>/dev/null) && [ -n "$remote_session_create_size" ]; then
+        tmux new-session -d -s "$1" -x "${remote_session_create_size#* }" -y "${remote_session_create_size% *}" -c "$2" "$3"
+    elif [ $# -ge 5 ]; then
+        tmux new-session -d -s "$1" -x "$4" -y "$5" -c "$2" "$3"
+    else
+        tmux new-session -d -s "$1" -c "$2" "$3"
+    fi
+}
+
 # The tmux session name for a project path, given as a path relative to WSL_PROJECT_ROOT.
 #
 # One function because two scripts derive it and they must agree: cc-session.sh is handed a project
