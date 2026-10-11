@@ -92,11 +92,14 @@ on the alternate screen, neither side owns the wheel, and terminals disagree abo
   `ESC O A` / `ESC O B` one line per notch with no setting to tune or disable it. Claude Code reads
   those as Up/Down, so the wheel walks the input history. Read on 2026-10-01 from Windows Terminal's
   `TerminalInput::_makeAlternateScrollOutput` and microsoft/terminal#3321, not reproduced by a run.
-- **agterm turns it into arrow keys too.** On 2026-10-01 the user saw the trackpad walk Claude's input
-  history in a remote tmux pane whose Claude had requested nothing, viewed from agterm on the Mac.
-  That was the user's report, not a matched comparison of two panes. The shipped binary's strings
-  contain `mouse-reporting`, `mouse-scroll-multiplier` and `mouse-shift-capture` but no
-  `alternate-scroll` key, so assume no ghostty setting turns this off until someone finds one.
+- **agterm turns it into arrow keys too**, and only here: libghostty's own scroll callback converts the
+  wheel to cursor keys exactly when the alternate screen, `mouse_event == .none` and mode 1007 all hold,
+  which is why a program that asked for 1000 gets wheel reports instead, or a dead wheel once
+  `mouse-reporting = false` takes those away. The
+  reading is the agterm session's, 2026-10-10; the behaviour was first seen on 2026-10-01, when the user's
+  trackpad walked Claude's input history in a remote tmux pane whose Claude had requested nothing. No
+  config key forces or suppresses the conversion, and the shipped binary's strings carry `mouse-reporting`,
+  `mouse-scroll-multiplier` and `mouse-shift-capture` with no `alternate-scroll` among them.
 - **agwinterm drops it.** Its wheel handler returns early when `IsAltScreen` is set, and its mode
   switch handles 1000, 1002, 1003, 1006 and 1016 with no 1007 case.
 
@@ -115,10 +118,72 @@ selects under any mode. Upstream agwinterm forwards a plain press whenever repor
 scroll mode sends the drag to Claude, where it is discarded. The user's fork patches that handler to
 forward only when the app tracks motion (1002/1003), so under scroll mode a plain drag selects too.
 
-Setting `mouse-reporting = false` in agterm's config file turns reporting off for every program in agterm, so
-selection and links always work — at the cost of mouse scrolling in tmux and click-to-position in vim.
+Setting `mouse-reporting = false` in agterm's config file frees **selection** for every program in agterm —
+and not links, which stay on ⌘⇧ because the two are gated on different things; *Selection and links are gated on
+different things* has the mechanism. It also costs mouse scrolling in tmux, click-to-position in vim, and, measured 2026-10-10 on
+macOS with Claude Code in scroll mode on the alternate screen, the wheel entirely: it neither scrolls the
+transcript nor moves a viewport, because the arrow-key conversion needs a program that asked for
+nothing and the report branch needs reporting to be on.
 
 **Prove a config key exists before believing a silent reload.** A run of `agtermctl config reload`
 prints a diagnostic count, and `0` is what a valid key and a quietly ignored line look like alike until
 a control separates them: a deliberately bogus `mouse-reporting-bogus` raised the count to 1 where
 `mouse-reporting` left it at 0.
+
+## Selection and links are gated on different things, so no setting frees both
+
+Selection and link activation come back by different routes, which is why freeing one leaves the other on
+⌘⇧ and why no combination of settings gives a captured program both:
+
+- **Selection** follows `isMouseReporting()`, which is `config.mouse_reporting and flags.mouse_event != .none`
+  — so the terminal's own `mouse-reporting = false` is enough to stop forwarding a press and keep the drag.
+- **Links** follow `flags.mouse_event == .none` alone, the program's own DECSET 1000/1002/1003 request. The
+  hover refresh that sets `over_link` runs only then, or with shift held while `mouseShiftCapture()` is
+  false, and a click opens a link only when `over_link` is already set. The config key never enters it, and
+  neither does the alternate screen or `link-url`.
+- **The wheel's arrow-key conversion** needs all three of: alternate screen, `mouse_event == .none`, and
+  mode 1007. A program holding 1000 skips it, then fails the report branch under `mouse-reporting = false`,
+  and falls through to a viewport the alternate screen gives no scrollback — the dead wheel measured under `mouse-reporting = false`.
+
+Read from libghostty `src/Surface.zig` at agterm's pinned ghostty revision on 2026-10-10 by the agterm
+session, not by a live test; the observed behaviour on this Mac matches it.
+
+**DECSET 1000 is what the gate conflates.** It means "tell me about button presses", and motion reaches a
+program only under 1002 or 1003. So a clicks-only app receives nothing on hover, and link detection could
+run for it without taking anything away — narrowing that gate to 1002/1003 would restore ⌘-hover and plain
+⌘-click under an app like Claude Code, and the same narrowing on the press is what the user's agwinterm fork
+already does for selection on Windows. Nothing upstream does it today.
+
+So on the alternate screen, each arrangement gives at most two of the three:
+
+| Claude's mouse mode | agterm `mouse-reporting` | wheel | selection | links |
+|---|---|---|---|---|
+| scroll | true | scrolls the transcript | ⇧ | ⌘⇧ |
+| scroll | false | dead | free | ⌘⇧ |
+| off | either | walks the input history | free | ⌘ |
+
+`tui: "default"` is the way out, and it works by changing what the wheel is for: Claude Code renders on the
+primary screen, so the terminal owns both the scrollback and the wheel, and no mouse report has to reach the
+app for scrolling to work. The cost is the flicker-free fixed pane and the virtualised transcript.
+
+## Upstream: asked for, open, and not implemented
+
+The request exists and is live at **[ghostty discussion #3848, "Remapping Mouse Actions"](https://github.com/ghostty-org/ghostty/discussions/3848)**
+— a `mouse-bind` syntax with a kitty-style `grabbed:` prefix for firing a binding while a program holds the
+mouse, plus `performable:` to fall through when there is no URL under the cursor. One comment there describes
+this exact case from opencode. Its author's own not-implemented list includes the two parts that matter
+here: no `grabbed`/`ungrabbed` mode yet, and no link-hover remapping. Even implemented as proposed it would
+not free drag-selection, which the syntax does not cover, and whether it frees links depends on whether
+`performable:` re-runs the hit test or reads the hover-populated flag — unraised in the thread.
+
+Every issue-form report of it was closed without being judged: #11573 ("Allow Cmd+click (without Shift) to
+open URLs in tmux") and #11907 ("OSC 8 hyperlinks not clickable via Cmd+click", about Claude Code's own
+links) both hit the vouch bot and the issues-are-not-for-this policy, and #8748 and #5719 are duplicates of
+#3848. The behaviour is deliberate: in #1416 the maintainer writes that in a program which captures mouse
+events "it's command+shift. Otherwise just command."
+
+**`FORCE_HYPERLINK=1` does not help a captured pane.** It makes Claude Code emit OSC 8 where its terminal
+allowlist otherwise refuses, and libghostty detects a bare URL with no escape at all — so neither form is
+why ⌘-click fails. The gate is the mouse request. Set it in `~/.config/agterm/ghostty.conf` as
+`env = FORCE_HYPERLINK=1`, which reaches shells agterm spawns after a config reload and so needs a new
+session, not a Claude Code restart inside the old one.
