@@ -103,6 +103,12 @@
             "command": "python -S \"$HOME/.claude/hooks/workflow-realism.py\"",
             "timeout": 10,
             "async": false
+          },
+          {
+            "type": "command",
+            "command": "python -S \"$HOME/.claude/hooks/review-scope.py\"",
+            "timeout": 60,
+            "async": false
           }
         ]
       }

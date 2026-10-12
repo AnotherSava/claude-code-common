@@ -1,11 +1,12 @@
 export const meta = {
   name: 'review-and-fix',
   description: 'Review a change through given lenses, verify each finding for truth and realism, triage in code, and fix only what earns code',
-  whenToUse: 'Any automated review loop that fixes what it finds. args: {scope, lenses: [{key, prompt}], context, gate}. Returns the full triage table for the user, never just "all fixed".',
+  whenToUse: 'Any automated review loop, fixing what it finds or, with fix: false, read-only. args: {scope, lenses: [{key, prompt}], context, gate, fix}. Returns the full triage table for the user, never just "all fixed".',
   phases: [
     { title: 'Review', detail: 'one reviewer per lens; every finding names who reaches it, how often, and what it costs' },
     { title: 'Verify', detail: 'one skeptic per finding, judging truth and realism' },
     { title: 'Fix', detail: 'one agent applies the fix-class findings, adds a log line or doc sentence for warn-class, runs the gate' },
+    { title: 'Bookmark', detail: 'one agent records which tree the review covered, when it covered all of it' },
   ],
 }
 
@@ -75,6 +76,12 @@ const FIX_REPORT = {
   required: ['applied', 'skipped', 'gate_exit', 'gate_tail'],
 }
 
+const MARK_REPORT = {
+  type: 'object',
+  properties: { exit_status: { type: 'integer' }, output: { type: 'string' } },
+  required: ['exit_status', 'output'],
+}
+
 // The skeptic's ratings decide, not the reviewer's: the reviewer found the case and is the one inclined to rate it up.
 // No verdict at all is its own outcome: a finding nobody verified is neither confirmed nor disproved.
 function triage(verdict) {
@@ -95,14 +102,21 @@ function triage(verdict) {
 }
 
 function requireArgs() {
-  if (!args || typeof args !== 'object') throw new Error('review-and-fix needs args: {scope, lenses: [{key, prompt}], context, gate}')
+  if (!args || typeof args !== 'object') throw new Error('review-and-fix needs args: {scope, lenses: [{key, prompt}], context, gate, fix}')
   if (typeof args.scope !== 'string' || !args.scope.trim()) throw new Error('review-and-fix: args.scope must name what to review, e.g. "the uncommitted diff in <repo>"')
   if (!Array.isArray(args.lenses) || !args.lenses.length || args.lenses.some(l => !l || typeof l.key !== 'string' || typeof l.prompt !== 'string')) throw new Error('review-and-fix: args.lenses must be a non-empty array of {key, prompt}')
+  if ('fix' in args && typeof args.fix !== 'boolean') throw new Error('review-and-fix: args.fix must be true or false')
 }
 
 requireArgs()
 const CONTEXT = typeof args.context === 'string' ? args.context : ''
 const GATE = typeof args.gate === 'string' && args.gate.trim() ? args.gate.trim() : null
+// Read-only collects one round of findings and changes nothing (~/.claude/memory/feedback_read_only_review_loop.md). One
+// round, because a later round exists to review the code an earlier round's fixes added, and here there is none.
+const FIX = args.fix !== false
+// Set by the review-scope hook (claude/hooks/review-scope.py), never by the caller: the repo, the commit the scope runs
+// from, and the tree at launch. Absent when the hook could not trust a base, and then nothing is recorded.
+const BOOKMARK = args.review_bookmark && typeof args.review_bookmark === 'object' && ['repo', 'base', 'tree'].every(k => typeof args.review_bookmark[k] === 'string') ? args.review_bookmark : null
 
 // agent() returns null when the user skips a call or the subagent dies after its retries, and throws once a budget is
 // spent. Both become null here, with a log line naming the call, so a throw cannot reject the run and lose the table.
@@ -166,6 +180,7 @@ const fixReports = []
 const silentLenses = []
 const seen = new Set()
 let stopReason = `hard cap of ${MAX_ROUNDS} rounds reached`
+let quiet = false
 
 for (let round = 1; round <= MAX_ROUNDS; round++) {
   const silent = []
@@ -197,7 +212,12 @@ for (let round = 1; round <= MAX_ROUNDS; round++) {
   const unverified = rows.filter(r => r.disposition === 'unverified')
   log(`round ${round}: ${rows.length} found, ${fixes.length} fix, ${warns.length} warn_or_doc, ${rows.filter(r => r.disposition === 'drop').length} drop, ${rows.filter(r => r.disposition === 'refuted').length} refuted, ${unverified.length} unverified`)
 
+  if (!FIX) {
+    stopReason = `read-only: one round reviewed, nothing changed${silent.length ? `; the ${silent.join(', ')} lens returned nothing` : ''}`
+    break
+  }
   if (!fixes.length) {
+    quiet = true
     if (warns.length) await fixRound(round, [], warns)
     const gaps = [
       ...(silent.length ? [`the ${silent.join(', ')} lens returned nothing`] : []),
@@ -217,9 +237,37 @@ for (let round = 1; round <= MAX_ROUNDS; round++) {
   }
 }
 
+// The bookmark advances past a range only when every part of the run that covers it came back: a silent lens or an
+// unverified finding is a gap, and in fix mode so is a loop that stopped with fixes no later round reviewed, or a gate
+// that did not pass. Nothing moves on a gap, so the next review covers the same range again.
+function bookmarkGap() {
+  if (!BOOKMARK) return 'the review-scope hook passed no bookmark, so there is no base to record from'
+  if (silentLenses.length) return 'a lens returned nothing'
+  if (table.some(r => r.disposition === 'unverified')) return 'a finding went unverified'
+  if (!FIX) return null
+  if (!quiet) return 'the loop stopped before a round found nothing to fix, so its last fixes were never reviewed'
+  if (fixReports.some(({ report }) => !report || report.gate_exit !== (GATE ? 0 : null))) return 'a fix round\'s gate did not pass'
+  return null
+}
+
+async function recordBookmark() {
+  const gap = bookmarkGap()
+  if (gap) return { recorded: false, detail: `not recorded: ${gap}` }
+  // With no fixes applied the tree at launch is the reviewed one, even if something else wrote to the repo meanwhile.
+  // After fixes it is the tree now, which also takes in anything another writer changed while the run was going.
+  const tree = fixReports.length ? '' : ` --tree ${BOOKMARK.tree}`
+  const command = `python3 ~/.claude/scripts/review_scope.py mark --repo "${BOOKMARK.repo}" --base ${BOOKMARK.base}${tree}`
+  const done = await call(`${HANDS_OFF} Run this one command and nothing else (on Windows the interpreter is \`python\`, not \`python3\`), then report its exit status and its output verbatim:\n\n${command}`, { label: 'bookmark', phase: 'Bookmark', schema: MARK_REPORT })
+  if (!done) return { recorded: false, detail: 'not recorded: the bookmark agent returned nothing' }
+  return { recorded: done.exit_status === 0, detail: done.output }
+}
+
+const bookmark = await recordBookmark()
+
 return {
   stop_reason: stopReason,
-  note: 'Present the triage table to the user as a triage, not as "all fixed". Rare and theoretical items are reported with their ratings; another round is not offered by default. An unverified finding is neither confirmed nor disproved, and a lens in silent_lenses was never reviewed: say so rather than counting either as clean.',
+  bookmark,
+  note: 'Present the triage table to the user as a triage, not as "all fixed". Say whether the bookmark was recorded, and why not when it was not. Rare and theoretical items are reported with their ratings; another round is not offered by default. An unverified finding is neither confirmed nor disproved, and a lens in silent_lenses was never reviewed: say so rather than counting either as clean.',
   silent_lenses: silentLenses,
   triage: table.map(r => ({
     id: r.id,

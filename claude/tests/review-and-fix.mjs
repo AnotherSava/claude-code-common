@@ -66,6 +66,7 @@ async function run(args, reviews, verdicts, { fixer, reviewer, verifier } = {}) 
       return verdicts[summary] || null
     }
     if (opts.phase === 'Fix') return fixer ? fixer(prompt, round) : { applied: promptIds(prompt).map(id => ({ id, change: 'done' })), skipped: [], gate_exit: 0, gate_tail: 'ok' }
+    if (opts.phase === 'Bookmark') return { exit_status: 0, output: 'recorded: scripted' }
     throw new Error(`unexpected phase ${opts.phase}`)
   }
   const logs = []
@@ -229,11 +230,65 @@ async function silentLensIsReported() {
   }
 }
 
+// What the review-scope hook passes. The workflow only ever reads it, so any strings do.
+const BOOKMARK = { repo: '/scratch/repo', base: 'b45e', tree: '7ree' }
+const bookmarkCalls = calls => calls.filter(c => c.phase === 'Bookmark')
+
+async function readOnly() {
+  const reviews = { 1: [FIXABLE, finding('rare')], 2: [finding('never-reviewed')] }
+  const verdicts = { ...FIXABLE_VERDICT, 'defect rare': verdict(true, true, 'rare', 'cosmetic') }
+  const { result, calls } = await run({ ...ARGS, fix: false, review_bookmark: BOOKMARK }, reviews, verdicts)
+  check('read-only sends nothing to a fixer, not even a warn line', calls.filter(c => c.phase === 'Fix').length, 0)
+  check('read-only runs one round', calls.some(c => c.label.endsWith(':r2')), false)
+  check('and says so', result.stop_reason, 'read-only: one round reviewed, nothing changed')
+  check('a fix-class finding is still triaged as one', result.triage.find(r => r.finding === 'defect fixable').disposition, 'fix')
+  check('a complete read-only review is recorded', result.bookmark.recorded, true)
+  const mark = bookmarkCalls(calls)[0]?.prompt || ''
+  check('against the tree at launch, since nothing it ran changed the tree', mark.includes('mark --repo "/scratch/repo" --base b45e --tree 7ree'), true)
+}
+
+async function readOnlyGapIsNotRecorded() {
+  const verifier = () => null
+  const { result, calls } = await run({ ...ARGS, fix: false, review_bookmark: BOOKMARK }, { 1: [FIXABLE] }, {}, { verifier })
+  check('an unverified finding keeps the bookmark where it was', result.bookmark.recorded, false)
+  check('without asking an agent to record anything', bookmarkCalls(calls).length, 0)
+  check('and the reason is given', result.bookmark.detail, 'not recorded: a finding went unverified')
+}
+
+async function noBookmarkPassed() {
+  const { result, calls } = await run(ARGS, { 1: [] }, {})
+  check('with no bookmark from the hook nothing is recorded', [result.bookmark.recorded, bookmarkCalls(calls).length], [false, 0])
+}
+
+async function fixModeRecording() {
+  const clean = await run({ ...ARGS, review_bookmark: BOOKMARK }, { 1: [] }, {})
+  check('a fix-mode run whose first round is quiet records the launch tree', bookmarkCalls(clean.calls)[0]?.prompt.includes('--tree 7ree'), true)
+
+  const fixed = await run({ ...ARGS, review_bookmark: BOOKMARK }, { 1: [FIXABLE], 2: [] }, FIXABLE_VERDICT)
+  check('after fixes a quiet round records', fixed.result.bookmark.recorded, true)
+  check('the tree as it is now, which holds the fixes', bookmarkCalls(fixed.calls)[0]?.prompt.includes('--tree'), false)
+
+  const always = n => [finding(`fix-${n}`, { frequency: 'common', cost_unhandled: 'crash' })]
+  const verdicts = Object.fromEntries([1, 2].map(n => [`defect fix-${n}`, verdict(true, true, 'common', 'crash')]))
+  const capped = await run({ ...ARGS, review_bookmark: BOOKMARK }, { 1: always(1), 2: always(2) }, verdicts)
+  check('a loop stopped at the cap is not recorded, since its last fixes went unreviewed', [capped.result.bookmark.recorded, bookmarkCalls(capped.calls).length], [false, 0])
+
+  const fixer = prompt => ({ applied: promptIds(prompt).map(id => ({ id, change: 'done' })), skipped: [], gate_exit: 1, gate_tail: 'FAILED' })
+  const red = await run({ ...ARGS, review_bookmark: BOOKMARK }, { 1: [FIXABLE], 2: [] }, FIXABLE_VERDICT, { fixer })
+  check('a failed gate is not recorded', red.result.bookmark.detail, "not recorded: a fix round's gate did not pass")
+}
+
+async function refusesNonBooleanFix() {
+  let threw = false
+  try { await run({ ...ARGS, fix: 'no' }, {}, {}) } catch { threw = true }
+  check('refuses a fix that is not a boolean', threw, true)
+}
+
 // The Workflow tool refuses a script holding a carriage return, and it reads the working copy through
 // ~/.claude/workflows, so a CRLF file breaks every run while git, normalizing to LF, shows nothing changed.
 check('the workflow file carries no carriage return', SOURCE.includes('\r'), false)
 
-for (const test of [triageAndStop, stopsAfterQuietRound, nothingFoundCallsNoFixer, capsAtTwoRounds, noGate, refusesBadArgs, unverifiedIsNotRefuted, verifierThatThrows, deadFixerStopsTheLoop, skippedFixIsNotReportedAsFixed, silentLensIsReported]) {
+for (const test of [triageAndStop, stopsAfterQuietRound, nothingFoundCallsNoFixer, capsAtTwoRounds, noGate, refusesBadArgs, unverifiedIsNotRefuted, verifierThatThrows, deadFixerStopsTheLoop, skippedFixIsNotReportedAsFixed, silentLensIsReported, readOnly, readOnlyGapIsNotRecorded, noBookmarkPassed, fixModeRecording, refusesNonBooleanFix]) {
   try { await test() } catch (error) { failures.push(`  FAIL ${test.name} threw: ${error.stack}`) }
 }
 for (const line of failures) console.log(line)

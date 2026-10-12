@@ -20,6 +20,9 @@ nothing moves under the reviewers mid-round.
 
 **How to apply:**
 
+- **Run it as `review-and-fix` with `fix: false`**, never as an inline workflow. Only that call gets
+  the commits pushed since the last review added to its scope, and only it can record what it covered
+  (README, Review Scope).
 - Every fix that held across those rounds was a **deletion or a revert**; every one that broke
   something was a **new mechanism**. When a finding lands, ask first whether something should
   come *out*.

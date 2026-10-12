@@ -75,7 +75,8 @@ the fix prompt tells the fixer to answer such an item with one definition every 
 than by patching the copies. Run such loops
 through the saved `review-and-fix` workflow (`claude/workflows/review-and-fix.js`, called as
 `Workflow({name: "review-and-fix", args: {scope, lenses, context, gate}})`), which carries all of it and
-returns the triage table to present. The `workflow-realism.py` hook warns when a workflow's inline
+returns the triage table to present. A read-only review goes through it too, with `fix: false`: the
+`review-scope.py` hook widens only that workflow to the commits pushed since the last review. The `workflow-realism.py` hook warns when a workflow's inline
 script, or the file a `scriptPath` run names, fixes findings and mentions none of `frequency`, `reached_by` or `review-and-fix`; any
 mention of those words silences it, so its silence does not prove a realism gate exists. Seen 2026-10-02 in tauri-dashboard: 8 workflows, 347 agents and 10 review
 rounds confirmed 125 findings, 85 of them rated low, and coded every one; a post-review found the

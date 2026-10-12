@@ -146,8 +146,13 @@ run "plan archive" python3 claude/tests/plan-archive.py
 # without it coded 125 findings in one day, 85 of them rated low. Needs node; its absence fails rather than skips.
 run "review-and-fix workflow" node claude/tests/review-and-fix.mjs
 
-# The backstop that warns when an inline workflow fixes findings without rating realism. Too quiet and the next
-# such loop runs unnoticed; too loud on review-only workflows and the warning stops being read.
+# The review bookmark and the hook that widens every review to the commits pushed since the last one. Its one costly
+# failure is moving past code no review saw, which then never gets reviewed; most cases try to make it do exactly that.
+run "review scope" python3 claude/tests/review-scope.py
+
+# The backstop that warns when an inline workflow fixes findings without rating realism, or reviews code without the
+# saved workflow and so misses the review bookmark. Too quiet and the next such run goes unnoticed; too loud on
+# workflows that review documents or papers and the warning stops being read.
 run "workflow realism hook" python3 claude/tests/workflow-realism.py
 
 # The PreToolUse guards that read Bash commands, and the shared module that finds command position
