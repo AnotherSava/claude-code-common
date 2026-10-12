@@ -65,6 +65,30 @@ Weigh that against what it costs in production: a headless browser inside a cont
 of image and a second runtime to patch, so for a one-paste-a-month feature the honest design is to refuse the
 link and tell the person what to copy.
 
+## A pasted link often has no scheme, and `new URL` needs one
+
+Browsers hide `https://` in the address bar and a link retyped off a screen never had it, so
+`google.com/maps/place/40.758000,-73.985500` is what a person actually holds — and it is not a URL to
+`new URL`, so a parser that only looks for `https?://` never reaches its URL branch at all and refuses a
+string stating a point in the clearest form there is. Find a schemeless `(?:[\w-]+\.)+[a-z]{2,}(?::\d+)?\/…`
+and prepend the scheme. Require the host-and-path shape, or a bare `49.27, -123.09` starts being read as a
+hostname.
+
+## A directions link must be refused, not read
+
+`/maps/dir/` is the trap among the readable forms, because it carries an `@` camera and a `data=` payload just as a
+`/maps/place/` link and means something else. Measured:
+
+- A named-waypoint route — `/maps/dir/Vancouver,+BC/Seattle,+WA/@47.6062,-122.9,8z/data=…` — has a camera
+  that frames the ROUTE, not a place, so reading `@` yields a point ~40 km from the nearer end and far further from the other.
+- A dir payload encodes its waypoints as `!1d<lng>!2d<lat>`, never `!3d<lat>!4d<lng>`, so the `data=` rule
+  that works for a place link cannot match and the camera always wins.
+- `/maps/dir/49.2827,-123.1207/Some+Hotel/@…` yields the ORIGIN — where the person right-clicked — rather
+  than the destination they were locating.
+
+So treat `dir` as a refusal with a message, not as a third subject-bearing path. `?api=1&destination=<pair>`
+is the exception and reads correctly, because the pair is in a query key rather than the path.
+
 ## Which pair in a URL is the place
 
 A `/maps/place/` URL carries two, and they are different facts:
@@ -75,6 +99,22 @@ A `/maps/place/` URL carries two, and they are different facts:
 They agree on a link copied while looking at the pin and disagree on a shared one, where `@` is wherever the map
 happened to be sitting. Prefer `!3d/!4d`, fall back to `@`. Also readable, and worth accepting: `?query=`,
 `?q=`, `?ll=` and `?center=` holding a pair, and a `geo:` URI.
+
+## Storing a link rather than a coordinate
+
+A `/maps/place/<name>/@<lat>,<lng>,<zoom>z/data=…!3d<lat>!4d<lng>` URL is a better thing to keep than the
+pair it contains: it opens on the NAMED place with its pin, where a coordinate link drops a pin over nothing
+and an address search may land on a list. Two rules make keeping one safe:
+
+- **Trim to `origin + pathname`.** Everything after `?` is session identifiers — `entry`, `g_ep`, `skid` —
+  which say which browser asked and when, and keeping them puts that in the database and every backup. The
+  name and the pin both live in the path, so nothing of value is lost.
+- **Only when the path names the place.** A link shared from a dropped pin carries its coordinate in
+  `?q=<lat>,<lng>` and nothing in its path, so trimming it leaves a link to the whole world. Those get no
+  stored URL; rebuild a coordinate link instead, which is the same destination minus the name.
+
+Drop the `@<lat>,<lng>,<zoom>z` segment too if you can do it without breaking the path: it is the camera the
+sharer happened to have, not the place, and the `data=` payload is what pins the subject.
 
 ## Parsing what a person pastes
 
