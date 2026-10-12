@@ -156,6 +156,13 @@ before believing it.
 This section accumulates. When a hook surprises you — a cost, a silent failure, a semantic — add a
 dated line here rather than leaving it in a session transcript.
 
+- **2026-10-12** — **`PreToolUse` `updatedInput` rewrites a call with no `permissionDecision` beside it**, so a
+  hook can change what runs without also deciding whether it may. Measured in auto mode with a probe hook: a Bash
+  `echo` was replaced by the hook's command, and a Workflow call sent `args: {"a": 1}` reached the script as the
+  hook's object. The rewrite replaces the whole input, so copy every field you are not changing. Adding `allow`
+  to make it work would silently skip the user's permission prompt for that tool, and it is not needed.
+  `review-scope.py` relies on this to widen every `review-and-fix` scope.
+
 - **2026-09-30** — **Counting registrations is not counting spawns, and the arithmetic that treats
   them as equal overstates the cost badly.** `settings.json` registers one `^Bash$` entry per `if`
   pattern, because `if` takes a single permission rule — so `windows-link-guard` appears four times
