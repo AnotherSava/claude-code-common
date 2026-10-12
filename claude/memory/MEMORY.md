@@ -150,6 +150,7 @@
 - [Sweep the old wording](feedback_sweep_the_old_wording.md) {always} — retiring a rule: grep the old behaviour's words, not the new rule's, then check the lists and gate enumerations that encode it with no words at all
 - [Guard on the version, not the artifact](feedback_guard_on_version_not_artifact.md) {always} — a tool reading a format defined elsewhere checks the adopted version, not whether the old artifact is still there; sniffing it rots at the next migration
 - [Lead with the rule, not the value](feedback_lead_with_the_rule.md) {always} — a request naming a value, answered with a rule: say the rule in the FIRST sentence or the number reads as hardcoded
+- [A threshold serves a decision](feedback_threshold_serves_the_decision.md) — derive it from the question it answers, defend it with the gap between the classes it separates; a new signal widens a match, never overturns one
 - [Read upward from the match](feedback_read_upward_from_the_match.md) {always} — a grep shows what follows a definition, never what precedes it; read above it before calling a value unexplained or a list unaudited
 - [Mark the container, not every item](feedback_mark_the_container_not_every_item.md) {always} — a scope marker says where the work must happen, not that every item inside is bound; don't withhold it because one part is portable
 - [Show the artifact with the ask](feedback_show_the_artifact_with_the_ask.md) {always} — a choice between specific artifacts gets the passage that decides each, not only your one-line reading of them
