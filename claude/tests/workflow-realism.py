@@ -30,6 +30,12 @@ APPROVED = "await agent(`The user approved these seven findings; fix each one in
 FIXING_WITH_REALISM = FIXING + "\nconst SCHEMA = {properties: {frequency: {}, reached_by: {}}}"
 CALLING_SAVED = FIXING + "\nawait workflow('review-and-fix', {scope: 'x', lenses: []})"
 REVIEW_ONLY = "await agent('Review the diff; include a suggested_fix for each finding')"
+REFUTING = "const hits = await agent('List defects'); await agent(`${CTX}\\n\\nAdversarially verify this finding: ${hits}`)"
+REVIEW_COMMITS = "await agent(`Reviewers: read the last three commits and report defects`)"
+DOCS_REVIEW = "await agent('Review the README for typos and broken links')"
+RESEARCH = "await agent('Review recent papers on retrieval and summarize them')"
+REVIEW_CALLING_SAVED = REVIEW_ONLY + "\nawait workflow('review-and-fix', {scope: 'x', lenses: [], fix: false})"
+REVIEW_WITH_REALISM = REVIEW_ONLY + "\nconst SCHEMA = {properties: {frequency: {}, reached_by: {}}}"
 
 
 def run(stdin: str) -> tuple[int, str, str]:
@@ -37,7 +43,7 @@ def run(stdin: str) -> tuple[int, str, str]:
     return done.returncode, done.stdout, done.stderr
 
 
-def warns(label: str, tool_input: object, want: bool) -> None:
+def warns(label: str, tool_input: object, want: bool, reminder: str = "fixes what it reviews") -> None:
     code, out, err = run(json.dumps({"hook_event_name": "PreToolUse", "tool_name": "Workflow", "tool_input": tool_input}))
     if code != 0 or err:
         failures.append(f"  FAIL {label}: exit {code}, stderr {err!r}")
@@ -50,6 +56,8 @@ def warns(label: str, tool_input: object, want: bool) -> None:
         context = json.loads(out)["hookSpecificOutput"]
         if context.get("hookEventName") != "PreToolUse" or "review-and-fix" not in context.get("additionalContext", ""):
             failures.append(f"  FAIL {label}: the warning does not name the saved workflow: {out[:200]!r}")
+        if reminder not in context.get("additionalContext", ""):
+            failures.append(f"  FAIL {label}: expected the reminder saying {reminder!r}: {out[:200]!r}")
         if "permissionDecision" in context:
             failures.append(f"  FAIL {label}: the warning makes a permission decision, so it is no longer non-blocking")
 
@@ -62,7 +70,13 @@ def main() -> None:
     warns("fixing items named without findings or defects is left alone", {"script": APPROVED}, False)
     warns("a loop whose findings carry frequency and reached_by is left alone", {"script": FIXING_WITH_REALISM}, False)
     warns("a loop that calls the saved workflow is left alone", {"script": CALLING_SAVED}, False)
-    warns("a review that only suggests fixes is left alone", {"script": REVIEW_ONLY}, False)
+    warns("an inline read-only review of a diff is pointed at fix: false", {"script": REVIEW_ONLY}, True, "fix: false")
+    warns("an adversarial verify stage counts as a review", {"script": REFUTING}, True, "fix: false")
+    warns("reviewers reading commits count as a review", {"script": REVIEW_COMMITS}, True, "fix: false")
+    warns("a review that already calls the saved workflow is left alone", {"script": REVIEW_CALLING_SAVED}, False)
+    warns("rating realism does not excuse a read-only review from the scope", {"script": REVIEW_WITH_REALISM}, True, "fix: false")
+    warns("reviewing a document for typos is not a code review", {"script": DOCS_REVIEW}, False)
+    warns("reviewing papers is not a code review", {"script": RESEARCH}, False)
     warns("running the saved workflow by name is left alone", {"name": "review-and-fix", "args": {}}, False)
     warns("the saved workflow's own script passes its own gate", {"script": open(SAVED, encoding="utf-8").read()}, False)
 

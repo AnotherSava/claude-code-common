@@ -1,6 +1,6 @@
 #!/usr/bin/env python3
 r"""
-workflow-realism.py — warn when a workflow fixes what it reviews without rating realism.
+workflow-realism.py — warn when a workflow fixes what it reviews without rating realism, or reviews code without the saved `review-and-fix` workflow.
 
 A PreToolUse hook on the Workflow tool. An inline script with a stage that fixes findings
 ("fix these confirmed defects", "apply fixes for these findings") whose text mentions none of
@@ -8,6 +8,12 @@ A PreToolUse hook on the Workflow tool. An inline script with a stage that fixes
 additionalContext. Any mention of those words silences it, whatever they are used for. It never
 blocks: the workflow launches either way, and the reminder names the saved workflow so the next
 one can run through it.
+
+A script that only reviews code — an adversarial or refuting stage, or a review of a diff, a change
+set, commits or a branch — and never names `review-and-fix` gets a second reminder: run it with
+`fix: false`. Only that workflow is widened by the `review-scope.py` hook to the commits pushed since
+the last review, so an inline read-only review silently leaves them out. Mentioning `frequency` or
+`reached_by` does not silence this one, since rating realism does nothing for the scope.
 
 The fix verb must take findings, defects, issues or bugs as its object. Gate repair ("fix every
 compile error and test failure") and fixes to findings the user already triaged ("fix each one in
@@ -37,6 +43,11 @@ FIX_STAGE = re.compile(
     r"(?:finding|defect|issue|bug)s?\b",
     re.IGNORECASE,
 )
+REVIEW_STAGE = re.compile(
+    r"\b(?:adversarial(?:ly)?|refute)\b|"
+    r"\breview(?:ers?|ing)?\b[^.\n`]{0,80}?\b(?:diff|changes?|change set|commits?|code|branch|pull request|working tree)\b",
+    re.IGNORECASE,
+)
 ESCAPE = re.compile(r"\\[nrt]")
 REALISM = re.compile(r"\bfrequency\b|\breached_by\b|" + re.escape(SAVED))
 
@@ -50,6 +61,14 @@ REMINDER = (
     f"two rounds and returns the triage table. If this one is already running, consider stopping it "
     f"and relaunching that way; otherwise present its findings as a triage with realism ratings, not "
     f"as \"all fixed\"."
+)
+
+READ_ONLY_REMINDER = (
+    f"This workflow reviews code inline instead of through the saved `{SAVED}` workflow. Only that workflow "
+    f"gets the commits pushed since the last review added to its scope (the review-scope hook), and only it "
+    f"records what it covered, so this review leaves those commits out and the next one cannot start after it. "
+    f"For a read-only review call Workflow({{name: \"{SAVED}\", args: {{scope, lenses: [{{key, prompt}}], context, "
+    f"fix: false}}}}), which reviews and verifies one round, changes nothing, and returns the triage table."
 )
 
 
@@ -79,10 +98,16 @@ def main() -> int:
     if text is None:
         return 0
     text = ESCAPE.sub(" ", text)
-    if not FIX_STAGE.search(text) or REALISM.search(text):
+    if FIX_STAGE.search(text):
+        if REALISM.search(text):
+            return 0
+        reminder = REMINDER
+    elif REVIEW_STAGE.search(text) and SAVED not in text:
+        reminder = READ_ONLY_REMINDER
+    else:
         return 0
     sys.stdout.write(json.dumps({
-        "hookSpecificOutput": {"hookEventName": "PreToolUse", "additionalContext": REMINDER},
+        "hookSpecificOutput": {"hookEventName": "PreToolUse", "additionalContext": reminder},
         "suppressOutput": True,
     }))
     return 0
