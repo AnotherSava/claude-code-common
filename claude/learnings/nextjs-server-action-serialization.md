@@ -71,6 +71,25 @@ into it: **8463 ms → 407 ms**, and total time-to-first-frame 9440 ms → 1698 
 synchronous SQLite writes through better-sqlite3 are the common case — it still occupies the single Node thread
 while it runs. Expect a smaller tax, not none, and measure the remainder rather than assuming it away.
 
+## A second reason, nothing to do with the queue: an action's write surface is the page's URL
+
+A server action POSTs to the URL of the page that rendered it. So a reverse proxy, WAF or edge rule that
+restricts *write paths* — tailnet-only, IP-allowlisted, rate-limited — catches the whole page the moment it
+grows an action, reads included. There is no path to carve out, because the action has no path of its own.
+
+Measured 2026-10-11: a booking detail page gained one inline action to store a coordinate, and the project's
+ingress linter demanded `/bookings/*` join the matcher that answers 404 from off the tailnet — which would have
+made a page read at a hotel desk unreachable from the internet. Moving the write to `POST /api/places` put one
+path in the matcher and left the page readable.
+
+Two consequences worth designing for:
+
+- **Decide this before writing the action.** The two forms are a few lines apart in code and a long way apart in
+  reachability, and nothing in the framework warns you.
+- **The client then owns the failure message.** A `fetch` to a path the edge refuses answers with a status whose
+  body is not your JSON, so trust the body only when it has the shape your handler returns and fall back to the
+  status — otherwise a refused write reads as nothing happening.
+
 ## Rules of thumb
 
 - **Never put recurring background work behind a server action.** Actions are for things a user did. A route is for
