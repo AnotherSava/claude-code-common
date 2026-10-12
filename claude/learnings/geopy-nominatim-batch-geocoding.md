@@ -52,3 +52,30 @@ somebody is relying on it.
 The wider point, independent of the geocoder: a value a machine guessed and a value a human checked must not
 end up in the same field with nothing to tell them apart. Either keep provenance alongside it, or do not write
 the guess at all.
+
+## A precise hit on the wrong object passes both guards
+
+Expand a code or a booking system's shorthand to the official name before the lookup, and leave the row for a
+person where you cannot. The two guards above reject a coarse answer and an empty one; neither rejects a
+precise answer about something else. `BCN-SANTS, Barcelona, ES` returns a restaurant 200 m from the station —
+`type=restaurant`, in the expected city, well-formed coordinates — and nothing in the response separates it
+from a correct hit.
+
+Measured 2026-10-11 over five real confirmation addresses: two usable (`type=platform`, `type=train_station`),
+one city boundary the coarse guard caught, one with no hit at all, and that restaurant. Four of the five
+returned something, so a batch counting responses reports 80% and ships one silently wrong coordinate.
+
+The strings that cause it are the ones a booking system writes rather than a person: `BCN-SANTS`,
+`ALICANTE/AL`, `ЧЕРЕПОВЕЦ 1`. A geocoder has nothing to match them against and answers with whatever is
+nearest the words it does recognise.
+
+## Wikidata answers an official name, not the string a document carries
+
+Reach it with `wbsearchentities` for the item and `Special:EntityData/<qid>.json` for its claims; `P625` holds
+the coordinate. It settles the pair a geocoder cannot — one place written in two scripts — because the item
+carries both labels: `Ярославль-Главный` resolves to Q1967106 at 57.62558,39.83528, labelled that in `ru` and
+`Yaroslavl railway station` in `en`, so two documents naming one station reconcile through the item rather
+than through a transliteration table.
+
+It answers the official name and nothing else. `Череповец 1` and `BCN-SANTS` return no item, which is the same
+wall the geocoder hits from the other side: the limit is the input string, not the dataset.
