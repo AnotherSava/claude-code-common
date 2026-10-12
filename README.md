@@ -413,7 +413,7 @@ Parks an off-task idea in the project's memo backlog so it isn't lost — withou
 
 ### Wrap Up
 
-Closes out a section of work. Before anything is committed it re-reads the current session's transcript from disk and surfaces the business left unfinished: questions Claude asked that were never answered, concerns raised and passed over, ideas that should have been memo'd, and follow-ups promised but never delivered. Each finding is settled individually, then `/commit` runs, the committed change is offered to whichever of the project's own `deploy` and `publish` paths exist, and the section ends at a `/clear`.
+Closes out a section of work. Before anything is committed it re-reads the current session's transcript from disk and surfaces the business left unfinished: questions Claude asked that were never answered, concerns raised and passed over, ideas that should have been memo'd, and follow-ups promised but never delivered. Each finding is settled individually, then `/commit` runs, the committed change is offered to whichever of the project's own `deploy` and `publish` paths exist, a release is offered when features or fixes went in since the last one, and the section ends at a `/clear`.
 
 **Command:** `/wrap-up`
 
@@ -427,6 +427,7 @@ Closes out a section of work. Before anything is committed it re-reads the curre
 - Reports a finding in a file the project's upstream owns and goes no further — no memo and no ping — unless it touches a change carried on the user's own branch or an issue they already raised upstream
 - Hands the rest to `/commit` (remote sync, reflect, clean-code, documentation, confidentiality scan, push)
 - Offers to run the committed code on this machine and then to ship it outward, so a closed section is not left unrun here or on the previous version for its users — one offer per wrapper the repo actually has, invoking the wrapper rather than the skill that configures it, and nothing said about a verb the project has not configured. A deploy that relaunches an app with a window carries the machine-takeover ask immediately before it, which every deploy type other than `dev-server` gets — and `dev-server` is the only value `/deploy` ever writes, so every window-raising project names no type at all and reaches the ask through that default rather than as an edge case. The publish offer leaves the shipping guard to the publish script rather than restating it, and is withheld in the one case that script cannot see: a push the user declined, which a project waiving the guard with `ALLOW_DIRTY_PUBLISH=1` would ship anyway. It asks for the verb by name, which is what the publish skill's authorization bar requires
+- Offers `/release` when feat or fix commits have gone in since the last `v*` tag, listing them so the user judges whether they reach users; counted after the push, with tags fetched first so a release cut on the other machine is not counted again, and silent for a project never tagged, whose first release stays a deliberate act
 - Recommends the `/clear` that scopes the next wrap-up to exactly one section, and withholds it where the push was declined or a run left something to fix
 
 ---
