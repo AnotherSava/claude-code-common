@@ -283,7 +283,7 @@ Cross-project preferences and feedback. Memory files live in `~/.claude/memory/`
 - [Removal scopes to the region](~/.claude/memory/feedback_removal_scopes_to_the_region.md) — "remove X from region R" means R; enumerate the region and ask what stays, don't delete X and wait
 - [Discuss before rewriting deliberate behavior](~/.claude/memory/feedback_discuss_before_rewriting_design.md) — don't rewrite considered design off a single offhand comment; propose, preview, confirm first
 - [A "why" question is not a doc request](~/.claude/memory/feedback_why_question_is_not_a_doc_request.md) — answer in chat and wait; writing the rationale into a file mid-disagreement entrenches a design being questioned
-- [No unsolicited past-data fixes](~/.claude/memory/feedback_no_unsolicited_data_fixes.md) — fix the going-forward code only; don't proactively migrate/correct stale stored data unless asked or after asking
+- [No unsolicited past-data fixes](~/.claude/memory/feedback_no_unsolicited_data_fixes.md) — fix the going-forward code only; don't migrate stale data unasked, or judge a new feature by records made before it
 - [Check the source before deriving](~/.claude/memory/feedback_check_the_source_before_deriving.md) — before writing a computed value over stored data, check whether the system that imported it already holds the right one
 - [Overused phrases](~/.claude/memory/feedback_overused_phrases.md) — live blocklist of verbal tics; the list itself is CLAUDE.md's **Overused Phrases** section, and grows as new ones surface
 - [Never blind-splice a file region](~/.claude/memory/feedback_no_blind_splice.md) — read what lies between the anchors first; marker/index splices silently delete unrelated code with no error at edit time

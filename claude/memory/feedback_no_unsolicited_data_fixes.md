@@ -1,6 +1,6 @@
 ---
 name: no-unsolicited-data-fixes
-description: When a code fix changes behavior going forward but leaves old/stored data wrong, fix the code only — don't proactively migrate/correct past data unless asked or after asking
+description: When a code fix changes behavior going forward but leaves old/stored data wrong, fix the code only — don't proactively migrate/correct past data unless asked or after asking, and don't judge a new feature by records made before it existed
 metadata:
   type: feedback
 ---
