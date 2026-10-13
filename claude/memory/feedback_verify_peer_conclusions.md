@@ -27,6 +27,16 @@ was already written into a README as a stated hazard and came back out a round t
 retraction named the shape: "I verified the resolution half and asserted the rest." Ask which stage
 the peer actually read, and trace the stages after it before putting any of it in prose.
 
+**A verify pass raises the authority of a wrong inference rather than catching it.** Measured
+2026-10-12: a review loop's reviewer found that `samePlace` reads a place's name as its identity, a
+skeptic confirmed it against the live archive, and the finding was reported on as "a merge can make
+a complete trip report a missing leg" — which is backwards. The overlay renames both ends, so a
+merge is what CLOSES such a chain; the real hazard was renaming one end of it. Oleg's reply was one
+question: "won't merging solve this?". Both agents had read the merge's own effect and neither
+traced it, which is the module-boundary case above wearing a confirmation. Trace a finding about a
+feature through that feature's own control before reporting it, and treat a verified finding as a
+claim rather than a verdict.
+
 **How to apply:** re-derive the conclusion yourself before recording it, and say which parts you
 verified and which you re-derived. Where it stays open, record the candidates and what excludes
 each rather than adopting the peer's pick — see [[feedback_no_guessed_facts]] and
