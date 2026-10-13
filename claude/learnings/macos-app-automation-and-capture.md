@@ -77,6 +77,19 @@ gated:
 rows.contains { $0.layer == 0 && $0.owner != "Window Server" && !$0.title.isEmpty }
 ```
 
+**A terminal's switch reading on is not a grant either.** Measured 2026-10-13: an
+ad-hoc-signed terminal that had been rebuilt showed Screen Recording switched on in
+System Settings, and a script run inside it still got every foreign title blank —
+before and after relaunching the terminal. The same probe through the purpose-built
+helper above answered granted at the same moment, which is the argument for routing
+capture through the helper rather than through whatever terminal is running.
+
+**Parking the pointer: never on a screen corner.** A capture that moves the pointer
+clear of a hover tooltip (`CGWarpMouseCursorPosition`, which posts no event and needs
+no Accessibility grant) must stay inset from the corners, since any of them can be a
+Hot Corner — `defaults read com.apple.dock | grep wvous` shows which are set, and a
+parked pointer on one fires its action (Quick Note, Mission Control) mid-capture.
+
 ## Not everything worth capturing is a window
 
 Menus, popovers, tooltips and status items are separate `CGWindow`s on higher
@@ -98,7 +111,7 @@ A dark screenshot on a dark page has no visible boundary. macOS gives a
 *decorated* window a light ~`(189,189,189)` hairline and transparent rounded
 corners for free; an **undecorated** window has neither, and a region crop never
 does. Bordering one needs no permission, so it is post-processing on the saved
-PNG, and `hairline.py` in the docs-relevance skill does it — step 4 of that skill
+PNG, and `hairline.py` in the screenshot skill does it — that skill's framing step
 says which frame gets which treatment. A square crop or an opaque undecorated
 window gets a ring in a new margin outside it; a window whose alpha already has
 its shape gets an inward ring eroded from that alpha, never a drawn arc. Rounded
