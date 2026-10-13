@@ -113,6 +113,7 @@
 - [Uncommitted is not delivered](feedback_uncommitted_is_not_delivered.md) — check `HEAD` and the upstream ref, not the file; a symlinked tool reaches other machines only when pushed
 - [A sanitised value is not evidence](feedback_sanitised_value_is_not_evidence.md) — clamping for one consumer blinds the guard reading the same variable; give the detector its own
 - [Surface the gap, don't fill it](feedback_surface_the_gap_dont_fill_it.md) {always} — never auto-fill a field a human must vouch for; leave it null, mark it, fill by hand
+- [Widen what a human dismisses](feedback_widen_what_a_human_dismisses.md) — a suggestion they can dismiss for good is tuned for coverage; a wrong one costs one click, one never made is unreachable
 - [A glyph, not capitals](feedback_glyph_not_caps.md) — caps inside grey text still read grey; use an icon carrying its own colour — but recolour an element already there before adding one
 - [Status colour vs the page](feedback_status_colour_vs_page.md) — a tinted badge passes ink contrast and is still invisible; measure the fill against the page too (1.09:1), fill it solid with inverting ink
 - [Re-read the lead after appending](feedback_reread_the_lead_after_appending.md) — an appended correction is true while the opening sentence it sits under has silently gone false
