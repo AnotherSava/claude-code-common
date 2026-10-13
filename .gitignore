@@ -52,6 +52,7 @@ claude/skills/publish-chrome-extension/config/
 !claude/skills/release/
 !claude/skills/repo-status/
 !claude/skills/reset/
+!claude/skills/screenshot/
 !claude/skills/shared/
 !claude/skills/skill/
 !claude/skills/transcrypt/

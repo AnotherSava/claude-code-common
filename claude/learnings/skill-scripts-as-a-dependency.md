@@ -48,13 +48,18 @@ Put the check in the project's own commit gate. These decide whether it holds up
   can see.
 
 The worked examples are `docs/screenshots/check-skill-scripts.py` in the tauri-dashboard repo,
-which checks the paths its capture libs build, and the docs-relevance skill's own
+which checks the paths its capture libs build, and the screenshot skill's own
 `scripts/check-capture-scripts.ps1`, which a project with Windows captures runs from its gate
 to resolve every name those captures take from the skill's PowerShell library.
 
 ## Sweeping the callers when you rename a skill
 
-That gate is the caller's half, and it speaks only after the break. The rename itself happens
-in the dotfiles repo, so sweep from there: grep the other checkouts for `skills/<old-name>`
-and fix what it finds in the same pass. It will not find the per-machine wrappers, which are
-gitignored on each machine — regenerate those by re-running the skill that writes them.
+When the skill being moved or renamed holds scripts other repos call, ship the caller change as a
+convention version — `claude/conventions/versions/016-screenshot-machinery-moved/` is the worked
+example — rather than editing those repos from here. Each repo's own session adopts it through
+`/adopt`, the SessionStart gap notice tells it the version is pending, and the record says which
+repos have repointed. The grep of the other checkouts still belongs to the rename: it finds the
+callers the version has to describe, and a live session working in one of them gets a message so
+its capture does not fail at the shutter before it adopts. It will not find the per-machine
+wrappers, which are gitignored on each machine — regenerate those by re-running the skill that
+writes them.

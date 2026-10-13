@@ -10,7 +10,7 @@
 
   A project runs this from its local commit gate, from the repo root, and not from CI, because the paths resolve
   under the developer's ~/.claude, which no runner has:
-    pwsh -NoProfile -NonInteractive -File ~/.claude/skills/docs-relevance/scripts/check-capture-scripts.ps1
+    pwsh -NoProfile -NonInteractive -File ~/.claude/skills/screenshot/scripts/check-capture-scripts.ps1
   It checks docs/screenshots/capture unless another folder is passed as the first argument. It runs on Windows
   only, since the capture library it loads is Windows-only; elsewhere it exits 1 without checking anything, so
   a gate shared with macOS decides for itself what to do there.

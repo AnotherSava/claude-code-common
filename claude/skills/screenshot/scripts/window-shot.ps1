@@ -460,8 +460,8 @@ if ($Method -eq 'Alpha') {
 
 $dir = Split-Path -Parent $Out
 if ($dir -and -not (Test-Path $dir)) { New-Item -ItemType Directory -Force -Path $dir | Out-Null }
-# Record the window's DPI in the PNG. The frame the docs-relevance skill's
-# winframe.py draws is sized from it, and nothing else in the file says which
+# Record the window's DPI in the PNG. The frame the
+# winframe.py beside this file draws is sized from it, and nothing else in the file says which
 # display the window was on.
 $shotDpi = [WinShot]::GetDpiForWindow($h)
 if ($shotDpi -gt 0) { $bmp.SetResolution($shotDpi, $shotDpi) }

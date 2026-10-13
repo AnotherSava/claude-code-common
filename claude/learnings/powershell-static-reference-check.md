@@ -1,6 +1,6 @@
 # Checking a PowerShell script's references without running it
 
-A script that dot-sources a library from another repo breaks when the library renames a function, a parameter or a type, and nothing reports it until the script runs. For a script that takes over the machine, such as a screenshot capture, that is after the pointer has moved. A commit gate can catch the rename statically: parse the script, load its library the way the script would, and resolve every name. Each of those steps has a trap, and every trap below was measured on PowerShell 7 on 2026-09-25. The worked example is the docs-relevance skill's `scripts/check-capture-scripts.ps1`.
+A script that dot-sources a library from another repo breaks when the library renames a function, a parameter or a type, and nothing reports it until the script runs. For a script that takes over the machine, such as a screenshot capture, that is after the pointer has moved. A commit gate can catch the rename statically: parse the script, load its library the way the script would, and resolve every name. Each of those steps has a trap, and every trap below was measured on PowerShell 7 on 2026-09-25. The worked example is the screenshot skill's `scripts/check-capture-scripts.ps1`.
 
 ## Load the library in a PowerShell instance of its own
 

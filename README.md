@@ -154,14 +154,28 @@ Scans project documentation for stale references and fixes them.
 - Keeps curated feature listings (features page, docs index, README) in sync with the diff
 - Reconciles documentation screenshots against the docs that cite them, and proves a shot stale by grepping the text visible in it against source
 - Records each shot in a `docs/screenshots/screenshots.json` manifest — what the frame shows, how to reproduce it, and whether replacement is `auto`, `confirm` or `never`
-- Replaces one only as its policy allows, capturing through a committed `docs/screenshots/capture/<id>.sh` (or `<id>.ps1` on Windows, which calls the skill's shared `window-shot.ps1` and `windows-capture.ps1`) so the second capture is free and the diff shows how the image was made; anything undecided stops to ask, and a shot you supply yourself is filed the same way
-- Stages the content a frame needs by replaying a committed fixture through an input the product already takes, never a demo mode or seed data inside it
-- Gives a screenshot the edge its own capture lacks: a hairline traced inside a shaped frame's silhouette or grown outside an opaque one (`hairline.py`), or for a Windows capture the frame DWM draws, rebuilt from its measured model (`winframe.py`)
 - Checks every published screenshot for an edge on every run, whoever took it, and reports a bare one as `NO EDGE` (`hairline.py --check`, which writes nothing)
-- Writes a contact sheet with `contact-sheet.py`, which derives it from the manifest, the images, their raws and git so that only the verdict notes are written by hand — one self-contained HTML page carrying every screenshot, replacements as before/after pairs, each frame numbered and one click apart, with two nav checkboxes: *Show previous version*, ticked by default, for the committed file a frame replaces, and *Show before framing*, unticked, for each framed file's capture before its edge was added — and publishes it on the tailnet, handing over a link that opens on either machine; under `confirm` the sheet *is* the proposal, written before anything is captured
 - Names the shots that do not exist: sweeps pages for sections doing a picture's work in prose, proposes the two or three strongest, and captures none of them without an explicit yes. A private repo skips this pass unless its `CLAUDE.md` asks for it, and the screenshots it already has keep every staleness check
+- Hands every capture its policy permits, and every frame it has to border, to [`/screenshot`](#screenshot); a capture that would raise a window or move the pointer comes back to the caller as pending, since a backgrounded fork cannot ask first
 - Regenerates dimensioned-draft drawings when the model they document changed
 - Suggests new documentation files or reorganization when beneficial
+
+---
+
+### Screenshot
+
+Takes, frames and files a documentation screenshot, then shows it on a contact sheet and asks for a verdict.
+
+**Invoked by:** asking to take, re-shoot or replace a screenshot in a project's docs, by any turn that changes an image file, or by [`/docs-relevance`](#docs-relevance) when a frame's policy permits a capture.
+
+**Features:**
+- Asks immediately before a capture that raises a window, moves the pointer or launches the app; a headless render needs no ask
+- Keeps the outgoing file in `tmp/screenshot-originals-<date>/` before anything overwrites it, and sets the entry's `verifiedAt` to `at-capture`
+- Captures through a committed `docs/screenshots/capture/<id>.sh` (or `<id>.ps1` on Windows, which calls the skill's shared `window-shot.ps1` and `windows-capture.ps1`) so the second capture is free and the diff shows how the image was made; a shot you supply yourself is filed the same way
+- Stages the content a frame needs by replaying a committed fixture through an input the product already takes, never a demo mode or seed data inside it
+- Gives a screenshot the edge its own capture lacks: a hairline traced inside a shaped frame's silhouette or grown outside an opaque one (`hairline.py`), or for a Windows capture the frame DWM draws, rebuilt from its measured model (`winframe.py`)
+- Writes a contact sheet with `contact-sheet.py`, which derives it from the manifest, the images, their raws and git so that only the verdict notes are written by hand — one self-contained HTML page carrying every screenshot, replacements as before/after pairs, each frame numbered and one click apart, with two nav checkboxes: *Show previous version*, ticked by default, for the committed file a frame replaces, and *Show before framing*, unticked, for each framed file's capture before its edge was added — and publishes it on the tailnet, handing over a link that opens on either machine; under `confirm` the sheet *is* the proposal, written before anything is captured
+- Holds the machinery every project's capture scripts call by path, under `claude/skills/screenshot/scripts/`; moving it is a convention version, since nothing else reports a caller left on the old path
 
 ---
 
@@ -1060,10 +1074,10 @@ The same `env` block sets `CLAUDE_CODE_DISABLE_MOUSE_CLICKS=1`, which keeps a dr
 
 ### Screenshot capture helper (macOS)
 
-The `docs-relevance` skill takes screenshots through a small helper rather than through the agent's own binary. macOS grants Screen Recording to a *binary*, and the agent's is version-named, so granting it there would both go stale on every update and hand whole-display access to every session forever. A purpose-built bundle at a fixed path is granted once and scoped to the one job. Build it once per machine:
+The `screenshot` skill takes screenshots through a small helper rather than through the agent's own binary. macOS grants Screen Recording to a *binary*, and the agent's is version-named, so granting it there would both go stale on every update and hand whole-display access to every session forever. A purpose-built bundle at a fixed path is granted once and scoped to the one job. Build it once per machine:
 
 ```bash
-bash claude/skills/docs-relevance/scripts/build-docshot.sh
+bash claude/skills/screenshot/scripts/build-docshot.sh
 ```
 
 That installs `DocShot.app` into `~/Applications`. Grant it Screen Recording the first time it asks — a denial is silent rather than loud, since window ids, owners and bounds all still populate while every window *title* comes back empty, so use the helper's `--check` probe to confirm the grant is live instead of discovering it as a black PNG. The grant is pinned to the bundle's ad-hoc signature, so the script refuses to clobber an existing install unless passed `--force`; rebuilding resets the grant.

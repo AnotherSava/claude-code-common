@@ -8,13 +8,9 @@ metadata:
 Any time a reply reports on images or screenshots — what changed, what is stale, what was captured,
 cropped, keyed or bordered, or what a comparison shows — **build the HTML contact sheet and hand over
 its tailnet URL**, published with `~/.claude/skills/shared/tailnet_publish.py` so it opens on either
-machine. For documentation screenshots in a repo with a `screenshots.json`, build it with
-`~/.claude/skills/docs-relevance/scripts/contact-sheet.py`, which derives the page from the repo and
-needs only a notes file written by hand. For any other picture — an icon, a candidate in `tmp/`, a
-screenshot the user supplied — build the page from the parts of
-`~/.claude/skills/docs-relevance/references/contact-sheet.html`, keeping its data URIs, theme toggle and
-corner crops. This holds whether or not the work came from a `/docs-relevance` run; the trigger is
-*reporting about pictures*, not which skill is loaded.
+machine. **Invoke the `screenshot` skill to build it**: its last step says how, for a repo with a
+`screenshots.json` and for any other picture. This holds whether or not the work came from a
+`/docs-relevance` run; the trigger is *reporting about pictures*, not which skill is loaded.
 
 **Why:** the user has asked for this repeatedly and had to ask again each time, because every instance
 came with a reason it seemed unnecessary. The reasons are always the same shape and always wrong:

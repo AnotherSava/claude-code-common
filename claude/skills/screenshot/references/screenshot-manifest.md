@@ -65,7 +65,7 @@ capture as it was before the frame — at `raw/<name>` in this same directory, c
 what a later re-frame starts from, so trying a different border, radius or ring needs no re-capture on
 either machine. It is not listed in `files`: an entry names what the documentation embeds, and the raw
 is an input to producing that. Keep `raw/` out of the published site, and out of the image audit,
-which the skill's **Doc image files** pathspec already excludes. The contact sheet's pre-frame stage is
+which the `docs-relevance` skill's **Doc image files** pathspec already excludes. The contact sheet's pre-frame stage is
 read from it.
 
 ## What each policy permits
@@ -145,7 +145,7 @@ asked, not whether.
 
 ## Keeping it current
 
-The manifest is written by this skill, not only read by it:
+The manifest is written by the skills that read it — `docs-relevance` and `screenshot` — not only read by them:
 
 - A screenshot with no entry, or an entry with no `policy`, is **undecided**: ask the user which policy
   it should have and write their answer into `policy`. When the question cannot be asked, write the
@@ -159,7 +159,7 @@ The manifest is written by this skill, not only read by it:
 
 ## The contact sheet
 
-The sheet is how this check talks to the user about pictures. Any run with something visual to settle
+The sheet is how pictures are put in front of the user. Any run with something visual to settle
 writes a single HTML page and links it — a stale frame, a proposed replacement, a verdict that wants a
 second pair of eyes. Images scattered through a transcript are not a substitute: they arrive in
 whatever order they were read, separated by tool output, and for a run touching three shots the reader

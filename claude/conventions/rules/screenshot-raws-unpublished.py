@@ -1,6 +1,6 @@
 """A repo committing raw screenshot captures keeps them out of its published docs site.
 
-The docs-relevance skill commits each frame's untouched capture beside it, at
+The screenshot skill commits each frame's untouched capture beside it, at
 `docs/screenshots/raw/<name>`, so a frame can be re-framed on either machine without a re-shoot.
 Jekyll publishes every file under `docs/` it is not told to leave out, so without an `exclude:`
 entry each raw goes live next to the frame made from it: a second copy of every screenshot, with no

@@ -30,4 +30,4 @@ The numbers that only hold at 144 DPI are the chord counts. At other scales the 
 - **An app's own `border-radius` fights this on Windows.** See `tauri-windows-native.md`: a CSS radius larger than DWM's leaves a transparent arc inside Windows' border.
 - **Maximized and snapped windows have square corners and no rounding**, so a model of a normal window is wrong for them.
 
-The docs-relevance skill's `scripts/winframe.py` implements the model, including `--cut` for crops whose cut sides should run straight with square corners, and `--ring` / `--shadow` to choose the look.
+The screenshot skill's `scripts/winframe.py` implements the model, including `--cut` for crops whose cut sides should run straight with square corners, and `--ring` / `--shadow` to choose the look.

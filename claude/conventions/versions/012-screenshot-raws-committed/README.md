@@ -48,7 +48,7 @@ Fetch first, and do not run this on a branch behind its upstream: the work edits
    frames only through `Add-WindowFrame` needs nothing: the shared function already writes there. A
    capture with no frame step needs nothing either, because the committed file is its own raw.
    Afterwards run whatever the repo's commit gate runs over its captures, including — on Windows,
-   from the repo root — `~/.claude/skills/docs-relevance/scripts/check-capture-scripts.ps1` where the
+   from the repo root — `~/.claude/skills/screenshot/scripts/check-capture-scripts.ps1` where the
    capture scripts dot-source the skill's `windows-capture.ps1`. Captures built on a library of their
    own, as achievement-overlay's are, give it nothing to check, and it fails on them.
 3. **Bring over the raws this machine already holds.** Look in `tmp/screenshot-raws/` and

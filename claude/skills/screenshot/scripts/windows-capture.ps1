@@ -3,7 +3,7 @@
 
   Dot-source it from docs/screenshots/capture/<id>.ps1:
 
-      . (Join-Path $env:USERPROFILE '.claude\skills\docs-relevance\scripts\windows-capture.ps1')
+      . (Join-Path $env:USERPROFILE '.claude\skills\screenshot\scripts\windows-capture.ps1')
 
   What lives here is what any project needs unchanged: the primary work area,
   pointer placement, finding a process's windows, posting one a message, the

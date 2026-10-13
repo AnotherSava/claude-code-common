@@ -164,7 +164,7 @@
 - [One session per folder](user_one_session_per_folder.md) — never two Claude Code sessions in one folder, no --fork-session; a second one is a fault
 - [Where supplied screenshots land](user_screenshot_location.md) {always} — "see the screenshot" with nothing attached means the newest PNG in `~/Desktop`, or `~/CropStage` on Windows; go look first
 - [Memos go through the wrapper and the skill](user_memo_access_paths.md) — `memo` calls only `add`/`list`, everything else comes via `/memo`; `memos.py` is never typed by hand, so weight wrapper and SKILL.md over CLI ergonomics
-- [Always report images with a contact sheet](feedback_image_report_always.md) {always} — reporting anything about screenshots means building the HTML sheet and linking it; prose and transcript images are not substitutes
+- [Always report images with a contact sheet](feedback_image_report_always.md) {always} — reporting anything about screenshots means building the HTML sheet with the `screenshot` skill and linking it; prose and transcript images are not substitutes
 - [Post-iteration cleanup audit](feedback_post_iteration_cleanup.md) {always} — before committing after a debug/optimize session, remove changes from disproven theories; don't leave cruft
 - [Verify before justifying legacy behavior](feedback_verify_before_justifying.md) {always} — if explaining why old code/docs exist (especially defending keeping it), check the source before speculating; defensive guesses preserve cruft
 - [Captured the lesson, drop the code](feedback_research_to_production_cleanup.md) {always} — when research code transitions to production, delete helpers whose rationale lives in docs; the memory that replaces a retired tool keeps the claim, not the apparatus
@@ -265,3 +265,4 @@
 - [Match the use, not the name](feedback_match_the_use_not_the_name.md) — a "does anything consume X" check must match the construct; a repo's own docs satisfy a grep for X
 - [Claude drawn at 80 columns](project_claude_80_column_frame.md) {always} — open bug: a Claude pane at 80 cols in a wide tmux pane; read WSL `~/tmux-size.log` before resizing, record lives in the agwinterm repo
 - [Keep instrumentation while the bug is open](feedback_keep_instrumentation_while_open.md) — clean runs mean no trigger, not no bug; recommend keeping probes/hooks, never offer removal as equal
+- [Capture takes the pointer](feedback_capture_takes_the_pointer.md) — a capture script parks the pointer itself and restores it, instead of refusing; confirm the run right before it
