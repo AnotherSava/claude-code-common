@@ -58,16 +58,38 @@ Links with no colour class still inherit; links with one now honour it. (Same re
 
 ## Some arbitrary utilities never generate — even after `rm -rf .next`
 
-Distinct from the stale-cache case above: a small set of arbitrary utilities refuse to appear in the bundle *at all*, no matter how many clean rebuilds you do. Two reproduced cases:
+Distinct from the stale-cache case above: a small set of arbitrary utilities refuse to appear in the bundle *at all*, no matter how many clean rebuilds you do. Reproduced:
 
 - **A hover-variant of a `[var(--theme-color)]` background:** `hover:bg-[var(--color-border)]` (where `--color-border` is a `@theme` colour) was verified absent from every stylesheet after **two full `.next` clears + restarts** — while `group-hover:text-[var(--color-text)]` on the *same element* generated fine, and plain `bg-[#c4c4cc]` in a quoted className works. So it's specific to certain arbitrary-value + variant combinations (the arbitrary `bg-[var(--color-border)]` likely competing with the theme-generated `bg-border` utility). Clearing `.next` again does nothing.
-- **A class token immediately before `${` in a template literal** (no separating space): `` `text-pretty text-[12px] text-[#77777f]${cond ? " …" : ""}` `` — Tailwind's scanner reads the raw source text and the `]${` boundary breaks token extraction, so `text-[#77777f]` is never emitted, while the identical class in a plain quoted string (`"… text-[#c4c4cc]"`) works. Keep a **space before `${`**: `` `… text-[#77777f] ${cond ? "…" : ""}` ``.
-
 **Fix when a utility stubbornly won't generate:** stop fighting the scanner — use a **named class in `globals.css`** (`.wn-dl:hover { … }`), the **semantic `@theme` utility** (`bg-border` instead of `bg-[var(--color-border)]`), or an **inline `style`** for the resting bits. Named hand-written rules always emit (subject only to the stale-cache clear above); the design reference's own hover affordances (`.wn-icobtn`, `.wn-dllink`) are done exactly this way.
 
 **Confirm it's really missing** (not just stale) before clearing `.next` yet again: iterate `document.styleSheets` for a rule whose `selectorText` matches the element (or contains the escaped class) — an empty result after a clean rebuild means the utility genuinely wasn't emitted, so switch approaches instead.
 
 **Corollary — never size-probe by swapping arbitrary classes at runtime.** Assigning `el.className = 'text-[13px]'` from the console to find the right value looks like a clean experiment and quietly lies: the scanner only ever saw the values written in your source, so any *other* arbitrary value has no rule behind it and the element does not move. Real case: probing `text-[11px] → text-[12px] → text-[13px] → text-[14px]` measured heights `11, 12, 12, 12`, because only the first two exist in the codebase — the last two "results" were the 12px class still in effect, and read as "the glyph stops growing past 12px", which is not something fonts do. Probe with **inline style** (`el.style.fontSize = px + 'px'`), which bypasses the stylesheet entirely, then ship a value from the standard scale (`text-xs`) so the committed class is guaranteed to exist.
+
+## A utility touching `${` emits no rule, and no build step reports it
+
+Keep whitespace on both sides of every interpolation inside a class template literal. The scanner reads raw source text with no idea which literal is a class, so a utility written against `${` is extracted as part of one longer candidate that parses as nothing:
+
+```tsx
+className={`px-2 target:bg-highlight${index > 0 ? ' border-t' : ''}`}   // no target:bg-highlight rule
+className={`px-2 ${on ? 'bg-highlight' : ''}text-sm`}                   // no text-sm rule
+className={`px-2 target:bg-highlight ${index > 0 ? 'border-t' : ''}`}   // both emitted
+```
+
+No bracket is involved. A plain variant utility disappears as readily as a `text-[#77777f]`, so a class carrying no arbitrary value is not safe from it, and neither side of the interpolation is safer than the other.
+
+Nothing reports it. The class reaches the DOM, so ESLint sees a valid string, the tests see the rendered class, and `next build` type-checks markup that is correct. An edit that wraps a working literal to append a conditional therefore un-styles the element silently, from a commit about something else — in the `trips` project a booking page's `#segment-N` highlight died inside a commit that added an address row, and was found by a user following a link that no longer highlighted anything.
+
+**Whether a glued class actually breaks depends on who else writes the same utility**, which makes the pattern the thing to check rather than the missing rule. A second glued class in the same codebase — `hover:text-foreground${running ? ' invisible' : ''}` — cost nothing, because three other components wrote both utilities unglued and the bundle carried them. Deleting an unrelated component would have broken it.
+
+Grep the built bundle for the escaped selector to confirm a rule exists:
+
+```bash
+grep -o 'target\\:bg-highlight[^}]*}' .next/static/chunks/*.css
+```
+
+For a commit gate, walk each `.tsx`, take the template literals the file shows to be class strings — passed to `className` directly, or assigned to a local the same file passes to it — and fail on any interpolation without whitespace on both sides. Keyed on the attribute rather than on the content, so a hyphen-rich URL or React key is never examined. A class string imported from another module is outside its reach, which belongs in the check's own output rather than left as an assumed pass.
 
 ## Preflight resets `button, input, select, optgroup, textarea` — but NOT `fieldset`
 
