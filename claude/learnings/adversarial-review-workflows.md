@@ -339,3 +339,28 @@ returns gaps in the designs.
 Give it the standing instruction to settle a cheap factual question itself rather than listing it as
 unknown. The base rate above was not in the evidence pack any designer read; the critic measured it
 during its own pass, which is the only reason the finding exists.
+
+## A fixing loop makes the prose around the code stale, and the next round spends itself there
+
+Every measured figure in a comment or a README — how many pairs a filter offers, how many rows a
+guard removes — is a claim about the code as it stood when it was written. A loop that fixes code
+invalidates them silently: the filter still reads correctly, the sentence beside it still reads
+correctly, and only a re-measurement shows they no longer agree. Measured 2026-10-12: one relaxation
+of a candidate filter left three files quoting the pre-change counts, including the README paragraph
+that justified keeping the filter narrow, and a later round spent most of its budget finding them.
+
+Two things follow. **Tell the fix agents that a measured figure near the code they touch is part of
+the change**, so a number is re-derived rather than left behind. And read a round whose findings are
+mostly stale figures as the signal it is: the code findings have dried up, and further rounds will
+mostly report prose.
+
+## The last round's fixes are never reviewed, so plan a final narrow round
+
+A loop that stops on a round cap stops with its own last fixes unread — the `review-and-fix`
+workflow says so outright, declines to record its bookmark for exactly that reason, and the same
+holds for any loop that fixes inside the round. Converging therefore takes one more invocation than
+it looks, scoped to the delta nobody has read: the previous round's fixes, plus whatever the author
+changed in response to the report. Measured 2026-10-12 across four invocations on one feature — the
+narrow one returned eight findings, seven of them stale prose and one rare behavioural gap, where
+each broad invocation before it had returned a dozen or more. Scope the last one by naming the files
+and the specific changes, and say in the prompt not to re-review the rest.
