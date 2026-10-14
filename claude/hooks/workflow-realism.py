@@ -1,16 +1,16 @@
 #!/usr/bin/env python3
 r"""
-workflow-realism.py — warn when a workflow fixes what it reviews without rating realism, or reviews code without the saved `review-and-fix` workflow.
+workflow-realism.py — warn when a workflow fixes what it reviews without rating realism, or reviews code without the saved `review-auto` workflow.
 
 A PreToolUse hook on the Workflow tool. An inline script with a stage that fixes findings
 ("fix these confirmed defects", "apply fixes for these findings") whose text mentions none of
-`frequency`, `reached_by` or the saved `review-and-fix` workflow gets a reminder as
+`frequency`, `reached_by` or the saved `review-auto` workflow gets a reminder as
 additionalContext. Any mention of those words silences it, whatever they are used for. It never
 blocks: the workflow launches either way, and the reminder names the saved workflow so the next
 one can run through it.
 
 A script that only reviews code — an adversarial or refuting stage, or a review of a diff, a change
-set, commits or a branch — and never names `review-and-fix` gets a second reminder: run it with
+set, commits or a branch — and never names `review-auto` gets a second reminder: run it with
 `fix: false`. Only that workflow is widened by the `review-scope.py` hook to the commits pushed since
 the last review, so an inline read-only review silently leaves them out. Mentioning `frequency` or
 `reached_by` does not silence this one, since rating realism does nothing for the scope.
@@ -26,16 +26,19 @@ The gate exists because a loop that verifies and fixes on its own shows its find
 review rounds confirmed 125 findings, 85 of them rated low, and coded every one.
 
 A run by scriptPath is judged by that file. A run by name is not judged: a saved workflow is
-reviewed when it is written, and `review-and-fix` is the one this points to. The script never
+reviewed when it is written, and `review-auto` is the one this points to. The script never
 raises and exits 0 on every path.
 """
 from __future__ import annotations
 
 import json
+import os
 import re
 import sys
 
-SAVED = "review-and-fix"
+sys.path.insert(0, os.path.join(os.path.dirname(os.path.abspath(__file__)), "..", "scripts"))
+
+from review_scope import WORKFLOW as SAVED  # noqa: E402 — needs the sys.path line above
 
 FIX_STAGE = re.compile(
     r"\b(?:fix|apply (?:the |these |all )?fix(?:es)? (?:for|to)) "

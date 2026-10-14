@@ -161,7 +161,7 @@ dated line here rather than leaving it in a session transcript.
   `echo` was replaced by the hook's command, and a Workflow call sent `args: {"a": 1}` reached the script as the
   hook's object. The rewrite replaces the whole input, so copy every field you are not changing. Adding `allow`
   to make it work would silently skip the user's permission prompt for that tool, and it is not needed.
-  `review-scope.py` relies on this to widen every `review-and-fix` scope.
+  `review-scope.py` relies on this to widen every `review-auto` scope.
 
 - **2026-09-30** — **Counting registrations is not counting spawns, and the arithmetic that treats
   them as equal overstates the cost badly.** `settings.json` registers one `^Bash$` entry per `if`

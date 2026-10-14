@@ -8,7 +8,7 @@ bookmark and the working tree, whoever pushed it and however.
 
 Three moments act on it, and each belongs to a different caller:
 
-- `plan`, called in-process by the `review-scope.py` PreToolUse hook when the `review-and-fix` workflow launches,
+- `plan`, called in-process by the `review-scope.py` PreToolUse hook when the `review-auto` workflow launches,
   brings the local bookmark up to date with origin's and works out what the review must cover. The `scope` command
   prints the same for a run by hand.
 - `mark`, run by the workflow's last agent once a review finished with no gaps, records which tree it covered
@@ -29,6 +29,9 @@ import shutil
 import subprocess
 import sys
 
+# The saved workflow whose runs this bookmark tracks. Both the review-scope.py and workflow-realism.py hooks match
+# Workflow calls against it, and it must equal `meta.name` in claude/workflows/review-auto.js.
+WORKFLOW = "review-auto"
 REF = "refs/review/last"
 FETCHED = "refs/review/origin"
 RECORD = "review-scope-reviewed"

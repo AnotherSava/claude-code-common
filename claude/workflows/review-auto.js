@@ -1,5 +1,5 @@
 export const meta = {
-  name: 'review-and-fix',
+  name: 'review-auto',
   description: 'Review a change through given lenses, verify each finding for truth and realism, triage in code, and fix only what earns code',
   whenToUse: 'Any automated review loop, fixing what it finds or, with fix: false, read-only. args: {scope, lenses: [{key, prompt}], context, gate, fix}. Returns the full triage table for the user, never just "all fixed".',
   phases: [
@@ -102,10 +102,10 @@ function triage(verdict) {
 }
 
 function requireArgs() {
-  if (!args || typeof args !== 'object') throw new Error('review-and-fix needs args: {scope, lenses: [{key, prompt}], context, gate, fix}')
-  if (typeof args.scope !== 'string' || !args.scope.trim()) throw new Error('review-and-fix: args.scope must name what to review, e.g. "the uncommitted diff in <repo>"')
-  if (!Array.isArray(args.lenses) || !args.lenses.length || args.lenses.some(l => !l || typeof l.key !== 'string' || typeof l.prompt !== 'string')) throw new Error('review-and-fix: args.lenses must be a non-empty array of {key, prompt}')
-  if ('fix' in args && typeof args.fix !== 'boolean') throw new Error('review-and-fix: args.fix must be true or false')
+  if (!args || typeof args !== 'object') throw new Error('review-auto needs args: {scope, lenses: [{key, prompt}], context, gate, fix}')
+  if (typeof args.scope !== 'string' || !args.scope.trim()) throw new Error('review-auto: args.scope must name what to review, e.g. "the uncommitted diff in <repo>"')
+  if (!Array.isArray(args.lenses) || !args.lenses.length || args.lenses.some(l => !l || typeof l.key !== 'string' || typeof l.prompt !== 'string')) throw new Error('review-auto: args.lenses must be a non-empty array of {key, prompt}')
+  if ('fix' in args && typeof args.fix !== 'boolean') throw new Error('review-auto: args.fix must be true or false')
 }
 
 requireArgs()

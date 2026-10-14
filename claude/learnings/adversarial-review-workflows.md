@@ -356,7 +356,7 @@ mostly report prose.
 
 ## The last round's fixes are never reviewed, so plan a final narrow round
 
-A loop that stops on a round cap stops with its own last fixes unread — the `review-and-fix`
+A loop that stops on a round cap stops with its own last fixes unread — the `review-auto`
 workflow says so outright, declines to record its bookmark for exactly that reason, and the same
 holds for any loop that fixes inside the round. Converging therefore takes one more invocation than
 it looks, scoped to the delta nobody has read: the previous round's fixes, plus whatever the author

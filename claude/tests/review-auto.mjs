@@ -1,4 +1,4 @@
-// Cases for `claude/workflows/review-and-fix.js`, the saved workflow automated review loops run through.
+// Cases for `claude/workflows/review-auto.js`, the saved workflow automated review loops run through.
 //
 // What it exists to guarantee is decided in plain code, not by an agent: which verified findings get code, that a
 // round finding nothing worth code ends the loop, and that the loop never passes its cap. So the real script runs
@@ -10,7 +10,7 @@ import { dirname, join } from 'node:path'
 import { fileURLToPath } from 'node:url'
 
 const ROOT = join(dirname(fileURLToPath(import.meta.url)), '..', '..')
-const SOURCE = readFileSync(join(ROOT, 'claude', 'workflows', 'review-and-fix.js'), 'utf8')
+const SOURCE = readFileSync(join(ROOT, 'claude', 'workflows', 'review-auto.js'), 'utf8')
 const AsyncFunction = Object.getPrototypeOf(async function () {}).constructor
 const failures = []
 
@@ -292,5 +292,5 @@ for (const test of [triageAndStop, stopsAfterQuietRound, nothingFoundCallsNoFixe
   try { await test() } catch (error) { failures.push(`  FAIL ${test.name} threw: ${error.stack}`) }
 }
 for (const line of failures) console.log(line)
-console.log(`review-and-fix tests: ${failures.length ? `${failures.length} failure(s)` : 'all cases behave'}`)
+console.log(`review-auto tests: ${failures.length ? `${failures.length} failure(s)` : 'all cases behave'}`)
 process.exit(failures.length ? 1 : 0)

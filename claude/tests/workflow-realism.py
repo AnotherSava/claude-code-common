@@ -3,7 +3,7 @@
 
 The hook is a backstop with two ways to fail. Silent on a loop that fixes without rating realism,
 it lets the next 125-finding run through; noisy on a workflow that only reviews, or on one already
-going through the saved `review-and-fix` workflow, it teaches the reader to skip it. Each case runs
+going through the saved `review-auto` workflow, it teaches the reader to skip it. Each case runs
 the real hook as a subprocess with a Workflow payload, exactly as PreToolUse delivers one.
 """
 
@@ -17,7 +17,7 @@ import tempfile
 
 ROOT = os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 HOOK = os.path.join(ROOT, "claude", "hooks", "workflow-realism.py")
-SAVED = os.path.join(ROOT, "claude", "workflows", "review-and-fix.js")
+SAVED = os.path.join(ROOT, "claude", "workflows", "review-auto.js")
 
 failures: list[str] = []
 
@@ -28,13 +28,13 @@ APPLYING = "await agent(`${CTX}\\n\\nApply fixes for these confirmed defects in 
 GATE_REPAIR = "await agent(`${CTX}\\n\\nImplement the plan. Fix every compile error, analyzer warning and test failure until the gate exits 0.`)"
 APPROVED = "await agent(`The user approved these seven findings; fix each one in those files.`)"
 FIXING_WITH_REALISM = FIXING + "\nconst SCHEMA = {properties: {frequency: {}, reached_by: {}}}"
-CALLING_SAVED = FIXING + "\nawait workflow('review-and-fix', {scope: 'x', lenses: []})"
+CALLING_SAVED = FIXING + "\nawait workflow('review-auto', {scope: 'x', lenses: []})"
 REVIEW_ONLY = "await agent('Review the diff; include a suggested_fix for each finding')"
 REFUTING = "const hits = await agent('List defects'); await agent(`${CTX}\\n\\nAdversarially verify this finding: ${hits}`)"
 REVIEW_COMMITS = "await agent(`Reviewers: read the last three commits and report defects`)"
 DOCS_REVIEW = "await agent('Review the README for typos and broken links')"
 RESEARCH = "await agent('Review recent papers on retrieval and summarize them')"
-REVIEW_CALLING_SAVED = REVIEW_ONLY + "\nawait workflow('review-and-fix', {scope: 'x', lenses: [], fix: false})"
+REVIEW_CALLING_SAVED = REVIEW_ONLY + "\nawait workflow('review-auto', {scope: 'x', lenses: [], fix: false})"
 REVIEW_WITH_REALISM = REVIEW_ONLY + "\nconst SCHEMA = {properties: {frequency: {}, reached_by: {}}}"
 
 
@@ -54,7 +54,7 @@ def warns(label: str, tool_input: object, want: bool, reminder: str = "fixes wha
         return
     if want:
         context = json.loads(out)["hookSpecificOutput"]
-        if context.get("hookEventName") != "PreToolUse" or "review-and-fix" not in context.get("additionalContext", ""):
+        if context.get("hookEventName") != "PreToolUse" or "review-auto" not in context.get("additionalContext", ""):
             failures.append(f"  FAIL {label}: the warning does not name the saved workflow: {out[:200]!r}")
         if reminder not in context.get("additionalContext", ""):
             failures.append(f"  FAIL {label}: expected the reminder saying {reminder!r}: {out[:200]!r}")
@@ -77,7 +77,7 @@ def main() -> None:
     warns("rating realism does not excuse a read-only review from the scope", {"script": REVIEW_WITH_REALISM}, True, "fix: false")
     warns("reviewing a document for typos is not a code review", {"script": DOCS_REVIEW}, False)
     warns("reviewing papers is not a code review", {"script": RESEARCH}, False)
-    warns("running the saved workflow by name is left alone", {"name": "review-and-fix", "args": {}}, False)
+    warns("running the saved workflow by name is left alone", {"name": "review-auto", "args": {}}, False)
     warns("the saved workflow's own script passes its own gate", {"script": open(SAVED, encoding="utf-8").read()}, False)
 
     scratch = tempfile.mkdtemp(prefix="workflow-realism-test-")

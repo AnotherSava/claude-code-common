@@ -11,6 +11,7 @@ from __future__ import annotations
 
 import json
 import os
+import re
 import shutil
 import subprocess
 import sys
@@ -67,6 +68,11 @@ def hook(payload: dict) -> dict | None:
 
 
 def main() -> int:
+    # Both hooks match calls by this name, so a workflow renamed without it would leave every review unwidened.
+    with open(os.path.join(ROOT, "claude", "workflows", f"{review_scope.WORKFLOW}.js"), encoding="utf-8") as handle:
+        name = re.search(r"^\s*name:\s*'([^']+)'", handle.read(), re.MULTILINE)
+    check("the saved workflow's meta.name is the name the hooks match", name and name.group(1), review_scope.WORKFLOW)
+
     scratch = tempfile.mkdtemp(prefix="review-scope-test-")
     os.environ.update({"GIT_CONFIG_GLOBAL": os.path.join(scratch, "gitconfig"), "GIT_CONFIG_NOSYSTEM": "1"})
     with open(os.environ["GIT_CONFIG_GLOBAL"], "w", encoding="utf-8") as handle:
@@ -166,37 +172,37 @@ def main() -> int:
         check("a local bookmark unrelated to origin's is never pushed over it", review_scope.push(b), f"not pushed: origin's bookmark {published[:12]} is not an ancestor of the local one")
         sh(b, "update-ref", review_scope.REF, published)
         commit(b, "late.txt", "unreviewed\n")
-        payload = {"tool_name": "Workflow", "cwd": scratch, "tool_input": {"name": "review-and-fix", "args": {"scope": "the uncommitted diff", "lenses": [], "repo": b}}}
+        payload = {"tool_name": "Workflow", "cwd": scratch, "tool_input": {"name": "review-auto", "args": {"scope": "the uncommitted diff", "lenses": [], "repo": b}}}
         out = hook(payload)
         updated = (out or {}).get("hookSpecificOutput", {}).get("updatedInput", {})
         args = updated.get("args", {})
-        check("the hook keeps the rest of the call", (updated.get("name"), args.get("lenses")), ("review-and-fix", []))
+        check("the hook keeps the rest of the call", (updated.get("name"), args.get("lenses")), ("review-auto", []))
         check("and appends the unreviewed commit to the scope", args.get("scope", "").startswith("the uncommitted diff\n\nAlso in scope") and "edit late.txt" in args.get("scope", ""), True)
         check("and passes the base and the tree at launch", (args.get("review_bookmark") or {}).get("tree"), review_scope.worktree_tree(b))
         check("and tells the model", "1 commit(s) since the last review" in out["hookSpecificOutput"].get("additionalContext", ""), True)
 
         os.environ["CLAUDE_PROJECT_DIR"] = b
-        out = hook({**payload, "tool_input": {"name": "review-and-fix", "args": json.dumps({"scope": "s", "lenses": [], "review_bookmark": {"base": "forged"}})}})
+        out = hook({**payload, "tool_input": {"name": "review-auto", "args": json.dumps({"scope": "s", "lenses": [], "review_bookmark": {"base": "forged"}})}})
         args = out["hookSpecificOutput"]["updatedInput"]["args"]
         check("args sent as a JSON string are read, and the project directory stands in for a missing repo", os.path.realpath(args["review_bookmark"]["repo"]), os.path.realpath(b))
         check("a review_bookmark the caller wrote is replaced", args["review_bookmark"]["base"] != "forged", True)
 
         os.environ["CLAUDE_PROJECT_DIR"] = a
-        out = hook({**payload, "tool_input": {"name": "review-and-fix", "args": {"scope": "s", "lenses": []}}})
+        out = hook({**payload, "tool_input": {"name": "review-auto", "args": {"scope": "s", "lenses": []}}})
         check("with no trustworthy base the hook passes no bookmark", "review_bookmark" in out["hookSpecificOutput"]["updatedInput"]["args"], False)
         check("and asks for one", "ask which base" in out["hookSpecificOutput"]["additionalContext"], True)
 
         check("another workflow passes through", hook({**payload, "tool_input": {"name": "other", "args": {"scope": "s"}}}), None)
         check("an inline script passes through", hook({**payload, "tool_input": {"script": "export const meta = {}"}}), None)
         os.environ["CLAUDE_PROJECT_DIR"] = scratch
-        check("a directory outside git passes through", hook({**payload, "tool_input": {"name": "review-and-fix", "args": {"scope": "s", "lenses": []}}}), None)
+        check("a directory outside git passes through", hook({**payload, "tool_input": {"name": "review-auto", "args": {"scope": "s", "lenses": []}}}), None)
         broken = os.path.join(scratch, "broken")
         subprocess.run(["git", "init", "-q", broken], check=True)
         commit(broken, "f.txt", "x\n")
         sh(broken, "update-ref", review_scope.REF, review_scope._resolve(broken, "HEAD"))
         with open(os.path.join(sh(broken, "rev-parse", "--absolute-git-dir"), "index"), "w", encoding="utf-8") as handle:
             handle.write("not an index")
-        out = hook({**payload, "tool_input": {"name": "review-and-fix", "args": {"scope": "s", "lenses": [], "repo": broken, "review_bookmark": {"base": "forged"}}}})
+        out = hook({**payload, "tool_input": {"name": "review-auto", "args": {"scope": "s", "lenses": [], "repo": broken, "review_bookmark": {"base": "forged"}}}})
         context = (out or {}).get("hookSpecificOutput", {})
         check("a hook that fails says so", "review-scope hook failed" in context.get("additionalContext", ""), True)
         check("and strips a bookmark the caller wrote, so the review cannot be recorded", "review_bookmark" in context.get("updatedInput", {}).get("args", {"review_bookmark": 1}), False)

@@ -1,8 +1,8 @@
 #!/usr/bin/env python3
 """
-review-scope.py — widen every `review-and-fix` run to the commits pushed since the last review.
+review-scope.py — widen every `review-auto` run to the commits pushed since the last review.
 
-A PreToolUse hook on the Workflow tool. When the call names the saved `review-and-fix` workflow, it reads the
+A PreToolUse hook on the Workflow tool. When the call names the saved `review-auto` workflow, it reads the
 repo's review bookmark (`claude/scripts/review_scope.py`), appends the unreviewed commits to `args.scope`, and
 passes `args.review_bookmark` — the base and the tree at launch — so the workflow's last step can record what it
 covered. The rewrite goes back as `updatedInput`, so the model writing the call cannot leave the range out.
@@ -22,8 +22,6 @@ sys.path.insert(0, os.path.join(os.path.dirname(os.path.abspath(__file__)), ".."
 
 import review_scope  # noqa: E402 — needs the sys.path line above
 
-SAVED = "review-and-fix"
-
 
 def main() -> int:
     try:
@@ -31,7 +29,7 @@ def main() -> int:
     except Exception:
         return 0
     tool_input = payload.get("tool_input") if isinstance(payload, dict) else None
-    if not isinstance(tool_input, dict) or tool_input.get("name") != SAVED:
+    if not isinstance(tool_input, dict) or tool_input.get("name") != review_scope.WORKFLOW:
         return 0
     args = tool_input.get("args")
     if isinstance(args, str):

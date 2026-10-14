@@ -144,7 +144,11 @@ run "plan archive" python3 claude/tests/plan-archive.py
 # The saved workflow automated review loops run through. What it guarantees is decided in plain code — which
 # verified findings get code, that a quiet round ends the loop, that it never passes two rounds — and a loop
 # without it coded 125 findings in one day, 85 of them rated low. Needs node; its absence fails rather than skips.
-run "review-and-fix workflow" node claude/tests/review-and-fix.mjs
+run "review-auto workflow" node claude/tests/review-auto.mjs
+
+# The table /review-manual shows so the user picks what gets fixed. Its exit status is the whole answer: a closed page
+# read as "fix nothing" would drop every finding the user meant to keep.
+run "review picker" python3 claude/tests/review-picker.py
 
 # The review bookmark and the hook that widens every review to the commits pushed since the last one. Its one costly
 # failure is moving past code no review saw, which then never gets reviewed; most cases try to make it do exactly that.

@@ -72,13 +72,9 @@ whether the finding is a duplication, and that flag sends it to the fix list wha
 without waiting for anything to reach the divergence — the copies are in the source either way —
 so *Realism rates an edge case, never a duplication* applies where nobody is reading the list either;
 the fix prompt tells the fixer to answer such an item with one definition every site calls rather
-than by patching the copies. Run such loops
-through the saved `review-and-fix` workflow (`claude/workflows/review-and-fix.js`, called as
-`Workflow({name: "review-and-fix", args: {scope, lenses, context, gate}})`), which carries all of it and
-returns the triage table to present. A read-only review goes through it too, with `fix: false`: the
-`review-scope.py` hook widens only that workflow to the commits pushed since the last review. The `workflow-realism.py` hook warns when a workflow's inline
-script, or the file a `scriptPath` run names, fixes findings and mentions none of `frequency`, `reached_by` or `review-and-fix`; any
-mention of those words silences it, so its silence does not prove a realism gate exists. Seen 2026-10-02 in tauri-dashboard: 8 workflows, 347 agents and 10 review
+than by patching the copies. Run such loops through the saved `review-auto` workflow, which carries all of it and returns
+the triage table to present, and a read-only review through `/review-manual`; the README's Saved
+Workflows, Review Scope and Workflow Realism sections hold the call and what the two hooks do. Seen 2026-10-02 in tauri-dashboard: 8 workflows, 347 agents and 10 review
 rounds confirmed 125 findings, 85 of them rated low, and coded every one; a post-review found the
 fixes had bloated the prompt-origin code and parts of the label and attention code. Its verify prompts
 refuted only what "cannot happen, is already handled, or is a deliberate documented limit" — truth,
