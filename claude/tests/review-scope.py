@@ -82,6 +82,22 @@ def main() -> int:
         check("with no bookmark anywhere the base is HEAD", (found["base"], found["commits"], found["problem"]), (first, [], None))
         check("and nothing is added to the scope", review_scope.scope_text(found), "")
 
+        # A same-size edit whose stat matches the index entry is caught only through racy-git detection, which compares
+        # the entry's mtime with the index file's; pinning both to one instant makes the race happen on every run. The
+        # file is backdated before it is committed, or git marks the entry racy at commit time and re-hashes it anyway.
+        racy = os.path.join(scratch, "racy")
+        subprocess.run(["git", "init", "-q", racy], check=True)
+        app, index = os.path.join(racy, "app.txt"), os.path.join(racy, ".git", "index")
+        past = (os.stat(scratch).st_mtime_ns // 10**9 - 60) * 10**9
+        write(racy, "app.txt", "one\n")
+        os.utime(app, ns=(past, past))
+        sh(racy, "add", "-A")
+        sh(racy, "commit", "-qm", "edit app.txt")
+        write(racy, "app.txt", "two\n")
+        os.utime(app, ns=(past, past))
+        os.utime(index, ns=(past, past))
+        check("a same-size edit in the index's own tick enters the reviewed tree", sh(racy, "rev-parse", f"{review_scope.worktree_tree(racy)}:app.txt"), sh(racy, "hash-object", "app.txt"))
+
         write(a, "app.txt", "two\n")
         write(a, "new.txt", "untracked\n")
         review(a)

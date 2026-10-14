@@ -36,7 +36,14 @@ The traps in it, each reproduced:
 - **Seed the scratch index, or a tracked file that matches an ignore pattern is invisible.** An empty index
   applies the ignore rules to every path, so a force-added file under an ignored directory never enters
   either tree. Its rewrite then goes unreported, although `git status` shows it modified. Copy the real index
-  first, once: `cp "$(git rev-parse --git-path index)" /tmp/snapshot-myrepo`.
+  first, once: `cp -p "$(git rev-parse --git-path index)" /tmp/snapshot-myrepo`.
+- **Keep the copy's modification time.** Git re-hashes a file only when its mtime is not older than the
+  index's, so a plain `cp` (or Python's `shutil.copyfile`) stamps the copy "now" and hides any edit made in
+  the same tick as the last real index write. A same-size edit then enters the snapshot as its old content.
+  Use `cp -p` or `shutil.copy2`. Measured October 2026 on Windows: a test editing a file right after a commit
+  recorded the stale blob in 5 of 20 runs with `copyfile` and 0 of 20 with `copy2`. To make the race fire on
+  every run, backdate the file before committing it (otherwise the commit marks the entry racy and git
+  re-hashes it anyway), then after the same-size edit set the file's and the index's mtime to that one instant.
 - **Name the scratch index per repo.** Two runs sharing one path race. A second repo's `add -A` between the
   first repo's `add -A` and `write-tree` makes `write-tree` fail with `invalid object`. A second repo's
   cleanup in that gap makes `write-tree` silently print the empty tree `4b825dc6`, and every file then reads

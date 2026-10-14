@@ -65,13 +65,14 @@ def _git_path(repo: str, name: str) -> str:
 
 def worktree_tree(repo: str) -> str:
     """The tree of every file git does not ignore, tracked or not, written through a scratch index so the real one is
-    untouched. Seeded from the real index, or a tracked file under an ignored directory would be left out
+    untouched. Seeded from the real index, or a tracked file under an ignored directory would be left out, and copied
+    with its mtime, or a same-size edit made in the real index's own tick enters the tree as its old content
     (learnings/git-snapshot-dirty-tree.md)."""
     scratch = _git_path(repo, SCRATCH_INDEX)
     real = _git_path(repo, "index")
     try:
         if os.path.exists(real):
-            shutil.copyfile(real, scratch)
+            shutil.copy2(real, scratch)
         env = {**os.environ, "GIT_INDEX_FILE": scratch}
         added = _git(repo, "add", "-A", env=env, timeout=60)
         if added.returncode != 0:
