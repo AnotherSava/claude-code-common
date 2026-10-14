@@ -162,7 +162,7 @@ def main() -> int:
         os.environ["CLAUDE_PROJECT_DIR"] = b
         out = hook({**payload, "tool_input": {"name": "review-and-fix", "args": json.dumps({"scope": "s", "lenses": [], "review_bookmark": {"base": "forged"}})}})
         args = out["hookSpecificOutput"]["updatedInput"]["args"]
-        check("args sent as a JSON string are read, and the project directory stands in for a missing repo", args["review_bookmark"]["repo"], os.path.realpath(b))
+        check("args sent as a JSON string are read, and the project directory stands in for a missing repo", os.path.realpath(args["review_bookmark"]["repo"]), os.path.realpath(b))
         check("a review_bookmark the caller wrote is replaced", args["review_bookmark"]["base"] != "forged", True)
 
         os.environ["CLAUDE_PROJECT_DIR"] = a
