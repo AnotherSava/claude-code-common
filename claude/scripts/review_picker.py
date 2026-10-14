@@ -33,7 +33,7 @@ import subprocess
 import sys
 
 
-def render(title: str, rows: list[dict]) -> str:
+def _render(title: str, rows: list[dict]) -> str:
     """The page. Every value is escaped: findings quote code and email text, and the page can run agterm commands."""
     body = "\n".join(
         f'<tr><td class="pick"><input type="checkbox" value="{html.escape(str(row["id"]), quote=True)}"'
@@ -130,7 +130,7 @@ def main() -> int:
 
     out = os.path.abspath(options.out or os.path.join(os.path.dirname(os.path.abspath(options.rows)), "review-picker.html"))
     with open(out, "w", encoding="utf-8") as handle:
-        handle.write(render(str(spec.get("title") or "Review findings"), rows))
+        handle.write(_render(str(spec.get("title") or "Review findings"), rows))
     if options.render_only:
         print(out)
         return 0
