@@ -168,8 +168,6 @@ $t = $all | Where-Object { $_.CommandLine -match "{{remote-command}}" }
 ```
 
 Measured 2026-10-03: killing the handler dropped the tab and the loop had a replacement `ssh`
-running about 30 seconds later, with the attach-only argument its reconnect passes. That is well
-inside the 75-second probe deadline, so the probes were not what noticed; what consumed the rest of
-the 30 seconds was not measured. The far side's tmux still held the session, so the attach-only mode
-found something to attach to and its no-session branch stayed unexercised — testing that one needs a
-session that has really ended.
+running about 30 seconds later. That is well inside the 75-second probe deadline, so the probes
+were not what noticed; what consumed the rest of the 30 seconds was not measured. The far side's
+tmux still held the session, so the reconnect attached to it.

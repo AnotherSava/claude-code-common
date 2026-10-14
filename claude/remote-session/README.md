@@ -89,10 +89,10 @@ by that, tmux keeping both the session and the agent in it, so the tab reattache
 conversation about a minute and a half after the Mac wakes — ssh takes up to 75 seconds to notice
 a transport that died during the sleep, and the first retry follows five seconds later — retrying
 from there out to every five minutes for as long as that machine is away. Ctrl-C in the tab stops
-it. The reconnect attaches but never creates: where the machine is up and holds no session for
-that project any more, the tab says so and stops, because a session that ended hours ago is worth
-seeing rather than replacing with a fresh agent in the same directory. A reconnect is an attach
-like any other, so the Windows terminal's window takes this Mac's size again each time.
+it. A reconnect creates the session when it is gone, the same as the picker does, so a tab that
+outlives a reboot of the Windows machine comes back resuming that directory's conversation. A
+reconnect is an attach like any other, so the Windows terminal's window takes this Mac's size again
+each time.
 
 ### The keystroke, and why it is not the attach command
 
@@ -107,7 +107,8 @@ running `agtermctl keymap reload`. That file is per-machine and is not part of t
 For a tab to come back attached after an agterm restart, turn on restoring running commands in
 agterm's settings; the default brings it back as a plain shell. The `tmux` entry in
 `restore-denylist.conf` does not apply here — it matches on basename, this is `attach.sh`, and
-re-running it reattaches to a session that is genuinely still alive on the other machine.
+re-running it reattaches to the session on the other machine, or starts it again where that
+machine no longer holds one.
 
 ### What the two terminals share
 
@@ -210,9 +211,9 @@ rounds the message changes to point at ssh's own lines above it: a changed host 
 WSL distro end in the same exit code an absent machine does, and only those lines separate them.
 Ctrl-C stops it trying.
 
-**A tab says the session ended, or that it stopped reconnecting.** That tab is finished with. Close
-it, then cmd+shift+r, which lists the project again and resumes that directory's conversation.
-Reaching for the chord without closing it opens a second tab beside the first.
+**A tab says it stopped reconnecting.** That tab is finished with. Close it, then cmd+shift+r, which
+lists the project again and resumes that directory's conversation. Reaching for the chord without
+closing it opens a second tab beside the first.
 
 **A tab says `not connected`.** Close it, then cmd+shift+r, which tries the whole thing again from
 the picker. This one is waiting for nothing: a tab retries only once an attempt has lasted long
@@ -291,9 +292,7 @@ Every piece below exists because something simpler was measured not to work; the
 - **`windows/run-hidden.py`** launches the holder with no console window, and logs what it otherwise
   could not report.
 - **`wsl/cc-session.sh`** creates or attaches one project's session, running the native `claude.exe`
-  from a `/mnt/d` working directory so the Windows child gets a real `D:\...` path. A third argument
-  makes it attach without creating, which is what an unattended reconnect passes so a session that
-  has ended is reported rather than replaced by a fresh agent in the same directory.
+  from a `/mnt/d` working directory so the Windows child gets a real `D:\...` path.
 - **`wsl/start-here.sh`** is what the Windows machine's `claude` function runs. It does the same for
   whatever directory you are standing in, which is what makes every session started there
   attachable. Every shell on that machine calls it and nothing else, so no profile carries behaviour

@@ -101,8 +101,8 @@ fails=0
 wait_secs=$FIRST_WAIT
 
 while [ "$stop" -eq 0 ]; do
-    if [ "$settled" -eq 0 ]; then mode=create; else mode=reattach; fi
-
+    # Every attempt creates the session when it is not running, reconnects included, so a tab that
+    # outlives a reboot of the far machine comes back resuming the directory's conversation.
     # The checkout is the same repo on both machines, so the far side runs its own copy of this
     # script's sibling. Keeping the remote command to bare tokens is what makes it survive cmd.exe,
     # which is the Windows sshd's default shell.
@@ -119,7 +119,7 @@ while [ "$stop" -eq 0 ]; do
     status=0
     ssh -t -o ServerAliveInterval=15 -o ServerAliveCountMax=4 -o ConnectTimeout=10 \
         "$REMOTE_USER@$REMOTE_HOST" \
-        "wsl -d $WSL_DISTRO -- $REPO_WSL_PATH/claude/remote-session/wsl/cc-session.sh $project mac $mode" || status=$?
+        "wsl -d $WSL_DISTRO -- $REPO_WSL_PATH/claude/remote-session/wsl/cc-session.sh $project mac" || status=$?
     [ $(( $(date +%s) - began )) -lt "$LIVE_SECS" ] || { settled=1; fails=0; wait_secs=$FIRST_WAIT; }
     plain_screen
 
@@ -133,14 +133,6 @@ while [ "$stop" -eq 0 ]; do
             # which land below and stop with their reason. remote_session_attach has already
             # blanked the title on its way out.
             exit 0
-            ;;
-        3)
-            tab_title "session ended"
-            printf '\nattach: %s is up but holds no session for %s any more, so nothing was\n' "$REMOTE_HOST" "$project" >&2
-            printf 'attach: reconnected. A session that ended hours ago is worth seeing rather than\n' >&2
-            printf 'attach: replacing with a fresh agent in the same directory. Close this tab, then\n' >&2
-            printf 'attach: cmd+shift+r.\n' >&2
-            exit 3
             ;;
         4|255)
             if [ "$settled" -eq 0 ]; then

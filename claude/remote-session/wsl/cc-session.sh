@@ -6,24 +6,19 @@
 # and the interactive desktop both work. Starting it from an ext4 directory instead gets the
 # cmd.exe "UNC paths are not supported" failure.
 #
-# Usage: cc-session.sh <project> <origin> [create|reattach]
+# Usage: cc-session.sh <project> <origin>
 #
 # <project> is a directory name under WSL_PROJECT_ROOT. <origin> names the machine whose keyboard
 # the person is at — `windows` from this box, `mac` from the other one — and both callers pass it as
-# a bare token, which is the only thing that survives the Windows sshd's cmd.exe. <mode> defaults to
-# `create`; `reattach` exits 3 where no session is running instead of starting one. The Mac's attach
-# passes it on every attempt after its first, because a reconnect runs with nobody watching and a
-# session that has gone is a fact worth surfacing rather than one to paper over with a fresh agent
-# in the same directory.
+# a bare token, which is the only thing that survives the Windows sshd's cmd.exe.
 #
-# The exit codes a caller branches on: 2 usage, 1 no such project directory, 4 the holder is down,
-# 3 reattach found no session. A failing `tmux attach-session` also arrives as 1, its status being
-# this script's last — `kill-server`, and a session killed between the check below and the attach,
-# both produce it — so a caller that reads 1 cannot separate that from a missing directory and can
-# only say the far side refused. The holder gets its own code because it is the one refusal here
-# that clears without a person — the sshd answers before logon and the holder's scheduled task
-# fires at it — so a Mac tab that keeps trying comes back, where one that stopped would need
-# somebody.
+# The exit codes a caller branches on: 2 usage, 1 no such project directory, 4 the holder is down.
+# A failing `tmux attach-session` also arrives as 1, its status being this script's last —
+# `kill-server`, and a session killed between the check below and the attach, both produce it — so
+# a caller that reads 1 cannot separate that from a missing directory and can only say the far side
+# refused. The holder gets its own code because it is the one refusal here that clears without a
+# person — the sshd answers before logon and the holder's scheduled task fires at it — so a Mac tab
+# that keeps trying comes back, where one that stopped would need somebody.
 
 set -eu
 
@@ -33,9 +28,8 @@ remote_session_load_config "$here/../config.secret.env" || exit 1
 
 project=${1:-}
 origin=${2:-}
-mode=${3:-create}
-if [ -z "$project" ] || [ -z "$origin" ] || { [ "$mode" != create ] && [ "$mode" != reattach ]; }; then
-    echo "usage: cc-session.sh <project> <origin> [create|reattach]" >&2
+if [ -z "$project" ] || [ -z "$origin" ]; then
+    echo "usage: cc-session.sh <project> <origin>" >&2
     exit 2
 fi
 
@@ -72,10 +66,6 @@ fi
 # window follows whichever attached client was used last. The 200x50 fallback, for a call with no
 # terminal, keeps a session started that way from being laid out at tmux's 80x24.
 if ! tmux has-session -t "$session" 2>/dev/null; then
-    if [ "$mode" = reattach ]; then
-        echo "cc-session: no session for $project is running here, so there was nothing to reattach to." >&2
-        exit 3
-    fi
     remote_session_keep_failed_panes
     remote_session_create "$name" "$directory" "$(remote_session_resume_command "$CLAUDE_EXE")" 200 50
 fi
