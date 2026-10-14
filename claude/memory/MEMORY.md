@@ -266,3 +266,4 @@
 - [Claude drawn at 80 columns](project_claude_80_column_frame.md) {always} — open bug: a Claude pane at 80 cols in a wide tmux pane; read WSL `~/tmux-size.log` before resizing, record lives in the agwinterm repo
 - [Keep instrumentation while the bug is open](feedback_keep_instrumentation_while_open.md) — clean runs mean no trigger, not no bug; recommend keeping probes/hooks, never offer removal as equal
 - [Capture takes the pointer](feedback_capture_takes_the_pointer.md) — a capture script parks the pointer itself and restores it, instead of refusing; confirm the run right before it
+- [Survey a key for collisions](feedback_survey_key_uniqueness.md) — query stored data for values shared across records before matching on a field; ambiguity holds in every direction
