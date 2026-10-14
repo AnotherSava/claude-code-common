@@ -117,6 +117,13 @@ def main() -> None:
         check("remove exits 0", gone.returncode, 0)
         check("sandbox is gone from disk", os.path.exists(sandbox), False)
         check("git no longer lists it", sandbox in git(["worktree", "list"], repo), False)
+
+        # A sub-skill tearing down its own sandbox runs from inside it, where the toplevel is the sandbox.
+        inner = run([sys.executable, SCRIPT, "create"], repo).stdout.strip().split("\n")[-1]
+        gone = run([sys.executable, SCRIPT, "remove", inner], inner)
+        check("remove from inside the sandbox exits 0", (gone.returncode, gone.stderr), (0, ""))
+        check("and leaves no worktree entry", [l for l in git(["worktree", "list", "--porcelain"], repo).split("\n") if l.startswith("worktree ")], [f"worktree {os.path.realpath(repo)}"])
+        check("and no temp directory", os.path.exists(os.path.dirname(inner)), False)
     finally:
         shutil.rmtree(work, ignore_errors=True)
     raise SystemExit(report())

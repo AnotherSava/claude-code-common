@@ -89,7 +89,11 @@ def patch(sandbox: str, binary: bool) -> None:
 
 
 def remove(sandbox: str) -> None:
-    root = repo_root()
+    # Asked of the sandbox, not the caller's cwd: a sub-skill removing its own sandbox runs from inside it, where the
+    # toplevel is the sandbox itself, and the prune would then run in a directory the remove has just deleted.
+    # `--git-common-dir` would name the wrong directory in a repo made with `--separate-git-dir`; see the learning
+    # git-identifying-the-repo-a-check-is-in.md.
+    root = git(["worktree", "list", "--porcelain"], cwd=sandbox).split("\n", 1)[0].removeprefix("worktree ")
     git(["worktree", "remove", "--force", sandbox], cwd=root)
     git(["worktree", "prune"], cwd=root)
     parent = os.path.dirname(os.path.abspath(sandbox))
