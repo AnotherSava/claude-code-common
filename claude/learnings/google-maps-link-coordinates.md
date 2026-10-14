@@ -5,7 +5,8 @@ button produces and typing a latitude is nobody's habit. Whether the link contai
 shared, and the failure mode is the dangerous direction: the page a link opens carries a coordinate that looks
 like the place and is the requesting computer.
 
-Everything below was measured on 2026-10-11 against real links, from a server with no API key.
+Everything below was measured against real links, from a server with no API key — on 2026-10-11 unless a
+paragraph gives its own date.
 
 ## What a short link expands to
 
@@ -36,6 +37,13 @@ URL, which is close enough to pass a glance and wrong enough to send somebody to
 
 Scraping it is therefore not a degraded answer, it is the server's own location stored as the user's place.
 Nothing should read a coordinate off that page.
+
+That includes reading the page *through a URL parser*. A fallback that pulls every Maps URL out of the HTML and
+hands each to the same reader a pasted link goes through meets the `staticmap?center=` preview first — it sits
+ahead of the place's own URLs — and a reader that accepts `?center=` stores the camera. Measured 2026-10-14: a
+hotel's page answered with a point in another country, where the server sat. From a fetched page, take only
+what a URL states about its place — `!3d/!4d`, a `!20s` plus code, a pair written into the `/maps/place/` path
+— and never a query key or an `@`.
 
 Three lookups that all answer with the same shell, so none of them is a way round this:
 
@@ -99,6 +107,15 @@ A `/maps/place/` URL carries two, and they are different facts:
 They agree on a link copied while looking at the pin and disagree on a shared one, where `@` is wherever the map
 happened to be sitting. Prefer `!3d/!4d`, fall back to `@`. Also readable, and worth accepting: `?query=`,
 `?q=`, `?ll=` and `?center=` holding a pair, and a `geo:` URI.
+
+**Some place links have no `!3d/!4d` at all, and carry a plus code instead.** Measured 2026-10-14: a hotel
+clicked out of the desktop results list gave `/maps/place/<name>/data=…!16s%2Fg%2F…!20s<8 chars>%2B<3 chars>…` —
+no `@`, no `!3d`, and the `!20s` field holding a full Open Location Code with its `+` percent-encoded. That
+code is the place's own point to about 3 m (11 characters) or 14 m (10), so it ranks with `!3d/!4d` and ahead
+of the camera. Decoding a full code is about twenty lines: five base-20 pairs over `23456789CFGHJMPQRVWX` from
+−90/−180 in cells of 20°, 1°, 0.05°, 0.0025° and 0.000125°, then each further character splits the cell 5 rows
+by 4 columns; take the cell centre. Google's `open-location-code` npm package gives reference values to test
+against. Read only full codes (eight characters before the `+`); a short one is relative to a locality.
 
 ## Storing a link rather than a coordinate
 
