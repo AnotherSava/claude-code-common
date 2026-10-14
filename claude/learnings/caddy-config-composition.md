@@ -85,6 +85,11 @@ The same asymmetry bites a checker written to verify this. A helper that treats 
 bare prefix will pass the broken config it was written to catch — so test the checker against the *failure*,
 not only against the fixed file.
 
+**A trailing `*` does span slashes**, which is the half worth knowing before adding a pattern per depth: the
+docs say `/foo*` matches `/foo`, `/foobar`, `/foo/` and `/foo/bar`, so `path /api/bookings/*` already covers
+`/api/bookings/<id>/attachments` and every segment below it. Slashes are significant only in the sense that
+they are matched literally where the pattern writes one — which is the whole of why `/foo/*` excludes `/foo`.
+
 ## Snippets are a second flat namespace
 
 - A snippet must be imported **before** the file that calls it, or you get

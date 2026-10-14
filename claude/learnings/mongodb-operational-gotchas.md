@@ -99,6 +99,48 @@ Indexes travel with the archive — `mongorestore` rebuilds them from the dump's
 included — so the constraint the schema depends on is restored with the data rather than left to whenever the
 application next boots.
 
+## An `arrayFilters` condition cannot refuse the write, and `modifiedCount` will not tell you it did
+
+Pushing into an array embedded in one element of another array — "add this file to leg 2 of this booking" —
+is `$push` with a positional filter, and the obvious place to put "unless it is already there" is that same
+filter:
+
+```js
+// ✗ the refusal is unobservable
+await bookings.updateOne(
+  { _id, 'segments.ordinal': ordinal },
+  { $push: { 'segments.$[leg].attachments': record }, $set: { updatedAt: now } },
+  { arrayFilters: [{ 'leg.ordinal': ordinal, 'leg.attachments.sha256': { $ne: sha } }] },
+);
+```
+
+The filter works — nothing is pushed when the digest is there — but the caller cannot find out. An
+`arrayFilters` entry that matches no element is **not** an error, and `modifiedCount` is 1 either way,
+because the `$set` of `updatedAt` rides along and modifies the document whether or not the array changed.
+Measured on MongoDB 8: duplicate digest, `matchedCount 1, modifiedCount 1`, array unchanged. So the handler
+answers "stored" to a request that stored nothing — and where the same bytes arrive under a new filename, the
+screen shows the old name with no sign that anything was refused.
+
+Put the condition in the **query** instead, where a miss is `matchedCount: 0`:
+
+```js
+// ✓ a refusal is a 0 the caller can read
+await bookings.updateOne(
+  { _id, segments: { $elemMatch: { ordinal, 'attachments.sha256': { $ne: sha } } } },
+  { $push: { 'segments.$[leg].attachments': record }, $set: { updatedAt: now } },
+  { arrayFilters: [{ 'leg.ordinal': ordinal }] },
+);
+```
+
+`$elemMatch` is what makes that one element's test — `{ 'segments.ordinal': ordinal, 'segments.attachments.sha256': { $ne: sha } }` is satisfied by
+*different* segments matching each half. Two further consequences of the same asymmetry:
+
+- **`matchedCount: 0` now has two causes** — no such element, or the condition refusing — so a handler that
+  wants to say which asks one extra read on that path alone.
+- **A positional filter addresses every element that matches it.** Two array elements sharing the key you
+  filter on both receive the push, and the query's `$elemMatch` needs only one of them to pass. Where the key
+  is meant to be unique, nothing in the schema enforces it.
+
 ## Driver notes
 
 - Cache the `MongoClient` on `globalThis` across hot reloads, the same way a Postgres pool is cached. The

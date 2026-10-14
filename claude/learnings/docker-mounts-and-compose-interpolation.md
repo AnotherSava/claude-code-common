@@ -95,6 +95,23 @@ collapsing the two either forbids a real configuration or waves through a file t
 A literal cannot be used by anything that has to run on more than one machine, which is the one real cost
 of making a config multi-host: having given up the fail-closed form, it owes the fail-loud one.
 
+## A bind mount keeps the host's ownership, and a hardened image is not root
+
+A named volume is created by the daemon, which chowns it to the container's user on first use. A **bind
+mount** is a host directory, so it arrives with whatever `mkdir` gave it — root-owned `0755` when a
+provisioning runbook created it as root — and an image whose runtime stage ends `USER node` (uid 1000) can
+read it and not write it. The container starts, the service answers, and nothing logs anything.
+
+What makes this hard to catch is the delay: the failure waits for the first write, which may be a release
+later than the mount. A store the app only ever *read* back — because its only writer was a restore an
+operator ran as root, or because the feature that writes it had not shipped — passes every check until
+someone uploads a file and gets a 500 from `EACCES` on `mkdir`.
+
+So pair the `mkdir` in the runbook with a `chown` to the image's uid, say that uid in the compose file beside
+the mount, and tell the runbook's reader that an already-provisioned host needs the `chown` run too. Read the
+uid off the Dockerfile's final `USER` rather than assuming root: the official `node` images' `node` user is
+1000, as are most distro-provided app users.
+
 ## Building on a host you share with production
 
 If you must build an image on a box that runs something else — to prove a Dockerfile works before a
