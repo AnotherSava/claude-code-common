@@ -173,7 +173,7 @@ console run the same probe (`SSH_CONNECTION` empty, `SESSIONNAME=Console`): all 
 including piping a 53 KB script into the far side's interpreter. So the defect belongs to the
 *nesting*, not to ssh.exe.
 
-Two consequences, and the second is the expensive one:
+The consequences, of which the second is the expensive one:
 
 - **Use real file handles, not `capture_output=True` / `input=`,** for any ssh.exe you spawn from
   Python on Windows. `tempfile.TemporaryFile()` for all three handles costs a few lines and works in
@@ -185,6 +185,9 @@ Two consequences, and the second is the expensive one:
   console there to run the probe: the user's own shell, or the Claude session already running on that
   box, reached through the `peer` skill. Then have it write to a file you read back over SSH,
   per [[feedback_route_output_not_paste]].
+- **A console probe run over SSH has the same blind spot.** `AttachConsole` to a desktop session's
+  process returns 5 for every target, a live console included, so reading another console's title
+  over SSH measures nothing; see [[windows-terminal-title]].
 
 ## Nothing you start here outlives the connection
 
