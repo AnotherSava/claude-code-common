@@ -248,8 +248,8 @@ the push was declined or failed, send none of them: say which pings are still he
 work they point at is not on the remote.
 
 If the tree is clean and step 6 changed nothing, there may be nothing to commit. Run `/commit`
-anyway: reflection can produce files worth committing, and that skill stops on its own if the
-tree is still clean afterwards.
+anyway: reflection can produce files worth committing, unpushed commits still need its review and
+its push, and that skill stops on its own when there is neither.
 
 **Where `/commit` already ran earlier in this same session, say so when you invoke it.** It is
 the expensive thing this skill does, and a second full run over a tree its own first run left
