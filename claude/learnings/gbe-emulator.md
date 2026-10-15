@@ -114,6 +114,46 @@ The unlock file starts as a byte-identical copy of `achievements_schema.json`, s
 
 Most of the above is forum-derived (cs.rin.ru thread `f=29&t=111722`) rather than read from source — treat the INI key names and "no icon field" as strong but unverified.
 
+## CODEX and RUNE write `achievements.ini`, not GSE Saves
+
+The CODEX and RUNE scene groups ship a closed-source Steam emulator of their own. Measured on real
+save folders on 2026-10-14 and cross-checked against the open-source parsers in xan105's Achievement
+Watcher (`app/parser/steam.js`, `service/watchdog/monitor.js`), Hydra
+(`find-achievement-files.ts`, `parse-achievement-file.ts`) and BATorrent:
+
+- **Where:** `%PUBLIC%\Documents\Steam\CODEX\<appid>\` or `...\RUNE\<appid>\`, created on the game's
+  first launch beside `leaderboards.ini`, an optional `stats.ini`, and `local\`/`remote\` cloud-save
+  folders. The path is fixed; `steam_emu.ini` has no key to move it. Older CODEX releases also used
+  `%APPDATA%\Steam\CODEX`. The anadius LSX emu (EA games) is reported to write the same INI to
+  `%LOCALAPPDATA%\anadius\LSX emu\achievement_watcher\<steam appid>\`, unverified.
+- **The file:** ASCII, CRLF, no BOM. One `[<Steam API name>]` section per earned achievement with
+  `Achieved=1`, `CurProgress`, `MaxProgress` and `UnlockTime` (unix seconds), plus a
+  `[SteamAchievements]` index (`00000=<name>` … `Count=N`) that no parser uses. Sections are sorted
+  by name, so the emulator rewrites the whole file; whether in place, through a rename, or by
+  delete-and-create was not measured. Parsers handle three quirks: CODEX's Gears 5 and Gears Tactics
+  omit `Achieved` and record an unlock as `CurProgress` equal to a non-zero `MaxProgress`;
+  `UnlockTime=0` happens; `Achieved=0` entries can carry progress.
+- **Some games never record anything there.** Several games played under RUNE had an
+  `achievements.ini` never rewritten after its first launch, while their `stats.ini`, leaderboards or
+  save files kept changing. Cause not identified; replacing the emulator with GBE is the remedy.
+- **Recognising an active one:** `steam_emu.ini` (`[Settings] AppId=`, `UserName`, `Language`, plus an
+  `[Interfaces]` list) sits beside a `steam_api64.dll` of about 400 KB, with `*.rne` (RUNE) or `*.cdx`
+  (CODEX) payloads next to it. Which folder a game saves to follows the payload extension, not the
+  ASCII-art header of `steam_emu.ini`. The loader carries Valve's version info and contains none of
+  `steam_emu.ini`, `.rne` or `.cdx` as strings, ASCII or UTF-16, so it cannot be recognised by content.
+  Its files also outlive a switch to GBE, so their presence proves nothing: test the DLL instead. A GBE
+  build contains `GSE Saves` (older ones `Goldberg SteamEmu Saves`) and is 11–18 MB.
+- **`generate_interfaces` finds nothing in the loader.** Run on a CODEX/RUNE `steam_api64.dll`, GBE's
+  tool exits 0 and writes an **empty** `steam_interfaces.txt`, so a converter that checks only the exit
+  code or the file's existence reports success with no interfaces. On the game's original Valve DLL it
+  lists everything in `steam_emu.ini`'s `[Interfaces]` plus `SteamNetworkingMessages`,
+  `SteamNetworkingSockets` and `SteamNetworkingUtils`. Take the list from that section when replacing
+  the emulator. A GBE install with a 0-byte `steam_interfaces.txt` still wrote GSE Saves, so the
+  failure is quiet.
+
+achievement-overlay reads these files natively; its plan is
+`docs/plans/2026-10-14-codex-rune-emulator-support.md` in that repo.
+
 ## Achievement API names: shapes, and the zero-padding mismatch
 
 An emulator that is handed a bare integer achievement id has to turn it into the game's Steam API name. `AchKeyPrefix` concatenates a literal string ahead of the raw decimal id, so it can produce `AFOP_Ach_7` but **cannot zero-pad** — and a build configured with no prefix emits the bare `"1"`. Where the Steam schema spells that achievement `"001"`, an exact name match misses and the game gets no icon and no localised text. Padding is therefore the one part of such a name that cannot be fixed at the emulator's end; a reader has to bridge it.
