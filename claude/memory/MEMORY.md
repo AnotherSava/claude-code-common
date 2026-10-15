@@ -256,6 +256,7 @@
 - [Ask reporters only what they can answer](feedback_issue_reply_questions.md) — no questionnaire; scope is ours, close with "feedback and questions welcome"
 - [Amend the published comment](feedback_amend_the_published_comment.md) — a correction edits the text it corrects; a stacked follow-up leaves the wrong version as the one most people read
 - [Don't re-ask what you measured](feedback_dont_reask_what_you_measured.md) {always} — ask only about the undecided remainder, never from scratch
+- [Ask only what changes the build](feedback_ask_only_what_changes_the_build.md) — don't ask a reporter for a fact whose answer leaves the design the same
 - [Clear a provably stale blocker](feedback_clear_provably_stale_blockers.md) — state you can show is stale gets cleared by the operation itself, not refused with retry advice or waited out
 - [Minimal v1 first](feedback_minimal_v1_first.md) — design a feature's smallest end-to-end version first; enrichments go under "Later"
 - [A style rule applies forward, not backward](feedback_style_rule_no_history_sweep.md) {always} — don't sweep existing files for a newly banned phrase, and don't offer to
