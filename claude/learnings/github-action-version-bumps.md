@@ -46,11 +46,13 @@ is not a build failure — Actions ignores unknown inputs, so the step runs with
 ```bash
 check() { y=$(curl -sfL "https://raw.githubusercontent.com/$1/$2/action.yml")
   printf '%-34s runs=%s  ' "$1@$2" "$(echo "$y" | grep -oE 'node[0-9]+' | head -1)"
-  for i in $3; do echo "$y" | grep -qE "^  $i:" && printf '%s=ok ' "$i" || printf '%s=MISSING ' "$i"; done; echo; }
+  shift 2; for i in "$@"; do echo "$y" | grep -qE "^  $i:" && printf '%s=ok ' "$i" || printf '%s=MISSING ' "$i"; done; echo; }
 
-check actions/upload-artifact v7.0.1 "name path"
+check actions/upload-artifact v7.0.1 name path
 # actions/upload-artifact@v7.0.1   runs=node24  inputs: name=ok path=ok
 ```
+
+The inputs go in as separate arguments so the helper works in zsh, the macOS default shell: zsh does not word-split an unquoted `$3`, so a quoted list arrives as one input and every check reports `MISSING`.
 
 `runs=node24` is the confirmation that the deprecation is actually cleared — the whole point of the
 bump. Pin the workflow to the major (`@v7`), not the patch, matching the convention already there.
