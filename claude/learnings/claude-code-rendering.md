@@ -63,3 +63,21 @@ per-delta, display-only), `PreToolUse` (`updatedInput`), `PostToolUse`
 rewrite a whole assistant message after the fact. When the docs are thin on
 a hook's payload/behavior, the installed `claude.exe` embeds the
 authoritative Zod schemas — grep the binary for the field name.
+
+# Copying a long line out of the terminal breaks it
+
+A code-block line wider than the terminal is drawn wrapped, and copying it from the screen keeps
+the wrap as real line breaks, each continuation carrying the block's indentation. Measured
+2026-10-15 on Windows: a one-line `mv … && cp <src> "<dst>" && mkdir … && printf … > file` command
+handed over for `!` arrived as four lines; bash ran the first line, so `mv` succeeded and `cp` failed
+with "missing destination file operand", leaving the target with neither file. A ~260-character
+retry broke the same way, mid-path, and the user then tried pasting it into PowerShell.
+
+So a command meant to be copied out of a reply:
+
+- keeps every line shorter than the terminal is wide — split it into several short commands, one per
+  fence or one per line, each complete on its own, rather than chaining with `&&`;
+- orders the steps so a partial run is harmless — copy the new file in before renaming the old one
+  away, never the reverse;
+- is not handed over at all when what remains is a plain file write: the Write tool can do that part
+  without the user's keyboard.
