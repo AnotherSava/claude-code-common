@@ -128,3 +128,13 @@ A Windows scheduled task that names an absolute interpreter path is unaffected, 
 launched from an interactive Git Bash, because there `PATH` resolution happens inside MSYS rather than
 through `CreateProcess`. The failure appears specifically when a *program* spawns `bash` by bare name —
 a wrapper script, a test harness, a job runner — which is also where it is least expected.
+
+## A test stub on `PATH` needs an extension to be found
+
+A harness that fakes a CLI by writing an extensionless `#!/bin/sh` file into a temp `bin/` and
+prepending it to `PATH` works on macOS and Linux and is invisible on Windows: `shutil.which` there
+matches only names carrying a `PATHEXT` extension (`.EXE`, `.CMD`, `.BAT`, …), and `CreateProcess`
+appends only `.exe`. The code under test then reports the tool as absent before any case runs —
+measured 2026-10-14 as six cases exiting with the "not installed" status. When the faked tool exists
+only on macOS anyway, skip those cases on `os.name == "nt"` and print a `NOT COVERED` line; a
+`.cmd` stub would be found by `which` but still not spawned by a bare-name `subprocess.run`.

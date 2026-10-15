@@ -93,7 +93,7 @@ Runs a read-only review of the current change and lets the user choose what gets
 - After fixes, says the tree changed and needs another review, since it no longer matches the bookmark the review recorded
 - With nothing ticked, commits exactly the reviewed tree and moves the bookmark — message check, confidentiality scan and your yes, but none of `/commit`'s sub-steps, whose edits would cost another review round. A later `/commit` reviews those unpushed commits, adds its fixes as new commits and offers the push
 
-**Tests:** `python claude/tests/review-picker.py` — exit 0 when every case behaves, 1 otherwise. It stubs `agtermctl` on PATH and pins the picker's exit statuses and printed answer, including that a closed page is never read as an empty answer.
+**Tests:** `python claude/tests/review-picker.py` — exit 0 when every case behaves, 1 otherwise. It stubs `agtermctl` on PATH and pins the picker's exit statuses and printed answer, including that a closed page is never read as an empty answer. On Windows the cases inside agterm print `NOT COVERED`, since an extensionless stub is invisible to a Windows PATH lookup and agterm does not run there.
 
 ---
 

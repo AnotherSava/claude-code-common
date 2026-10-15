@@ -65,26 +65,31 @@ def main() -> int:
 
         check("outside agterm exits 3", run(rows, env=base).returncode, 3)
 
-        answer = {"fix": ["r1-1"], "feedback": {"r1-1": "keep the old name"}}
-        stub(bin_dir, json.dumps({"pageID": "p", "outcome": "submitted", "value": json.dumps(answer)}), 0)
-        done = run(rows, env=inside)
-        check("a submitted page exits 0", done.returncode, 0)
-        check("the ids and feedback come back", printed(done), {"outcome": "submitted", **answer})
+        # agterm is macOS-only, and a Windows PATH lookup matches only PATHEXT extensions, so the extensionless
+        # stub is invisible there and the picker never gets past "not inside agterm".
+        if os.name == "nt":
+            print("  NOT COVERED the inside-agterm cases: agterm does not run on Windows")
+        else:
+            answer = {"fix": ["r1-1"], "feedback": {"r1-1": "keep the old name"}}
+            stub(bin_dir, json.dumps({"pageID": "p", "outcome": "submitted", "value": json.dumps(answer)}), 0)
+            done = run(rows, env=inside)
+            check("a submitted page exits 0", done.returncode, 0)
+            check("the ids and feedback come back", printed(done), {"outcome": "submitted", **answer})
 
-        empty = {"fix": [], "feedback": {}}
-        stub(bin_dir, json.dumps({"pageID": "p", "outcome": "submitted", "value": json.dumps(empty)}), 0)
-        done = run(rows, env=inside)
-        check("nothing ticked is still an answer", (done.returncode, printed(done)), (0, {"outcome": "submitted", **empty}))
+            empty = {"fix": [], "feedback": {}}
+            stub(bin_dir, json.dumps({"pageID": "p", "outcome": "submitted", "value": json.dumps(empty)}), 0)
+            done = run(rows, env=inside)
+            check("nothing ticked is still an answer", (done.returncode, printed(done)), (0, {"outcome": "submitted", **empty}))
 
-        stub(bin_dir, json.dumps({"pageID": "p", "outcome": "dismissed"}), 2)
-        done = run(rows, env=inside)
-        check("a closed page exits 2, not as an empty answer", (done.returncode, printed(done)), (2, {"outcome": "dismissed"}))
+            stub(bin_dir, json.dumps({"pageID": "p", "outcome": "dismissed"}), 2)
+            done = run(rows, env=inside)
+            check("a closed page exits 2, not as an empty answer", (done.returncode, printed(done)), (2, {"outcome": "dismissed"}))
 
-        stub(bin_dir, json.dumps({"pageID": "p", "outcome": "submitted", "value": '["r1-1"]'}), 0)
-        check("a value without fix and feedback is an error", run(rows, env=inside).returncode, 1)
+            stub(bin_dir, json.dumps({"pageID": "p", "outcome": "submitted", "value": '["r1-1"]'}), 0)
+            check("a value without fix and feedback is an error", run(rows, env=inside).returncode, 1)
 
-        stub(bin_dir, "boom", 1)
-        check("an agtermctl failure exits 1", run(rows, env=inside).returncode, 1)
+            stub(bin_dir, "boom", 1)
+            check("an agtermctl failure exits 1", run(rows, env=inside).returncode, 1)
 
         broken = os.path.join(scratch, "broken.json")
         with open(broken, "w", encoding="utf-8") as handle:
