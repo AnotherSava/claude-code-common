@@ -8,7 +8,7 @@ user-invocable: false
 context: fork
 effort: medium
 background: true
-allowed-tools: Read, Edit, Write, Bash(python ~/.claude/scripts/worktree-sandbox.py:*), Bash(cd:*), Bash(git add:*), Bash(git diff:*), Bash(git status:*), Bash(git rev-parse:*), Bash(git ls-files:*), Bash(git grep:*), Bash(git log:*), Bash(file:*), Bash(cp:*), Bash(ls:*), Bash(mkdir:*)
+allowed-tools: Read, Edit, Write, Bash(python ~/.claude/scripts/worktree-sandbox.py:*), Bash(cd:*), Bash(git add:*), Bash(git diff:*), Bash(git status:*), Bash(git rev-parse:*), Bash(git ls-files:*), Bash(git grep:*), Bash(git log:*), Bash(cp:*), Bash(ls:*), Bash(mkdir:*)
 ---
 
 <!--
