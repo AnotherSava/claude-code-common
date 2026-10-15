@@ -48,7 +48,7 @@ changes the signature and resets the grant** — build once, and keep any
 no-permission post-processing in a *separate* plain binary so improving that
 never costs the grant.
 
-### Three traps, each of which reads as something else
+### Traps, each of which reads as something else
 
 **TCC attributes to the responsible process, not the executed binary.** Running
 `Helper.app/Contents/MacOS/helper` directly from a shell is attributed to the
@@ -62,6 +62,14 @@ open -n -a ~/Applications/Helper.app --args --out /tmp/result.json
 Which forces the second half: a LaunchServices-started process does **not**
 inherit the caller's stdout. Every mode needs a `--out <file>`, including the
 ones that only print — otherwise the answer goes nowhere.
+
+**A fast helper outruns `open -W`.** Waiting with `open -W -n -a …` fails when the
+helper has already exited by the time `open` looks for it: it prints `Unable to block
+on application (GetProcessPID() returned …)` or `initial call to kevent() failed: No
+such process`, and the exit status varies with timing — 0 on one run, non-zero on the
+next, for the same helper writing the same file. A mode that only lists windows
+finishes fast enough to hit it. Judge the run by its `--out` file, not by `open`'s
+status. Measured 2026-10-15.
 
 **A Screen Recording denial is silent and looks like an empty screen.**
 `CGWindowListCopyWindowInfo` still returns ids, owners and bounds; only `title`
