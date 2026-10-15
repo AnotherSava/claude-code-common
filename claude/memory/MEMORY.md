@@ -225,6 +225,7 @@
 - [Complexity may be self-imposed](feedback_complexity_may_be_self_imposed.md) {always} — check a constraint is real before designing around it; judge a subagent's design against what the user actually asked for
 - [Check the record before building an observer](feedback_record_before_observer.md) {always} — a definition phrased "after X happens" is an event the system already receives; find where it arrives before designing a poll
 - [Minimal UI chrome](feedback_minimal_ui_chrome.md) {always} — no duplicate state signals, no field help text, no card blurbs; icon over text button; state in a badge, never a placeholder
+- [Help text keeps its height](feedback_help_text_keeps_its_height.md) — a toggle's help text is the same in both states; a resizing dialog keeps its top-left fixed
 - [Redrawn icons keep the original's identity](feedback_redrawn_icons_keep_identity.md) {always} — keep the frame/facets that identify a host's component; drop only what smudges at icon size, and go bigger before going plainer
 - [Empty state names the filter](feedback_empty_state_names_the_filter.md) {always} — say what the filter hid, never that nothing happened; "show everything" is one click away and disproves it
 - [A transient control is sticky for its mount](feedback_transient_control_sticky_for_mount.md) {always} — hide a count-driven nav entry on arrival, never mid-interaction; render-phase state, not an effect
