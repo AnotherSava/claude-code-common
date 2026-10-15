@@ -92,6 +92,43 @@ When recovery fails, keeping the envelope sender beats nulling it. A personal ma
 pattern, so the downstream provider lookup falls through to the payload, while nulling would also strip the
 sender from a message that was sent directly rather than forwarded.
 
+## Recovering the original send date
+
+An inline forward's `Date:` header is the forwarder's moment, which can be weeks after the vendor sent it —
+the wrong answer to "when was this bought". The vendor's date survives only as a line in the quoted block.
+A forward *as attachment* has no such problem: unwrap to the innermost `message/rfc822` and read its header.
+
+**By label here, not by position.** The sender is found by position, but the date is not: Apple Mail quotes
+From/Subject/Date/To, so the line after the sender is a subject, and "Your stay on 20 Oct 2026" would read as
+the send date. Keep a list of date labels (`Date`, `Sent`, `Дата`, `Datum`, `Gesendet`, `Envoyé`, `Fecha`, …)
+and leave the date unread when none matches, rather than falling back to the forwarder's date — a fallback
+there stores a plausible wrong answer under an authoritative-looking basis.
+
+**A forward of a forward quotes a person's block above the vendor's**, so take the *deepest* block. That makes
+a vendor's own `------ Your flight ------` heading over `Date:` / `Email:` lines a candidate too, so a block
+counts as a mail header only with an address on its first line and a labelled date.
+
+Quoted dates seen in one personal mailbox, none of which `Date.parse` reads in every engine:
+
+| Client | Line |
+|---|---|
+| Apple Mail | `Date: November 23, 2024 at 6:10:34 PM GMT+9` — the zone is the forwarder's display zone, not the vendor's |
+| Gmail, Russian UI | `Date: сб, 1 апр. 2023 г. в 10:37` — English label, localized value, no zone |
+| Gmail (older) | `Date: 2014-02-25 2:44 GMT+04:00` |
+| Gmail, English | `Date: Mon, 3 Mar 2025 at 10:14` |
+
+Read the calendar day out of the words (ISO, `dd.mm.yyyy`, day-month-year, month-day-year with a month-name
+table that covers abbreviations and Russian genitives) and refuse a slash date, whose field order is the
+sender's locale. A day is all an exchange-rate lookup needs.
+
+**Scanning the HTML part as text can stall the process.** Gmail's HTML part is commonly a single line of
+~150 KB. A regex for a vendor's dashed heading, written `-{3,}[^\n]*\p{L}[^\n]*-{3,}`, backtracks quadratically on a long line
+holding a dash run with no closing run: one `.test` on such a line took 26 s, and a reader scanning every block
+in `text + html` three times blocked the event loop for about 50 s per message. Bounding the gaps
+(`[^\n]{0,200}`) brought real messages to 1–24 ms; scanning only the text part avoids the line entirely. A
+reader that stops at the first block found never reaches the HTML, which is why this appears only once a
+parser starts looking for the deepest block.
+
 ## Test with a message that has a real message's properties
 
 Hand-written fixtures share none of what breaks: they are unencoded, document-shaped, single-part and

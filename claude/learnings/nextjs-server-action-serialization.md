@@ -90,6 +90,15 @@ Two consequences worth designing for:
   body is not your JSON, so trust the body only when it has the shape your handler returns and fall back to the
   status — otherwise a refused write reads as nothing happening.
 
+**The converse does not hold: gating a page's path does not gate its actions.** Next 16's action handler
+(`next/dist/server/app-render/action-handler.js`) takes any POST carrying a `Next-Action` header, and when the
+action is not registered for the page it was posted to, `selectWorkerForForwarding` finds the worker that owns it
+and `createForwardedActionResponse` re-issues the request to that worker's path from inside the server. So an
+action defined on a tailnet-only `/admin/...` page can be invoked by POSTing its id to an ungated page, and the
+edge never sees the gated path. Read from the 16.3.1 source on 2026-10-14, not exercised. An action id is not
+a secret worth relying on; an action whose effect matters off the gated network needs its own check inside it,
+or belongs in a route handler on a gated path.
+
 ## Rules of thumb
 
 - **Never put recurring background work behind a server action.** Actions are for things a user did. A route is for

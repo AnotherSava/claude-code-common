@@ -44,12 +44,31 @@ argue for a different source instead.
 
 ## Shape worth building
 
-- **Cache per (date, base, quote) in your own store**, fetched once. A rate for a past day never changes, so
-  there is no invalidation problem and no reason to call the API twice for the same pair.
+- **Cache each day's rates in your own store**, fetched once — one EUR-based row per day serves every pair
+  (see *Fetching a range, and storing it EUR-based*). A rate for a past day never changes, so there is no
+  invalidation problem and no reason to call the API twice for the same day.
 - **Never fetch at render time.** The page that shows a price is the one place a network round trip is most
   visible and least recoverable.
 - **Convert for display only; keep the original amount and currency as the stored truth.** The converted
   figure is a view of it, and storing one back makes the record depend on the day it was computed.
+
+## Fetching a range, and storing it EUR-based
+
+`GET /v1/<from>..<to>?base=EUR` returns every publication day in the range with all ~30 currencies — daily,
+not sampled, measured over a whole calendar year (257 days, ~105 KB). `start_date` moves back to the
+publication before `from` when `from` is a weekend or holiday, so the first asked day always has an answer.
+One request per calendar year asked about fills a decade of bookings in a dozen calls.
+
+Store each day's rates against EUR rather than against a home currency. ECB publishes against EUR and
+frankfurter derives every other pair from it, so a stored EUR row makes any pair a division
+(`amount / rate[from] * rate[to]`): changing the home currency fetches nothing and leaves nothing stale.
+
+**Store a day only once its rate is final.** The rate for day D appears on D's afternoon CET. Asked earlier, the
+API answers with D−1's — right as "the latest rate", but stored under D for good it makes the same booking
+convert differently depending on the hour it was imported. Write a calendar day only when it is before today
+or when the answer's own date is that day; a price whose day is not final shows unconverted until the next
+fill. A count of "missing" days has to apply the same test, or it raises a warning whose fetch button can
+never clear it — all day on a weekend.
 
 ## Alternatives, and when they are worth it
 
