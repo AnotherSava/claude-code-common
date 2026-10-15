@@ -98,6 +98,14 @@
       "front_for": 3940
     },
     {
+      "port": 3903,
+      "use_case": "tripit-prod-mongo-tunnel",
+      "owner": "tripit",
+      "scope": "machine",
+      "status": "assigned",
+      "notes": "Local end of an ssh -L tunnel to tripit's production database, for one-off scripts run from this machine against production"
+    },
+    {
       "port": 3939,
       "use_case": "what-is-next-dev-server",
       "owner": "what-is-next",
