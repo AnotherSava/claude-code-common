@@ -94,6 +94,9 @@ def remove(sandbox: str) -> None:
     # `--git-common-dir` would name the wrong directory in a repo made with `--separate-git-dir`; see the learning
     # git-identifying-the-repo-a-check-is-in.md.
     root = git(["worktree", "list", "--porcelain"], cwd=sandbox).split("\n", 1)[0].removeprefix("worktree ")
+    # Windows refuses to delete a directory that is any process's working directory, this one's included. A calling
+    # shell sitting inside the sandbox holds it the same way, which is why the docs-relevance skill `cd`s out first.
+    os.chdir(root)
     git(["worktree", "remove", "--force", sandbox], cwd=root)
     git(["worktree", "prune"], cwd=root)
     parent = os.path.dirname(os.path.abspath(sandbox))

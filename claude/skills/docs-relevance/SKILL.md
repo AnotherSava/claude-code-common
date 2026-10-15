@@ -70,7 +70,7 @@ A repo that says nothing gets every step as written, with one default: a **priva
 
    When the carry-in cannot run at all — not a git repo, or the worktree add fails — say so and stop rather than falling back to editing the real tree. The caller's step 4 treats a missing sandbox as a reason to run this skill in the main session, where the checkpointing works.
 
-   At the end, emit the patch with `python ~/.claude/scripts/worktree-sandbox.py patch <sandbox> --binary` (the flag is what carries a screenshot change), save it inside the repo's gitignored `tmp/`, and report that path plus a plain-language summary of every file it touches. Then tear the sandbox down with the `remove` subcommand. Report the patch path even when the patch is empty, so "nothing to fix" and "the run failed" cannot be confused.
+   At the end, emit the patch with `python ~/.claude/scripts/worktree-sandbox.py patch <sandbox> --binary` (the flag is what carries a screenshot change), save it inside the repo's gitignored `tmp/`, and report that path plus a plain-language summary of every file it touches. Then tear the sandbox down with the `remove` subcommand, run from the repo root rather than from inside the sandbox: Windows will not delete a directory that is any process's working directory, the calling shell's included. Report the patch path even when the patch is empty, so "nothing to fix" and "the run failed" cannot be confused.
 
 1. **Read `README.md`** (at the repo root) and fix any references to changed paths, APIs, or behavior
 

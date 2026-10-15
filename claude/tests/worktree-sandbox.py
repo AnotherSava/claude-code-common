@@ -22,6 +22,15 @@ SCRIPT = os.path.join(ROOT, "claude", "scripts", "worktree-sandbox.py")
 failures: list[str] = []
 
 
+def same_path(path: str) -> str:
+    """A path in the form git's and Python's spellings of it share; git prints `C:/...` where Windows Python has `C:\\...`."""
+    return os.path.normcase(os.path.realpath(path))
+
+
+def listed(repo: str) -> list[str]:
+    return [same_path(l.removeprefix("worktree ")) for l in git(["worktree", "list", "--porcelain"], repo).split("\n") if l.startswith("worktree ")]
+
+
 def run(args: list[str], cwd: str) -> subprocess.CompletedProcess[str]:
     return subprocess.run(args, cwd=cwd, capture_output=True, text=True)
 
@@ -116,13 +125,13 @@ def main() -> None:
         gone = run([sys.executable, SCRIPT, "remove", sandbox], repo)
         check("remove exits 0", gone.returncode, 0)
         check("sandbox is gone from disk", os.path.exists(sandbox), False)
-        check("git no longer lists it", sandbox in git(["worktree", "list"], repo), False)
+        check("git no longer lists it", same_path(sandbox) in listed(repo), False)
 
         # A sub-skill tearing down its own sandbox runs from inside it, where the toplevel is the sandbox.
         inner = run([sys.executable, SCRIPT, "create"], repo).stdout.strip().split("\n")[-1]
         gone = run([sys.executable, SCRIPT, "remove", inner], inner)
         check("remove from inside the sandbox exits 0", (gone.returncode, gone.stderr), (0, ""))
-        check("and leaves no worktree entry", [l for l in git(["worktree", "list", "--porcelain"], repo).split("\n") if l.startswith("worktree ")], [f"worktree {os.path.realpath(repo)}"])
+        check("and leaves no worktree entry", listed(repo), [same_path(repo)])
         check("and no temp directory", os.path.exists(os.path.dirname(inner)), False)
     finally:
         shutil.rmtree(work, ignore_errors=True)

@@ -133,6 +133,7 @@ creates one unless the shell is elevated. The `\\?\` spelling of a path is a no-
 
 Treat a path string as belonging to its producer. `git`, `realpath`, a symlink target, an editor's
 `file_path` argument, and `os.getcwd()` are five different producers, and any two of them can
-disagree about case, about symlink resolution, or about a trailing slash while naming one file.
+disagree about case, about symlink resolution, about the separator (`git worktree list` prints
+`C:/...` where Windows Python has `C:\...`), or about a trailing slash while naming one file.
 Before comparing paths from two sources, normalise through one of them — and when a membership test
 silently comes back empty, suspect the spelling before suspecting the data.
