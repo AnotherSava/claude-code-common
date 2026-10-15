@@ -50,7 +50,7 @@ def main() -> int:
     with tempfile.TemporaryDirectory() as scratch:
         rows = os.path.join(scratch, "review-findings.json")
         with open(rows, "w", encoding="utf-8") as handle:
-            json.dump({"title": "Review", "rows": [{"id": "r1-1", "finding": "<script>alert(1)</script>", "rating": "rare, recoverable", "view": "Fix", "fix": True}, {"id": "r1-2", "finding": "plain", "rating": "theoretical", "view": "Drop", "fix": False}]}, handle)
+            json.dump({"title": "Review", "rows": [{"id": "r1-1", "finding": "<script>alert(1)</script>", "rating": "rare, recoverable", "view": "Fix", "fix": True}, {"id": "r1-2", "finding": "plain", "rating": "theoretical", "view": "Drop", "fix": False, "wording": True}]}, handle)
         bin_dir = os.path.join(scratch, "bin")
         os.mkdir(bin_dir)
         base = {key: value for key, value in os.environ.items() if key != "AGTERM_SESSION_ID"}
@@ -61,6 +61,7 @@ def main() -> int:
         page = open(done.stdout.strip(), encoding="utf-8").read()
         check("a finding's markup is escaped", ("<script>alert(1)" in page, "&lt;script&gt;alert(1)" in page), (False, True))
         check("only the recommended row is pre-ticked", page.count(" checked>"), 1)
+        check("only the wording-only row is greyed", page.count('<tr class="wording">'), 1)
 
         check("outside agterm exits 3", run(rows, env=base).returncode, 3)
 

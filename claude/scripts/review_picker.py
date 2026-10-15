@@ -4,8 +4,9 @@
 `/review-manual` ends a read-only `review-auto` run by letting the user choose what gets fixed. A chat table makes
 that a round of typing ids back; this page makes it a round of unticking what should stay. Each row carries the
 finding, its rating and the session's own view, with the box pre-ticked where the session recommends a fix, so Apply
-on an untouched page is "do what you recommended". A row's feedback button opens a note under it for "fix, but like
-this"; writing one ticks the row, and the note comes back keyed by its id.
+on an untouched page is "do what you recommended". A row whose fix would change only wording or documentation is
+drawn in lighter grey, so the rows that change behaviour stand out when choosing. A row's feedback button opens a
+note under it for "fix, but like this"; writing one ticks the row, and the note comes back keyed by its id.
 
 Shown as a blocking agterm HTML overlay over the calling session, which is what returns the answer: the page's
 Apply calls `session.overlay.submit` with the ticked ids, and `agtermctl ... --block` prints that value. Outside agterm
@@ -13,7 +14,8 @@ there is no such return path, so the script refuses with exit 3 and the caller p
 
 Input is a JSON file:
     {"title": "...", "rows": [{"id": "r1-8", "finding": "...", "rating": "plausible, recoverable",
-                               "view": "Fix: keep stored extras ...", "fix": true}, ...]}
+                               "view": "Fix: keep stored extras ...", "fix": true, "wording": false}, ...]}
+    `wording` is optional and true when the fix changes only wording or documentation.
 
 Prints one JSON line and exits:
     0  {"outcome": "submitted", "fix": ["r1-8", ...], "feedback": {"r1-8": "..."}}
@@ -36,7 +38,7 @@ import sys
 def _render(title: str, rows: list[dict]) -> str:
     """The page. Every value is escaped: findings quote code and email text, and the page can run agterm commands."""
     body = "\n".join(
-        f'<tr><td class="pick"><input type="checkbox" value="{html.escape(str(row["id"]), quote=True)}"'
+        f'<tr class="{"wording" if row.get("wording") else ""}"><td class="pick"><input type="checkbox" value="{html.escape(str(row["id"]), quote=True)}"'
         f'{" checked" if row.get("fix") else ""}></td>'
         f'<td class="id">{html.escape(str(row["id"]))}</td>'
         f'<td>{html.escape(str(row.get("finding", "")))}</td>'
@@ -58,6 +60,7 @@ def _render(title: str, rows: list[dict]) -> str:
   th {{ font-weight: 600; font-size: 12px; opacity: 0.7; }}
   tr.row {{ cursor: pointer; }}
   tr.row:hover {{ background: color-mix(in srgb, var(--agterm-foreground, #222) 6%, transparent); }}
+  tr.wording {{ color: color-mix(in srgb, var(--agterm-foreground, #222) 55%, transparent); }}
   td.pick {{ width: 1.5em; }}
   td.id, td.rating {{ white-space: nowrap; opacity: 0.8; }}
   .bar {{ position: sticky; bottom: 0; display: flex; gap: 8px; align-items: center; padding: 12px 0 4px; background: var(--agterm-background, #fff); }}
@@ -113,7 +116,7 @@ def _render(title: str, rows: list[dict]) -> str:
 
 def main() -> int:
     parser = argparse.ArgumentParser(description="Show review findings as a table of checkboxes and print the ids the user leaves ticked.")
-    parser.add_argument("rows", help="JSON file: {title, rows: [{id, finding, rating, view, fix}]}")
+    parser.add_argument("rows", help="JSON file: {title, rows: [{id, finding, rating, view, fix, wording?}]}")
     parser.add_argument("--out", help="where to write the page; default: beside the rows file, as review-picker.html")
     parser.add_argument("--render-only", action="store_true", help="write the page and print its path without showing it")
     options = parser.parse_args()

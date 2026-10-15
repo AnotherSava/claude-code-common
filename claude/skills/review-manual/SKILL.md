@@ -34,9 +34,10 @@ workflow's own triage is only the pre-ticked recommendation.
 3. **Present the triage** as the workflow's returned `note` says.
 4. **Write the picker's rows** to `tmp/review-findings.json` when **Scratch file ignored** is `IGNORED`; otherwise
    tell the user the file would be committable and ask where it should go. The file is
-   `{"title", "rows": [{"id", "finding", "rating", "view", "fix"}]}`, one row per triage row, ranked by your
-   concern: `id` is the triage id, `rating` its frequency and cost, `view` your recommendation and its reason in one
-   line, and `fix` true where you recommend acting on it.
+   `{"title", "rows": [{"id", "finding", "rating", "view", "fix", "wording"}]}`, one row per triage row, ranked by
+   your concern: `id` is the triage id, `rating` its frequency and cost, `view` your recommendation and its reason in
+   one line, `fix` true where you recommend acting on it, and `wording` true where the fix would change only wording
+   or documentation, which the picker draws in lighter grey.
 5. **Run the picker in the background** — `python3 ~/.claude/scripts/review_picker.py tmp/review-findings.json`
    (`python` on Windows), with `run_in_background` — and wait for it to exit. It blocks until the user answers.
    - Exit 0 prints `{"outcome": "submitted", "fix": [ids], "feedback": {id: text}}`. An empty `fix` is an answer:

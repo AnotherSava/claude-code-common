@@ -87,7 +87,7 @@ Runs a read-only review of the current change and lets the user choose what gets
 
 **Features:**
 - Calls the [saved `review-auto` workflow](#saved-workflows) with `fix: false`, building its scope, lenses and gate from the conversation, and passing the user's settled decisions and earlier dropped findings as context so they are not reported again
-- Shows the findings as a table of checkboxes over the session, through `claude/scripts/review_picker.py` and a blocking agterm overlay, pre-ticked where the session recommends a fix; a row's ✎ button takes a note on how to fix it, and writing one ticks the row
+- Shows the findings as a table of checkboxes over the session, through `claude/scripts/review_picker.py` and a blocking agterm overlay, pre-ticked where the session recommends a fix and in lighter grey where the fix changes only wording or documentation; a row's ✎ button takes a note on how to fix it, and writing one ticks the row
 - Falls back to the same table in chat when the page is closed without Apply or the session is not inside agterm
 - Fixes only the ticked rows, following their notes, adds tests where behaviour changed, and runs the project's gate
 - After fixes, says the tree changed and needs another review, since it no longer matches the bookmark the review recorded
