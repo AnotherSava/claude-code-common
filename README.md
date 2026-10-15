@@ -119,6 +119,8 @@ Analyzes changes and generates atomic Conventional Commit messages.
 - Holds back a path in the change set this session never wrote until its author has handed it over or gone idle, and reads it against what this run already pushed — two documents covering one subject share no heading and conflict in no line, so nothing else in the flow reports the duplicate
 - After a push, asks the session working on the same repo on the other machine to run `/pull` (see [Peer](#peer))
 
+**Tests:** `python claude/tests/change-scope.py` — exit 0 when every case behaves, 1 otherwise. It runs `change_scope.py` against a scratch repo and its bare origin, and presses on the skips: a polish record covering the tree, a file written after the polish, a record that cannot be read, and whether the docs hold images.
+
 ---
 
 ### Reset
@@ -309,6 +311,7 @@ Configures a build shortcut for any project. On first use, sets up the `build` b
 - Auto-configures `build()` bash function in `~/.bashrc` if missing
 - Creates `scripts/build.sh` wrapper pointing to the global build script
 - Auto-detects project type: npm, dotnet, or Tauri
+- Runs `npm ci` first when an npm project has no `node_modules`, so a fresh clone builds
 - Optionally generates `.github/workflows/build.yml` with CI for push/PR builds (Tauri uses a Windows + macOS matrix)
 - After first `/build`, use `! build` for instant builds without LLM overhead
 
