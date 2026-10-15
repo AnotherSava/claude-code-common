@@ -16,7 +16,7 @@ admin.example.com {
 }
 ```
 
-Off-tailnet → 404 (use 404, not 403 — doesn't disclose the panel exists). Tailnet-sourced → proxied. To block a path on the *public* host too: `@admin path /admin /admin/*` → `respond @admin 404`.
+Off-tailnet → 404 (use 404, not 403 — doesn't disclose the panel exists). Tailnet-sourced → proxied. To block a path on the *public* host too: `@admin path /admin /admin/*` → `respond @admin 404`. For a Next.js app a path rule does not gate the page's server actions, which can be invoked through any ungated page; refuse the `Next-Action` header from off the tailnet as well (`nextjs-server-action-serialization.md`).
 
 ## THE landmine: Tailscale SNATs the source to the Docker bridge IP
 
@@ -31,6 +31,8 @@ sudo tailscale set --snat-subnet-routes=false
 **There is no Caddy-side recovery** — it's an L3 SNAT with no forwarded header carrying the real IP. Must be fixed at the network layer.
 
 **Verify (read-only):** `sudo iptables -t nat -S ts-postrouting` — the MASQUERADE line is gone after the fix. Or, since Caddy access logging is usually off, temporarily `respond "{remote_host}"` to echo what Caddy sees (`172.x` = still broken, `100.x` = fixed). A self-test from the box to its own tailnet IP is treated as a tailnet source and is a fair proxy: `curl --resolve name:443:<box-tailnet-ip> https://name/`.
+
+**The converse trap when testing the off-net branch from your own laptop:** if split-DNS or a hosts entry sends the public hostname over the tailnet, every probe arrives on-net and the 404 rule never runs, so a refused-looking result can come from the app instead. Pin the public address with `curl --resolve name:443:<box-public-ip> https://name/…`, and first request a path the rule is known to refuse: its empty-bodied 404 is what proves the probe really arrived from off the tailnet.
 
 ## Real cert for a tailnet-only hostname (no public DNS record) → DNS-01
 

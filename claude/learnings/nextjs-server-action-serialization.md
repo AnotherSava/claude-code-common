@@ -95,9 +95,24 @@ Two consequences worth designing for:
 action is not registered for the page it was posted to, `selectWorkerForForwarding` finds the worker that owns it
 and `createForwardedActionResponse` re-issues the request to that worker's path from inside the server. So an
 action defined on a tailnet-only `/admin/...` page can be invoked by POSTing its id to an ungated page, and the
-edge never sees the gated path. Read from the 16.3.1 source on 2026-10-14, not exercised. An action id is not
-a secret worth relying on; an action whose effect matters off the gated network needs its own check inside it,
-or belongs in a route handler on a gated path.
+edge never sees the gated path. Exercised on 2026-10-14 against a 16.3.1 dev server: `POST /` carrying a settings
+page's action id was logged as `POST /`, then `POST /admin/settings … <inline action>`, and the action ran. The
+re-issued request goes to `__NEXT_PRIVATE_ORIGIN`, which `start-server.js` sets to the server's own
+`http://<hostname>:<port>`, so behind a reverse proxy it never passes back through the proxy at all.
+
+The limits of the hole, from the same source:
+
+- **Only the header form is forwarded.** A no-JS form POST carries the action id in a `$ACTION_ID_<id>` body field
+  and no header; it is resolved only against the page it was posted to and fails with "Failed to find Server
+  Action" anywhere else. Path gating still governs that form, so the page holding an action must stay gated.
+- **Only page renders forward.** The handler is reached from `app-render`; a header-bearing POST to a `route.ts`
+  URL is not forwarded.
+
+The edge fix is one rule that matches the header rather than a path, refusing it from off the gated network on
+every path — in Caddy, a named matcher of `header Next-Action *` plus `not remote_ip <ranges>`, answered with
+`respond @name 404`. It covers every present and future action without listing any. An action id is not a secret
+worth relying on; without such an edge rule, an action whose effect matters off the gated network needs its own
+check inside it, or belongs in a route handler on a gated path.
 
 ## Rules of thumb
 
