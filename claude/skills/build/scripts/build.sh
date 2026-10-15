@@ -5,6 +5,8 @@ REPO_DIR="$(pwd)"
 
 # Auto-detect project type
 if [ -f "$REPO_DIR/package.json" ]; then
+    # A fresh clone has no node_modules, and `npm run build` then fails with "<tool>: command not found".
+    [ -d "$REPO_DIR/node_modules" ] || { echo "=== Installing dependencies (npm ci)..."; npm ci; }
     BUILD_CMD="npm run build"
 elif ls "$REPO_DIR"/src/*.csproj &>/dev/null; then
     BUILD_CMD="dotnet build src -c Release"
