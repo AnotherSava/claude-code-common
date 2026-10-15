@@ -34,6 +34,8 @@ If the already-listed asset loads and the new one fails exactly like the deliber
 
 **Manifest paths are relative to the manifest file.** Chrome does not allow `..` in manifest paths. If icons or other assets live outside the manifest's directory, copy them into the build output at build time (e.g., a Vite `writeBundle` plugin).
 
+**The manifest `version` is one to four dot-separated integers, so it cannot carry a prerelease suffix.** A release workflow that checks the pushed tag against the manifest version can therefore never accept `v1.2.0-rc1`, and a `--prerelease` branch keyed on a hyphenated tag is unreachable. Use `version_name` for a human-readable label like `1.2.0 beta`, which Chrome displays without using it for ordering.
+
 **`minimum_chrome_version`** — bump this when using newer APIs. For example, `chrome.sidePanel.close()` requires Chrome 129+; the side panel API itself was added in Chrome 114.
 
 ## Commands and Keyboard Shortcuts
