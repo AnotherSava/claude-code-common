@@ -1,12 +1,12 @@
 ---
 name: clean-code
-description: Remove dead code, fix duplication, enforce naming conventions, and optimize imports in modified files
+description: Remove dead code, fix duplication and needless complexity, enforce naming conventions, and optimize imports in modified files
 allowed-tools: Read, Edit, Write, Grep, Glob, Bash(git diff:*), Bash(git log:*), Bash(git status:*), Bash(git rev-parse:*)
 ---
 
 # Clean Code
 
-Audit modified files for dead code, duplication, naming conventions, and import hygiene. Fix issues with user approval.
+Audit modified files for dead code, duplication, needless complexity, naming conventions, and import hygiene. Fix issues with user approval.
 
 ## Context
 - Uncommitted changes: !`git status --short`
@@ -27,7 +27,9 @@ skill reported on a one-line installer edit while the code it was summoned for w
 1. **Remove debug prints** (`print()`, `console.log()`, `Debug.Log()`, etc.) added during development — do not commit temporary debug output
 
 2. **Dead code audit — iterate until clean:**
-   Start with modified files, then expand outward: use Grep to find all production files that import, call, or reference symbols defined in modified files. These consumers may now contain dead code if the symbols they depended on were changed, removed, or renamed. For each file in this expanded set, look for:
+   Run the project's own dead-code tooling first, when it has some configured: an unused-symbol rule in its linter (ruff `F401`/`F841`, ESLint `no-unused-vars`), knip, vulture, or a `tsc` run with `noUnusedLocals`. Read the project's lint config and `package.json`/`pyproject.toml` scripts to find it, and run only what is already configured — adopting a new tool is an offer under the global Best-Practice Adoption rule, never something this step installs. A tool finds unused symbols more reliably than reading does; what it cannot see is the rest of this step — a cascade across files, a method only tests call, a field written and never read.
+
+   Then start with modified files, then expand outward: use Grep to find all production files that import, call, or reference symbols defined in modified files. These consumers may now contain dead code if the symbols they depended on were changed, removed, or renamed. For each file in this expanded set, look for:
    - **Dead methods/functions**: defined but never called from production code (only from tests or not at all). Trace callers — if a method is only called from another dead method, both are dead.
    - **Dead fields/variables**: only written (never read), or only set to a constant value that makes guarding branches unreachable.
    - **Dead imports**: symbols imported but unused after other cleanup.
@@ -46,20 +48,30 @@ skill reported on a one-line installer edit while the code it was summoned for w
 
    Only flag duplication that hurts maintainability — two similar 2-line blocks are fine; three similar 10-line blocks are not.
 
-4. **Naming convention audit (Python files only):**
+4. **Complexity audit:**
+   Check modified code for complexity that buys nothing, and simplify it without changing behaviour:
+   - Nesting deeper than the logic needs, where an early return or a flattened condition reads the same.
+   - Nested ternaries; an `if`/`else` chain or a `switch` reads better.
+   - An abstraction with one caller and no second in sight — a wrapper, an interface, a parameter that only ever takes one value. Inline it.
+   - Generality nobody asked for: configuration, hooks or extension points for a case the code does not have.
+   - Comments that restate the code; the global Code Comments rule says what a comment is for.
+
+   Leave alone what makes code longer but clearer: an explicit branch over a dense one-liner, a named intermediate over a long expression. For each finding, describe it and propose the simplification; wait for approval before changing it.
+
+5. **Naming convention audit (Python files only):**
    Check visibility naming in modified Python files:
    - A method or module-level function referenced only from inside its own class/module should carry a `_` prefix.
    - A `_`-prefixed member referenced from outside its class/module should either lose the prefix or have the external access refactored away.
 
    Skip dunder methods and members that are public API by design (a library's surface stays public even while temporarily uncalled; tests calling an internal member directly do not make it public). For each mismatch, propose the rename and wait for approval; when renaming, update every usage including tests.
 
-5. **Optimize imports in modified source code files** — if the project has a linter/formatter that organizes imports (ruff, isort, …), run its autofix (e.g. `ruff check --fix`) rather than hand-editing; only hand-optimize when none exists. Some projects deliberately exclude import cleanup from their edit-time lint hook and defer it to commit time, so this step is where it actually gets applied.
+6. **Optimize imports in modified source code files** — if the project has a linter/formatter that organizes imports (ruff, isort, …), run its autofix (e.g. `ruff check --fix`) rather than hand-editing; only hand-optimize when none exists. Some projects deliberately exclude import cleanup from their edit-time lint hook and defer it to commit time, so this step is where it actually gets applied.
 
-6. **Re-run the project's real gate if you changed anything** — the command the deploy runs, not the cheap one. Everything this skill does is a refactor, and a refactor is precisely what slips past tests and lint: extracting a helper gives a value an explicit type it never had inline, so a parameter narrower than what callers pass becomes a type error neither a test suite nor a linter can see. Prefer the build (`npm run build`, `cargo build`, `go build`) over a standalone type-check script — on a clean tree the latter may fail to resolve framework-generated types and will then pass while the build fails. Judge it by exit status, not by grepping the output for error text, since a pipe through `grep` throws the status away. If the gate fails, fix it here rather than handing back a change set that does not build.
+7. **Re-run the project's real gate if you changed anything** — the command the deploy runs, not the cheap one. Everything this skill does is a refactor, and a refactor is precisely what slips past tests and lint: extracting a helper gives a value an explicit type it never had inline, so a parameter narrower than what callers pass becomes a type error neither a test suite nor a linter can see. Prefer the build (`npm run build`, `cargo build`, `go build`) over a standalone type-check script — on a clean tree the latter may fail to resolve framework-generated types and will then pass while the build fails. Judge it by exit status, not by grepping the output for error text, since a pipe through `grep` throws the status away. If the gate fails, fix it here rather than handing back a change set that does not build.
 
-7. **Report** what was cleaned up, and name the gate you re-ran. If nothing was found, say so.
+8. **Report** what was cleaned up, and name the gate you re-ran. If nothing was found, say so.
 
 ## Out of scope
 
-- Do NOT change code logic or behavior — only remove dead code, consolidate duplicates, and clean imports
+- Do NOT change code logic or behavior — only the Process steps: remove debug prints and dead code, consolidate duplicates, simplify needless complexity, fix naming, and clean imports
 - Do NOT touch files that aren't modified or directly affected by modifications

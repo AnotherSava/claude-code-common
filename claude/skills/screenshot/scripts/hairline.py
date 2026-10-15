@@ -101,7 +101,7 @@ ones; and stroking all four while preserving alpha, which dilutes the colour to
 whatever the native alpha allows and reads as a corner darker than the flats.
 
 `--check` WRITES NOTHING. It prints each file as `has an edge` or `NO EDGE`, by
-`has_edge`, and exits 1 when any is bare. It is the audit the docs-relevance
+`has_edge`, and exits 1 when any is bare. It is the audit the screenshot-relevance
 skill runs over every committed frame, and some of those carry a `never` policy,
 so looking must not be done by the same call that strokes.
 

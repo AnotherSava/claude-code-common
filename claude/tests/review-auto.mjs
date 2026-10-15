@@ -46,21 +46,34 @@ function promptIds(prompt) {
   return [...prompt.matchAll(/^- \[(r\d+-\d+)\]/gm)].map(m => m[1])
 }
 
-// `reviews[round]` is the findings list every lens returns that round; `verdicts[summary]` is the skeptic's answer, and
-// a summary missing from it gets null, as a skipped or dead verifier does. The fixer applies every id it is given unless
-// `fixer` says otherwise. `reviewer(lens, round)` and `verifier(summary, round)` override an answer when they return
-// anything but undefined: return null, or throw, as the runtime can.
-async function run(args, reviews, verdicts, { fixer, reviewer, verifier } = {}) {
+// `reviews[round]` is the findings list every lens returns that round, and `reviews.polish` what the polish review finds;
+// `verdicts[summary]` is the skeptic's answer, and a summary missing from it gets null, as a skipped or dead verifier
+// does. The fixer applies every id it is given unless `fixer` says otherwise. `reviewer(lens, round)` and
+// `verifier(summary, round)` override an answer when they return anything but undefined: return null, or throw, as the
+// runtime can. `polish` scripts the polish phase; by default it changes nothing.
+const BEFORE = 'b'.repeat(40), AFTER = 'a'.repeat(40)
+async function run(args, reviews, verdicts, { fixer, reviewer, verifier, polish = {} } = {}) {
   const calls = []
   async function agent(prompt, opts) {
     calls.push({ prompt, ...opts })
-    const round = Number((opts.label.match(/:r(\d+)$/) || [])[1])
-    if (opts.phase === 'Review') {
+    const round = opts.label.endsWith(':polish') ? 'polish' : Number((opts.label.match(/:r(\d+)$/) || [])[1])
+    if (opts.phase === 'Polish') {
+      const step = opts.label.slice('polish:'.length)
+      const tree = t => ({ exit_status: 0, output: `${t}\n` })
+      if (step === 'snapshot') return tree(polish.before ?? BEFORE)
+      if (step === 'after') return tree(polish.after ?? polish.before ?? BEFORE)
+      if (step === 'reverted') return tree(polish.reverted ?? polish.before ?? BEFORE)
+      if (step === 'revert') return { exit_status: 0, output: 'reverted' }
+      if (step === 'gate') return 'gate' in polish ? polish.gate : { exit_status: 0, output: 'ok' }
+      if (step in (polish.passes || {})) return polish.passes[step]
+      return { changes: [], notes: '' }
+    }
+    if (opts.phase === 'Review' || (opts.phase === 'Polish review' && opts.label.startsWith('review:'))) {
       const lens = opts.label.split(':')[1]
       if (reviewer) { const answer = reviewer(lens, round); if (answer !== undefined) return answer }
       return { findings: reviews[round] || [] }
     }
-    if (opts.phase === 'Verify') {
+    if (opts.phase === 'Verify' || opts.phase === 'Polish review') {
       const summary = (prompt.match(/Finding: (.*)/) || [])[1]
       if (verifier) { const answer = verifier(summary, round); if (answer !== undefined) return answer }
       return verdicts[summary] || null
@@ -278,6 +291,79 @@ async function fixModeRecording() {
   check('a failed gate is not recorded', red.result.bookmark.detail, "not recorded: a fix round's gate did not pass")
 }
 
+const polishCalls = (calls, step) => calls.filter(c => c.label === `polish:${step}`)
+const markPrompt = calls => bookmarkCalls(calls)[0]?.prompt || ''
+const CHANGED = { 'clean-code': { changes: [{ file: 'src/app.ts', change: 'removed a dead helper' }], notes: '' }, 'docs-relevance': { changes: [{ file: 'README.md', change: 'renamed the flag' }], notes: 'a page per command would help' } }
+
+async function polishKept() {
+  const { result, calls } = await run({ ...ARGS, review_bookmark: BOOKMARK }, { 1: [] }, {}, { polish: { after: AFTER, passes: CHANGED } })
+  check('a converged review is polished, clean-code before docs', calls.filter(c => c.phase === 'Polish' && /clean-code|docs-relevance/.test(c.label)).map(c => c.label), ['polish:clean-code', 'polish:docs-relevance'])
+  check('each pass is told to apply without asking and to follow its skill', ['clean-code', 'docs-relevance'].every(k => polishCalls(calls, k)[0].prompt.includes(`~/.claude/skills/${k}/SKILL.md`) && polishCalls(calls, k)[0].prompt.includes('instead of asking')), true)
+  check('each pass works over the whole pending change set, not the review scope', ['clean-code', 'docs-relevance'].every(k => polishCalls(calls, k)[0].prompt.includes('the working tree and the unpushed commits') && !polishCalls(calls, k)[0].prompt.includes('\nScope: ')), true)
+  check('the gate runs once over the polish', polishCalls(calls, 'gate').length, 1)
+  const reviews = calls.filter(c => c.phase === 'Polish review' && c.label.startsWith('review:'))
+  check('every lens reviews the polish diff alone', reviews.length === LENSES.length && reviews.every(c => c.prompt.includes(`diff ${BEFORE} ${AFTER}`)), true)
+  check('and is read-only', reviews.every(c => c.prompt.includes('You are read-only')), true)
+  check('nothing is reverted', polishCalls(calls, 'revert').length, 0)
+  check('the polish rows are in the table as applied', result.triage.filter(r => r.disposition === 'polish').map(r => [r.lens, r.file, r.outcome]), [['clean-code', 'src/app.ts', 'applied'], ['docs-relevance', 'README.md', 'applied']])
+  check('with what a pass would have asked about', result.polish.notes, [{ skill: 'docs-relevance', notes: 'a page per command would help' }])
+  check('the bookmark records the polished tree as it is now', markPrompt(calls).endsWith('--base b45e --polished') && !markPrompt(calls).includes('--tree'), true)
+  check('and says it was kept', result.polish.detail, 'kept: 2 change(s), reviewed')
+}
+
+async function polishNothingToDo() {
+  const { result, calls } = await run({ ...ARGS, review_bookmark: BOOKMARK }, { 1: [] }, {})
+  check('a polish that changed nothing skips the gate and the review', [polishCalls(calls, 'gate').length, calls.filter(c => c.phase === 'Polish review').length], [0, 0])
+  check('and still counts as polished, against the launch tree', markPrompt(calls).includes('--tree 7ree --polished'), true)
+  check('and says so', result.polish.detail, 'nothing to polish')
+}
+
+async function polishTakenBack() {
+  const cases = [
+    ['a failed gate', { gate: { exit_status: 1, output: 'FAILED' } }, {}, {}],
+    ['a gate agent that returned nothing', { gate: null }, {}, {}],
+    ['a confirmed defect', {}, { polish: [finding('behaviour', { frequency: 'common' })] }, { 'defect behaviour': verdict(true, true, 'common', 'recoverable') }],
+    ['a confirmed defect rated rare', {}, { polish: [finding('behaviour', { frequency: 'rare' })] }, { 'defect behaviour': verdict(true, true, 'rare', 'recoverable') }],
+    ['a confirmed defect nobody reaches', {}, { polish: [finding('behaviour', { frequency: 'theoretical' })] }, { 'defect behaviour': verdict(true, false, 'theoretical', 'recoverable') }],
+    ['an unverified finding', {}, { polish: [finding('unsure')] }, {}],
+  ]
+  for (const [label, polish, reviews, verdicts] of cases) {
+    const { result, calls } = await run({ ...ARGS, review_bookmark: BOOKMARK }, { 1: [], ...reviews }, verdicts, { polish: { after: AFTER, passes: CHANGED, ...polish } })
+    const revert = polishCalls(calls, 'revert')[0]?.prompt || ''
+    check(`${label} reverts every file the polish changed, and only those`, revert.endsWith(`revert --repo "/scratch/repo" --tree ${BEFORE} "src/app.ts" "README.md"`), true)
+    check(`${label} marks every polish row reverted`, result.triage.filter(r => r.disposition === 'polish').every(r => r.outcome.startsWith('reverted: ')), true)
+    check(`${label} marks no finding row reverted`, result.triage.filter(r => r.round === 'polish' && r.disposition !== 'polish').some(r => String(r.outcome).startsWith('reverted: ')), false)
+    check(`${label} records the reviewed tree, unpolished`, [result.bookmark.recorded, markPrompt(calls).includes('--tree 7ree'), markPrompt(calls).includes('--polished')], [true, true, false])
+  }
+  const silent = await run({ ...ARGS, review_bookmark: BOOKMARK }, { 1: [] }, {}, { polish: { after: AFTER, passes: CHANGED }, reviewer: (lens, round) => round === 'polish' ? null : undefined })
+  check('a lens silent over the polish reverts it too', silent.result.polish.detail, 'reverted: the bugs lens returned nothing over the polish')
+  const confirmed = await run({ ...ARGS, review_bookmark: BOOKMARK }, { 1: [], polish: [finding('behaviour', { frequency: 'common' })] }, { 'defect behaviour': verdict(true, true, 'common', 'recoverable') }, { polish: { after: AFTER, passes: CHANGED } })
+  check('the confirmed defect is in the table beside the polish it took back', confirmed.result.triage.find(r => r.finding === 'defect behaviour')?.round, 'polish')
+  check('the polish edits and the polish review findings carry distinct ids', new Set(confirmed.result.triage.map(r => r.id)).size, confirmed.result.triage.length)
+  check('and no fixer is sent after it', confirmed.calls.filter(c => c.phase === 'Fix').length, 0)
+}
+
+async function polishRevertIncomplete() {
+  const { result, calls } = await run({ ...ARGS, review_bookmark: BOOKMARK }, { 1: [] }, {}, { polish: { after: AFTER, reverted: 'c'.repeat(40), passes: CHANGED, gate: { exit_status: 1, output: 'FAILED' } } })
+  check('a revert that leaves the tree differing from the reviewed one is not recorded', [result.bookmark.detail, bookmarkCalls(calls).length], ['not recorded: the polish revert did not restore the reviewed tree', 0])
+}
+
+async function deadPolishPass() {
+  const { result, calls } = await run({ ...ARGS, review_bookmark: BOOKMARK }, { 1: [] }, {}, { polish: { after: AFTER, passes: { ...CHANGED, 'clean-code': null } } })
+  check('a pass that returned nothing is not reverted, since what it edited is unknown', polishCalls(calls, 'revert').length, 0)
+  check('and the run is not recorded', result.bookmark.detail, 'not recorded: a polish pass returned nothing')
+  check('and the polish says the edits are unreviewed', result.polish.detail.includes('unreviewed'), true)
+}
+
+async function polishOnlyAfterCleanReview() {
+  const readOnly = await run({ ...ARGS, fix: false, review_bookmark: BOOKMARK }, { 1: [] }, {})
+  check('read-only never polishes', readOnly.calls.filter(c => c.phase === 'Polish').length, 0)
+  const gap = await run({ ...ARGS, review_bookmark: BOOKMARK }, { 1: [finding('thrown', { frequency: 'common' })] }, {})
+  check('a review with a gap is not polished', [gap.calls.filter(c => c.phase === 'Polish').length, gap.result.polish.detail], [0, 'not run: a finding went unverified'])
+  const noGate = await run({ ...ARGS, gate: undefined, review_bookmark: BOOKMARK }, { 1: [] }, {}, { polish: { after: AFTER, passes: CHANGED } })
+  check('without a gate the polish goes straight to its review', [polishCalls(noGate.calls, 'gate').length, noGate.result.polish.detail], [0, 'kept: 2 change(s), reviewed'])
+}
+
 async function refusesNonBooleanFix() {
   let threw = false
   try { await run({ ...ARGS, fix: 'no' }, {}, {}) } catch { threw = true }
@@ -288,7 +374,7 @@ async function refusesNonBooleanFix() {
 // ~/.claude/workflows, so a CRLF file breaks every run while git, normalizing to LF, shows nothing changed.
 check('the workflow file carries no carriage return', SOURCE.includes('\r'), false)
 
-for (const test of [triageAndStop, stopsAfterQuietRound, nothingFoundCallsNoFixer, capsAtTwoRounds, noGate, refusesBadArgs, unverifiedIsNotRefuted, verifierThatThrows, deadFixerStopsTheLoop, skippedFixIsNotReportedAsFixed, silentLensIsReported, readOnly, readOnlyGapIsNotRecorded, noBookmarkPassed, fixModeRecording, refusesNonBooleanFix]) {
+for (const test of [triageAndStop, stopsAfterQuietRound, nothingFoundCallsNoFixer, capsAtTwoRounds, noGate, refusesBadArgs, unverifiedIsNotRefuted, verifierThatThrows, deadFixerStopsTheLoop, skippedFixIsNotReportedAsFixed, silentLensIsReported, readOnly, readOnlyGapIsNotRecorded, noBookmarkPassed, fixModeRecording, polishKept, polishNothingToDo, polishTakenBack, polishRevertIncomplete, deadPolishPass, polishOnlyAfterCleanReview, refusesNonBooleanFix]) {
   try { await test() } catch (error) { failures.push(`  FAIL ${test.name} threw: ${error.stack}`) }
 }
 for (const line of failures) console.log(line)

@@ -17,8 +17,8 @@ only inside a `docs-relevance` run, and the machinery went with it:
   Recording grant; `swift window_list.swift` depended on the calling terminal holding that grant, and a
   rebuilt ad-hoc-signed terminal can show the switch on while every window title comes back blank.
 
-`docs-relevance` keeps deciding whether a frame is stale and whether its `policy` permits a replacement,
-and hands the capture to `screenshot`.
+Deciding whether a frame is stale and whether its `policy` permits a replacement belongs to the
+`screenshot-relevance` skill, which hands the capture to `screenshot`; `docs-relevance` checks prose only.
 
 Nothing in a caller's tree reports the old path going away: the path is a string, and a capture script
 runs only when someone re-shoots, so the failure waits until a window is staged and the shutter fires.
@@ -38,8 +38,10 @@ work edits committed capture code the other machine may also have changed.
    `skills/docs-relevance/references` to `skills/screenshot/references`, in whichever separator the file
    uses. A prose mention of the skill as the owner of the shared tools — a comment, a manifest `steps`
    note saying a frame was drawn by "the docs-relevance skill's `winframe.py`" — names the `screenshot`
-   skill instead. Leave alone a mention of `docs-relevance` as the staleness check, and anything under
-   `.claude/memos/done/`, which records what was true when it was closed.
+   skill instead. A mention of `docs-relevance` as the screenshot staleness check, or as the skill a
+   CLAUDE.md screenshot opt-out binds ("its step 4", "skips its screenshot step"), names
+   `screenshot-relevance` instead. Leave alone a mention of `docs-relevance` as the check on prose, and
+   anything under `.claude/memos/done/`, which records what was true when it was closed.
 3. **Replace a `window_list.swift` caller.** List windows through DocShot instead:
    `open -g -n -W -a ~/Applications/DocShot.app --args --list --out <file>`, then read the JSON from
    `<file>`. DocShot has to be launched through `open` for its grant to apply, which is why the result
@@ -59,9 +61,9 @@ comments.
 ## When it does not apply
 
 - `git grep -n -e 'docs-relevance/scripts' -e 'docs-relevance\\scripts' -e 'docs-relevance/references' -e 'window_list' -e '"docs-relevance" / "scripts"'`
-  prints nothing outside `.claude/memos/done/`. Check that the patterns can find a hit before trusting an
+  prints nothing outside `.claude/memos/done/`, and no CLAUDE.md screenshot opt-out names `docs-relevance`. Check that the patterns can find a hit before trusting an
   empty result: `git grep -n 'docs-relevance'` lists every mention, and reading those lines settles
-  whether one is a path the patterns missed.
+  whether one is a path the patterns missed, or a screenshot-check mention step 2 repoints.
 - The repo is a clone of someone else's project, which adopts nothing.
 
 ## Continuing rule

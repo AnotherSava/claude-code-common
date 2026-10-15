@@ -66,14 +66,15 @@ Summarizes what was done, how it matches the plan, and what the review found —
 
 ### Clean Code
 
-Audits modified files for dead code, duplication, and import hygiene.
+Audits modified files for dead code, duplication, needless complexity, and import hygiene.
 
 **Command:** `/clean-code`
 
 **Features:**
 - Removes debug prints left from development
-- Dead code audit: traces callers to find unreachable methods, fields, imports, type members
+- Dead code audit: runs the project's own configured dead-code tooling first (an unused-symbol lint rule, knip, vulture), then traces callers to find unreachable methods, fields, imports, type members
 - Duplication audit: flags repeated logic and proposes consolidation
+- Complexity audit: flags nesting, nested ternaries, single-caller abstractions and unrequested generality, and proposes the simpler form
 - Optimizes imports in modified files
 - Iterates until clean — each removal pass may reveal new dead code
 
@@ -108,8 +109,8 @@ Analyzes changes and generates atomic Conventional Commit messages.
 - Clears the index before staging each group, so work staged before the run cannot ride into the first commit
 - Takes everything that has not reached the remote as its subject, not only what is uncommitted: it runs `claude/scripts/check-commit-message.py` over the unpushed commits and adds them to the confidentiality scan, so a commit made by hand or by a session that skipped this skill is examined by something. Where no tracking branch is set the range is `HEAD --not --remotes`, so a branch never pushed is covered rather than skipped. A message or a secret already in history needs `/reset`, which it proposes rather than runs; stale docs, a debug print or a wrong file mode carry forward into the change set instead
 - Runs the confidentiality scan from one script, `claude/scripts/scan-commit-confidentiality.py`, instead of a grep each run rebuilt by hand. It reports every occurrence with its file and line rather than the matched value, so a scan for the user's own hostnames does not republish them into the transcript it protects; it lists separately the candidates it set aside as noise; and it exits `2` when a positive control could not run, a third answer distinct from both a clean scan and findings, so a run that read no files can no longer print "none". Judging whether each finding is a real leak or a placeholder stays the session's. Its self-test runs in this repo's own commit gate, asserting each control still fails loudly
-- Delegates to `/reflect`, `/clean-code`, and `/docs-relevance` before planning commits, gating the last two on `claude/skills/commit/scripts/change_scope.py` — it classifies the working tree and the unpushed range and prints `RUN` or `SKIP` per sub-skill with the paths behind the verdict, since both review unpushed commits on the same terms as uncommitted ones. A `SKIP` is reported in one line rather than passed over silently, and a scope git cannot be read from prints `RUN` for both
-- Launches `/docs-relevance` as a background fork and keeps working, then reads the patch it hands back and applies it — a byte-exact patch fails rather than corrupting a tree that moved under it, and a rejected finding goes back to the same fork by name rather than paying for a fresh scan
+- Delegates to `/reflect`, `/clean-code`, `/docs-relevance` and `/screenshot-relevance` before planning commits, gating the last three on `claude/skills/commit/scripts/change_scope.py` — it classifies the working tree and the unpushed range and prints `RUN` or `SKIP` per sub-skill with the paths behind the verdict, since they review unpushed commits on the same terms as uncommitted ones. A `SKIP` is reported in one line rather than passed over silently, and a scope git cannot be read from prints `RUN` for all three. `/clean-code` and `/docs-relevance` are skipped over a tree the [`review-auto` workflow](#saved-workflows) already polished, `/clean-code` unless code changed after it and `/docs-relevance` unless code or documentation did
+- Launches `/docs-relevance` and `/screenshot-relevance` as background forks and keeps working, then reads the patch each hands back and applies it — a byte-exact patch fails rather than corrupting a tree that moved under it, and a rejected finding goes back to the same fork by name rather than paying for a fresh scan
 - Watches CI in the background after the push instead of blocking on it, reporting each workflow as it exits; a watch still running when the session ends was never reported as passing
 - Drafts commit messages in imperative mood with type prefixes
 - Presents a full plan for approval before executing any commits
@@ -158,25 +159,38 @@ Brings the branch up to date with its upstream when the working tree is dirty �
 
 Scans project documentation for stale references and fixes them.
 
-**Invoked by:** [`/commit`](#commit) at its documentation step, or by asking whether the docs are stale. It carries `user-invocable: false`, so it has no entry in the `/` menu.
+**Invoked by:** [`/commit`](#commit) at its documentation step, by the `review-auto` workflow's polish phase, which follows its Process unattended, or by asking whether the docs are stale. It carries `user-invocable: false`, so it has no entry in the `/` menu.
 
 **Features:**
 - Runs as a backgrounded forked subagent at `effort: medium`, so `/commit` launches it and carries on with the steps that depend on nothing it produces. A fork starts fresh with the skill body and `CLAUDE.md` and sees none of the conversation, so every step derives what it needs from the repository
 - Edits a detached worktree outside the repo rather than the user's tree, created by `claude/scripts/worktree-sandbox.py` and carrying the pending change set — the uncommitted edits, the new files, the deletions — then hands back a unified diff for the caller to read and `git apply`. A fork's writes land outside the session's checkpoints, so `/rewind` cannot undo them; routing them through a patch keeps one writer
 - Reports the patch path even when the patch is empty, so "nothing to fix" and "the run failed" cannot be confused
 - Flags every claim the run could not check, not only a cross-repo file path — a sentence asserting how another repo's code behaves is just as unverifiable from the sandbox, and a word the document already uses is not evidence for it
-- Reads the project's own `CLAUDE.md` first and lets it override any step — a repo that rules out screenshots gets no staleness pass, no manifest and no offer — and says in the report which of its rules applied
+- Reads the project's own `CLAUDE.md` first and lets it override any step, and says in the report which of its rules applied
 - Reports a documentation gap in a file the project's upstream owns and edits nothing there — no patch and no memo for the docs of a fork's upstream or of a third-party clone, unless the gap belongs to a change the user carries on their own branch or to an issue they have already raised, which are theirs and handled as normal; the rest reaches upstream only as an issue they ask for, since the backlog holds work this repo has undertaken
-- Checks README, `docs/pages/`, CLAUDE.md, and source comments against current code
+- Checks README, `docs/pages/`, CLAUDE.md, and source comments against current code, including a `TODO` or `FIXME` whose work the code now does
 - Fixes stale paths, API references, and behavior descriptions
 - Keeps curated feature listings (features page, docs index, README) in sync with the diff
+- Regenerates dimensioned-draft drawings when the model they document changed
+- Suggests new documentation files or reorganization when beneficial
+
+---
+
+### Screenshot Relevance
+
+Checks that a project's documentation screenshots still show the product, carry an edge, and exist where a page needs one.
+
+**Invoked by:** [`/commit`](#commit) at its documentation step, on its own verdict, or by asking whether the docs' screenshots are stale. It carries `user-invocable: false`, so it has no entry in the `/` menu.
+
+**Features:**
+- Runs as a backgrounded fork in a sandbox and hands back a patch, exactly as [`/docs-relevance`](#docs-relevance) does; both read their sandbox procedure from `claude/skills/shared/forked-sandbox.md`
+- Reads the project's own `CLAUDE.md` first: a repo that rules out screenshots gets no staleness pass, no manifest and no offer
 - Reconciles documentation screenshots against the docs that cite them, and proves a shot stale by grepping the text visible in it against source
 - Records each shot in a `docs/screenshots/screenshots.json` manifest — what the frame shows, how to reproduce it, and whether replacement is `auto`, `confirm` or `never`
 - Checks every published screenshot for an edge on every run, whoever took it, and reports a bare one as `NO EDGE` (`hairline.py --check`, which writes nothing)
 - Names the shots that do not exist: sweeps pages for sections doing a picture's work in prose, proposes the two or three strongest, and captures none of them without an explicit yes. A private repo skips this pass unless its `CLAUDE.md` asks for it, and the screenshots it already has keep every staleness check
 - Hands every capture its policy permits, and every frame it has to border, to [`/screenshot`](#screenshot); a capture that would raise a window or move the pointer comes back to the caller as pending, since a backgrounded fork cannot ask first
-- Regenerates dimensioned-draft drawings when the model they document changed
-- Suggests new documentation files or reorganization when beneficial
+- Counts the images a fork's upstream owns and checks none of them
 
 ---
 
@@ -184,7 +198,7 @@ Scans project documentation for stale references and fixes them.
 
 Takes, frames and files a documentation screenshot, then shows it on a contact sheet and asks for a verdict.
 
-**Invoked by:** asking to take, re-shoot or replace a screenshot in a project's docs, by any turn that changes an image file, or by [`/docs-relevance`](#docs-relevance) when a frame's policy permits a capture.
+**Invoked by:** asking to take, re-shoot or replace a screenshot in a project's docs, by any turn that changes an image file, or by [`/screenshot-relevance`](#screenshot-relevance) when a frame's policy permits a capture.
 
 **Features:**
 - Asks immediately before a capture that raises a window, moves the pointer or launches the app; a headless render needs no ask
@@ -871,7 +885,7 @@ Small changes get pushed without a review, and a review scoped to the uncommitte
 
 The bookmark moves in two later steps, and only forward over code a review saw:
 
-1. When a run finishes with every lens answered and every finding verified, its last agent runs `review_scope.py mark`, which records the reviewed tree in `.git/`. In fix mode the run must also have ended on a quiet round with its gate passing, since fixes no later round reviewed are unreviewed code.
+1. When a run finishes with every lens answered and every finding verified, its last agent runs `review_scope.py mark`, which records the reviewed tree in `.git/`. In fix mode the run must also have ended on a quiet round with its gate passing, since fixes no later round reviewed are unreviewed code. The record also says whether the workflow's polish ran over that tree, which `/commit`'s `change_scope.py` reads to skip its own `/clean-code` and `/docs-relevance` passes.
 2. `/commit` runs `review_scope.py advance` after its commits, which moves the bookmark to HEAD only when HEAD's tree is exactly the recorded one, and `review_scope.py push` after a successful push.
 
 A partial commit, an edit after the review or a commit made outside `/commit` leaves the bookmark behind, and the next review covers those commits again. When no base can be trusted, because origin cannot be read or history was rewritten past the bookmark, the hook says so to the model and passes no `review_bookmark`, so that review is never recorded.
@@ -965,7 +979,9 @@ The `claude/workflows/` directory holds workflows any session can run by name, l
 
 - **`review-auto`** — the way to run an automated review, fixing what it finds or, with `fix: false`, read-only. Called as `Workflow({name: "review-auto", args: {scope, lenses: [{key, prompt}], context, gate, fix}})`. A read-only run reviews and verifies one round, changes nothing, and returns the same triage table; [`/review-manual`](#review-manual) is the way to run one. Every run's scope also takes in the commits pushed since the last review, which the [review scope hook](#review-scope) adds. Every finding must name who reaches it (a call site, a log line, a stored record), how often (common, plausible, rare, theoretical) and what leaving it costs. A skeptic per finding judges both truth and realism, and plain code decides what happens: a duplication is fixed whatever its frequency and whether or not anything reaches the divergence yet, because what that one costs is the next divergence between the copies rather than anything the rated scenario does; otherwise a finding nothing reaches is dropped; one that is reached and would lose data, crash, corrupt core output or leak identity is fixed, as is anything common or plausible; a rare one gets a log line or a doc sentence and no logic; a theoretical one is dropped. A finding whose skeptic was skipped or died is `unverified`, neither fixed nor counted as refuted, and the next round is asked to report it again. Each fix- and warn-class row records what the fixer's report says happened to it — applied, skipped with its reason, or not applied — and the second round's reviewers see every earlier finding with that outcome, so they do not re-report a dropped case in new words. The loop stops after a round with nothing worth fixing, when the fixer returns nothing or applies none of its fixes, and after two rounds regardless, and returns the whole triage table for the user rather than a count of fixes. A lens whose reviewer was skipped or died is listed in `silent_lenses`, and the stop reason says the round was clean only among what ran. No agent in it may deploy, start or stop an app, and the fixer runs the project's gate by its exit status.
 
-**Tests:** `node claude/tests/review-auto.mjs` runs the real script with the Workflow runtime stubbed, and asserts every triage outcome, the stop rule and the cap, including the cases where a reviewer, verifier or fixer returns nothing or throws, the read-only mode, and when the review bookmark is recorded.
+  In fix mode, once a run has converged with nothing that would keep the bookmark from being recorded, it polishes the change: one agent follows [`/clean-code`](#clean-code), then one follows [`/docs-relevance`](#docs-relevance) over the cleaned code, each applying what the skill would otherwise ask about, and the gate runs. Both passes cover the whole pending change set each skill defines for itself, which can be wider than the review's scope, because the run records the whole tree as polished and `/commit` then skips both skills for it. Every lens then reviews the polish diff alone. A failed gate, a confirmed defect of any frequency or reach, or a lens or verifier that returned nothing takes the whole polish back to the reviewed tree from a snapshot taken before it (`review_scope.py snapshot` and `revert`), so no outcome leaves code no review saw; a polish pass that returned nothing is not reverted, since what it edited is unknown, and the run is then not recorded. Each polish edit is a row in the triage table with its outcome.
+
+**Tests:** `node claude/tests/review-auto.mjs` runs the real script with the Workflow runtime stubbed, and asserts every triage outcome, the stop rule and the cap, including the cases where a reviewer, verifier or fixer returns nothing or throws, the read-only mode, when the review bookmark is recorded, and every way the polish is kept or taken back.
 
 ---
 

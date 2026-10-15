@@ -54,6 +54,7 @@ claude/skills/publish-chrome-extension/config/
 !claude/skills/reset/
 !claude/skills/review-manual/
 !claude/skills/screenshot/
+!claude/skills/screenshot-relevance/
 !claude/skills/shared/
 !claude/skills/skill/
 !claude/skills/transcrypt/

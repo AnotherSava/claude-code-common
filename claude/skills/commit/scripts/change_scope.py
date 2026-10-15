@@ -1,9 +1,14 @@
 #!/usr/bin/env python3
-"""Decide whether the pending change set needs /clean-code and /docs-relevance.
+"""Decide whether the pending change set needs /clean-code, /docs-relevance and /screenshot-relevance.
 
 Prints one verdict line per sub-skill, `RUN` or `SKIP`, with the reason and the
-paths behind it. A change set git cannot be read from prints `RUN` for both and
+paths behind it. A change set git cannot be read from prints `RUN` for all three and
 says the scope is unmeasured — a gate that could not look must never skip.
+
+The `review-auto` workflow runs the first two itself once its review converges, and
+records the tree it polished. When no code changed since that tree, the clean-code
+verdict is `SKIP`; when neither code nor documentation changed, docs-relevance's is
+too. Screenshots are never polished there, so their verdict ignores the record.
 """
 
 from __future__ import annotations
@@ -12,8 +17,11 @@ import os
 import subprocess
 import sys
 
-sys.path.insert(0, os.path.join(os.path.dirname(os.path.abspath(__file__)), "..", "..", "shared"))
+HERE = os.path.dirname(os.path.abspath(__file__))
+sys.path.insert(0, os.path.join(HERE, "..", "..", "shared"))
+sys.path.insert(0, os.path.join(HERE, "..", "..", "..", "scripts"))
 from git_changeset import changed_paths, git  # noqa: E402  (the shared module's path is set above)
+import review_scope  # noqa: E402  (its path is set above)
 
 CODE_SUFFIXES = {
     ".py", ".pyi", ".ts", ".tsx", ".js", ".jsx", ".mjs", ".cjs", ".rs", ".go", ".java", ".kt",
@@ -22,6 +30,9 @@ CODE_SUFFIXES = {
     ".json", ".toml", ".yml", ".yaml", ".gradle", ".cmake", ".m", ".mm", ".dart", ".ex", ".exs",
 }
 DOC_SUFFIXES = {".md", ".mdx", ".rst", ".txt", ".adoc"}
+
+# The same selection as the "Doc image files" probe in skills/screenshot-relevance/SKILL.md; change both together.
+DOC_IMAGES = [":/docs/*.png", ":/docs/*.jpg", ":/docs/*.jpeg", ":/docs/*.gif", ":/docs/*.webp", ":(top,exclude,glob)docs/**/raw/**"]
 
 # Paths whose content documents nothing about the code and is never read for staleness.
 INERT_PREFIXES = (".claude/memos/", ".claude/memory/")
@@ -37,14 +48,14 @@ def unpushed_paths() -> tuple[list[str], str | None]:
     `HEAD --not --remotes` bounds that range in every layout, which is why no upstream is consulted
     to pick it. An `@{upstream}..HEAD` range is wrong wherever the tracked remote is not the push
     remote: in a fork whose branch tracks `upstream` while pushes go to `origin`, every
-    commit already pushed to the fork counts as unpushed forever, so both sub-skills verdict `RUN`
-    on every run over files they have already reviewed. Measured 2026-10-04 in such a fork:
+    commit already pushed to the fork counts as unpushed forever, so the verdicts read `RUN`
+    on every run over files the sub-skills have already reviewed. Measured 2026-10-04 in such a fork:
     `git rev-list HEAD --not --remotes` gave 0 against `@{upstream}..HEAD`'s 2. A branch pushed
     nowhere yet scopes its whole history, which is the honest answer — measured 2026-10-01,
     returning an empty list and a note instead let the verdict read the working tree as the whole
     scope and print `clean-code: SKIP` over three unpushed commits that changed two C# files.
 
-    `--diff-filter=ACMRT` keeps a deletion out of the scope, since neither sub-skill can review a
+    `--diff-filter=ACMRT` keeps a deletion out of the scope, since no sub-skill can review a
     path that no longer exists.
     """
     try:
@@ -92,6 +103,36 @@ def classify(paths: list[str]) -> tuple[list[str], list[str], list[str]]:
     return code, docs, inert
 
 
+def has_doc_images() -> bool:
+    """True when it cannot tell, so an unreadable index never skips a check."""
+    try:
+        return bool(git(["ls-files", "--full-name", "-co", "--exclude-standard", "--", *DOC_IMAGES]).strip())
+    except (subprocess.CalledProcessError, OSError):
+        return True
+
+
+def polish_verdict() -> tuple[str | None, str | None]:
+    """Why the recorded polish covers clean-code and docs-relevance, each None where it does not.
+
+    The two are separate because a documentation change after the polish, such as a learning /reflect
+    writes, leaves the polished code untouched: it re-opens the prose check, never the code clean-up.
+    """
+    repo = review_scope.toplevel(".")
+    try:
+        found = review_scope.polished_since(repo) if repo else None
+    except (RuntimeError, OSError, subprocess.SubprocessError, ValueError, KeyError) as exc:
+        print(f"  polish record unreadable ({exc}), so it covers nothing")
+        return None, None
+    if found is None:
+        return None, None
+    code, docs, _ = classify(found["changed"])
+    if code or docs:
+        print(f"  changed since review-auto polished {found['tree'][:12]}: {sample(code + docs)}")
+    others = len(found["changed"]) - len(code)
+    covered = "review-auto polished this tree" + (f", {others} other path(s) changed since" if others else "")
+    return (None if code else covered), (None if code or docs else covered)
+
+
 def sample(paths: list[str], limit: int = 4) -> str:
     shown = ", ".join(paths[:limit])
     return f"{shown}, +{len(paths) - limit} more" if len(paths) > limit else shown
@@ -102,9 +143,10 @@ def main() -> None:
         tree = changed_paths()
         unpushed, note = unpushed_paths()
     except (subprocess.CalledProcessError, OSError) as exc:
-        print(f"scope: UNMEASURED — git failed ({exc}); both sub-skills MUST run")
+        print(f"scope: UNMEASURED — git failed ({exc}); every sub-skill MUST run")
         print("clean-code: RUN (scope unmeasured)")
         print("docs-relevance: RUN (scope unmeasured)")
+        print("screenshot-relevance: RUN (scope unmeasured)")
         return
 
     paths = sorted(set(tree) | set(unpushed))
@@ -114,6 +156,7 @@ def main() -> None:
         print("scope: nothing uncommitted and nothing unpushed")
         print("clean-code: SKIP (nothing changed)")
         print("docs-relevance: SKIP (nothing changed)")
+        print("screenshot-relevance: SKIP (nothing changed)")
         return
 
     code, docs, inert = classify(paths)
@@ -131,20 +174,32 @@ def main() -> None:
 
     # A scope that could not be read must never produce a SKIP, however empty it looks.
     unmeasured = bool(note and note.startswith("UNMEASURED"))
+    polished, prose_polished = (None, None) if unmeasured else polish_verdict()
 
-    if code or unmeasured:
+    if polished:
+        print(f"clean-code: SKIP ({polished})")
+    elif code or unmeasured:
         reason = "unpushed scope unmeasured" if unmeasured else f"{len(code)} code file(s) changed"
         print(f"clean-code: RUN ({reason})")
     else:
         print("clean-code: SKIP (no file with a code suffix changed)")
 
-    if code or docs or unmeasured:
-        reason = ("unpushed scope unmeasured" if unmeasured else
-                  "code changed, so prose about it may be stale" if code else
-                  "documentation itself changed")
+    reason = ("unpushed scope unmeasured" if unmeasured else
+              "code changed, so prose about it may be stale" if code else
+              "documentation itself changed" if docs else None)
+    if prose_polished:
+        print(f"docs-relevance: SKIP ({prose_polished})")
+    elif reason:
         print(f"docs-relevance: RUN ({reason})")
     else:
         print("docs-relevance: SKIP (no code and no documentation in the change set)")
+
+    if not reason:
+        print("screenshot-relevance: SKIP (no code and no documentation in the change set)")
+    elif unmeasured or has_doc_images():
+        print(f"screenshot-relevance: RUN ({reason})")
+    else:
+        print("screenshot-relevance: SKIP (the docs hold no images)")
 
 
 if __name__ == "__main__":

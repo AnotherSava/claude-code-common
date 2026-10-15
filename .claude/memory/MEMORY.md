@@ -9,7 +9,7 @@
 - [Untracked checklists block the split](untracked-checklists-block-the-split.md) — two repos hold an uncommitted `.claude/memos.md`; commit it before `/adopt` runs there or v1 destroys every marker
 - [Settings writes dirty this repo](settings-writes-dirty-this-repo.md) — any Claude Code settings write lands here through the symlink; the effort keys were removed 2026-10-09 and `ultracode` must not come back
 - [Remote session diagnostics](remote-session-diagnostics.md) — "remote session" means the tmux feature, not Remote Control; the four read-only commands for its live state, and why an attach can work while the conversation is new
-- [Docs stay text-only](docs-stay-text-only.md) — why there are no images here (2026-09-24); the instruction itself is in `CLAUDE.md`, where `/docs-relevance` reads it
+- [Docs stay text-only](docs-stay-text-only.md) — why there are no images here (2026-09-24); the instruction itself is in `CLAUDE.md`, where `/screenshot-relevance` reads it
 - [v9 stock-take is inventory only](v9-stocktake-inventory-only.md) — nothing runs before the commit-gate question; running candidates was rejected 2026-09-26, don't re-propose it
 - [Commit and wrap-up stay separate](commit-wrapup-stay-separate.md) — merging them was rejected 2026-09-30; they are already composed and the assumed overlap is absent
 - [Port uniqueness is not a rule](port-uniqueness-not-a-rule.md) — it lives in this repo's gate because three port-claiming repos have no gate at all; v15 does the per-repo replacement instead

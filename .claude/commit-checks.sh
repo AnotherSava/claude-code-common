@@ -154,6 +154,10 @@ run "review picker" python3 claude/tests/review-picker.py
 # failure is moving past code no review saw, which then never gets reviewed; most cases try to make it do exactly that.
 run "review scope" python3 claude/tests/review-scope.py
 
+# The verdict /commit reads before its clean-up passes, which skips them over a tree review-auto already polished. A
+# wrong skip sends code no clean-up pass saw into a commit and nothing later notices, so the cases press on the skips.
+run "change scope" python3 claude/tests/change-scope.py
+
 # The backstop that warns when an inline workflow fixes findings without rating realism, or reviews code without the
 # saved workflow and so misses the review bookmark. Too quiet and the next such run goes unnoticed; too loud on
 # workflows that review documents or papers and the warning stops being read.

@@ -104,9 +104,9 @@ handled. Drop a candidate when:
 - a later message in the digest settled it, even indirectly
 - it is already in **Pending memos**
 - the approach changed underneath it, so the question no longer means anything
-- a later step of this skill already owns it: `/commit` runs the remote sync check, `/reflect`,
-  `/clean-code`, `/docs-relevance` and the confidentiality scan, so none of those is ever a
-  finding here, however live it looks in the transcript
+- a later step of this skill already owns it: whatever `/commit` runs is never a finding here,
+  however live it looks in the transcript. Read the list from its numbered steps in
+  `~/.claude/skills/commit/SKILL.md` rather than recalling it, since that list grows
 - step 8 already owns it: the change not having been run on this machine, not having been
   shipped to where its users are, and not having been released, are the offers that step makes,
   so none of them is a finding — a *failure* one of them produced during the session still is
@@ -165,14 +165,15 @@ their work"*. A memo there files the question in the backlog of a repo that cann
 not a ping either.** The capability and ownership tests both end at a session that can act; this one ends at an account
 nobody here speaks for. A fork's backlog is work this repo has undertaken, and upstream's files are
 not it, so a memo parks work nobody here will ever do and a ping has no one to reach. `docs-relevance`
-already refuses to patch or memo such a gap and reports it instead, which means a finding arriving
-from that skill carries the reason it stopped — read it before re-dispositioning, rather than taking
-the report and choosing afresh. Two exceptions, both named there: the gap touches a change the user
+already refuses to patch or memo such a gap in prose, and `screenshot-relevance` in images, and each
+reports it instead, which means a finding arriving from either skill carries the reason it stopped —
+read it before re-dispositioning, rather than taking the report and choosing afresh. For prose, two
+exceptions, both named in `docs-relevance`: the gap touches a change the user
 carries on their own branch, or it belongs to an issue they have already raised upstream. Test them
 with `git diff --name-only upstream/main...<branch>` rather than from memory. Otherwise the
 disposition is `drop`, and an upstream issue only when the user asks for one. On 2026-10-01 a
-stale screenshot and a source comment in a third-party fork were both carried in from that skill's
-own report and recommended as memos, which is the one disposition it names as forbidden.
+stale screenshot and a source comment in a third-party fork were both carried in from the
+relevance pass's own report and recommended as memos, which is the one disposition it names as forbidden.
 
 **A `--platform` tag does not soften that.** The flag exists for a memo that was going into the
 backlog anyway and happens to need one box — not as a way to park work a live session over there
@@ -237,9 +238,8 @@ Report what you did in one short line per item, then continue to step 7 in the s
 
 ### 7. Commit
 
-Run `/commit`. It owns the rest: the remote sync check, `/reflect` for durable knowledge,
-`/clean-code`, `/docs-relevance`, the confidentiality scan, the commit plan, and the push.
-Honor its gates, and do not duplicate its work here. In particular, leave
+Run `/commit`. It owns the rest, every step its own `SKILL.md` numbers, through the commit plan
+and the push. Honor its gates, and do not duplicate its work here. In particular, leave
 the remote alone: syncing a branch whose tree is dirty has a specific safe order that `/commit`
 step 1 already encodes, and doing it early here would only get it wrong differently.
 

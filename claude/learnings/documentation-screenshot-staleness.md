@@ -2,7 +2,7 @@
 
 A screenshot in `docs/` is documentation that decays invisibly: the prose beside it stays
 true while the pixels stop being, and nothing renders differently when it happens. This is
-the measured basis for the screenshot step in the `docs-relevance` skill — that skill and the
+the measured basis for the `screenshot-relevance` skill — that skill and the
 `screenshot` skill it hands captures to own the procedure; this file records which signals were tested, which were rejected, and why
 capture is not automated.
 
@@ -133,7 +133,7 @@ faded to grey, new composited semi-transparent, laid out `old | new | overlay`.
 The survey above still describes most projects, and its two objections stand — but they are about
 missing preconditions, not an impossibility, and both can be supplied. Automated capture became the
 right call for a WPF desktop app whose settings window is pure, deterministic, local UI, and the
-`docs-relevance` skill now runs it under a per-screenshot policy (`auto` / `confirm` / `never`) the
+`screenshot-relevance` skill now runs it under a per-screenshot policy (`auto` / `confirm` / `never`) the
 user sets once. What made it safe, in the order the objections appear above:
 
 - **The framing is recorded because the capture is a committed script**, not a remembered sequence of

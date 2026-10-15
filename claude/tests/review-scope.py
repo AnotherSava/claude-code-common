@@ -57,7 +57,7 @@ def bookmark(repo: str) -> str | None:
 def review(repo: str) -> dict:
     """What a complete review does to the record: plan at launch, mark the tree it covered."""
     found = review_scope.plan(repo)
-    review_scope.mark(repo, found["base"], review_scope.worktree_tree(repo))
+    review_scope.mark(repo, found["base"], review_scope.worktree_tree(repo), False)
     return found
 
 
@@ -207,6 +207,61 @@ def main() -> int:
         check("a hook that fails says so", "review-scope hook failed" in context.get("additionalContext", ""), True)
         check("and strips a bookmark the caller wrote, so the review cannot be recorded", "review_bookmark" in context.get("updatedInput", {}).get("args", {"review_bookmark": 1}), False)
         check("garbage on stdin exits quietly", subprocess.run([sys.executable, "-S", HOOK], input="not json", capture_output=True, text=True, timeout=30).stdout, "")
+
+        # The polish record /commit reads to skip its own clean-up passes. Skipping on a record that does not cover
+        # the change set leaves code nobody cleaned, so most cases try to make `polished_since` answer when it must not.
+        p_origin, p = os.path.join(scratch, "p-origin.git"), os.path.join(scratch, "p")
+        subprocess.run(["git", "init", "-q", "--bare", p_origin], check=True)
+        subprocess.run(["git", "clone", "-q", p_origin, p], check=True, capture_output=True)
+        commit(p, "app.py", "one\n")
+        sh(p, "push", "-q", "-u", "origin", "main")
+        write(p, "app.py", "two\n")
+        found = review_scope.plan(p)
+        review_scope.mark(p, found["base"], None, False)
+        check("an unpolished record skips nothing", review_scope.polished_since(p), None)
+        tree = review_scope.worktree_tree(p)
+        review_scope.mark(p, found["base"], None, True)
+        check("a polished record over the tree as it stands reports nothing changed since", review_scope.polished_since(p), {"tree": tree, "changed": []})
+        write(p, "memo.md", "written after the polish\n")
+        check("a file written after the polish is named, untracked or not", review_scope.polished_since(p)["changed"], ["memo.md"])
+        os.remove(os.path.join(p, "memo.md"))
+        os.remove(os.path.join(p, "app.py"))
+        check("a deletion since the polish is left out", review_scope.polished_since(p)["changed"], [])
+        write(p, "app.py", "two\n")
+        sh(p, "commit", "-qam", "polished")
+        check("committing the polished tree keeps it covered", review_scope.polished_since(p)["changed"], [])
+
+        # A review launched with no bookmark scopes from HEAD, so an unpushed commit before its base was never in it.
+        commit(p, "early.py", "unreviewed\n")
+        found = review_scope.plan(p)
+        review_scope.mark(p, found["base"], None, True)
+        check("an unpushed commit the review never covered skips nothing", review_scope.polished_since(p), None)
+        sh(p, "update-ref", review_scope.REF, sh(p, "rev-parse", "HEAD"))
+        check("but one the bookmark holds was reviewed earlier", review_scope.polished_since(p), {"tree": review_scope.worktree_tree(p), "changed": []})
+
+        before = review_scope.worktree_tree(p)
+        write(p, "app.py", "polished badly\n")
+        write(p, "helper.py", "created by the polish\n")
+        write(p, "early.py", "kept\n")
+        check("revert names what it did", review_scope.revert(p, before, ["app.py", "helper.py"]), f"reverted to {before}: 1 restored, 1 deleted")
+        with open(os.path.join(p, "app.py"), encoding="utf-8") as handle:
+            check("a reverted file holds the snapshot's content", handle.read(), "two\n")
+        check("a file the snapshot did not hold is removed", os.path.exists(os.path.join(p, "helper.py")), False)
+        with open(os.path.join(p, "early.py"), encoding="utf-8") as handle:
+            check("a path not named is left alone", handle.read(), "kept\n")
+
+        # Agents name a file absolutely as often as not, and the snapshot never holds an ignored one.
+        write(p, ".gitignore", ".env\n")
+        write(p, ".env", "secret\n")
+        before = review_scope.worktree_tree(p)
+        write(p, "app.py", "polished badly\n")
+        outside = os.path.join(scratch, "outside.py")
+        write(scratch, "outside.py", "not the repo's\n")
+        got = review_scope.revert(p, before, [os.path.join(p, "app.py"), ".env", outside])
+        check("an absolute path is restored, and an ignored or outside one left alone", got, f"reverted to {before}: 1 restored, 0 deleted; left alone: .env (ignored, so the snapshot never held it), {outside} (outside the repo)")
+        with open(os.path.join(p, "app.py"), encoding="utf-8") as handle:
+            check("an absolutely named file holds the snapshot's content", handle.read(), "two\n")
+        check("the ignored file and the outside one survive", [os.path.exists(os.path.join(p, ".env")), os.path.exists(outside)], [True, True])
     finally:
         shutil.rmtree(scratch, ignore_errors=True)
 

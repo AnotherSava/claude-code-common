@@ -12,9 +12,14 @@ Three moments act on it, and each belongs to a different caller:
   brings the local bookmark up to date with origin's and works out what the review must cover. The `scope` command
   prints the same for a run by hand.
 - `mark`, run by the workflow's last agent once a review finished with no gaps, records which tree it covered
-  and from which base. Nothing moves yet: the tree is usually uncommitted.
+  and from which base, and whether the workflow's polish ran over it. Nothing moves yet: the tree is usually
+  uncommitted.
 - `advance`, run by `/commit` after its commits, moves the bookmark to HEAD only when HEAD's tree is exactly the
   recorded one, so an edit made after the review leaves the bookmark where it was. `push` then publishes it.
+
+Between `mark` and `advance`, `/commit`'s change_scope.py reads the record through `polished_since` to skip the
+`/clean-code` and `/docs-relevance` passes the workflow already ran. `snapshot` and `revert` serve the workflow's
+polish phase, which takes back what it cannot keep.
 
 Every failure leaves the bookmark behind rather than ahead: a missed move costs a re-review, a wrong one hides
 unreviewed code for good.
@@ -158,21 +163,81 @@ def scope_text(found: dict) -> str:
             f"does not touch is still in scope when that range does.")
 
 
-def mark(repo: str, base: str, tree: str | None) -> str:
+def mark(repo: str, base: str, tree: str | None, polished: bool) -> str:
     if _resolve(repo, base) is None:
         raise RuntimeError(f"base {base} is not a commit in {repo}")
     tree = tree or worktree_tree(repo)
     with open(_git_path(repo, RECORD), "w", encoding="utf-8") as handle:
-        handle.write(json.dumps({"base": base, "tree": tree}) + "\n")
-    return f"recorded: tree {tree[:12]} reviewed from {base[:12]}"
+        handle.write(json.dumps({"base": base, "tree": tree, "polished": polished}) + "\n")
+    return f"recorded: tree {tree[:12]} reviewed from {base[:12]}{', polished' if polished else ''}"
+
+
+def _read_record(repo: str) -> dict | None:
+    path = _git_path(repo, RECORD)
+    if not os.path.exists(path):
+        return None
+    with open(path, encoding="utf-8") as handle:
+        return json.loads(handle.read())
+
+
+def polished_since(repo: str) -> dict | None:
+    """The paths changed since the workflow polished a tree, or None when no polished review covers the change set.
+
+    A review launched with no bookmark scopes from HEAD, so commits not yet on a remote that precede its base were
+    never in it; the record then covers only part of what /commit is about to send, and nothing may be skipped on it.
+    Commits the bookmark already holds were reviewed by an earlier run. A deletion is left out of `changed`, since
+    neither skipped pass can review a path that no longer exists."""
+    record = _read_record(repo)
+    if not record or not record.get("polished"):
+        return None
+    before = ["rev-list", record["base"], "--not", "--remotes"] + ([REF] if _resolve(repo, REF) else [])
+    listed = _git(repo, *before)
+    if listed.returncode != 0 or listed.stdout.strip():
+        return None
+    diff = _git(repo, "diff", "--name-only", "-z", "--diff-filter=ACMRT", record["tree"], worktree_tree(repo))
+    if diff.returncode != 0:
+        raise RuntimeError(f"git diff against the polished tree failed: {diff.stderr.strip()}")
+    return {"tree": record["tree"], "changed": sorted(p for p in diff.stdout.split("\0") if p)}
+
+
+def _repo_relative(repo: str, path: str) -> str | None:
+    """The path relative to the repo root, or None when it lies outside it. The paths come from agents' reports,
+    which name a file absolutely as often as not, and `<tree>:<path>` only resolves a relative one."""
+    root = os.path.realpath(repo)
+    full = os.path.realpath(path if os.path.isabs(path) else os.path.join(root, path))
+    relative = os.path.relpath(full, root)
+    return None if relative == os.pardir or relative.startswith(os.pardir + os.sep) else relative.replace(os.sep, "/")
+
+
+def revert(repo: str, tree: str, paths: list[str]) -> str:
+    """Put each path back as `tree` holds it, deleting one the tree does not hold. The tree comes from `snapshot`, so
+    it carries untracked files too, which `git stash create` would leave out. It leaves out ignored files, so the
+    tree lacking an ignored path says nothing about it, and such a path is left alone, as is one outside the repo.
+    The output names the whole tree id, which is the only way back to content a wrong deletion took."""
+    restored, deleted, skipped = [], [], []
+    for path in paths:
+        relative = _repo_relative(repo, path)
+        if relative is None:
+            skipped.append(f"{path} (outside the repo)")
+        elif _git(repo, "cat-file", "-e", f"{tree}:{relative}").returncode == 0:
+            done = _git(repo, "restore", f"--source={tree}", "--worktree", "--", relative)
+            if done.returncode != 0:
+                raise RuntimeError(f"restoring {relative} from {tree} failed: {done.stderr.strip()}")
+            restored.append(relative)
+        elif _git(repo, "check-ignore", "-q", "--", relative).returncode == 0:
+            skipped.append(f"{relative} (ignored, so the snapshot never held it)")
+        elif os.path.lexists(os.path.join(repo, relative)):
+            os.remove(os.path.join(repo, relative))
+            deleted.append(relative)
+    left = f"; left alone: {', '.join(skipped)}" if skipped else ""
+    return f"reverted to {tree}: {len(restored)} restored, {len(deleted)} deleted{left}"
 
 
 def advance(repo: str) -> str:
     path = _git_path(repo, RECORD)
-    if not os.path.exists(path):
+    record = _read_record(repo)
+    if record is None:
         return "not advanced: no completed review is recorded"
-    with open(path, encoding="utf-8") as handle:
-        record = json.loads(handle.read())
     head = _resolve(repo, "HEAD")
     head_tree = _git(repo, "rev-parse", "HEAD^{tree}").stdout.strip()
     if head_tree != record["tree"]:
@@ -212,10 +277,12 @@ def push(repo: str) -> str:
 
 def main() -> int:
     parser = argparse.ArgumentParser(description=__doc__.splitlines()[0])
-    parser.add_argument("command", choices=["scope", "mark", "advance", "push"])
+    parser.add_argument("command", choices=["scope", "mark", "advance", "push", "snapshot", "revert"])
     parser.add_argument("--repo", default=".")
     parser.add_argument("--base")
     parser.add_argument("--tree")
+    parser.add_argument("--polished", action="store_true")
+    parser.add_argument("paths", nargs="*")
     opts = parser.parse_args()
     repo = toplevel(opts.repo)
     if repo is None:
@@ -229,7 +296,13 @@ def main() -> int:
         elif opts.command == "mark":
             if not opts.base:
                 parser.error("mark needs --base")
-            print(mark(repo, opts.base, opts.tree))
+            print(mark(repo, opts.base, opts.tree, opts.polished))
+        elif opts.command == "snapshot":
+            print(worktree_tree(repo))
+        elif opts.command == "revert":
+            if not opts.tree:
+                parser.error("revert needs --tree")
+            print(revert(repo, opts.tree, opts.paths))
         elif opts.command == "advance":
             print(advance(repo))
         else:

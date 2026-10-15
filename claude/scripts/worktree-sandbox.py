@@ -95,7 +95,8 @@ def remove(sandbox: str) -> None:
     # git-identifying-the-repo-a-check-is-in.md.
     root = git(["worktree", "list", "--porcelain"], cwd=sandbox).split("\n", 1)[0].removeprefix("worktree ")
     # Windows refuses to delete a directory that is any process's working directory, this one's included. A calling
-    # shell sitting inside the sandbox holds it the same way, which is why the docs-relevance skill `cd`s out first.
+    # shell sitting inside the sandbox holds it the same way, which is why skills/shared/forked-sandbox.md has the
+    # skills that read it `cd` out first.
     os.chdir(root)
     git(["worktree", "remove", "--force", sandbox], cwd=root)
     git(["worktree", "prune"], cwd=root)

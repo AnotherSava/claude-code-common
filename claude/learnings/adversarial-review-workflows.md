@@ -364,3 +364,26 @@ changed in response to the report. Measured 2026-10-12 across four invocations o
 narrow one returned eight findings, seven of them stale prose and one rare behavioural gap, where
 each broad invocation before it had returned a dozen or more. Scope the last one by naming the files
 and the specific changes, and say in the prompt not to re-review the rest.
+
+## A clean-up after the review is unreviewed code; put it inside the loop, and revert it rather than fix it
+
+A dead-code or docs pass run after the review converged edits code no reviewer will read, and it is
+exactly the kind of edit — a helper extracted, a type narrowed — that slips past tests and lint.
+Anthropic's `pr-review-toolkit` recommends the simplifier last, as a polish step "after review
+passes", and does not review what it changes. `review-auto` keeps that order and closes the gap: once
+the loop converges it snapshots the tree, runs `/clean-code` then `/docs-relevance`, runs the gate,
+and reviews the polish diff alone through every lens. Anything it cannot keep — a failed gate, a
+confirmed defect however rarely reached, a lens or verifier that came back empty — reverts the whole polish to the snapshot
+instead of going to a fixer, because a fix after the last review would recreate the problem one level
+down, and a partial revert of edits that span files (a consolidated duplicate) can break the rest.
+
+The revert names only the files the polish agents reported, then compares the tree with the snapshot.
+Reverting everything that differs would also revert a peer's write made during the polish; a tree that
+still differs after the named revert is reported as unrecorded, never reverted further.
+
+The polish only runs on a converged run, and a large change set takes more invocations to converge
+than its two-round cap suggests. Measured 2026-10-15 on a 30-file change: the first two invocations
+each stopped at the cap, round 2 of the second finding only stale prose, and the polish first ran on the
+third. What got that third one to converge was passing the earlier triage in `context`: the fixes
+already made, and every dropped finding by name with an instruction not to re-report it in any wording.
+Without that list a fresh invocation re-finds the dropped cases and its skeptics can rate them up.

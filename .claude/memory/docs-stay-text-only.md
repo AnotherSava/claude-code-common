@@ -1,12 +1,12 @@
 ---
 name: docs-stay-text-only
-description: Why this repo's documentation carries no images, decided 2026-09-24 — the instruction itself is in CLAUDE.md, where /docs-relevance reads it
+description: Why this repo's documentation carries no images, decided 2026-09-24 — the instruction itself is in CLAUDE.md, where /screenshot-relevance reads it
 metadata:
   type: project
 ---
 
-The instruction lives in `CLAUDE.md`, because that is the file `/docs-relevance` reads for a repo's
-documentation rules and this one lived here where the skill never saw it. This file keeps the reasoning
+The instruction lives in `CLAUDE.md`, because that is the file `/screenshot-relevance` reads for a repo's
+screenshot rules and this one lived here where the skill never saw it. This file keeps the reasoning
 behind it.
 
 Asked on 2026-09-24 whether to capture a screenshot for the `/github-status` README entry — which
