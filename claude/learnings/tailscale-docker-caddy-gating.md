@@ -16,7 +16,7 @@ admin.example.com {
 }
 ```
 
-Off-tailnet → 404 (use 404, not 403 — doesn't disclose the panel exists). Tailnet-sourced → proxied. To block a path on the *public* host too: `@admin path /admin /admin/*` → `respond @admin 404`. For a Next.js app a path rule does not gate the page's server actions, which can be invoked through any ungated page; refuse the `Next-Action` header from off the tailnet as well (`nextjs-server-action-serialization.md`).
+Off-tailnet → 404 (use 404, not 403 — doesn't disclose the panel exists). Tailnet-sourced → proxied. To block a path on the *public* host too: `@admin path /admin /admin/*` → `respond @admin 404`. For a Next.js app a path rule does not gate the page's server actions, which can be invoked through any ungated page; refuse the `Next-Action` header from off the tailnet as well (`nextjs-server-actions-path-gating.md`).
 
 ## THE landmine: Tailscale SNATs the source to the Docker bridge IP
 
