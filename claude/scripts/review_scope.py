@@ -186,7 +186,8 @@ def polished_since(repo: str) -> dict | None:
     A review launched with no bookmark scopes from HEAD, so commits not yet on a remote that precede its base were
     never in it; the record then covers only part of what /commit is about to send, and nothing may be skipped on it.
     Commits the bookmark already holds were reviewed by an earlier run. A deletion is left out of `changed`, since
-    neither skipped pass can review a path that no longer exists."""
+    neither skipped pass can review a path that no longer exists, and so is a mode change with the content intact,
+    which leaves nothing for either pass to read."""
     record = _read_record(repo)
     if not record or not record.get("polished"):
         return None
@@ -194,10 +195,13 @@ def polished_since(repo: str) -> dict | None:
     listed = _git(repo, *before)
     if listed.returncode != 0 or listed.stdout.strip():
         return None
-    diff = _git(repo, "diff", "--name-only", "-z", "--diff-filter=ACMRT", record["tree"], worktree_tree(repo))
+    diff = _git(repo, "diff", "--raw", "-z", "--no-renames", "--no-abbrev", "--diff-filter=ACMT", record["tree"], worktree_tree(repo))
     if diff.returncode != 0:
         raise RuntimeError(f"git diff against the polished tree failed: {diff.stderr.strip()}")
-    return {"tree": record["tree"], "changed": sorted(p for p in diff.stdout.split("\0") if p)}
+    # `--raw -z` alternates a `:<old mode> <new mode> <old blob> <new blob> <status>` field with the path it describes.
+    fields = diff.stdout.split("\0")
+    changed = [path for meta, path in zip(fields[::2], fields[1::2]) if meta.split()[2] != meta.split()[3]]
+    return {"tree": record["tree"], "changed": sorted(changed)}
 
 
 def _repo_relative(repo: str, path: str) -> str | None:
