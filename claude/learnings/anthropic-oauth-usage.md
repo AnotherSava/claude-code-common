@@ -13,13 +13,13 @@ Undocumented beta endpoint that returns rolling 5-hour and 7-day rate-limit util
 
 ```json
 {
-  "five_hour": { "utilization": 0.37, "resets_at": "2026-04-21T03:00:00.000+00:00" },
-  "seven_day": { "utilization": 0.67, "resets_at": "2026-04-25T00:00:00Z" }
+  "five_hour": { "utilization": 37.0, "resets_at": "2026-04-21T03:00:00.000+00:00" },
+  "seven_day": { "utilization": 67.0, "resets_at": "2026-04-25T00:00:00Z" }
 }
 ```
 
 - `utilization` is a **0–100 percentage**. Always divide by 100, then clamp to `[0, 1]`. (Older guidance suggested an "if > 1.5 divide, else treat as fraction" heuristic, but that misinterprets real low percentages — `1.0` means 1%, not 100%. Verified across many real responses on a Max account that the API returns percentages exclusively.)
-- `resets_at` is ISO-8601 UTC. Use `chrono::DateTime<Utc>` in Rust or `new Date(resets_at).toLocaleString(undefined, ...)` in JS — drop the `timeZone: 'UTC'` option if you want local-time display.
+- `resets_at` is ISO-8601 UTC, and can be `null` for a while after a 7-day reset (see "The 7-day window resets mid-window too"). Use `chrono::DateTime<Utc>` in Rust or `new Date(resets_at).toLocaleString(undefined, ...)` in JS — drop the `timeZone: 'UTC'` option if you want local-time display.
 
 ## Credentials
 
@@ -212,7 +212,17 @@ Polling every 10 minutes and caching the snapshot for display: the 5h window can
 
 **Mitigation:** when the displayed remaining goes ≤ 0, trigger an out-of-band refresh from the UI. The server should keep a rate-limit floor (e.g. 60 s) so the trigger can't spam Anthropic during the brief expired window. Without that floor, every re-render during the stale period would fire a refresh.
 
+## The 7-day window resets mid-window too
+
+The `seven_day.utilization` figure is not monotonic inside a window. Over June–October 2026 one account saw ten drops to 0% between scheduled weekly resets (about one every two weeks), each with `seven_day.resets_at` left exactly where it was, and in every case the figure stayed low afterwards — a real reset, not a glitch. Most followed no 5-hour cap. Consequences for anything reading this endpoint:
+
+- **A reset detector keyed only on `resets_at` moving forward misses these.** Count a reading that drops to near zero (≤5%, at least 10 points under the previous one) as a reset too; requiring both halves rejects small dips, such as one 34% → 23% reading seen in the same data.
+- **"The percentage only rises inside a window" is false**, so a running max or a carried value spans the reset and reports the spent window's figure.
+- **`resets_at` has at times come back `null`** for the 7-day bucket (often the 5-hour one too) after a 7-day reset, for anywhere from seconds to most of a day, with utilization at 0. Every such stretch began at a 7-day reset; none followed a 5-hour event alone, and none occurred after early September 2026.
+- **The 7-day `resets_at` jitters by under 3 s** between polls of one window (the 5-hour one by about a minute), and the scheduled weekly reset falls at the same weekday and time each week.
+- **A poll landing within a second after a scheduled reset can still report the old window**: one read 100% with the old `resets_at` 53 ms after the reset. Judge a sample against its own `resets_at`, with a little slack, rather than against when it was taken.
+
 ## Reference implementations
 
 - [CodeZeno/Claude-Code-Usage-Monitor](https://github.com/CodeZeno/Claude-Code-Usage-Monitor) — Rust, `ureq`, native-tls, hand-rolled ISO-8601 parser, WSL multi-distro credential-hunt, auto-refresh via `claude -p .`. Minimal deps, ~200 LOC core.
-- This repo's `src-tauri/src/usage_limits.rs` — reqwest+chrono, simpler (no fallback, no token refresh, configurable poll interval via config.json).
+- The claude-code-dashboard repo's `src-tauri/src/usage_limits.rs` — reqwest+chrono, refreshes the OAuth token itself, no Messages-API fallback, configurable poll interval via config.json.
