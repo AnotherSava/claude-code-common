@@ -85,6 +85,10 @@ run "/bin/sh", args: ["-c", "/usr/bin/open '{{appdir}}/Some App.app' || true"]
 
 **`brew audit --online` needs a token in CI.** It calls the GitHub API to validate the homepage and release URL; unauthenticated that is 60 requests/hour shared across every job on the runner's IP, so the step fails at random with `API rate limit exceeded for <ip>` and nothing wrong with the cask. Set `HOMEBREW_GITHUB_API_TOKEN: ${{ secrets.GITHUB_TOKEN }}` on the job for 5000/hour. A red tap CI is worth reading before assuming the cask regressed — `--online` is the only network-dependent step.
 
+**New style rules fail an unchanged cask, so a red bump is not always a release defect.** By October 2026 Homebrew's `Homebrew/OSDependsOn` cop rejects `depends_on macos: :big_sur` as "a redundant minimum macOS version" (it is below what Homebrew itself supports) and asks for `depends_on :macos`; the identical line had passed a bump three days earlier. Read the failing cop's name before looking at the release.
+
+**`brew style --cask <path>` refuses a file outside a tap** (`Homebrew requires casks to be in a tap`). To check a working checkout locally, do what the CI step does — link the checkout into `$(brew --repository)/Library/Taps/<owner>/homebrew-<name>` — but under a throwaway tap name, since the real tap name is usually already a clone you have installed. Then `brew style --cask <owner>/<name>/<token>`, and remove the link. Before a bump, the strict audit also fails on livecheck reporting a newer version than the cask; the bump workflow edits the version first, so that one line is expected.
+
 
 - `livecheck` with `url :url` + `strategy :github_latest` reads `tag_name` from the API, so odd asset filenames don't matter. It **cannot see draft releases** — key bump automation on `release: published`, never on build completion.
 - Fetch the checksum without downloading: `gh api repos/OWNER/REPO/releases/tags/vX.Y.Z --jq '.assets[]|select(.name|endswith(".dmg")).digest'`. The published digest matches the real file.
