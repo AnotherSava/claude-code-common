@@ -18,6 +18,19 @@ agwinterm is a Windows port of agterm (see `agterm.md`). Measured on 0.20.13 and
 - `session.status` takes only idle / active / blocked / completed and turns any other word into idle while still answering ok.
 - **Fork:** the sidebar row shows the custom name, else the focused pane's OSC title, else `session N`. `tree` reports `title` (the focused pane's OSC title, present even while a custom name hides it) and `paneCwds` (pane id → directory). After an agwinterm restart, `title` stays absent for about 20 s, so read a missing title as "not yet", never as "this build has no titles".
 
+## What runs in a pane, and when it has exited
+
+- **A window file's `Command` is not the pane's root.** `%LOCALAPPDATA%\agwinterm\windows\<id>.json` records each pane's `Command`, and `tree` reports `capturedCommands`; both are the restore slot, the foreground command agwinterm captured to type back after a restart. A tab whose saved `Command` is `wsl.exe … start-here.sh` can be a PowerShell root with `wsl.exe` as its child, which reads very differently when the child exits. Read the real root from the process tree (PowerShell `Get-CimInstance Win32_Process` and each process's `ParentProcessId`). Measured 2026-10-15: all eight tabs on one machine were `powershell.exe` roots, while a review had taken the saved `Command` for the root and predicted a close that would never complete.
+- **`foregroundShells` is per pane, in pane order.** A string is a live root shell agwinterm recognizes (cmd, powershell, pwsh, bash, sh, zsh, fish, nu) with no child process, which is a prompt. `null` covers three different states: a child is running, the root is not a recognized shell (`wsl.exe` or an agent started directly), and the pane's process has exited (`p.S.HasExited ? null : …` in the tree builder). Only the string answer is positive knowledge.
+- **An exited single pane stays.** When a pane's process exits, agwinterm closes the pane only if the session is split; a one-pane session keeps the exited pane on screen and in `tree`. So waiting for a session to disappear after its program exits waits forever.
+- **`session.close` asks nobody.** It disposes every pane in the session with no confirmation; the confirm prompt exists only on the keyboard path. A split's other pane goes with it.
+
+## Reading what a pane shows
+
+- `session.text` with `{"styles":true,"lines":N}` returns `{cols, rows:[{row, runs:[{col,width,text,faint,bold,…}]}], cursor}` over the last N rows, reaching into scrollback. Interior empty rows are kept; trailing whitespace and trailing empty rows are trimmed.
+- **The cursor is useless for a Claude Code pane under tmux.** Observed parked at the bottom-right cell (`row 66, col 240`) of an idle session, nowhere near the composer.
+- **Claude Code's composer reads as a `>` (or `❯`) row directly under a `─` rule, through to the next rule**, with its status lines below that. An empty composer is the bare glyph. The placeholder suggestion is drawn faint; paste and image chips (`[Pasted text #1 …]`, `[Image #1]`) are plain text in the input value and not faint, per the 2.1.295 binary, so excluding faint runs separates a placeholder from a draft. A draft typed from a second tmux client, such as a Mac attached to the same session, appears in this pane too.
+
 ## Titles through WSL and tmux
 
 A pane running `wsl.exe … tmux attach` receives the inner pane's title only when tmux has `set-titles on` with `set-titles-string '#T'`. Tested in isolation, both a plain OSC 0 sent from WSL and one forwarded by tmux reached agwinterm's title. A `SetConsoleTitleW` on the WSL-side console of a Windows process inside that tmux pane arrives as tmux's pane title and travels the same way (see `windows-terminal-title.md`).

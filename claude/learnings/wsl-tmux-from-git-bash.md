@@ -52,3 +52,5 @@ Reading such a process's console size from outside did not work: PowerShell `Att
 succeeded, but `CreateFileW("CONOUT$")` returned an invalid handle. The size the program renders
 at can be read off its output instead: `tmux capture-pane -p -t <session>` and measure the length
 of a full-width rule line.
+
+**Killing the tmux side ends the Windows child.** A `PING.EXE -t` started as a pane command was gone two seconds after `tmux kill-session` on that session (measured 2026-10-15), so the WSL interop proxy dying takes the Windows process with it. The test has to run inside one `wsl.exe` invocation: a tmux server started by a `wsl.exe` that then exits hands its Windows children to that invocation's job object, and they die with it before anything can be observed. A long-lived server has to be started from something that outlives the connection, which is why a session holder exists.
