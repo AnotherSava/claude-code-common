@@ -184,6 +184,15 @@ session identical to a hand-started one rather than merely similar.
 **`--no-select` is free.** It creates the session without stealing focus, and — verified, not assumed —
 the session is still `realized: true` immediately, pty and all. There is no trade-off to weigh.
 
+**A `--command` program can drive agterm about its own tab without a shell wrapper.** Measured on
+2026-10-15: the program ran with `AGTERM_SESSION_ID` set to its own session and with
+`PATH=/usr/bin:/bin:/usr/sbin:/sbin` plus the app bundle's `Contents/MacOS`, so a bare `agtermctl`
+resolves even though nothing from `.zshrc` is there. A program that runs `agtermctl session close
+--target "$AGTERM_SESSION_ID"` on itself is killed before `agtermctl` returns, so nothing after
+that line runs and its exit status is never seen. That close is the last thing such a program
+can do. A `--no-select` session running the real script with a stub binary first on `PATH` tests
+this path without stealing focus.
+
 **`ok: true` is not "it is running".** `session new` reports success for a session that exists in
 agterm's *model*; libghostty refuses to create a surface while the display is asleep, and an unrealized
 session never runs its `--command` at all. So an unattended creator must poll `tree --json` for that
@@ -327,6 +336,28 @@ are `active`, `commandWait`, `cwd`, `flagged`, `fontSize`, `foreground`,
 opened. And the tree's top level is `app`, `idleMs`, `quickVisible`,
 `sidebarMode`, `sidebarVisible`, `workspaceFilter` and `workspaces`, reached
 under the `result.tree` envelope rather than at the document root.
+
+Those lists are the 0.25.0 reading, and later builds add to them. On agterm 0.36.0
+(commit 85a1aee5) on 2026-10-15 session nodes also carried `backedByZmx`, `context`,
+`splitCwd`, `splitForegroundShell` and `splitRatio`, no node in that reading carried
+`splitForeground`, and the top level also held `linkOpenMode`, `sidebarFlaggedLayout`
+and `sidebarWidth`. Read the live tree before relying on a key either list names or omits.
+
+**A node's `title` and `foreground` belong to the session's primary pane, whichever
+pane has focus.** agterm builds the node from the session's `oscTitle`, and the other
+pane of a split reports through the `split*` keys (`splitForeground`,
+`splitForegroundShell`). So a reader joining a session by its `title` must judge that
+pane's `foreground`, never pick `foreground` or `splitForeground` by `splitFocused`:
+doing so reads the wrong pane exactly when focus sits on the split. A split's other
+pane exists only once its `surfaces` entry of `kind: "right"` carries a `paneID`.
+`hasSplit` alone does not say so: it stays true while a split is hidden and clears only
+when the split closes, and on 2026-10-15 three of four hidden splits read `hasSplit: true`
+with a `right` surface that had no `paneID`.
+
+**`session close` ends every process in the session**, both panes of a split and a
+hidden scratch included, and answers `ok` once it has; verified 2026-10-15 with a
+throwaway `--command "sleep 600"` session, whose process was gone two seconds after
+the close.
 
 ## `session context`: three things the Swift does not imply
 
