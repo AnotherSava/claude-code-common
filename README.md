@@ -89,12 +89,13 @@ Runs a read-only review of the current change and lets the user choose what gets
 **Features:**
 - Calls the [saved `review-auto` workflow](#saved-workflows) with `fix: false`, building its scope, lenses and gate from the conversation, and passing the user's settled decisions and earlier dropped findings as context so they are not reported again
 - Shows the findings as a table of checkboxes over the session, through `claude/scripts/review_picker.py` and a blocking agterm overlay, pre-ticked where the session recommends a fix and in lighter grey where the fix changes only wording or documentation; a row's ✎ button takes a note on how to fix it, and writing one ticks the row
-- Falls back to the same table in chat when the page is closed without Apply or the session is not inside agterm
+- Outside agterm, publishes the same page on the tailnet and hands over its link; there Apply becomes **Copy answer**, and the user pastes the copied answer into the chat
+- Falls back to the same table in chat when the page is closed without Apply, or when it is outside agterm and the page cannot be published
 - Fixes only the ticked rows, following their notes, adds tests where behaviour changed, and runs the project's gate
 - After fixes, says the tree changed and needs another review, since it no longer matches the bookmark the review recorded
 - With nothing ticked, commits exactly the reviewed tree and moves the bookmark — message check, confidentiality scan and your yes, but none of `/commit`'s sub-steps, whose edits would cost another review round. A later `/commit` reviews those unpushed commits, adds its fixes as new commits and offers the push
 
-**Tests:** `python claude/tests/review-picker.py` — exit 0 when every case behaves, 1 otherwise. It stubs `agtermctl` on PATH and pins the picker's exit statuses and printed answer, including that a closed page is never read as an empty answer. On Windows the cases inside agterm print `NOT COVERED`, since an extensionless stub is invisible to a Windows PATH lookup and agterm does not run there.
+**Tests:** `python claude/tests/review-picker.py` — exit 0 when every case behaves, 1 otherwise. It stubs `agtermctl` on PATH and pins the picker's exit statuses and printed answer, including that a closed page is never read as an empty answer. The publish outside agterm prints `NOT COVERED`, since a test must not publish on the tailnet. On Windows the cases inside agterm print `NOT COVERED`, since an extensionless stub is invisible to a Windows PATH lookup and agterm does not run there.
 
 ---
 

@@ -39,11 +39,14 @@ workflow's own triage is only the pre-ticked recommendation.
    one line, `fix` true where you recommend acting on it, and `wording` true where the fix would change only wording
    or documentation, which the picker draws in lighter grey.
 5. **Run the picker in the background** — `python3 ~/.claude/scripts/review_picker.py tmp/review-findings.json`
-   (`python` on Windows), with `run_in_background` — and wait for it to exit. It blocks until the user answers.
+   (`python` on Windows), with `run_in_background` — and wait for it to exit. Inside agterm it blocks until the user answers.
    - Exit 0 prints `{"outcome": "submitted", "fix": [ids], "feedback": {id: text}}`. An empty `fix` is an answer:
      fix nothing.
-   - Exit 2 (closed without Apply) or 3 (not inside agterm): show the same rows as a table in chat and ask which to
-     fix and how.
+   - Exit 4 (not inside agterm) prints `{"outcome": "published", "url": ...}` at once: hand over that URL as a link
+     and ask the user to tick, press **Copy answer**, and paste the result here. The pasted
+     `{"fix": [ids], "feedback": {id: text}}` is the answer exactly as exit 0's would be.
+   - Exit 2 (closed without Apply) or 3 (not inside agterm, and the page could not be published): show the same rows
+     as a table in chat and ask which to fix and how.
    - Exit 1: report its stderr and fall back to the chat table.
 6. **Fix exactly the chosen ids**, following each one's feedback where it has some. Add or update tests wherever
    behaviour changed, then run the gate from step 1 and judge it by its exit status.

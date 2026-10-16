@@ -2,7 +2,7 @@
 """Cases for `claude/scripts/review_picker.py`, the table `/review-manual` shows so the user can tick what gets fixed.
 
 What the caller acts on is the exit status and the one JSON line, so most cases pin those: an answer comes back with
-its ids and feedback, a closed page is never read as "fix nothing", and outside agterm the caller is told to fall back.
+its ids and feedback, a closed page is never read as "fix nothing", and outside agterm the page asks to be copied.
 `agtermctl` is replaced by a stub on PATH that answers the way the real one documents, since the real one would open
 an overlay over the user's session.
 """
@@ -63,13 +63,20 @@ def main() -> int:
         check("only the recommended row is pre-ticked", page.count(" checked>"), 1)
         check("only the wording-only row is greyed", page.count('<tr class="wording">'), 1)
 
-        check("outside agterm exits 3", run(rows, env=base).returncode, 3)
+        check("outside agterm the page copies its answer instead of submitting", ("Copy answer" in page, "overlay.submit" in page, "overlay.close" in page), (True, False, False))
+        # Outside agterm the picker publishes the page on the tailnet for real, which a test must not do from the
+        # commit gate; that path was run by hand against a live node when it was written.
+        print("  NOT COVERED publishing outside agterm (exit 4, or 3 when publishing fails)")
 
         # agterm is macOS-only, and a Windows PATH lookup matches only PATHEXT extensions, so the extensionless
         # stub is invisible there and the picker never gets past "not inside agterm".
         if os.name == "nt":
             print("  NOT COVERED the inside-agterm cases: agterm does not run on Windows")
         else:
+            stub(bin_dir, "", 0)
+            inside_page = open(run(rows, "--render-only", env=inside).stdout.strip(), encoding="utf-8").read()
+            check("inside agterm the page submits the overlay", ("overlay.submit" in inside_page, "Copy answer" in inside_page), (True, False))
+
             answer = {"fix": ["r1-1"], "feedback": {"r1-1": "keep the old name"}}
             stub(bin_dir, json.dumps({"pageID": "p", "outcome": "submitted", "value": json.dumps(answer)}), 0)
             done = run(rows, env=inside)

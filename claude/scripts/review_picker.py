@@ -10,7 +10,9 @@ note under it for "fix, but like this"; writing one ticks the row, and the note 
 
 Shown as a blocking agterm HTML overlay over the calling session, which is what returns the answer: the page's
 Apply calls `session.overlay.submit` with the ticked ids, and `agtermctl ... --block` prints that value. Outside agterm
-there is no such return path, so the script refuses with exit 3 and the caller presents the table in chat instead.
+(agwinterm on Windows, a plain terminal) nothing can carry an answer back from the page, so the same page is published
+on the tailnet instead, its Apply becomes "Copy answer", and the user pastes the copied JSON into the chat. The script
+then exits at once with the URL rather than blocking, and the caller waits for the paste.
 
 Input is a JSON file:
     {"title": "...", "rows": [{"id": "r1-8", "finding": "...", "rating": "plausible, recoverable",
@@ -21,7 +23,8 @@ Prints one JSON line and exits:
     0  {"outcome": "submitted", "fix": ["r1-8", ...], "feedback": {"r1-8": "..."}}
        (an empty list is a real answer: fix nothing; feedback holds only rows whose note is non-empty)
     2  {"outcome": "dismissed"}                         (closed without Apply: nothing was decided)
-    3  not inside agterm; the reason is on stderr
+    3  not inside agterm and the page could not be published; the reason is on stderr
+    4  {"outcome": "published", "url": "https://..."}   (not inside agterm: hand over the URL, the answer is pasted)
     1  anything else; the reason is on stderr
 """
 from __future__ import annotations
@@ -34,9 +37,15 @@ import shutil
 import subprocess
 import sys
 
+PUBLISH = os.path.join(os.path.dirname(os.path.abspath(__file__)), "..", "skills", "shared", "tailnet_publish.py")
 
-def _render(title: str, rows: list[dict]) -> str:
-    """The page. Every value is escaped: findings quote code and email text, and the page can run agterm commands."""
+
+def _render(title: str, rows: list[dict], in_agterm: bool) -> str:
+    """The page. Every value is escaped: findings quote code and email text, and the page can run agterm commands.
+
+    In agterm Apply submits the overlay; anywhere else it copies the answer for the user to paste, and Cancel is
+    dropped, since closing a browser tab needs no button and reports nothing.
+    """
     body = "\n".join(
         f'<tr class="{"wording" if row.get("wording") else ""}"><td class="pick"><input type="checkbox" value="{html.escape(str(row["id"]), quote=True)}"'
         f'{" checked" if row.get("fix") else ""}></td>'
@@ -48,6 +57,12 @@ def _render(title: str, rows: list[dict]) -> str:
         f'<tr class="feedback-row" hidden><td></td><td colspan="5"><textarea rows="2" placeholder="How to fix it"></textarea></td></tr>'
         for row in rows
     )
+    if in_agterm:
+        answer = "agterm.request('session.overlay.submit', { args: { value } }).catch((error) => { count.textContent = 'Could not submit: ' + error; });"
+    else:
+        # The answer also stays on the page, selected, for a browser that refuses clipboard access.
+        answer = ("const answer = document.getElementById('answer'); answer.value = value; answer.hidden = false; answer.select();\n"
+                  "    navigator.clipboard.writeText(value).then(() => { count.textContent = 'Copied: paste it into the chat'; }, () => { count.textContent = 'Copy the selected text into the chat'; });")
     # Styled from the terminal theme agterm injects, with a fallback at each use, so the page reads as part of the
     # session in light and dark alike. A row is ticked by clicking anywhere on it, not only on the box.
     return f"""<!doctype html>
@@ -71,6 +86,7 @@ def _render(title: str, rows: list[dict]) -> str:
   button.feedback {{ padding: 0 6px; border-color: transparent; opacity: 0.6; }}
   button.feedback.on {{ opacity: 1; border-color: color-mix(in srgb, var(--agterm-foreground, #222) 30%, transparent); }}
   tr.feedback-row td {{ border-bottom: none; padding-top: 0; }}
+  #answer {{ font: 12px ui-monospace, monospace; flex: 1; }}
   textarea {{ font: inherit; width: 100%; box-sizing: border-box; padding: 4px 6px; border-radius: 4px; color: inherit; background: transparent; border: 1px solid color-mix(in srgb, var(--agterm-foreground, #222) 30%, transparent); }}
 </style></head>
 <body>
@@ -82,8 +98,8 @@ def _render(title: str, rows: list[dict]) -> str:
 </tbody>
 </table>
 <div class="bar">
-  <button type="button" class="apply" id="apply">Apply</button>
-  <button type="button" data-agterm="session.overlay.close">Cancel</button>
+  <button type="button" class="apply" id="apply">{"Apply" if in_agterm else "Copy answer"}</button>
+  {'<button type="button" data-agterm="session.overlay.close">Cancel</button>' if in_agterm else '<textarea id="answer" rows="1" readonly hidden></textarea>'}
   <span id="count"></span>
 </div>
 <script>
@@ -107,7 +123,7 @@ def _render(title: str, rows: list[dict]) -> str:
     const picked = boxes.filter((b) => b.checked);
     const feedback = Object.fromEntries(picked.map((b) => [b.value, noteOf(b).value.trim()]).filter(([, text]) => text));
     const value = JSON.stringify({{ fix: picked.map((b) => b.value), feedback }});
-    agterm.request('session.overlay.submit', {{ args: {{ value }} }}).catch((error) => {{ count.textContent = 'Could not submit: ' + error; }});
+    {answer}
   }});
 </script>
 </body></html>
@@ -115,7 +131,7 @@ def _render(title: str, rows: list[dict]) -> str:
 
 
 def main() -> int:
-    parser = argparse.ArgumentParser(description="Show review findings as a table of checkboxes and print the ids the user leaves ticked.")
+    parser = argparse.ArgumentParser(description="Show review findings as a table of checkboxes and print the ids the user leaves ticked; outside agterm, publish the page and print its URL.")
     parser.add_argument("rows", help="JSON file: {title, rows: [{id, finding, rating, view, fix, wording?}]}")
     parser.add_argument("--out", help="where to write the page; default: beside the rows file, as review-picker.html")
     parser.add_argument("--render-only", action="store_true", help="write the page and print its path without showing it")
@@ -131,17 +147,23 @@ def main() -> int:
         print(f"review_picker: cannot read {options.rows}: {error}", file=sys.stderr)
         return 1
 
+    session = os.environ.get("AGTERM_SESSION_ID")
+    in_agterm = bool(session and shutil.which("agtermctl"))
     out = os.path.abspath(options.out or os.path.join(os.path.dirname(os.path.abspath(options.rows)), "review-picker.html"))
     with open(out, "w", encoding="utf-8") as handle:
-        handle.write(_render(str(spec.get("title") or "Review findings"), rows))
+        handle.write(_render(str(spec.get("title") or "Review findings"), rows, in_agterm))
     if options.render_only:
         print(out)
         return 0
 
-    session = os.environ.get("AGTERM_SESSION_ID")
-    if not session or not shutil.which("agtermctl"):
-        print("review_picker: not inside agterm, so the page has no way to answer; present the table in chat", file=sys.stderr)
-        return 3
+    if not in_agterm:
+        published = subprocess.run([sys.executable, PUBLISH, "publish", out], capture_output=True, text=True)
+        url = published.stdout.strip()
+        if published.returncode != 0 or not url:
+            print(f"review_picker: not inside agterm, and publishing the page failed: {published.stderr.strip()}", file=sys.stderr)
+            return 3
+        print(json.dumps({"outcome": "published", "url": url}))
+        return 4
 
     shown = subprocess.run(["agtermctl", "session", "overlay", "open", "--html", out, "--js", "--block", "--target", session],
                            capture_output=True, text=True)
