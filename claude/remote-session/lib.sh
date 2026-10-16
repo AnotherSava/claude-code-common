@@ -73,19 +73,6 @@ remote_session_client_origins() {
     done
 }
 
-# Keep a pane whose command exited non-zero, instead of destroying the session with it.
-#
-# A session created for a command Claude Code rejects — an argument it does not know, a directory it
-# refuses — otherwise disappears in the same instant it appears, and the only thing on screen is the
-# attach failing rather than the reason it failed. `failed` holds that case alone, so an ordinary
-# exit still takes the session with it and leaves nothing to clean up.
-#
-# Set on the server rather than on the session, and before the session exists: one that fails
-# immediately can be gone before a `set-option -t` naming it could run.
-remote_session_keep_failed_panes() {
-    tmux set-option -g remain-on-exit failed
-}
-
 # Creates a detached session at the calling terminal's size: remote_session_create <name> <directory>
 # <command> [<fallback-cols> <fallback-rows>]. The fallback applies when there is no terminal, and
 # with none given tmux uses its 80x24 default.
@@ -95,13 +82,47 @@ remote_session_keep_failed_panes() {
 # full-width pane, that first resize apparently lost on its way to claude.exe. Read with stty,
 # which fails without a terminal: tput answers 80x24 there instead of failing, so a fallback keyed
 # on it would never apply.
+#
+# A command that exits non-zero keeps its pane, and remote_session_clear_dead prints what it shows.
+# Without that, a session created for a command Claude Code rejects (an argument it does not know, a
+# directory it refuses) disappears the instant it appears, and the attach failing is all anyone sees.
+# The hold is set by the pane on itself as it exits, never as a server-wide `remain-on-exit`: under
+# any non-zero value tmux 3.4 keeps a pane whose pty closed before its exit status arrived
+# (`server_destroy_pane`), and on 2026-10-15 that held a cleanly exited session open, dead and
+# statusless, until it was killed by hand. With the option off, an ordinary exit destroys the pane at
+# EOF whether or not the status ever arrives. It is added here rather than in the command itself
+# because start-here.sh also runs that command outside any session pane, where an untargeted
+# `set-option -p` would mark someone else's pane.
 remote_session_create() {
+    remote_session_create_command="{ $3
+} || { remote_session_status=\$?; tmux set-option -p remain-on-exit on; exit \"\$remote_session_status\"; }"
     if remote_session_create_size=$(stty size 2>/dev/null) && [ -n "$remote_session_create_size" ]; then
-        tmux new-session -d -s "$1" -x "${remote_session_create_size#* }" -y "${remote_session_create_size% *}" -c "$2" "$3"
+        tmux new-session -d -s "$1" -x "${remote_session_create_size#* }" -y "${remote_session_create_size% *}" -c "$2" "$remote_session_create_command"
     elif [ $# -ge 5 ]; then
-        tmux new-session -d -s "$1" -x "$4" -y "$5" -c "$2" "$3"
+        tmux new-session -d -s "$1" -x "$4" -y "$5" -c "$2" "$remote_session_create_command"
     else
-        tmux new-session -d -s "$1" -c "$2" "$3"
+        tmux new-session -d -s "$1" -c "$2" "$remote_session_create_command"
+    fi
+}
+
+# Clears a session whose command failed and left its pane held: remote_session_clear_dead <name>
+# <message-prefix>. Prints what the pane said, prefixed, and kills the session, so the caller's next
+# step creates a fresh one. Every entry point that attaches to an existing session calls this first,
+# or a held pane becomes a session that every later attach lands on, dead.
+#
+# Checked before attaching rather than right after creating, because a command rejected on startup
+# takes longer to die than the next line takes to run — so a check on the create path always lost
+# that race, while by the next attach the pane has long since settled.
+#
+# These two take `=name:`, the exact match with a window part. A bare name resolves by unique
+# prefix when the exact session is absent, so a held dead `cc-proj-docs` would answer for a missing
+# `cc-proj`; and `=name` alone is a pane target they do not resolve, which display-message reports
+# as an empty value and exit 0, deciding every pane is alive.
+remote_session_clear_dead() {
+    if [ "$(tmux display-message -p -t "=$1:" '#{pane_dead}' 2>/dev/null)" = "1" ]; then
+        tmux capture-pane -p -t "=$1:" | sed "/^[[:space:]]*$/d;s/^/$2: /" >&2
+        printf '%s: that session ended with the error above. Starting a new one.\n' "$2" >&2
+        tmux kill-session -t "=$1"
     fi
 }
 
@@ -142,6 +163,9 @@ remote_session_quote() {
 # `--continue` exits non-zero where the directory holds no conversation yet, which is an ordinary
 # first run rather than a failure, so the fallback starts one.
 #
+# The fallback is not exec'd: remote_session_create appends a hold that runs after it, and needs the
+# shell to outlive it.
+#
 # The command also turns off Claude's own terminal-title writes, which would otherwise overwrite the
 # status the Claude Code Dashboard puts in the tab on every render tick. The export has to be part of
 # the command: tmux starts a pane with the server's environment plus only the variables its
@@ -153,7 +177,7 @@ remote_session_resume_command() {
     remote_session_exe=$(remote_session_quote "$1")
     shift
     remote_session_args=$(remote_session_quote "$@")
-    printf 'export CLAUDE_CODE_DISABLE_TERMINAL_TITLE=1 WSLENV="CLAUDE_CODE_DISABLE_TERMINAL_TITLE:${WSLENV:-}"; %s --continue %s || exec %s %s' "$remote_session_exe" "$remote_session_args" "$remote_session_exe" "$remote_session_args"
+    printf 'export CLAUDE_CODE_DISABLE_TERMINAL_TITLE=1 WSLENV="CLAUDE_CODE_DISABLE_TERMINAL_TITLE:${WSLENV:-}"; %s --continue %s || %s %s' "$remote_session_exe" "$remote_session_args" "$remote_session_exe" "$remote_session_args"
 }
 
 # The mark in front of a session's status on a tab that is not on the Windows machine. It tells a

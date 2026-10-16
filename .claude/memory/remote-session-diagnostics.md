@@ -32,12 +32,13 @@ Four commands answered every question in the 2026-09-22 diagnosis:
 - `ssh "$REMOTE_USER@$REMOTE_HOST" "wsl -d $WSL_DISTRO -- tmux ls"` — the attachable sessions, and
   **when each was created**. That timestamp is what separates "the attach joined something already
   running" from "the attach created it", which no other source answers.
-- `ssh … "wsl -d $WSL_DISTRO -- tmux capture-pane -p -t <session>"` — what is on that session's
-  screen. Pass the **bare** name here: the `=name` exact-match form the scripts use for
-  `has-session` is rejected by `capture-pane` as `can't find pane`, which reads as a dead session.
-  `display-message -p -t` refuses it the same way, and worse — it prints an empty value and exits 0,
-  so a format like `#{pane_dead}` comes back blank and a caller testing it for `1` silently decides
-  the pane is alive. Both took the bare name; `has-session` and `kill-session` keep the `=`.
+- `ssh … "wsl -d $WSL_DISTRO -- tmux capture-pane -p -t =<session>:"` — what is on that session's
+  screen. The target `=<session>:` is the exact match with a window part. The `=name` form the scripts use
+  for `has-session` is rejected by `capture-pane` as `can't find pane`, which reads as a dead
+  session, and `display-message -p -t` prints an empty value for it and exits 0, so a
+  `#{pane_dead}` test silently decides the pane is alive. A bare name works but matches by prefix
+  when the exact session is absent, so `cc-proj` can answer with `cc-proj-docs`'s screen.
+  `remote_session_clear_dead` in `lib.sh` uses `=<session>:` for both.
 - The Windows box's conversation files, under that profile's `.claude/projects/`, in a directory
   named from the project's full path with separators flattened (`D--projects-<name>`). Listing it by
   mtime shows whether a conversation existed before the session started, and whether a second one
@@ -93,14 +94,17 @@ Windows is behind. Compare the two checkouts before debugging a title, too.
 A running session never picks up a later change to `settings.json`'s `env` block, so a fix there
 needs a fresh `claude.exe` in that pane (see `claude/learnings/terminal-mouse-reporting-vs-selection.md`).
 Restart it with `/exit` typed inside the session, from either terminal. The pane's command is built
-by `remote_session_resume_command` in `lib.sh` as `claude --continue … || exec claude …`, so the two
+by `remote_session_resume_command` in `lib.sh` as `claude --continue … || claude …`, so the two
 ways out are not equivalent:
 
-- **A zero exit** skips the `||` branch, and `remain-on-exit failed` lets the pane close. The next
+- **A zero exit** skips the `||` branch, and the pane closes with it. The next
   attach recreates the session with `--continue`, and the conversation resumes.
 - **A non-zero exit** — the process killed, over ssh or by the agent itself — runs the `||` branch and
-  execs a fresh `claude` with no `--continue` in the same pane. The pane survives and the conversation
+  starts a fresh `claude` with no `--continue` in the same pane. The pane survives and the conversation
   does not.
+- **A non-zero exit of that fresh `claude` too** leaves the pane held dead, with its last output
+  readable (`remote_session_create` in `lib.sh` sets `remain-on-exit on` on that pane alone). The
+  next attach, from either machine, prints that output, kills the session and starts a new one.
 
 An agent cannot take the clean route for itself: no tool ends its own session, and killing its own
 process is the non-zero case. Ask the user to type `/exit`.

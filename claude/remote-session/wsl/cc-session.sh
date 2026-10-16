@@ -62,11 +62,12 @@ if ! remote_session_holder_up; then
     exit 4
 fi
 
+remote_session_clear_dead "$name" cc-session
+
 # Created at the attaching terminal's size, so the TUI's first draw already fits it; after that the
 # window follows whichever attached client was used last. The 200x50 fallback, for a call with no
 # terminal, keeps a session started that way from being laid out at tmux's 80x24.
 if ! tmux has-session -t "$session" 2>/dev/null; then
-    remote_session_keep_failed_panes
     remote_session_create "$name" "$directory" "$(remote_session_resume_command "$CLAUDE_EXE")" 200 50
 fi
 

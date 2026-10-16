@@ -314,9 +314,10 @@ Every piece below exists because something simpler was measured not to work; the
   turns a session's attached clients into the machines they are sitting at, the command a new
   session runs — resume the directory's conversation or start one, with Claude's own title writes
   switched off — the attach itself, which decides how each terminal shows that title, and the
-  option that keeps a pane whose command failed — without it a session created for an argument
-  Claude Code rejects disappears in the same instant, taking the error with it. The next `claude` in that
-  directory prints what the pane said, clears it, and starts a fresh session. Each is there
+  creation of a session, which keeps a pane whose command failed — without that a session created
+  for an argument Claude Code rejects disappears in the same instant, taking the error with it. The
+  next attach to that session, through `claude` in that directory or through `cc-session.sh`, runs
+  the check that prints what the pane said and clears it, and starts a fresh session. Each is there
   because the alternative is two copies drifting — two scripts deriving a name from different inputs
   and disagreeing about it, or a rename that leaves three other places looking for a session nobody
   creates. The installer reads the keepalive name out of this file rather than repeating it, since

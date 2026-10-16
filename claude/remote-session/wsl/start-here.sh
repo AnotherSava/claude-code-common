@@ -73,21 +73,7 @@ fi
 relative=$(remote_session_relative "$PWD")
 session=$(remote_session_name "$relative")
 
-# Clear a session whose command died before deciding anything about it. `remain-on-exit failed` holds
-# that pane so the error is still readable instead of vanishing with the session, and this is where
-# it gets read: printed, removed, and a fresh session started below. Checked here rather than right
-# after creating one, because a command rejected on startup takes longer to die than the next line
-# takes to run — so the create path always lost that race, while by the time anyone types `claude`
-# here again the pane has long since settled.
-#
-# The bare session name for these two, not the `=` exact-match form the rest of the file uses:
-# display-message and capture-pane reject `=name` with "can't find pane", which reads as a session
-# that is not there rather than as a name they will not take.
-if [ "$(tmux display-message -p -t "$session" '#{pane_dead}' 2>/dev/null)" = "1" ]; then
-    tmux capture-pane -p -t "$session" | sed '/^[[:space:]]*$/d;s/^/claude: /' >&2
-    printf 'claude: that session ended with the error above. Starting a new one.\n' >&2
-    tmux kill-session -t "=$session"
-fi
+remote_session_clear_dead "$session" claude
 
 # One session per directory, and one terminal per machine onto it. A session already running here is
 # joined, not refused — that is what tmux serving several clients at once is for, and it is how the
@@ -133,6 +119,5 @@ fi
 # nothing; this way the session exists and is recoverable even if the attach is what went wrong.
 # The pane is forked by the holder's server either way, which is what keeps the Windows child out
 # of this connection's job object.
-remote_session_keep_failed_panes
 remote_session_create "$session" "$PWD" "$inner"
 remote_session_attach "$session" "$REMOTE_SESSION_ORIGIN"
