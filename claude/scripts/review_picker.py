@@ -60,9 +60,9 @@ def _render(title: str, rows: list[dict], in_agterm: bool) -> str:
     if in_agterm:
         answer = "agterm.request('session.overlay.submit', { args: { value } }).catch((error) => { count.textContent = 'Could not submit: ' + error; });"
     else:
-        # The answer also stays on the page, selected, for a browser that refuses clipboard access.
-        answer = ("const answer = document.getElementById('answer'); answer.value = value; answer.hidden = false; answer.select();\n"
-                  "    navigator.clipboard.writeText(value).then(() => { count.textContent = 'Copied: paste it into the chat'; }, () => { count.textContent = 'Copy the selected text into the chat'; });")
+        # The answer is shown, selected, only when the browser refuses clipboard access.
+        answer = ("navigator.clipboard.writeText(value).then(() => { count.textContent = 'Copied: paste it into the chat'; }, () => {\n"
+                  "      const answer = document.getElementById('answer'); answer.value = value; answer.hidden = false; answer.select(); count.textContent = 'Copy the selected text into the chat'; });")
     # Styled from the terminal theme agterm injects, with a fallback at each use, so the page reads as part of the
     # session in light and dark alike. A row is ticked by clicking anywhere on it, not only on the box.
     return f"""<!doctype html>
