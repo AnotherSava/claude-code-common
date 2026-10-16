@@ -339,15 +339,15 @@ under the `result.tree` envelope rather than at the document root.
 
 Those lists are the 0.25.0 reading, and later builds add to them. On agterm 0.36.0
 (commit 85a1aee5) on 2026-10-15 session nodes also carried `backedByZmx`, `context`,
-`splitCwd`, `splitForegroundShell` and `splitRatio`, no node in that reading carried
-`splitForeground`, and the top level also held `linkOpenMode`, `sidebarFlaggedLayout`
-and `sidebarWidth`. Read the live tree before relying on a key either list names or omits.
+`splitCwd`, `splitForegroundShell` and `splitRatio`, and the top level also held
+`linkOpenMode`, `sidebarFlaggedLayout` and `sidebarWidth`. Read the live tree before relying on a key either list names or omits.
 
 **A node's `title` and `foreground` belong to the session's primary pane, whichever
 pane has focus.** agterm builds the node from the session's `oscTitle`, and the other
-pane of a split reports through the `split*` keys (`splitForeground`,
-`splitForegroundShell`). So a reader joining a session by its `title` must judge that
-pane's `foreground`, never pick `foreground` or `splitForeground` by `splitFocused`:
+pane of a split reports through the `split*` keys. Two of them take turns:
+`splitForegroundShell` (`"zsh"`) while the split sits at a prompt, `splitForeground` (an
+argv) while it runs a program, and never both — measured 2026-10-15, hidden or shown. So a
+reader joining a session by its `title` must judge that pane's `foreground`, never pick `foreground` or `splitForeground` by `splitFocused`:
 doing so reads the wrong pane exactly when focus sits on the split. A split's other
 pane exists only once its `surfaces` entry of `kind: "right"` carries a `paneID`.
 `hasSplit` alone does not say so: it stays true while a split is hidden and clears only
