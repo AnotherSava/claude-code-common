@@ -43,6 +43,19 @@ Two traps for any tool that locates a game's config by scanning for `steam_appid
 
 **Several folders per install, holding different things.** A repack commonly drops a decorated `steam_settings/` at the game root while the emulator reads a bare one beside the DLL it loads — `bin/coldclient/`, `www/greenworks/lib/` (NW.js/greenworks games), `…/Binaries/Win64/`. GBE resolves its config folder from `get_full_program_path()`, the directory of the **loaded emulator DLL**, so the nested copy is the one that counts at runtime. But the root copy is frequently the *richer* one — it is where a repack puts a themed `configs.overlay.ini`, `fonts/` and `sounds/`, none of which the emulator ever reads there. Across a real games library roughly a third of installs had more than one. Keying a cache by appid and letting the last scanned win discards the others silently and in filesystem order; collect them all, then decide per use whether you want the authoritative one (schema, icons) or the union (stated preferences).
 
+**"Nested" is a proxy; the loaded DLL is the rule.** Which copy counts is whichever sits beside the emulator DLL the process actually loads, and nothing on disk records that. It is decidable from files for every layout seen so far (surveyed 2026-10-15 over ~30 installs, repacks and clean Steam installs):
+
+- **An emulator `steam_api` beats any loader.** GBE's `steam_api` answers Steam calls itself and never loads a `steamclient`, so a `ColdClientLoader.ini` sitting beside a game whose `steam_api` is already GBE is irrelevant.
+- **ColdClientLoader** (`steamclient_loader_x64.exe`) names its DLL outright: `[SteamClient] SteamClient64Dll=` (relative to the ini). The loader reads `<its own exe name>.ini` first and `ColdClientLoader.ini` only as a fallback. A GBE `steam_api64.dll` dropped at the game root of such an install, with the real exe in `bin\`, is never loaded.
+- **A `steam_api` loads when its importer sits beside it**: read the import table *and* the delay-load table of each `.exe`/`.dll`/`.node` in the folder (Unreal shipping exes and NW.js `greenworks-win32.node` use delay-load or plain imports respectively). Windows searches the exe's own folder first; Node loads addons so their imports resolve beside them.
+- **Engines load it by explicit path**, leaving nothing beside it importing it: Unreal from `Engine\Binaries\ThirdParty\Steamworks\Steamv*\Win64\` (exe in `<Project>\Binaries\Win64`), Unity from `<Game>_Data\Plugins\x86_64\`.
+- **P/Invoke, ctypes and LoadLibrary games** (Python/.NET/Godot) import nothing either; there the only `steam_api` folder is the answer.
+- **CODEX/RUNE keep Valve's DLL**, version info (`CompanyName = Valve Corporation`) included, and are recognisable only by the `steam_emu.ini` beside it. GBE's own builds report `CompanyName = GSE`.
+
+Crack/repack copies (`_crack\`, `_original files\`) duplicate the exe and DLL one level down; the shallower copy is the one that runs.
+
+**Icon file names differ between generators, content does not.** `generate_emu_config` names each icon by the file name in Steam's icon URL, which is the image's SHA-1 (`41fd92cc…jpg` hashes to exactly that); other generators use `<name>.jpg`/`<name>_gray.jpg`. Dropping one generator's `achievements.json` into the other's folder leaves every icon path dangling, though the images are byte-identical.
+
 **Repacks mark `steam_settings/` hidden.** .NET's default `EnumerationOptions.AttributesToSkip` is `Hidden | System`, so such a folder is never enumerated — see `dotnet-filesystem-windows.md`. A game whose *only* config folder is hidden is invisible to a default recursive scan, with no error to explain it.
 
 ## Nothing but a third party writes `configs.overlay.ini`
