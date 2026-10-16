@@ -50,7 +50,23 @@ in 50 ms: a PowerShell loop printing `[Console]::WindowWidth` tracked 241→100�
 
 Reading such a process's console size from outside did not work: PowerShell `AttachConsole(pid)`
 succeeded, but `CreateFileW("CONOUT$")` returned an invalid handle. The size the program renders
-at can be read off its output instead: `tmux capture-pane -p -t <session>` and measure the length
-of a full-width rule line.
+at can be read off its output instead: `tmux capture-pane -p -t '=<session>:'` and measure the
+length of a full-width rule line. A bare name matches by prefix; the target forms are under "Naming one session exactly in a pane-level command".
 
 **Killing the tmux side ends the Windows child.** A `PING.EXE -t` started as a pane command was gone two seconds after `tmux kill-session` on that session (measured 2026-10-15), so the WSL interop proxy dying takes the Windows process with it. The test has to run inside one `wsl.exe` invocation: a tmux server started by a `wsl.exe` that then exits hands its Windows children to that invocation's job object, and they die with it before anything can be observed. A long-lived server has to be started from something that outlives the connection, which is why a session holder exists.
+
+## `remain-on-exit` holds more than its value says (tmux 3.4)
+
+**Never set `remain-on-exit` server-wide to keep failed panes.** Any non-zero value, `failed` included, keeps a pane whose pty reached EOF before tmux collected its exit status: `server_destroy_pane` in `server-fn.c` returns early on `remain_on_exit != 0 && !(flags & PANE_STATUSREADY)`, and the `failed` test (exit 0 destroys) runs only after the status arrives. If it never arrives, the pane sits dead with `pane_dead_status` and `pane_dead_signal` both empty, indefinitely. Observed 2026-10-15 on a cleanly exited `claude.exe` pane whose wrapper shell went unreaped; it could not be reproduced on demand. With the option off, tmux destroys the pane at EOF whether or not a status ever comes.
+
+To keep only the panes that fail, let the pane mark itself as it exits: `{ cmd; } || { s=$?; tmux set-option -p remain-on-exit on; exit "$s"; }`. Inside a pane `tmux` finds the right server and pane through `TMUX`/`TMUX_PANE`, so no target is needed there; outside one, an untargeted `set-option -p` marks whatever pane tmux treats as current. A command that calls `exit` itself, or that `exec`s its last step, ends the shell before the `||` branch and bypasses the hold.
+
+## Naming one session exactly in a pane-level command
+
+| target | `has-session` / `kill-session` | `display-message -p` / `capture-pane` |
+|---|---|---|
+| `name` | prefix match | prefix match: with `cc-proj` absent, a lone `cc-proj-docs` answers |
+| `=name` | exact | not resolved: `display-message` prints an empty value and exits 0, `capture-pane` fails `can't find pane` |
+| `=name:` | — | exact: absent prints empty (display) or `can't find session` (capture) |
+
+Measured 2026-10-15 on tmux 3.4. The `=name` row is the dangerous one: a `[ "$(display-message … '#{pane_dead}')" = 1 ]` test built on it decides every pane is alive and raises no error.
