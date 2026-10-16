@@ -44,11 +44,13 @@ PATTERNS: Sequence[Tuple[str, "re.Pattern[str]"]] = (
 
 # A hostname need not look like an address, so the shapes are: an IPv4 literal, a dotted name,
 # or a bare token in a position that can only hold a host. Tokenizing the prose around them is
-# what produced 462 candidates and 1083 meaningless matches, so the position is required.
+# what produced 462 candidates and 1083 meaningless matches, so the position is required. The
+# command itself is matched case-sensitively: under the global re.I a sentence opening "SSH would
+# work…" in the coordinates file harvested "would", which then flagged ordinary prose.
 HOST_SHAPE = re.compile(
     r"\b(?:\d{1,3}(?:\.\d{1,3}){3})\b"
     r"|\b[a-z0-9][a-z0-9-]*(?:\.[a-z0-9-]+){1,}\.(?:net|com|org|io|dev|app|local|internal|lan)\b"
-    r"|(?:(?:SSH_)?HOST=|ssh\s+(?:[A-Za-z0-9._-]+@)?|-C\s+)([A-Za-z0-9][A-Za-z0-9._-]{2,})",
+    r"|(?:(?:SSH_)?HOST=|(?-i:ssh)\s+(?:[A-Za-z0-9._-]+@)?|-C\s+)([A-Za-z0-9][A-Za-z0-9._-]{2,})",
     re.I,
 )
 
@@ -132,13 +134,23 @@ def harvest_candidates(coord_path: pathlib.Path) -> Set[str]:
     return found
 
 
+def candidate_pattern(cand: str) -> "re.Pattern[str]":
+    """Match a candidate only where no letter or digit adjoins it. A substring test fires on a
+    short machine name spelled inside an ordinary word, as one did inside "there", and the noise filter
+    cannot catch that in a one-file commit, where the word matches too few lines to count.
+    Punctuation and underscore still bound it, so `name.local`, `user@name`, `name-mac` and
+    `name_backup` all match; a name that is itself a word still fires, as it must."""
+    return re.compile(r"(?<![a-z0-9]){0}(?![a-z0-9])".format(re.escape(cand)))
+
+
 def scan(sources: Dict[str, List[str]], candidates: Set[str]) -> Tuple[List[Tuple[str, str, int]], List[Tuple[str, int]], List[str]]:
+    patterns = {c: candidate_pattern(c) for c in candidates}
     counts = {c: 0 for c in candidates}
     for lines in sources.values():
         for ln in lines:
             low = ln.lower()
             for cand in candidates:
-                if cand in low:
+                if patterns[cand].search(low):
                     counts[cand] += 1
 
     noisy = sorted((c for c in candidates if counts[c] > NOISE_MATCH_THRESHOLD), key=lambda c: -counts[c])
@@ -152,7 +164,7 @@ def scan(sources: Dict[str, List[str]], candidates: Set[str]) -> Tuple[List[Tupl
                     findings.append((label, name, i))
             low = ln.lower()
             for cand in useful:
-                if cand in low:
+                if patterns[cand].search(low):
                     findings.append(("user-hostname", name, i))
 
     control_failures: List[str] = []
@@ -218,6 +230,21 @@ def self_test() -> int:
             failures.append("word-like candidate produced findings instead of a noise report")
         if not ctl:
             failures.append("extraction control did not fire when every candidate was noise")
+
+        # At most NOISE_MATCH_THRESHOLD lines, even under a substring match, so the candidate stays useful and only the
+        # word-boundary match decides each line.
+        bounded = root / "bounded.md"
+        bounded.write_text("ssh to name_backup now\nreach name.local or user@name\nthe rename went fine\n", encoding="utf-8")
+        findings, _, _ = scan(read_sources(["bounded.md"], None, root), {"name"})
+        hit_lines = {f[2] for f in findings if f[0] == "user-hostname"}
+        if hit_lines != {1, 2}:
+            failures.append("bounded candidate matched lines {0}, expected [1, 2]".format(sorted(hit_lines)))
+
+        coords = root / "coords.md"
+        coords.write_text("SSH would work from either side.\nLog in with `ssh someone@examplebox`.\n", encoding="utf-8")
+        harvested = harvest_candidates(coords)
+        if harvested != {"examplebox"}:
+            failures.append("harvest from a prose SSH and a real command gave {0} candidate(s), expected only the command's host".format(len(harvested)))
 
     if failures:
         for f in failures:
