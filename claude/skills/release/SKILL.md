@@ -240,7 +240,27 @@ Once CI succeeds:
    gh release view vX.Y.Z --json url --jq .url
    ```
 
-4. **Chrome extension only** — the GitHub release is done, but the extension isn't live in the store yet. Point the user at the `/publish-chrome-extension` skill, which downloads this release's zip and submits it to the Chrome Web Store.
+4. **Watch what publishing triggered, here and in any repo it dispatches to.** A published release starts workflows of its own — a cask bump, a docs deploy — and a release whose downstream failed is not done: on 2026-10-16 a tap's bump failed on a new Homebrew style rule, nothing reported it, and the cask sat a version behind until the user asked. For a Tauri release this step starts at the `--draft=false` above; elsewhere CI published the release, and its `release` runs have usually already begun.
+
+   List this repo's runs started by the publish, and watch each to completion:
+   ```bash
+   gh run list --event release --json databaseId,workflowName,status,conclusion,createdAt
+   gh run watch <run-id> --exit-status --compact
+   ```
+   Keep only runs created after the publish; an older one belongs to a previous release.
+
+   Then find the repos those workflows reach. A cross-repo trigger is a `POST repos/<owner>/<repo>/dispatches` call inside a step, so read it out of the workflow files rather than out of any config:
+   ```bash
+   grep -rhoE 'repos/[A-Za-z0-9_.-]+/[A-Za-z0-9_.-]+/dispatches' .github/workflows
+   ```
+   For each target, once the dispatching run has succeeded, take the first `repository_dispatch` run created after it and watch it the same way:
+   ```bash
+   gh run list -R <owner>/<repo> --event repository_dispatch --json databaseId,workflowName,status,conclusion,createdAt
+   gh run watch <run-id> -R <owner>/<repo> --exit-status --compact
+   ```
+   On a failure, show `gh run view <run-id> [-R <owner>/<repo>] --log-failed` and report the release as published with a broken downstream, never as done. When the repo has no `release` runs and no dispatch targets, say so in one line, so "nothing downstream" never reads as "downstream passed". Matching the target's run by time can pick the wrong one when two releases dispatch within the same minute; name the run you watched so a mismatch is visible.
+
+5. **Chrome extension only** — the GitHub release is done, but the extension isn't live in the store yet. Point the user at the `/publish-chrome-extension` skill, which downloads this release's zip and submits it to the Chrome Web Store.
 
 ### Collapsing superseded NOTE boxes (.NET and Tauri)
 
@@ -296,3 +316,4 @@ After tagging:
 - [ ] (Chrome ext) User pointed to `/publish-chrome-extension` for the store submission
 - [ ] (.NET / Tauri) Superseded NOTE boxes collapsed into `<details>` — a stable release supersedes the previous stable *and* the newest rc; an rc supersedes only the previous rc
 - [ ] (Tauri) Draft release published via `gh release edit --draft=false`
+- [ ] Runs the publish triggered, and the runs they dispatched to other repos, watched to completion — or "nothing downstream" stated

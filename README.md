@@ -334,6 +334,7 @@ Tags a new version, pushes to trigger CI, monitors the build, and updates the Gi
 - Compiles platform-appropriate release notes (SmartScreen + Gatekeeper first-launch warnings)
 - Monitors CI (single-platform for dotnet, matrix for Tauri) until completion
 - Replaces draft notes and un-drafts Tauri releases (GitHub auto-renders the assets list)
+- Watches the runs the publish triggers, including ones it dispatches to other repos (a tap's cask bump), and reports a failed one
 
 ---
 
