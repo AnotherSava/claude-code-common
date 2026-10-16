@@ -132,6 +132,12 @@ while [ "$stop" -eq 0 ]; do
             # under it. `kill-server` exits 1 and so does an attach to a session that is not there,
             # which land below and stop with their reason. remote_session_attach has already
             # blanked the title on its way out.
+            # The tab closes with it, so a session the far side ended (the agent exiting, or a
+            # `tmux kill-session` there) leaves no press-any-key prompt behind here. The close
+            # kills this script before agtermctl returns — measured 2026-10-15 — so nothing placed
+            # after it runs inside agterm; the exit only covers a run outside agterm, where there
+            # is no session to close.
+            [ -z "${AGTERM_SESSION_ID:-}" ] || agtermctl session close --target "$AGTERM_SESSION_ID" >/dev/null 2>&1 || true
             exit 0
             ;;
         4|255)

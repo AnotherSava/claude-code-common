@@ -80,7 +80,10 @@ one resumes the conversation already in that directory, whichever machine it is 
 picking a project from the Mac comes back to where that project was left rather than starting over.
 
 Detach with tmux's `Ctrl-b d`. The session and everything in it keep running; closing the terminal
-does the same thing. A connection that drops is different — the tab opens another one by itself.
+does the same thing. On the Mac a detach closes the tab as well, and so does the session ending on
+the Windows side — the agent exiting, or a `tmux kill-session` there — so neither leaves a dead tab
+behind. A `tmux kill-server` there is the exception: the tab stays open and says `refused`. A
+connection that drops is different — the tab opens another one by itself.
 
 Closing the lid on battery sleeps the Mac within the minute, and the ssh under each tab then dies
 some hours later with neither end having noticed: on 2026-10-03 three of them took between 1h15m
