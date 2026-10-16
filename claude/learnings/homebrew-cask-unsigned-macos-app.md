@@ -63,7 +63,7 @@ postflight_steps do
 end
 ```
 
-Order matters — launching before the strip gets refused by Gatekeeper.
+Order matters — launching before the strip gets refused by Gatekeeper. Launching from a postflight is non-standard for Homebrew (casks normally leave launching to the user) but it matters for a menu-bar/agent app, where an install that ends without starting anything leaves nothing on screen to click.
 
 **Do not use `must_succeed: false` to tolerate a failed launch.** The keyword exists only on Homebrew git checkouts newer than the 6.0.18 release, and an unknown keyword makes the entire cask *unreadable* — `brew install` dies with `Cask '<token>' is unreadable: unknown keyword: :must_succeed` rather than degrading. Shell out instead, which works on every version:
 
@@ -71,7 +71,7 @@ Order matters — launching before the strip gets refused by Gatekeeper.
 run "/bin/sh", args: ["-c", "/usr/bin/open '{{appdir}}/Some App.app' || true"]
 ```
 
-**This is the trap that makes a tap CI worth having.** A local `brew` installed from git can sit a hundred-plus commits ahead of the release, so `brew style`, `brew audit` and even `brew info` (which fully evaluates the cask) all pass locally while the cask is broken for every user on stable. Local validation proves nothing about released Homebrew; the macos-latest runner is the real gate. This is non-standard for Homebrew (casks normally leave launching to the user) but it matters for a menu-bar/agent app, where an install that ends without starting anything leaves nothing on screen to click.
+**This is the trap that makes a tap CI worth having.** A local `brew` installed from git can sit a hundred-plus commits ahead of the release, so `brew style`, `brew audit` and even `brew info` (which fully evaluates the cask) all pass locally while the cask is broken for every user on stable. Local validation proves nothing about released Homebrew; the macos-latest runner is the real gate.
 
 ## Uninstall does more than delete the app
 
@@ -87,7 +87,7 @@ run "/bin/sh", args: ["-c", "/usr/bin/open '{{appdir}}/Some App.app' || true"]
 
 **New style rules fail an unchanged cask, so a red bump is not always a release defect.** By October 2026 Homebrew's `Homebrew/OSDependsOn` cop rejects `depends_on macos: :big_sur` as "a redundant minimum macOS version" (it is below what Homebrew itself supports) and asks for `depends_on :macos`; the identical line had passed a bump three days earlier. Read the failing cop's name before looking at the release.
 
-**`brew style --cask <path>` refuses a file outside a tap** (`Homebrew requires casks to be in a tap`). To check a working checkout locally, do what the CI step does — link the checkout into `$(brew --repository)/Library/Taps/<owner>/homebrew-<name>` — but under a throwaway tap name, since the real tap name is usually already a clone you have installed. Then `brew style --cask <owner>/<name>/<token>`, and remove the link. Before a bump, the strict audit also fails on livecheck reporting a newer version than the cask; the bump workflow edits the version first, so that one line is expected.
+**`brew style --cask <path>` refuses a file outside a tap** (`Homebrew requires casks to be in a tap`). To check a working checkout locally, do what the CI step does — link the checkout into `$(brew --repository)/Library/Taps/<owner>/homebrew-<name>` — but under a throwaway tap name, since the real tap name is usually already a clone you have installed. Then `brew style --cask <owner>/<name>/<token>`, and remove the link. A pass there checks the cask against your installed Homebrew only, so the tap CI stays the verdict, for the reason the trap paragraph gives. Before a bump, the strict audit also fails on livecheck reporting a newer version than the cask; the bump workflow edits the version first, so that one line is expected.
 
 
 - `livecheck` with `url :url` + `strategy :github_latest` reads `tag_name` from the API, so odd asset filenames don't matter. It **cannot see draft releases** — key bump automation on `release: published`, never on build completion.
