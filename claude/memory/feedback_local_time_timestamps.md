@@ -8,7 +8,8 @@ When reporting *when* something happened on this machine — a log line, a commi
 **Why:** most machine-readable logs store UTC, and this user's machines run several hours behind it — so a UTC reading is off by a full working-day-shaped amount and cannot be matched against what they actually saw on screen. It also silently breaks the reasoning built on it: an event quoted at `12:45` when the user was looking at `05:45` reads as a completely different moment, and a "you can't have seen it" argument built from that is wrong. (Established 2026-08-30, after a `widget.jsonl` investigation was reported entirely in UTC.)
 
 **How to apply:**
-- `widget.jsonl`, git's `%aI`, and most JSON logs are UTC — check for the trailing `Z` and convert; never paste the raw field.
+- `widget.jsonl`, git's `%aI`, and most JSON logs are UTC — check for the trailing `Z` and convert. The slip is rarely the raw `…Z` string: it is reformatting it into a friendly "12:45" or "12:45 PM" without the shift (corrected by the user 2026-10-16). Convert first, then format.
+- The `local-time.py` PostToolUse hook repeats this rule when Bash, Read or Grep output holds a zone-marked stamp in a zone not the user's. It cannot see zone-less UTC or epoch numbers, so those get no reminder.
 - Get the offset from the machine rather than assuming: `date "+%Z %z"`, or format the stored value directly (`date -j -f "%Y-%m-%dT%H:%M:%S" "$ts" "+%H:%M:%S"` on macOS).
 - Keep UTC only where it is the point — comparing across machines, or when the user asked for it. Then label it `UTC` explicitly.
 - Relative phrasing ("3 minutes ago") sidesteps the whole problem and is often the better answer; see [[feedback_relative_timestamps]].

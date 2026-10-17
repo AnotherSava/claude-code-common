@@ -156,6 +156,11 @@ before believing it.
 This section accumulates. When a hook surprises you — a cost, a silent failure, a semantic — add a
 dated line here rather than leaving it in a session transcript.
 
+- **2026-10-16** — **A Bash `tool_response` carries the diff of every file the command edited**, under
+  `bashEditDiff` (`files[].hunks[].lines`), beside `stdout` and `stderr`. Measured with a payload dump from
+  `local-time.py`: a command that only appended to a tracked file returned `stdout: "edited"` and the file's hunks.
+  The command itself is not in the response. A hook that scans Bash output for content has to drop that key, or it
+  reacts to whatever the model just wrote into a file.
 - **2026-10-12** — **`PreToolUse` `updatedInput` rewrites a call with no `permissionDecision` beside it**, so a
   hook can change what runs without also deciding whether it may. Measured in auto mode with a probe hook: a Bash
   `echo` was replaced by the hook's command, and a Workflow call sent `args: {"a": 1}` reached the script as the

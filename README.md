@@ -870,6 +870,18 @@ A flagged skill is cleared one of two ways, both durable: add `!claude/skills/<n
 
 ---
 
+### Local Time
+
+**File:** `claude/hooks/local-time.py`
+
+Logs, git's ISO dates and most JSON store UTC, and these machines run hours behind it. The rule to report times in local time sits in an always-loaded memory and still gets missed: the model rewrites `12:45:41Z` as a friendly "12:45" and never shifts the zone. This hook repeats the rule at the moment such a timestamp enters the context, scoped to what the user is told, since the same value written into a file, code or a message to another agent must keep its zone.
+
+A `PostToolUse` on `Bash`, `Read` and `Grep`. It finds every timestamp in the tool's output whose zone is stated and differs from the machine's (a trailing `Z`, `UTC`, `GMT` or a numeric offset), in ISO form, git's default `Thu Oct 16 12:45:41 2026 +0000`, or the `Thu, 16 Oct 2026 12:45:41 GMT` of HTTP and mail headers, and adds the reminder as additional context, hidden from the user. It skips the `bashEditDiff` field a Bash response carries for the files the command changed, which is the model's own writing. No `if` pattern can narrow it, since a command's text does not predict whether its output holds a timestamp, so it starts on every call of those tools; it does one regex pass and no IO, about 18 ms on the Mac. A timestamp written in UTC with no zone marker, and a Unix epoch number, look the same as a local time and a plain integer, so neither raises the reminder.
+
+**Tests:** `python claude/tests/local-time.py` — exit 0 when the reminder fires on every foreign-zone case and stays silent on every local or zone-less one, 1 otherwise.
+
+---
+
 ### Workflow Realism
 
 **File:** `claude/hooks/workflow-realism.py`

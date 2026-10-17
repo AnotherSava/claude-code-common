@@ -133,6 +133,16 @@
             "if": "Write(//**/SKILL.md)"
           }
         ]
+      },
+      {
+        "matcher": "^(Bash|Read|Grep)$",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "python -S \"$HOME/.claude/hooks/local-time.py\"",
+            "timeout": 5
+          }
+        ]
       }
     ],
     "Notification": [

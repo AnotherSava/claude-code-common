@@ -163,6 +163,11 @@ run "change scope" python3 claude/tests/change-scope.py
 # workflows that review documents or papers and the warning stops being read.
 run "workflow realism hook" python3 claude/tests/workflow-realism.py
 
+# The hook that hands the model a local-time reading of every UTC stamp a tool returns. Too quiet and the model quotes
+# the stored zone again; converting a stamp that is already local, or a digit run only shaped like a date, injects a
+# time that is wrong.
+run "local time hook" python3 claude/tests/local-time.py
+
 # The PreToolUse guards that read Bash commands, and the shared module that finds command position
 # for them. A guard that refuses too little leaks a secret into the transcript; one that refuses too
 # much blocks writing about the thing it guards, which is how the Doppler guard's first version
