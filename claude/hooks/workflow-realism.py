@@ -61,7 +61,7 @@ REMINDER = (
     f"edge case gets code. Run review loops through the saved workflow instead — "
     f"Workflow({{name: \"{SAVED}\", args: {{scope, lenses: [{{key, prompt}}], context, gate, fix, rounds}}}}) — which "
     f"makes every finding carry who reaches it, how often and what it costs, triages in code, caps at "
-    f"`rounds` rounds (two by default) and returns the triage table. If this one is already running, consider stopping it "
+    f"`rounds` rounds (three by default) and returns the triage table. If this one is already running, consider stopping it "
     f"and relaunching that way; otherwise present its findings as a triage with realism ratings, not "
     f"as \"all fixed\"."
 )

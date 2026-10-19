@@ -382,7 +382,7 @@ Reverting everything that differs would also revert a peer's write made during t
 still differs after the named revert is reported as unrecorded, never reverted further.
 
 The polish only runs on a converged run, and a large change set takes more invocations to converge
-than its two-round cap suggests. Measured 2026-10-15 on a 30-file change: the first two invocations
+than its round cap suggests. Measured 2026-10-15 on a 30-file change, when the cap was two rounds: the first two invocations
 each stopped at the cap, round 2 of the second finding only stale prose, and the polish first ran on the
 third. What got that third one to converge was passing the earlier triage in `context`: the fixes
 already made, and every dropped finding by name with an instruction not to re-report it in any wording.

@@ -1,7 +1,7 @@
 export const meta = {
   name: 'review-auto',
   description: 'Review a change through given lenses, verify each finding for truth and realism, triage in code, and fix only what earns code',
-  whenToUse: 'Any automated review loop, fixing what it finds or, with fix: false, read-only. args: {scope, lenses: [{key, prompt}], context, gate, fix, rounds}. rounds caps the review-and-fix rounds, 2 when absent. In fix mode a converged run then polishes the change with /clean-code and /docs-relevance, reviews the polish, and reverts it whole if anything fails, so /commit has no code or prose left to polish (screenshot-relevance still runs there); a polish pass that returns nothing is the exception, left unreverted in the tree and unrecorded, since what it edited is unknown. Returns the full triage table for the user, never just "all fixed".',
+  whenToUse: 'Any automated review loop, fixing what it finds or, with fix: false, read-only. args: {scope, lenses: [{key, prompt}], context, gate, fix, rounds}. rounds caps the review-and-fix rounds, 3 when absent. In fix mode a converged run then polishes the change with /clean-code and /docs-relevance, reviews the polish, and reverts it whole if anything fails, so /commit has no code or prose left to polish (screenshot-relevance still runs there); a polish pass that returns nothing is the exception, left unreverted in the tree and unrecorded, since what it edited is unknown. Returns the full triage table for the user, never just "all fixed".',
   phases: [
     { title: 'Review', detail: 'one reviewer per lens; every finding names who reaches it, how often, and what it costs' },
     { title: 'Verify', detail: 'one skeptic per finding, judging truth and realism' },
@@ -127,7 +127,7 @@ const GATE = typeof args.gate === 'string' && args.gate.trim() ? args.gate.trim(
 const FIX = args.fix !== false
 // A cap rather than a target: the loop stops sooner when a round finds nothing worth fixing. Read-only runs one round
 // whatever this says, for the reason given above `FIX`.
-const MAX_ROUNDS = args.rounds ?? 2
+const MAX_ROUNDS = args.rounds ?? 3
 // Set by the review-scope hook (claude/hooks/review-scope.py), never by the caller: the repo, the commit the scope runs
 // from, and the tree at launch. Absent when the hook could not trust a base, and then nothing is recorded.
 const BOOKMARK = args.review_bookmark && typeof args.review_bookmark === 'object' && ['repo', 'base', 'tree'].every(k => typeof args.review_bookmark[k] === 'string') ? args.review_bookmark : null

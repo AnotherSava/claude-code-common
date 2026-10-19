@@ -165,12 +165,12 @@ async function nothingFoundCallsNoFixer() {
   check('and an empty triage table', result.triage, [])
 }
 
-async function capsAtTwoRounds() {
+async function capsAtDefaultRounds() {
   const always = n => [finding(`fix-${n}`, { frequency: 'common', cost_unhandled: 'crash' })]
   const verdicts = Object.fromEntries([1, 2, 3].map(n => [`defect fix-${n}`, verdict(true, true, 'common', 'crash')]))
-  const { result, calls } = await run({ ...ARGS, lenses: [LENSES[0], { key: 'perf', prompt: 'find slow code' }] }, { 1: always(1), 2: always(2), 3: always(3) }, verdicts)
-  check('the loop stops at the cap while fix-class findings keep coming', result.stop_reason, 'hard cap of 2 rounds reached')
-  check('no third round of reviewers', calls.some(c => c.label.endsWith(':r3')), false)
+  const { result, calls } = await run({ ...ARGS, lenses: [LENSES[0], { key: 'perf', prompt: 'find slow code' }] }, { 1: always(1), 2: always(2), 3: always(3), 4: always(4) }, verdicts)
+  check('the loop stops at the default cap while fix-class findings keep coming', result.stop_reason, 'hard cap of 3 rounds reached')
+  check('no fourth round of reviewers', calls.some(c => c.label.endsWith(':r4')), false)
 }
 
 async function noGate() {
@@ -283,7 +283,7 @@ async function fixModeRecording() {
 
   const always = n => [finding(`fix-${n}`, { frequency: 'common', cost_unhandled: 'crash' })]
   const verdicts = Object.fromEntries([1, 2].map(n => [`defect fix-${n}`, verdict(true, true, 'common', 'crash')]))
-  const capped = await run({ ...ARGS, review_bookmark: BOOKMARK }, { 1: always(1), 2: always(2) }, verdicts)
+  const capped = await run({ ...ARGS, review_bookmark: BOOKMARK, rounds: 2 }, { 1: always(1), 2: always(2) }, verdicts)
   check('a loop stopped at the cap is not recorded, since its last fixes went unreviewed', [capped.result.bookmark.recorded, bookmarkCalls(capped.calls).length], [false, 0])
 
   const fixer = prompt => ({ applied: promptIds(prompt).map(id => ({ id, change: 'done' })), skipped: [], gate_exit: 1, gate_tail: 'FAILED' })
@@ -374,7 +374,7 @@ async function refusesNonBooleanFix() {
 // ~/.claude/workflows, so a CRLF file breaks every run while git, normalizing to LF, shows nothing changed.
 check('the workflow file carries no carriage return', SOURCE.includes('\r'), false)
 
-for (const test of [triageAndStop, stopsAfterQuietRound, nothingFoundCallsNoFixer, capsAtTwoRounds, noGate, refusesBadArgs, unverifiedIsNotRefuted, verifierThatThrows, deadFixerStopsTheLoop, skippedFixIsNotReportedAsFixed, silentLensIsReported, readOnly, readOnlyGapIsNotRecorded, noBookmarkPassed, fixModeRecording, polishKept, polishNothingToDo, polishTakenBack, polishRevertIncomplete, deadPolishPass, polishOnlyAfterCleanReview, refusesNonBooleanFix]) {
+for (const test of [triageAndStop, stopsAfterQuietRound, nothingFoundCallsNoFixer, capsAtDefaultRounds, noGate, refusesBadArgs, unverifiedIsNotRefuted, verifierThatThrows, deadFixerStopsTheLoop, skippedFixIsNotReportedAsFixed, silentLensIsReported, readOnly, readOnlyGapIsNotRecorded, noBookmarkPassed, fixModeRecording, polishKept, polishNothingToDo, polishTakenBack, polishRevertIncomplete, deadPolishPass, polishOnlyAfterCleanReview, refusesNonBooleanFix]) {
   try { await test() } catch (error) { failures.push(`  FAIL ${test.name} threw: ${error.stack}`) }
 }
 for (const line of failures) console.log(line)
