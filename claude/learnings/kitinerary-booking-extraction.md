@@ -101,6 +101,38 @@ carrier, the flight number, both endpoints and exact `DTSTART`/`DTEND` instants:
 otherwise left to infer from marketing HTML. Match on the filename as well as the MIME type, because senders
 label these `application/ics`, which is not the registered type — `text/calendar` is.
 
+## Boarding passes: the barcode is the test, and two traps around it
+
+An IATA boarding-pass barcode (BCBP) is the reliable way to tell a boarding pass from every other attachment.
+KItinerary decodes it into a `FlightReservation` whose `reservedTicket.ticketToken` is the payload behind its
+format, `aztecCode:M1…` (`M`, then the leg count), and whose `reservationFor` carries the airline code, flight
+number and `departureDay`, with `airplaneSeat` beside it. An itinerary or e-ticket PDF can yield a
+`FlightReservation` too, but without a BCBP token, so test the token rather than the type. Measured 2026-10-18
+across five airlines' pass mail and four non-pass PDFs (e-ticket, itinerary, terms, an insurance `.pkpass`): no
+false positive, and one pass PDF named two legs of a connection.
+
+- **It misses the barcode in a full-size image.** A 750×1334 phone-screen JPEG pass with an Aztec code on a
+  coloured background came back "nothing found", and so did a thresholded black-and-white copy. A crop around the
+  code decoded fine. ZXingReader (Debian `zxing-cpp-tools`, the CLI over the same zxing-cpp library KItinerary
+  links) reads the whole image; `ZXingReader -1 <file>` prints one `<path> <format> "<text>"` line per barcode,
+  `<path> None` when there is none, and exits 255 with `Failed to read image` for a file that is not an image.
+  Hand the decoded text back to KItinerary as a `.txt` file and it parses the BCBP string just as it does one
+  from a PDF.
+- **The year comes from `--context-date`, and no context gets it right at every boundary.** BCBP dates the
+  flight by day of the year, plus (optionally) the last digit of the issue year. KItinerary places that digit in
+  the context's decade, ten years back when that lands after the context's year, and dates the flight to the
+  first occurrence of its day on or after the issue date; with no issue date, on or after the context. With no
+  context at all it uses today: given 2024 for a pass issued in 2026, it returned 2016. Measured 2026-10-18 on
+  the sidecar, the context date's two failure directions:
+  - **Context = the message's send time** dates a pass with no issue date a year late when it was sent after
+    its flight, or on its departure evening west of UTC (the UTC date has already rolled over).
+  - **Context moved earlier to avoid that** puts a pass issued on 1 January into the previous year, where the
+    issue digit is read a decade back: 2017-01-02 for a 2027 pass with a context 12 hours before the send.
+
+  What works: pass the send time, then keep KItinerary's **day of the year** and choose the year nearest the
+  send. Keep the day of the year, not the month and day — counted in a year of the other leap-ness, a date after
+  28 February moves by one. Day 366 exists only in a leap year, so with none near the send keep KItinerary's date.
+
 ## Modelling notes that came out of the data
 
 - **Cancellations are first-class.** The same confirmation code arrives confirmed and later cancelled; a naive

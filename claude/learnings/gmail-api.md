@@ -18,9 +18,9 @@ Practical knowledge for any Gmail integration (extension, script, server). Not d
 - **Writing** (`users.messages.batchModify` / `messages.modify` with `addLabelIds` / `removeLabelIds`) accepts **only label IDs** — there is no name-based variant. Examples: archive = remove `INBOX`; "remove pending" = remove the resolved `pending` label id; trash = `users.messages.trash` (or add the `TRASH` system id).
 - So any feature **configured by label name but performing writes** must resolve name→id at least once (a `labels.list` fetch). You can't avoid fetching the label list somewhere.
 
-## Attachments: the MCP connector hands over metadata, never bytes
+## Attachments: the MCP connector's structured formats hand over metadata, never bytes
 
-The `claude_ai_Gmail` MCP tools can tell you an attachment exists and nothing more. `get_message` with
+The `claude_ai_Gmail` MCP tools' structured formats can tell you an attachment exists and nothing more. `get_message` with
 `FULL_CONTENT` returns `attachments` and `attachment_ids` — filename, MIME type, size, id — and there is no
 `GetMessageAttachment` tool exposed to fetch the content, even though the `Attachment` schema on the write side
 describes exactly such an id ("can be retrieved in a separate `GetMessageAttachment` request").
@@ -30,17 +30,24 @@ and leaves the body as a covering letter — airline itinerary receipts and hote
 this. An extraction that reads only bodies will confidently report "found the mail, it states nothing" for
 every one of them.
 
-Two ways out, neither via the connector:
+Two ways out:
 
-- `messageFormat: 'RAW'` returns the raw MIME, which *contains* the base64 attachment. Untested here, and note
-  the payload lands in the model's context, where a large PDF is both expensive and unusable — nothing can
-  decode base64 to a file except code, and the bytes would have to be transcribed verbatim to get there.
-- **Drive the browser instead**, which keeps the bytes out of any model's context entirely, and is verified
-  end to end as of 2026-09-22. See `claude-in-chrome-probing.md` for the working route: hash-navigate the
-  Gmail SPA per message, fetch each `a[href*="view=att"]` with `disp=inline` swapped for `disp=safe`, and
-  hand the result to a **localhost sink** — Chrome refuses every download from `mail.google.com`, and auto
-  mode refuses to bridge a private attachment through a third-party origin, so the sink has to be one you
-  serve yourself.
+- **`messageFormat: 'RAW'` delivers the whole message, attachments included, and the bytes never enter the
+  model's context.** Verified 2026-10-18. A message of any real size exceeds the tool-result limit, so the
+  harness saves the result to a file under the session's `tool-results/` and returns its path. The file is JSON
+  whose `raw` field is the MIME source in base64url, so one line turns it into an `.eml` that any MIME parser
+  reads, attachments and all:
+
+  ```bash
+  jq -r .raw <saved-result>.txt | tr '_-' '/+' | base64 -D > message.eml   # base64 -d on Linux
+  ```
+
+  This is the route for a handful of messages fetched by id. A 1 MB message came through intact.
+- **Drive the browser instead**, which is verified end to end as of 2026-09-22 and suits a bulk sweep. See
+  `claude-in-chrome-probing.md` for the working route: hash-navigate the Gmail SPA per message, fetch each
+  `a[href*="view=att"]` with `disp=inline` swapped for `disp=safe`, and hand the result to a **localhost sink**
+  — Chrome refuses every download from `mail.google.com`, and auto mode refuses to bridge a private attachment
+  through a third-party origin, so the sink has to be one you serve yourself.
 
 ## Design implication
 

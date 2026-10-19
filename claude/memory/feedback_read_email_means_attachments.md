@@ -17,7 +17,7 @@ reported cost, seats and station addresses as "not provided" while its boarding 
 about every part of the message; making it from the body alone is the error.
 
 **How to apply:** enumerate the attachments before answering, and say which ones were read. The Gmail MCP
-connector hands over attachment *metadata* and never bytes, so getting the text needs a route around it —
-`~/.claude/learnings/gmail-api.md` has the two, and `claude-in-chrome-probing.md` has the working browser
-harvest. If an attachment genuinely cannot be read, say so and name it rather than reporting on the body as
-though it were the message. See [[feedback_read_the_evidence_you_have]] for the same reflex one level up.
+connector's structured formats hand over attachment *metadata* and never bytes, so getting the text needs
+`messageFormat: 'RAW'` or a route around the connector — `~/.claude/learnings/gmail-api.md` has both, and
+`claude-in-chrome-probing.md` has the working browser harvest. If an attachment genuinely cannot be read, say
+so and name it rather than reporting on the body as though it were the message. See [[feedback_read_the_evidence_you_have]] for the same reflex one level up.
