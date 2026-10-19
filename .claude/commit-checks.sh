@@ -118,6 +118,11 @@ run "repo-root.sh" python3 claude/tests/repo-root.py
 # checker exists to close.
 run "commit messages" python3 claude/tests/check-commit-message.py
 
+# The gate run before every push from /commit, /pr-create, /pr-merge and /release. It skips a run whose tree
+# the pre-commit run already passed, and nothing after it measures the push, so a wrong skip publishes a
+# tree no gate passed; the cases try to make it skip when it must not.
+run "gate pushed tree" python3 claude/tests/gate-pushed-tree.py
+
 # The sandbox a sub-skill reviews instead of the user's tree. A change set it fails to carry in is a
 # review that reports success over files it never saw.
 run "worktree sandbox" python3 claude/tests/worktree-sandbox.py
@@ -142,7 +147,7 @@ run "pre-commit hook" bash claude/tests/pre-commit-hook.sh
 run "plan archive" python3 claude/tests/plan-archive.py
 
 # The saved workflow automated review loops run through. What it guarantees is decided in plain code — which
-# verified findings get code, that a quiet round ends the loop, that it never passes two rounds — and a loop
+# verified findings get code, that a quiet round ends the loop, that it never passes its round cap — and a loop
 # without it coded 125 findings in one day, 85 of them rated low. Needs node; its absence fails rather than skips.
 run "review-auto workflow" node claude/tests/review-auto.mjs
 
