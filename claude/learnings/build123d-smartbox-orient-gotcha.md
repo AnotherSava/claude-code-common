@@ -69,6 +69,12 @@ Pencil-built shapes (e.g. `pencil.extrude_mirrored_y(h)`) are well-behaved — t
 
 Edge case: disjoint OCC fuse returns a `ShapeList`, not a single Shape. `ShapeList` has no single `.location`, so any "reanchor" logic must early-out for it.
 
+Rotating a `ShapeList` needs two more things, both measured 2026-10-17. It has no transform methods at all (`'ShapeList' object has no attribute 'moved'`), so it must be wrapped into a `Compound(children)` before a `gp_Trsf` can be applied. And that fresh `Compound` has an identity location, so `orient()` on it pivots at the **world origin**, while each child's own location has followed every move. A rotation that compensates for a pivot at some tracked anchor (`R(θ)·anchor − anchor`) therefore shifts the whole set by exactly that amount; take the pivot from the location of the shape `orient()` is actually applied to. Multi-glyph extruded text is the common way to hold one of these.
+
+## `Axis` equality is tolerant
+
+`Axis((1e-9, 0, 0), (0, 0, 1)) == Axis.Z` is True, and so is `in (Axis.X, Axis.Y, Axis.Z)`. A test that means to force the general rotation branch by nudging the anchor off a cardinal axis by a sub-tolerance amount still takes the cardinal shortcut, so it compares one code path with itself and cannot fail. Anchor the axis elsewhere **along** the same line instead — `Axis(direction, direction)` — which is the same line geometrically but does not compare equal. Measured 2026-10-17: the fixed helper exposed a `ShapeList` crash the old one had hidden for months.
+
 ## The `relocate` API
 
 `build123d.Shape.relocate(loc)` is **the only API that changes `Location.position` without moving world geometry**. It does so by baking the inverse transform into the BRep via `BRepBuilderAPI_Transform`, then setting the location:
