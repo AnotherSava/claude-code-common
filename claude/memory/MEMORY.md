@@ -270,3 +270,4 @@
 - [Capture takes the pointer](feedback_capture_takes_the_pointer.md) — a capture script parks the pointer itself and restores it, instead of refusing; confirm the run right before it
 - [Survey a key for collisions](feedback_survey_key_uniqueness.md) — query stored data for values shared across records before matching on a field; ambiguity holds in every direction
 - [Wide tables go to an HTML page](feedback_wide_tables_as_html.md) — a findings/choice table too wide for the terminal is published as an HTML page with a Copy answer button
+- [Sort by what you show](feedback_sort_by_what_you_show.md) — a view that displays an override must order and pick "next" by it too; grep every comparator over the stored field
