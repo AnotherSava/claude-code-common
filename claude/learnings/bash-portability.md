@@ -224,6 +224,22 @@ literally, with no parameter before the colon.
 
 Brace the parameter in every rev spec — `"${REV}:${F}"` — or run the block under bash.
 
+**A word starting with `=` is a command lookup in zsh**, so the separator lines people put
+between probe outputs break the whole chain. zsh's `EQUALS` option expands `=name` to the path
+of command `name`, and that means `echo ===` asks for a command called `==`:
+
+```sh
+a; echo ===; b    # bash: prints "===".  zsh: "(eval):1: == not found", exit 1, and b never runs
+echo '==='        # both: prints "==="
+echo ---          # both: no expansion
+```
+
+The failure looks like one of the probes failing, and with `;` chains the commands after it
+are skipped too. Measured twice on the Bash tool's zsh: on 2026-10-10 a
+`sed -n …; echo ======; sed -n …` printed only the first `sed` and exited 1, and on 2026-10-21 a
+five-probe chain ran only its first probe. Quote the separator, or use one that does not start
+with `=`.
+
 **`case … ) ;;` inside `$( … )` is a parse error in bash** (not in zsh):
 
 ```sh
@@ -266,12 +282,6 @@ for d in "$HOME/.local/bin" "$HOME/bin" /usr/local/bin; do
     esac
 done
 ```
-
-**A word starting with `=` is a command lookup in zsh.** zsh's `EQUALS` option expands `=name` to
-the path of the command `name`, so an unquoted separator like `echo ======` fails with
-`(eval):1: ===== not found`, and the rest of the line never runs. Measured 2026-10-10 on macOS: in
-`sed -n …; echo ======; sed -n …`, only the first `sed` printed and the call exited 1. Quote it
-(`echo '---'`), or use a separator that does not start with `=`.
 
 **Verify with the target shell, not the tool.** `bash -n file` / `sh -n file` catch parse
 errors, and running the script under each shell catches the splitting differences. Note
