@@ -395,10 +395,15 @@ rule_cargo() {
     # carries the REBUILD class and the note names cargo's own command — the
     # honest way back, since cargo knows what belongs to the profile. --apply
     # removes the directory directly: it IS the dev profile's output, it is
-    # git-ignored, and `rm -rf` needs no toolchain to be installed.
+    # git-ignored, and `rm -rf` needs no toolchain to be installed. release/ is
+    # the release profile's output and is handled the same way.
     if [ -d "$real/debug" ]; then
       candidate REBUILD cargo-debug "$real/debug" \
         "cargo clean --profile dev --manifest-path $(dirname "$real")/Cargo.toml"
+    fi
+    if [ -d "$real/release" ]; then
+      candidate REBUILD cargo-release "$real/release" \
+        "cargo clean --release --manifest-path $(dirname "$real")/Cargo.toml"
     fi
   done < <("$FIND" "$PROJECTS" -maxdepth 4 -type d -name target 2>/dev/null)
 }
