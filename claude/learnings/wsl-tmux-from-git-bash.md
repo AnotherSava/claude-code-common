@@ -70,3 +70,13 @@ To keep only the panes that fail, let the pane mark itself as it exits: `{ cmd; 
 | `=name:` | — | exact: absent prints empty (display) or `can't find session` (capture) |
 
 Measured 2026-10-15 on tmux 3.4. The `=name` row is the dangerous one: a `[ "$(display-message … '#{pane_dead}')" = 1 ]` test built on it decides every pane is alive and raises no error.
+
+## Driving tmux from a Windows program (no Git Bash in between)
+
+Measured 2026-10-19/20 from a Rust GUI process and from Python `subprocess`, Windows 11, tmux 3.4.
+
+- **`wsl.exe -e sh -c "<script>"` carries the script intact** when it is one argv element from a program (Rust `Command`, Python `subprocess` list form): tabs, `$var`, `$(…)`, single and double quotes all arrive as written. `-e` runs the command without the distro's login shell. The variable-loss trap above is Git Bash rewriting a command line, not wsl.exe.
+- **wsl.exe's own errors go to stdout, UTF-16LE, unless `WSL_UTF8=1`** is in its environment. A missing distro gave exit 4294967295 with `There is no distribution with the supplied name.` on stdout and an empty stderr; without the variable the same text is NUL-interleaved. Read stdout when stderr is empty, or the reason a call failed is lost. tmux's own errors stay on stderr as UTF-8.
+- **`tmux has-session -t =<name>`** exits 1 with `can't find session: <name>` on stderr for a missing session, and `no server running on …` with no server; exit 0 and no output when present.
+- **`capture-pane -e -p` re-serializes SGR rather than echoing what the program wrote.** Faint is a standalone `\e[2m`, and turning attributes off comes back as `\e[0m` followed by the colours re-applied, so a parser must handle both `0` and `22` ending faint. Colour arguments ride in the same sequence (`38;2;R;G;B`, `38;5;N`), so a `2` inside one is a colour component, not faint.
+- **A tmux pane title is the console title of the Windows program in it.** `SetConsoleTitleW` on a `claude.exe` started from a pane shows up as `#{pane_title}`, so `list-panes -a -F '#{session_name}\t#{pane_title}'` reads what a Windows-side writer set.
