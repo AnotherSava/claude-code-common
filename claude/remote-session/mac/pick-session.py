@@ -45,7 +45,7 @@ SUBTITLE_LIMIT = 70
 START_SENTINEL = "\u2026start-a-project"
 # What names the project inside a remote tab's foreground argv: the word after whichever of these
 # the argv carries. Two of them, because agterm names a pane by its process group leader and that
-# is attach.sh, which loops over ssh rather than exec'ing into it \u2014 while an ssh run by hand carries
+# is attach.sh, which loops over ssh rather than exec'ing into it — while an ssh run by hand carries
 # the project inside the remote command instead, after cc-session.sh.
 FOREGROUND_MARKERS = ("/attach.sh", "/cc-session.sh")
 # Where a pick leaves the one-shot file that attach.sh reads as "a person asked for this tab".
