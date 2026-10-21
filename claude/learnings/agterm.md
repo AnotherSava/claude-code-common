@@ -1,7 +1,7 @@
 # agterm
 
 Things about agterm that its bundled skill does not cover. The skill itself is comprehensive; read it
-first (`~/.claude/skills/agterm/SKILL.md`), and read this for the two facts it cannot carry.
+first (`~/.claude/skills/agterm/SKILL.md`), and read this for what it cannot carry.
 
 ## Do not edit the bundled skill — it is vendored, and your edit dies at the next upgrade
 
@@ -413,3 +413,19 @@ beside it. The user-side lever is **Settings ▸ Appearance ▸ Toolbar** (not
 Interface), which applies live — `setToolbarMode` runs `persistAndApply()` — and
 is not reachable from the control API or from a plain `defaults write`, since the
 value lives in agterm's own settings struct and a running app rewrites it.
+
+## Workspaces belong to a window, and a closed tab leaves a dated record
+
+`session new` places a session with either `--workspace <id|prefix|active>` or `--workspace-name <name>`,
+never both. Both resolve inside **one window's** workspaces, the one `--window` names or the frontmost, so a
+workspace id from another window is not found even while that window is open. Remembering where a session
+lived therefore takes the window id as well as the workspace, and the name is what survives the workspace
+being deleted. `--workspace-name <n> --create-workspace` reuses a workspace of that name or creates one, and a
+blank name is refused. Read in agterm's `ControlServer+SessionActions.swift`, 2026-10-20.
+
+When the question is *when* a tab went away, agterm keeps the answer: `~/Library/Application Support/agterm/recent-closed.json`
+(the source of Reopen Last Closed Item) lists closed sessions newest first, each with `closedAt`, its title
+at close, its `initialCommand` and its workspace. `closedAt` counts seconds from 2001-01-01 UTC, so add
+978307200 to get Unix time. No log carries this. A tab that closed itself and one the user closed look the
+same here, but the title at close usually says which: a remote tab that dropped back to the far machine's
+console title, rather than its session's, had exited on its own.
