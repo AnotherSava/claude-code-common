@@ -27,9 +27,10 @@ if "%DISTRO%"=="" (
     exit /b 1
 )
 
-REM The trailing `windows` is the origin — this file runs on the Windows box, so a client it attaches
-REM is a terminal on this machine, and `claude` in that project refuses a second one rather than
-REM opening two windows onto one pane.
+REM The `windows` is the origin — this file runs on the Windows box, so a client it attaches is a
+REM terminal on this machine, and `claude` in that project refuses a second one rather than opening
+REM two windows onto one pane. The `start` says a person asked for this session, so it is created
+REM even where its last agent was ended on purpose.
 pushd "%~dp0..\wsl"
-wsl.exe -d %DISTRO% -- ./cc-session.sh %1 windows
+wsl.exe -d %DISTRO% -- ./cc-session.sh %1 windows start
 popd

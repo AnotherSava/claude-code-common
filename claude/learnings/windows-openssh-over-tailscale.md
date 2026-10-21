@@ -197,6 +197,18 @@ neither does a Windows process launched indirectly through WSL interop. A schedu
 measurements, and what that means for anything meant to keep running, are in
 [[windows-persistent-terminal-session]].
 
+## A command run under a terminal always exits 0
+
+With a pty allocated, this sshd hands the client 0 whatever the remote command exited with.
+Measured 2026-10-20 from the Mac against OpenSSH_for_Windows 9.5p2: `ssh -tt` returned 0 for
+remote exits 1, 2, 4 and 7, from plain cmd.exe and through `wsl` alike, while the same commands
+without a terminal returned each code intact. The upstream report is Win32-OpenSSH issue #1737.
+
+So a caller that branches on the remote status cannot read it from the run that needs the
+terminal. Ask the question first over `ssh -n -T`, where the code survives, and treat the `-t`
+run's status as saying only whether the transport held. `claude/remote-session/mac/attach.sh` does
+this with `cc-session.sh … check` before every attach.
+
 ## You cannot drop privileges here, and `runas` says nothing about it
 
 An sshd session for an account in the Administrators group arrives **elevated** — High mandatory

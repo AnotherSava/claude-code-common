@@ -71,6 +71,10 @@ Both machines run the same scripts out of their own checkout of this repo, so th
 different commits, and the interface between them has changed under that. `cc-session.sh` takes a
 second argument since 2026-09-22 — the machine whose keyboard the person is at — and refuses
 without it, so a Mac whose checkout predates that pushes one argument and gets the usage line back.
+Under the attach's terminal the Windows sshd reports that usage exit as 0, so in agterm the tab
+closes in the same instant and the line is gone with it. The third word, `start` or `resume`, added
+2026-10-20, is optional for that reason and defaults to `start`, so a Mac from before it still
+attaches, only without the clean-exit marker being honoured on its reconnects.
 
 Nothing in that message says "your checkout is behind", which is why it belongs here. Before
 reading an attach failure as a broken feature, compare what each side is running:

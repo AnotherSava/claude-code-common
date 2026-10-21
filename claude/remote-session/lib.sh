@@ -93,9 +93,15 @@ remote_session_client_origins() {
 # EOF whether or not the status ever arrives. It is added here rather than in the command itself
 # because start-here.sh also runs that command outside any session pane, where an untargeted
 # `set-option -p` would mark someone else's pane.
+#
+# A command that exits 0 writes the session's ended marker (remote_session_ended_marker) instead,
+# and every create clears it, so the marker always describes the latest session under that name.
 remote_session_create() {
-    remote_session_create_command="{ $3
-} || { remote_session_status=\$?; tmux set-option -p remain-on-exit on; exit \"\$remote_session_status\"; }"
+    remote_session_create_marker=$(remote_session_ended_marker "$1")
+    rm -f "$remote_session_create_marker"
+    remote_session_create_marker=$(remote_session_quote "$remote_session_create_marker")
+    remote_session_create_command="if { $3
+}; then mkdir -p \"\$(dirname $remote_session_create_marker)\" && : > $remote_session_create_marker; else remote_session_status=\$?; tmux set-option -p remain-on-exit on; exit \"\$remote_session_status\"; fi"
     if remote_session_create_size=$(stty size 2>/dev/null) && [ -n "$remote_session_create_size" ]; then
         tmux new-session -d -s "$1" -x "${remote_session_create_size#* }" -y "${remote_session_create_size% *}" -c "$2" "$remote_session_create_command"
     elif [ $# -ge 5 ]; then
@@ -103,6 +109,21 @@ remote_session_create() {
     else
         tmux new-session -d -s "$1" -c "$2" "$remote_session_create_command"
     fi
+}
+
+# Where a session that ended with exit 0 is recorded: remote_session_ended_marker <name>.
+#
+# A clean exit is someone ending the conversation on purpose — `/exit` typed on either machine, or
+# the Claude Code Dashboard's idle close typing it — and a Mac tab that was asleep or had lost its
+# transport when it happened never sees the exit. Its reconnect would otherwise recreate the session
+# with `--continue` and bring the ended conversation back, so cc-session.sh reads this before it
+# creates on a reconnect. A reboot or logoff is expected to kill the agent non-zero and write
+# nothing, which keeps a tab that outlives a reboot coming back resuming. That is not measured: the
+# claude.exe bundle exits 129 and 143 on SIGHUP and SIGTERM, but it also exits 0 in interactive mode
+# when its stdio fails with EPIPE or EIO, which a logoff tearing the console down first could cause.
+# The cost if so is a tab that closes instead of resuming, and a pick brings the conversation back.
+remote_session_ended_marker() {
+    printf '%s/claude-remote-session/ended/%s' "${XDG_STATE_HOME:-$HOME/.local/state}" "$1"
 }
 
 # Clears a session whose command failed and left its pane held: remote_session_clear_dead <name>
@@ -163,8 +184,8 @@ remote_session_quote() {
 # `--continue` exits non-zero where the directory holds no conversation yet, which is an ordinary
 # first run rather than a failure, so the fallback starts one.
 #
-# The fallback is not exec'd: remote_session_create appends a hold that runs after it, and needs the
-# shell to outlive it.
+# The fallback is not exec'd: remote_session_create wraps it so that a clean exit writes the ended
+# marker and a failure holds the pane, and both need the shell to outlive it.
 #
 # The command also turns off Claude's own terminal-title writes, which would otherwise overwrite the
 # status the Claude Code Dashboard puts in the tab on every render tick. The export has to be part of

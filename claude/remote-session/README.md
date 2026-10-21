@@ -82,8 +82,9 @@ picking a project from the Mac comes back to where that project was left rather 
 Detach with tmux's `Ctrl-b d`. The session and everything in it keep running; closing the terminal
 does the same thing. On the Mac a detach closes the tab as well, and so does the session ending on
 the Windows side — the agent exiting, or a `tmux kill-session` there — so neither leaves a dead tab
-behind. A `tmux kill-server` there is the exception: the tab stays open and says `refused`. A
-connection that drops is different — the tab opens another one by itself.
+behind. A `tmux kill-server` there closes the tab too, without a message, since the Windows sshd
+reports the attach's failure as 0. A connection that drops is different — the tab opens another
+one by itself.
 
 Closing the lid on battery sleeps the Mac within the minute, and the ssh under each tab then dies
 some hours later with neither end having noticed: on 2026-10-03 three of them took between 1h15m
@@ -96,6 +97,19 @@ it. A reconnect creates the session when it is gone, the same as the picker does
 outlives a reboot of the Windows machine comes back resuming that directory's conversation. A
 reconnect is an attach like any other, so the Windows terminal's window takes this Mac's size again
 each time.
+
+The one session a reconnect does not bring back is one whose agent exited cleanly: `/exit` typed on
+either machine, or the Claude Code Dashboard closing an idle session by typing it. That exit records
+a marker on the Windows side, and a reconnect that finds the session gone and the marker present
+closes the tab instead, as it would have had it been awake to see the exit. A tab agterm restores
+counts as a reconnect, since it runs the same command again. A pick, cmd+shift+r, `attach.cmd` and
+`claude` in the folder are a person asking, so they create the session whatever the marker says,
+and creating it clears the marker. A reboot or logoff is expected to kill the agent with a
+non-zero status, which records nothing and keeps the reboot case above resuming; that has not been
+watched on a real reboot, and Claude Code does exit 0 when its terminal's output fails under it, so
+if a tab closes after a reboot instead, cmd+shift+r brings the conversation back. A pick made
+while the holder is down stays a pick through its retries, so it creates the session once the
+holder is back.
 
 ### The keystroke, and why it is not the attach command
 
@@ -111,7 +125,8 @@ For a tab to come back attached after an agterm restart, turn on restoring runni
 agterm's settings; the default brings it back as a plain shell. The `tmux` entry in
 `restore-denylist.conf` does not apply here — it matches on basename, this is `attach.sh`, and
 re-running it reattaches to the session on the other machine, or starts it again where that
-machine no longer holds one.
+machine no longer holds one — unless its agent exited cleanly, in which case the restored tab
+closes, as described under reconnects.
 
 ### What the two terminals share
 
@@ -206,24 +221,26 @@ says so instead of surfacing as a missing setting.
 
 ## When something is wrong
 
-**A tab says `reconnecting` and stays there.** The Mac cannot reach the Windows machine. Nothing is
-lost while that lasts — tmux over there holds the session and the agent in it — and the tab
-attaches itself as soon as that machine answers. Only a tab that has already held a session waits
-like this; a tab saying `not connected` or `refused` does not come back on its own. After a few
-rounds the message changes to point at ssh's own lines above it: a changed host key and a renamed
-WSL distro end in the same exit code an absent machine does, and only those lines separate them.
-Ctrl-C stops it trying.
+**A tab says `reconnecting` and stays there.** The Mac cannot reach the Windows machine, or the
+session holder there is down, which the tab says in its own line. Nothing is lost while the machine
+is away — tmux over there holds the session and the agent in it — and the tab attaches itself as
+soon as that machine answers. Apart from a holder that is down, which a new tab waits on too, only a
+tab that has already held a session waits like this; a tab saying `not connected` or `refused` does
+not come back on its own. When the machine is unreachable, after a few rounds the message changes
+to point at ssh's own lines above it: a changed host key and a renamed WSL distro end in the same
+exit code an absent machine does, and only those lines separate them. A holder that is down keeps
+its own line every round. Ctrl-C stops it trying.
 
 **A tab says it stopped reconnecting.** That tab is finished with. Close it, then cmd+shift+r, which
 lists the project again and resumes that directory's conversation. Reaching for the chord without
 closing it opens a second tab beside the first.
 
 **A tab says `not connected`.** Close it, then cmd+shift+r, which tries the whole thing again from
-the picker. This one is waiting for nothing: a tab retries only once an attempt has lasted long
-enough to prove a session was really up, and this one never got that far, so the reason it failed is
-as likely to be permanent as not — a refused key, a changed host key and a renamed WSL distro all
-end in the same exit code an absent machine does. The ssh lines above the message are what separate
-them.
+the picker. This one is waiting for nothing: a tab that could not connect retries only once an
+attempt has lasted long enough to prove a session was really up, and this one never got that far,
+so the reason it failed is as likely to be permanent as not — a refused key, a changed host key and
+a renamed WSL distro all end in the same exit code an absent machine does. The ssh lines above the
+message are what separate them.
 
 **A tab says `refused`.** Close it, then cmd+shift+r. The far side answered rather than went quiet,
 with a status that means neither a lost link nor a connection that could not be opened, so there is
@@ -240,7 +257,16 @@ schtasks /run /tn ClaudeRemoteSessionHolder
 
 The check behind this message is whether the holder's tmux server is up, so seeing it means that
 server is gone, and every session that ran in it is gone too. Starting the task brings the server
-back, not the sessions.
+back, not the sessions. A Mac tab that hit this keeps retrying as `reconnecting` and attaches
+once the holder's tmux server is back.
+
+When the server died while the holder script stayed alive, after a `tmux kill-server` or a crash,
+the task still shows as running and `schtasks /run` does nothing. End it first, then start it:
+
+```powershell
+schtasks /end /tn ClaudeRemoteSessionHolder
+schtasks /run /tn ClaudeRemoteSessionHolder
+```
 
 **The session vanished after a disconnect.** A session is only durable if the holder's tmux server
 created it. `attach.sh` and `attach.cmd` both refuse to start one any other way, so this means
@@ -308,7 +334,12 @@ Every piece below exists because something simpler was measured not to work; the
   **`mac/pick-session.sh`** is what the keystroke runs: it asks tmux on the far side which sessions
   exist, decorates them from the dashboard, opens agterm's picker, and creates the tab in the
   `remote` workspace. The Mac's attach loops over ssh rather than exec'ing into it, so a connection
-  that drops reattaches with nobody there to ask for it.
+  that drops reattaches with nobody there to ask for it. The picker hands the tab a one-shot start
+  token that its first pass deletes, which is how a pick is told apart from agterm replaying the same
+  command to restore the tab. Each pass asks `cc-session.sh … check` over an ssh with no terminal before
+  attaching, because the Windows sshd reports every remote exit as 0 once a terminal is allocated,
+  and that check is the only place a refusal — the holder down, a missing directory, a session ended
+  on purpose — can be read.
 - **`lib.sh`** holds what more than one piece has to agree on: the config loader, the rule for naming
   a session, the keepalive session's name, the check for whether the holder is up, the read that
   turns a session's attached clients into the machines they are sitting at, the command a new
@@ -316,8 +347,9 @@ Every piece below exists because something simpler was measured not to work; the
   switched off — the attach itself, which decides how each terminal shows that title, and the
   creation of a session, which keeps a pane whose command failed — without that a session created
   for an argument Claude Code rejects disappears in the same instant, taking the error with it. The
-  next attach to that session, through `claude` in that directory or through `cc-session.sh`, runs
-  the check that prints what the pane said and clears it, and starts a fresh session. Each is there
+  next attach to that failed session, through `claude` in that directory or through `cc-session.sh`,
+  runs the check that prints what the pane said and clears it, and starts a fresh session. The
+  creation also makes a clean exit leave a marker, so a reconnect does not undo it. Each is there
   because the alternative is two copies drifting — two scripts deriving a name from different inputs
   and disagreeing about it, or a rename that leaves three other places looking for a session nobody
   creates. The installer reads the keepalive name out of this file rather than repeating it, since

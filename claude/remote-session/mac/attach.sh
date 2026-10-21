@@ -2,7 +2,13 @@
 # Opens the Windows box's Claude session for one project in this terminal, and opens it again when
 # the transport under it dies.
 #
-# Usage: attach.sh <project>
+# Usage: attach.sh <project> [<start-token>]
+#
+# The start token is a file pick-session.py writes just before it opens the tab, and the first pass
+# deletes it. It is how this script tells a person's pick from agterm restoring the tab, which runs
+# the same command line again: by then the token it names is gone. A pick creates the session even
+# where its last agent ended on purpose; a restore and every reconnect leave such a session ended
+# (wsl/cc-session.sh, on its `start` and `resume`).
 #
 # Safe to run while a Windows terminal is attached to the same session — tmux takes both clients at
 # once, which is the whole reason the design is tmux rather than `claude --bg` + `claude attach`.
@@ -29,13 +35,21 @@
 
 set -eu
 
+# The token is consumed before anything here can exit, so no early failure leaves it for a restore
+# to find and run as a pick.
+mode=resume
+if [ -n "${2:-}" ] && [ -f "$2" ]; then
+    rm -f "$2"
+    mode=start
+fi
+
 here=$(CDPATH= cd -- "$(dirname -- "$0")" && pwd)
 . "$here/../lib.sh"
 remote_session_load_config "$here/../config.secret.env" || exit 1
 
 project=${1:-}
 if [ -z "$project" ]; then
-    echo "usage: attach.sh <project>" >&2
+    echo "usage: attach.sh <project> [<start-token>]" >&2
     exit 2
 fi
 
@@ -91,23 +105,28 @@ drop_typed_input() {
 stop=0
 trap 'stop=1' INT TERM
 
-# Nothing is retried until this tab has held a live session. Before that, the picker's own inventory
+# No lost connection is retried until this tab has held a live session (a holder that is down is,
+# from the first pass, since it clears by itself). After a pick, the picker's own inventory
 # ssh reached that machine seconds ago, so a failure here is news and is reported rather than
-# retried; it is also what keeps a refused key, a changed host key and a renamed WSL distro from
-# becoming a loop, all three of which exit 255 exactly as a dropped link does — `wsl -d <missing>`
-# was measured at 255 through this same chain, so 255 is not ssh's own code alone.
+# retried. After an agterm restore no picker ran and the last contact may be days old, so the
+# failure is not news there; the tab still waits for cmd+shift+r, because not retrying is also
+# what keeps a refused key, a changed host key and a renamed WSL distro from becoming a loop, all
+# three of which exit 255 exactly as a dropped link does — `wsl -d <missing>` was measured at 255
+# through this same chain, so 255 is not ssh's own code alone.
 settled=0
 fails=0
 wait_secs=$FIRST_WAIT
 
 while [ "$stop" -eq 0 ]; do
     # Every attempt creates the session when it is not running, reconnects included, so a tab that
-    # outlives a reboot of the far machine comes back resuming the directory's conversation.
+    # outlives a reboot of the far machine comes back resuming the directory's conversation. Only
+    # a session whose agent exited 0 stays ended on a resume; cc-session.sh then exits 5 and the
+    # tab closes below.
     # The checkout is the same repo on both machines, so the far side runs its own copy of this
     # script's sibling. Keeping the remote command to bare tokens is what makes it survive cmd.exe,
     # which is the Windows sshd's default shell.
-    # The trailing `mac` is the origin: this script only ever runs on the Mac, so it is the one place
-    # that knows the person is not at the Windows keyboard. `claude` over there reads it back off the
+    # The `mac` is the origin: this script only ever runs on the Mac, so it is the one place that
+    # knows the person is not at the Windows keyboard. `claude` over there reads it back off the
     # client and attaches alongside rather than refusing.
     # ServerAlive* is a deadline, not a keepalive. Nothing is sent while the Mac is asleep; what they
     # buy is that a transport which died during that sleep is noticed within 75s of waking instead of
@@ -115,23 +134,39 @@ while [ "$stop" -eq 0 ]; do
     # They are set here rather than in ~/.ssh/config, which is per-machine and unversioned while this
     # file is shared by both checkouts, and because tearing a connection down after 75s of silence is
     # right for one a person is watching and wrong for every other ssh to this host.
-    began=$(date +%s)
+    ssh_opts="-o ServerAliveInterval=15 -o ServerAliveCountMax=4 -o ConnectTimeout=10"
+    remote="wsl -d $WSL_DISTRO -- $REPO_WSL_PATH/claude/remote-session/wsl/cc-session.sh $project mac $mode"
+
+    # Asked first without a terminal, because the Windows sshd returns 0 for every remote exit once
+    # ssh allocates one (cc-session.sh's header has the measurement). This run's status is the only
+    # place a refusal can be read; the attach below can only say whether the transport held.
     status=0
-    ssh -t -o ServerAliveInterval=15 -o ServerAliveCountMax=4 -o ConnectTimeout=10 \
-        "$REMOTE_USER@$REMOTE_HOST" \
-        "wsl -d $WSL_DISTRO -- $REPO_WSL_PATH/claude/remote-session/wsl/cc-session.sh $project mac" || status=$?
-    [ $(( $(date +%s) - began )) -lt "$LIVE_SECS" ] || { settled=1; fails=0; wait_secs=$FIRST_WAIT; }
-    plain_screen
+    # -T for the same reason, against a config that asks for a terminal; the ServerAlive deadline so a
+    # transport that dies mid-check is noticed as it would be under the attach.
+    ssh -n -T $ssh_opts "$REMOTE_USER@$REMOTE_HOST" "$remote check" || status=$?
+
+    # A pick stays a start until a pass gets as far as the attach: one that waited out a down holder
+    # has still created nothing, so the person's pick must not turn into a resume behind it.
+    if [ "$status" -eq 0 ]; then
+        began=$(date +%s)
+        ssh -t $ssh_opts "$REMOTE_USER@$REMOTE_HOST" "$remote" || status=$?
+        [ $(( $(date +%s) - began )) -lt "$LIVE_SECS" ] || { settled=1; fails=0; wait_secs=$FIRST_WAIT; }
+        plain_screen
+        mode=resume
+    fi
 
     case $status in
-        0)
-            # A detach, or a session that ended under the client — both of which mean stop, and
-            # both measured on the far side's tmux 3.4 rather than read from its source, since the
-            # whole loop turns on them: a client detached with `detach-client`, which is the same
-            # MSG_DETACH that Ctrl-b d sends, exits 0, and so does one whose session is killed
-            # under it. `kill-server` exits 1 and so does an attach to a session that is not there,
-            # which land below and stop with their reason. remote_session_attach has already
-            # blanked the title on its way out.
+        0|5)
+            # 0 is a detach, or a session that ended under the client — both of which mean stop,
+            # and both measured on the far side's tmux 3.4 rather than read from its source, since
+            # the whole loop turns on them: a client detached with `detach-client`, which is the
+            # same MSG_DETACH that Ctrl-b d sends, exits 0, and so does one whose session is killed
+            # under it. The attach's other failures reach here as 0 too, the terminal having eaten
+            # their status, so they close the tab the same way. 5 is the check finding the session
+            # ended on purpose while this tab could not see it. After a 0 from an attach that
+            # reached tmux, remote_session_attach has already blanked the title on its way out; a 5
+            # skipped the attach and leaves the title as it was, which on a first pass is whatever
+            # agterm or the shell set.
             # The tab closes with it, so a session the far side ended (the agent exiting, or a
             # `tmux kill-session` there) leaves no press-any-key prompt behind here. The close
             # kills this script before agtermctl returns — measured 2026-10-15 — so nothing placed
@@ -140,7 +175,10 @@ while [ "$stop" -eq 0 ]; do
             [ -z "${AGTERM_SESSION_ID:-}" ] || agtermctl session close --target "$AGTERM_SESSION_ID" >/dev/null 2>&1 || true
             exit 0
             ;;
-        4|255)
+        4)
+            # The one refusal that clears without a person, so it is retried from the first pass.
+            ;;
+        255)
             if [ "$settled" -eq 0 ]; then
                 tab_title "not connected"
                 printf '\nattach: could not open %s on %s — the lines above say why. Close this tab,\n' "$project" "$REMOTE_HOST" >&2
@@ -158,7 +196,10 @@ while [ "$stop" -eq 0 ]; do
 
     fails=$((fails + 1))
     tab_title "reconnecting"
-    if [ "$fails" -lt "$NOISY_AFTER" ]; then
+    if [ "$status" -eq 4 ]; then
+        printf '\nattach: the session holder on %s is down — the lines above say how to start it.\n' "$REMOTE_HOST" >&2
+        printf 'attach: Retrying in %ds; Ctrl-C to stop.\n' "$wait_secs" >&2
+    elif [ "$fails" -lt "$NOISY_AFTER" ]; then
         printf '\nattach: lost the connection to %s. Reconnecting in %ds — Ctrl-C to stop.\n' "$REMOTE_HOST" "$wait_secs" >&2
     else
         # Worded differently on purpose. A machine that is away and a fault that will never clear

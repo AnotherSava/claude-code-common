@@ -32,6 +32,7 @@ import os
 import shlex
 import subprocess
 import sys
+import tempfile
 import urllib.error
 import urllib.request
 
@@ -47,6 +48,8 @@ START_SENTINEL = "\u2026start-a-project"
 # is attach.sh, which loops over ssh rather than exec'ing into it \u2014 while an ssh run by hand carries
 # the project inside the remote command instead, after cc-session.sh.
 FOREGROUND_MARKERS = ("/attach.sh", "/cc-session.sh")
+# Where a pick leaves the one-shot file that attach.sh reads as "a person asked for this tab".
+START_TOKENS = os.path.join(os.environ.get("XDG_STATE_HOME") or os.path.expanduser("~/.local/state"), "claude-remote-session", "start-tokens")
 
 
 def notify(body: str) -> None:
@@ -309,14 +312,21 @@ def main() -> int:
     # credit a second time in `terminals::person_verdict`: the tab holds a transport, and a transport
     # is credited only where a badged title named the row, so a row the working directory named is
     # refused. Opening these tabs anywhere real leaves only that refusal standing.
+    #
+    # The start token tells attach.sh this tab was picked rather than restored: agterm restores a tab
+    # by running its command again, and by then attach.sh has deleted the file it names.
+    os.makedirs(START_TOKENS, exist_ok=True)
+    handle, token = tempfile.mkstemp(dir=START_TOKENS)
+    os.close(handle)
     result = agtermctl(
         "session", "new",
         "--workspace-name", WORKSPACE, "--create-workspace",
         "--cwd", "/",
-        "--command", f"{shlex.quote(attach)} {shlex.quote(project)}",
+        "--command", f"{shlex.quote(attach)} {shlex.quote(project)} {shlex.quote(token)}",
         "--wait",
     )
     if result.returncode != 0:
+        os.remove(token)
         return fail(f"could not open a session for {project}: {result.stderr.strip()}")
     return 0
 

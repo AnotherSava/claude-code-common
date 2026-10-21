@@ -17,4 +17,4 @@
 - [Memo surfacing is session start only](memo-surfacing-session-start-only.md) — decided 2026-10-06; a count in place of the list and keeping the task-completion listing were both declined, don't re-propose either
 - [wrap-up may publish unprompted](wrap-up-may-publish-unprompted.md) — pre-authorizes `bash scripts/publish.sh` in allowed-tools; kept on purpose 2026-10-09, the skill's own prose is the only gate
 - [Tailnet id stays in history](tailnet-id-history-stays.md) — the real id is in pre-2026-09-12 commits; a rewrite was declined 2026-10-09, don't re-propose it
-- [Remote tabs always recreate](remote-tabs-always-recreate.md) — decided 2026-10-13, no confirmation; attach-only reconnects, an Enter prompt and picker-side creation were rejected
+- [Remote tabs always recreate](remote-tabs-always-recreate.md) — decided 2026-10-13, no confirmation, except a session ended by a clean exit (2026-10-20); attach-only reconnects, an Enter prompt and picker-side creation were rejected
