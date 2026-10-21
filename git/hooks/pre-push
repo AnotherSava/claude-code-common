@@ -3,7 +3,7 @@
 # pre-push — reject commits that are Claude-attributed, unsigned, or carry a message breaking the
 # conventions, then upload Git LFS objects.
 #
-# Checks every NEW commit (not yet on remote) for:
+# Checks every NEW commit (held by none of the destination remote's tracking refs) for:
 #   1. Author/committer name or email containing "claude" or "anthropic"
 #   2. Co-Authored-By trailer mentioning "claude" or "anthropic"
 #   3. Missing good GPG signature (only "G" status passes)
@@ -14,8 +14,10 @@
 # In a fork (origin ours, upstream someone else's, as ~/.claude/conventions/engine.py decides it),
 # commits reachable from the upstream remote are not checked: a rebase onto upstream pushes the
 # upstream author's commits to origin, and they carry that author's signature and message style.
-# Only `upstream` is exempted, never every remote: a commit on origin is ours, and an updated branch
-# still checks the ones its remote sha does not already hold.
+# Only `upstream` is exempted, never every remote: a commit some third remote holds is still checked.
+# A commit the destination already holds on any branch is not new, so a ref moving over published work
+# (the review bookmark passing main) checks none of it again
+# (~/.claude/learnings/git-rev-list-new-commits.md).
 #
 # Git LFS installs its own hooks wherever core.hooksPath points, and stops at this non-LFS pre-push,
 # so no LFS hook runs anywhere and a push would send LFS pointers without their objects, silently.
@@ -45,6 +47,14 @@ is_null() {
     case "$1" in *[!0]*) return 1 ;; esac
 }
 
+# Commits the destination's remote-tracking refs hold are already published there. A push naming a URL
+# rather than a remote has no tracking refs of its own, so every remote's count instead.
+if git remote | grep -qxF -- "$1"; then
+    published="--remotes=$1"
+else
+    published="--remotes"
+fi
+
 # Git gives the refs on stdin once, and `git lfs pre-push` needs them as well.
 input=$(cat)
 
@@ -55,7 +65,9 @@ if [ -z "$top" ]; then
     :
 elif [ -f "$ENGINE" ]; then
     if [ -n "$(python3 "$ENGINE" fork "$top")" ]; then
-        upstream_exempt="--not --remotes=upstream"
+        # No --not of its own: the rev-list call puts it after the one that excludes the destination's
+        # refs, and a second --not would flip these refs back to included.
+        upstream_exempt="--remotes=upstream"
     fi
 else
     echo "WARNING: $ENGINE is missing, so a fork's upstream commits are checked as if they were ours." >&2
@@ -70,16 +82,19 @@ while read -r local_ref local_sha remote_ref remote_sha; do
     attributes=$(git cat-file -p "$local_sha:.gitattributes" 2>/dev/null || true)
     case "$attributes" in *filter=lfs*) declares_lfs=1 ;; esac
 
-    # Determine range of new commits. A remote sha this clone has never fetched cannot bound a
-    # range, so check everything no remote-tracking branch holds, as for a new branch.
+    # Determine range of new commits: whatever the destination's remote-tracking branches do not hold,
+    # so a ref moving over commits another branch there already published (the review bookmark
+    # passing main) re-checks none of them. Only the destination's refs count: another remote's
+    # commits are exempt solely through upstream_exempt. A remote sha this clone has never fetched
+    # cannot bound a range, as for a new branch.
     if is_null "$remote_sha" || ! git cat-file -e "$remote_sha^{commit}" 2>/dev/null; then
-        range="$local_sha --not --remotes"
+        range="$local_sha"
     else
         range="$remote_sha..$local_sha"
     fi
 
     # Assigned first so a failing rev-list stops the push, rather than checking nothing and passing
-    commits=$(git rev-list $range $upstream_exempt)
+    commits=$(git rev-list $range --not $published $upstream_exempt)
 
     new_commits="$new_commits $commits"
 

@@ -935,7 +935,7 @@ Where several projects share one box behind one reverse proxy, a generic name is
 
 **File:** `git/hooks/pre-push`
 
-Prevents pushing commits that are Claude-attributed or not GPG-signed. Every new commit in the push is checked for:
+Prevents pushing commits that are Claude-attributed or not GPG-signed. Every new commit in the push — one that none of the destination remote's tracking refs holds, so a ref moving over commits already published there (the review bookmark passing `main`) re-checks none of them — is checked for:
 
 - Author or committer name/email containing "claude" or "anthropic"
 - `Co-Authored-By` trailers mentioning Claude or Anthropic

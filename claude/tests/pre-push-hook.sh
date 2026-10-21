@@ -107,6 +107,21 @@ git -C "$T/plain" checkout -q -b fresh; echo n > "$T/plain/n.txt"; commit "$T/pl
 check "$(push "$T/plain" origin fresh)" 1 "unsigned commit on a new branch rejected"
 git -C "$T/plain.git" update-ref -d refs/heads/fresh 2>/dev/null; git -C "$T/plain" checkout -q main
 
+# A ref that already exists on the remote moving forward over commits another remote branch holds:
+# the review bookmark advancing past a main whose commits were signed on another machine. Only what
+# no remote ref holds is new, whichever ref carries it.
+base=$(git -C "$T/plain" rev-parse HEAD)
+git -C "$T/plain" push -q origin HEAD:refs/review/last 2>/dev/null
+echo m > "$T/plain/m.txt"; commit "$T/plain" m --no-gpg-sign
+git -C "$T/plain" push -q --no-verify origin main 2>/dev/null
+check "$(push "$T/plain" origin main:refs/review/last)" 0 "an existing ref moving over commits already on the remote allowed"
+check "$(push "$T/plain" "$(url "$T/plain.git")" main:urlb)" 0 "a new branch pushed by URL over commits already on a remote allowed"
+git -C "$T/plain.git" update-ref -d refs/heads/urlb
+echo o > "$T/plain/o.txt"; commit "$T/plain" o --no-gpg-sign
+check "$(push "$T/plain" origin HEAD:refs/review/last)" 1 "an existing ref moving over a new unsigned commit rejected"
+git -C "$T/plain" reset -q --hard "$base"; git -C "$T/plain" push -q --no-verify --force origin main 2>/dev/null
+git -C "$T/plain.git" update-ref -d refs/review/last
+
 # A fork pushing a rebase onto upstream: upstream's own commits are exempt, the fork's are not. The
 # remote URLs name owners for the engine's fork test, and pushurl sends the push to disk instead.
 git init -q --bare "$T/fork.git"; repo "$T/fork"
@@ -120,6 +135,8 @@ echo b > "$T/fork/b.txt"; commit "$T/fork" "theirs" --no-gpg-sign
 git -C "$T/fork" update-ref refs/remotes/upstream/main HEAD
 echo c > "$T/fork/c.txt"; commit "$T/fork" ours
 check "$(push "$T/fork" origin main)" 0 "a fork's push carrying upstream's unsigned commit allowed"
+check "$(push "$T/fork" origin main:fresh)" 0 "a fork's new branch carrying upstream's unsigned commit allowed"
+git -C "$T/fork.git" update-ref -d refs/heads/fresh
 echo d > "$T/fork/d.txt"; commit "$T/fork" "ours unsigned" --no-gpg-sign
 check "$(push "$T/fork" origin main)" 1 "a fork's own unsigned commit still rejected"
 git -C "$T/fork" reset -q --hard HEAD~1
