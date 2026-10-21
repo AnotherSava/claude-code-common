@@ -47,6 +47,9 @@ REPO_NAME="$(basename "$REPO_DIR")"
 PY=python3; [ "$OS" = "win" ] && PY=python
 SKILLS="$(cd "$(dirname "${BASH_SOURCE[0]}")/../.." && pwd)"
 PORTS="$SKILLS/ports/scripts/ports.py"
+# A claim's owner is the repo's GitHub name, which is the same on every clone; the use-case slug below still
+# comes from the folder name, so renaming a clone's folder starts a new claim rather than moving the old one.
+OWNER="$("$PY" "$PORTS" repo-name --repo "$REPO_DIR")"
 
 if [ ! -d "$RUN_DIR" ]; then echo "ERROR: DEV_DIR '$DEV_DIR' not found under $REPO_DIR"; exit 1; fi
 
@@ -54,7 +57,7 @@ if [ ! -d "$RUN_DIR" ]; then echo "ERROR: DEV_DIR '$DEV_DIR' not found under $RE
 # number in one place is what lets a project's own dev script stop carrying a copy — and what retired the
 # old guess-from-package.json-else-3000 default, whose fallback was printlab's dev port. A
 # DEV_PORT line left in deploy.env is ignored; `ports.py check --repo` reports it so it can be removed.
-if ! DEV_PORT="$("$PY" "$PORTS" allocate --use-case "$REPO_NAME-dev-server" --owner "$REPO_NAME" \
+if ! DEV_PORT="$("$PY" "$PORTS" allocate --use-case "$REPO_NAME-dev-server" --owner "$OWNER" \
         --notes "$REPO_NAME's local dev server, started by deploy-dev-server.sh as: $DEV_CMD")"; then
     echo "ERROR: the ports registry would not give $REPO_NAME a dev port (reason above), so nothing was started."
     echo "       Look it up with: $PY $PORTS list"
@@ -170,7 +173,7 @@ for _ in $(seq 1 40); do
         if [ "$DEV_TAILNET" = "no" ]; then
             echo "  open: http://localhost:$DEV_PORT  (this machine only: DEV_TAILNET=no)"
         elif ! FRONT="$("$PY" "$PORTS" allocate \
-                --use-case "$REPO_NAME-dev-tailnet" --owner "$REPO_NAME" --front-for "$DEV_PORT" \
+                --use-case "$REPO_NAME-dev-tailnet" --owner "$OWNER" --front-for "$DEV_PORT" \
                 --notes "Tailnet front port for $REPO_NAME's dev server on $DEV_PORT. Allocated by deploy-dev-server.sh; the origin cannot share its own number.")"; then
             echo "  open: http://localhost:$DEV_PORT  (this machine only: no tailnet port allocated, reason above)"
         elif URL="$("$PY" "$SKILLS/shared/tailnet_publish.py" publish-port "$FRONT" --target "$DEV_PORT")"; then

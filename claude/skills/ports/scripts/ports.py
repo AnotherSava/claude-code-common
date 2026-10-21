@@ -16,6 +16,7 @@ So one record, committed in the dotfiles repo, keyed by use case:
     ports.py list [--scope S] [--status S]
     ports.py release --use-case <slug>
     ports.py check [--live] [--repo PATH]
+    ports.py repo-name [--repo PATH]       # the name an owner spells for the repo at PATH
 
 `allocate` assigns and `amend` corrects, and they are the only writers. `allocate` is idempotent on
 the use case and never changes a claim it finds, so a launch script may call it on every run; what a
@@ -625,22 +626,31 @@ def _worktree_root(repo: Path) -> Path:
     return Path(top) if top else repo
 
 
+GITHUB_REPO = re.compile(r"github\.com[:/][^/]+/([^/]+?)(?:\.git)?/?$")
+
+
 def _repo_name(repo: Path) -> str:
-    """This repo's name as a claim's `owner` spells it: the MAIN worktree's directory name.
+    """This repo's name as a claim's `owner` spells it: its GitHub repository name, from `origin`.
 
-    Not `repo.name`, which is whichever directory the caller pointed at. A linked worktree — which a
-    forked sub-skill creates for every run — and a `--repo <subdirectory>` both have a basename no owner
-    matches, and the consequences run both ways at one count and one exit status: every pinned literal
-    is reported as pinned to some other repo, while the genuine finding about a port nothing resolves
-    disappears, because the claim no longer reads as this repo's.
+    The GitHub name rather than any directory name, because a directory name is per clone. The same repo
+    sits in `tripit` on one machine and `trips` on the other, and `claude-code-common` sits in `claude`:
+    owners keyed on folders made one clone of a repo read every claim it owns as another repo's, so the
+    `ports-from-registry` rule failed there and nowhere else. The origin URL is committed to nothing but
+    agrees across clones, which is the property an owner needs.
 
-    `git worktree list --porcelain` names the main worktree on its first line from any position inside
-    the repo, a bare one included. Two shapes it still gets wrong, measured 2026-10-06: a clone sitting
-    in a directory named differently from its owner, and a repo created with `--separate-git-dir`. Both
-    fall through to the directory name, which is as close as anything here can get — the registry also
-    records an owner for a project that is not a git repo at all, so no git-derived identity covers
-    every claim.
+    Without a GitHub origin — a repo never published, or a project that is not a git repo — it falls back
+    to the MAIN worktree's directory name, read from `git worktree list --porcelain`, whose first line
+    names it from any position inside the repo. Not `repo.name`, which is whichever directory the caller
+    pointed at: a linked worktree, which a forked sub-skill creates for every run, and a `--repo
+    <subdirectory>` both have a basename no owner matches, and that failed both ways at one exit status —
+    every pinned literal read as another repo's while the genuine finding about a port nothing resolves
+    disappeared. `ports.py repo-name` prints this, so a shell caller asks here rather than keeping a copy.
     """
+    origin = subprocess.run(["git", "-C", str(repo), "remote", "get-url", "origin"],
+                            capture_output=True, encoding="utf-8", errors="replace", timeout=30)
+    match = GITHUB_REPO.search(origin.stdout.strip()) if origin.returncode == 0 else None
+    if match:
+        return match.group(1)
     result = subprocess.run(["git", "-C", str(repo), "worktree", "list", "--porcelain"],
                             capture_output=True, encoding="utf-8", errors="replace", timeout=30)
     first = result.stdout.splitlines()[0] if result.returncode == 0 and result.stdout else ""
@@ -761,7 +771,9 @@ def main(argv: List[str]) -> int:
 
     p = sub.add_parser("allocate", help="record a port for a use case, assigning one if it has none")
     p.add_argument("--use-case", required=True, help="the registry's key: lowercase words joined by hyphens")
-    p.add_argument("--owner", required=True, help="the repo or app the use case belongs to")
+    p.add_argument("--owner", required=True,
+                   help="the repo the use case belongs to, by its GitHub repository name (`repo-name` prints it), "
+                        "or the app or device for something that is not a repo")
     p.add_argument("--notes", required=True,
                    help="why this number, for whoever reads the record later; recorded when the claim is "
                         "created, and changed afterwards by `amend`")
@@ -793,9 +805,15 @@ def main(argv: List[str]) -> int:
     p.add_argument("--live", action="store_true", help="also report what listens here that no claim records")
     p.add_argument("--repo", help="also check whether one repo gets every port it owns from the registry")
 
+    p = sub.add_parser("repo-name", help="the name a claim's owner spells for a repo: its GitHub repository name")
+    p.add_argument("--repo", default=".", help="any path inside the repo")
+
     args = parser.parse_args(argv)
     if args.cmd == "check":
         return check(args)
+    if args.cmd == "repo-name":
+        print(_repo_name(Path(args.repo)))
+        return 0
     try:
         read_registry()
     except (OSError, ValueError, json.JSONDecodeError) as exc:

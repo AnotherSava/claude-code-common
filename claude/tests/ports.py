@@ -404,6 +404,26 @@ def main() -> int:
               ports._repo_name(linked), "identity")
         subprocess.run(["git", "-C", str(ident), "worktree", "remove", "--force", str(linked)], check=True)
 
+        # A GitHub origin names the repo whatever its folder is called, so two clones in differently named
+        # folders are one owner — the Windows clone of trips, in `trips`, failed this rule against owners
+        # written for the macOS clone's `tripit`. Without an origin the folder name above still answers.
+        subprocess.run(["git", "-C", str(ident), "remote", "add", "origin",
+                        "git@github.com:someone/identity-on-github.git"], check=True)
+        check("with a GitHub origin the name is the repository's, not the folder's",
+              ports._repo_name(ident), "identity-on-github")
+        check("and from a subdirectory too",
+              ports._repo_name(ident / "scripts"), "identity-on-github")
+        subprocess.run(["git", "-C", str(ident), "remote", "set-url", "origin",
+                        "https://github.com/someone/identity-on-github"], check=True)
+        check("an https origin without .git names it the same way",
+              ports._repo_name(ident), "identity-on-github")
+        check("a claim owned by the folder name then reads as another repo's",
+              len(ports.check_repo(owned, ident)[0]), 1)
+        renamed = {"version": 1, "claims": [dict(owned["claims"][0], owner="identity-on-github")]}
+        check("and one owned by the GitHub name is this repo's",
+              ports.check_repo(renamed, ident), ([], []))
+        subprocess.run(["git", "-C", str(ident), "remote", "remove", "origin"], check=True)
+
         # A subdirectory is not a repo. Scoping the scan to it misses a resolver sitting above it, so the
         # repo's port reads as one nothing asks for — measured in tripit/web, whose scripts/dev.mjs is at
         # the root. The name alone being right does not fix this; the scan root has to move too.

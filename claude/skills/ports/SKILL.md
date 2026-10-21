@@ -32,6 +32,10 @@ python3 ~/.claude/skills/ports/scripts/ports.py allocate \
   --use-case <slug> --owner <repo-or-app> --notes "<why this number>"
 ```
 
+- `--owner` is the repo's **GitHub repository name**, which every clone agrees on, whatever its folder is
+  called — `python3 ~/.claude/skills/ports/scripts/ports.py repo-name` prints it from inside the repo. Only a
+  repo with no GitHub origin is named by its folder, and something that is not a repo by the app or device.
+
 - `--use-case` is the registry's key: lowercase words joined by single hyphens, naming the *thing that
   listens* rather than the project — `tripit-booking-extract`, not `tripit-port-2`. One project with two
   listeners has two use cases.
@@ -128,13 +132,14 @@ anything:
   carrying `front_for` is exempt, since the deploy script allocates a tailnet front port at publish time
   and the repo never names it.
 
-Both halves turn on which repo `<path>` names, and that is read from the **main worktree** rather than from
-the path's own basename — so a linked worktree or a subdirectory is judged as the checkout containing it,
-and a `--repo` pointed anywhere inside a project answers about the project. An `owner` naming several
+Both halves turn on which repo `<path>` names, and that is its **GitHub repository name**, read from
+`origin` — so two clones in differently named folders are one repo, and a linked worktree or a
+subdirectory is judged as the checkout containing it. A repo with no GitHub origin falls back to the main
+worktree's directory name. An `owner` naming several
 repos spells them comma-separated and is matched as whole tokens, so `travel` no longer takes
 `travel-map`'s exemption. Getting either wrong failed in two directions at one exit status: every pinned
-literal read as another repo's while the genuine finding disappeared. The commands behind this, and the
-two shapes that still fall back to the directory name, are in
+literal read as another repo's while the genuine finding disappeared. The commands behind this, and what
+still falls back to the directory name, are in
 `~/.claude/learnings/git-identifying-the-repo-a-check-is-in.md`.
 
 Prose is deliberately out of scope. A README telling a human which URL to open, an `.env.example` default,

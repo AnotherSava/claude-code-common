@@ -17,7 +17,7 @@ import { join } from 'node:path'
 import { pathToFileURL } from 'node:url'
 
 const USE_CASE = '{{use-case-slug}}'   // the registry's key for this server — `ports.py list` shows it
-const OWNER = '{{repo-name}}'
+const OWNER = '{{github-repo-name}}'   // `ports.py repo-name` prints it
 
 const shared = join(homedir(), '.claude', 'skills', 'ports', 'scripts', 'dev-port.mjs')
 

@@ -31,7 +31,7 @@
     {
       "port": 443,
       "use_case": "tailnet-node-serve-root",
-      "owner": "claude",
+      "owner": "claude-code-common",
       "scope": "machine",
       "status": "reserved",
       "pinned": "the node's shared HTTPS root, held by tailscaled",
@@ -40,7 +40,7 @@
     {
       "port": 1420,
       "use_case": "tauri-dashboard-vite-dev",
-      "owner": "tauri-dashboard",
+      "owner": "claude-code-dashboard",
       "scope": "machine",
       "status": "assigned",
       "notes": "Vite dev server with strictPort set, so it fails rather than drifting when the port is taken. Resolved at launch by the repo's scripts/dev.mjs, which fronts 'npm run tauri'; it hands the number to Vite as PORT and to the Tauri CLI as a build.devUrl override, since tauri.conf.json cannot name a port chosen at launch."
@@ -65,7 +65,7 @@
     {
       "port": 3000,
       "use_case": "shared-container-internal-app-port",
-      "owner": "what-is-next, scheduler, printlab, tripit",
+      "owner": "what-is-next, scheduler, printlab, trips",
       "scope": "container",
       "status": "reserved",
       "notes": "Every production app listens on 3000 inside its own Docker network, behind one Caddy, with `expose:` rather than a host `ports:` publish. Deliberately shared — a container network is not a shared namespace — and recorded so that nobody reads the four as a collision."
@@ -82,7 +82,7 @@
     {
       "port": 3901,
       "use_case": "tripit-dev-tailnet",
-      "owner": "tripit",
+      "owner": "trips",
       "scope": "machine",
       "status": "assigned",
       "notes": "Tailnet front port for tripit's dev server on 3941. Allocated by deploy-dev-server.sh; the origin cannot share its own number.",
@@ -100,7 +100,7 @@
     {
       "port": 3903,
       "use_case": "tripit-prod-mongo-tunnel",
-      "owner": "tripit",
+      "owner": "trips",
       "scope": "machine",
       "status": "assigned",
       "notes": "Local end of an ssh -L tunnel to tripit's production database, for one-off scripts run from this machine against production"
@@ -124,7 +124,7 @@
     {
       "port": 3941,
       "use_case": "tripit-dev-server",
-      "owner": "tripit",
+      "owner": "trips",
       "scope": "machine",
       "status": "assigned",
       "notes": "`next dev -p 3941`, pinned in package.json as well as config/deploy.env."
@@ -132,7 +132,7 @@
     {
       "port": 3942,
       "use_case": "tripit-booking-extract",
-      "owner": "tripit",
+      "owner": "trips",
       "scope": "machine",
       "status": "assigned",
       "notes": "The booking-extract sidecar, published to host loopback by docker-compose.dev.yml, which gives it no healthcheck. The only `/health` probe on 3942 is in the production docker-compose.yml, against the container's own loopback where the port is exposed but not published. The second host port in one repo. Brought up by `npm run db:up`; the dev Next app runs on the host and posts to it at EXTRACT_URL. Container-internal 3942 is fixed by web/extract/Dockerfile (ENV PORT, EXPOSE).",
@@ -141,7 +141,7 @@
     {
       "port": 3949,
       "use_case": "claude-postmessage-sink",
-      "owner": "claude",
+      "owner": "claude-code-common",
       "scope": "machine",
       "status": "assigned",
       "notes": "The sink page an agent serves to collect postMessage results out of claude-in-chrome. Throwaway per run; the number is written into the probing recipe.",
@@ -150,7 +150,7 @@
     {
       "port": 4444,
       "use_case": "tauri-dashboard-webdriver",
-      "owner": "tauri-dashboard",
+      "owner": "claude-code-dashboard",
       "scope": "machine",
       "status": "reserved",
       "notes": "The tauri-driver WebDriver endpoint, named only by the example wdio and Selenium snippets in the vendored `tauri-testing` skill. The repo has no UI tests and no WebDriver dependency, so nothing binds it today."
@@ -225,7 +225,7 @@
     {
       "port": 8731,
       "use_case": "claude-probe-page-server",
-      "owner": "claude",
+      "owner": "claude-code-common",
       "scope": "machine",
       "status": "assigned",
       "notes": "The ad-hoc local page server the claude-in-chrome probing recipes serve from. Throwaway per run; the number is written into the recipe.",
@@ -234,7 +234,7 @@
     {
       "port": 8765,
       "use_case": "travel-dev-server",
-      "owner": "travel",
+      "owner": "travel-planner",
       "scope": "machine",
       "status": "assigned",
       "notes": "`python3 -m http.server 8765`, wildcard-bound. The jekyll docs-preview procedure in learnings/jekyll-local-build-windows.md reaches for the same number, which is the collision to avoid when previewing docs while travel is up."
@@ -250,7 +250,7 @@
     {
       "port": 8788,
       "use_case": "claude-tailnet-publish-file-server",
-      "owner": "claude",
+      "owner": "claude-code-common",
       "scope": "machine",
       "status": "assigned",
       "notes": "PUBLISH_PORT, the loopback file server every published file proxies to. Loopback-bound, which is the one bind style that can share its number with a serve mapping — and the reason publish-port's same-number form still exists.",
@@ -259,7 +259,7 @@
     {
       "port": 8818,
       "use_case": "chrome-webstore-oauth-redirect",
-      "owner": "claude",
+      "owner": "claude-code-common",
       "scope": "machine",
       "status": "assigned",
       "pinned": "a literal in the skill's scripts/cws.sh that the printed consent URL and the token exchange must carry identically; no launch-time call resolves it",
@@ -268,7 +268,7 @@
     {
       "port": 8899,
       "use_case": "claude-vhost-gate-caddy",
-      "owner": "claude",
+      "owner": "claude-code-common",
       "scope": "machine",
       "status": "assigned",
       "notes": "The throwaway local Caddy the vhost-gate tests run against.",
@@ -277,7 +277,7 @@
     {
       "port": 9077,
       "use_case": "tauri-dashboard-http-api",
-      "owner": "tauri-dashboard",
+      "owner": "claude-code-dashboard",
       "scope": "machine",
       "status": "assigned",
       "notes": "The dashboard's HTTP API on loopback — the hub every agent-facing client dials, including peer_relay.py and the session hooks. Its documented alternative is 9100.",
@@ -286,7 +286,7 @@
     {
       "port": 9078,
       "use_case": "tauri-dashboard-session-sync",
-      "owner": "tauri-dashboard",
+      "owner": "claude-code-dashboard",
       "scope": "machine",
       "status": "assigned",
       "notes": "The cross-machine session-sync listener. It binds the tailnet address directly rather than through `tailscale serve`, so this machine's port space has a second allocator and a serve mapping here would contend with a live listener.",
@@ -295,7 +295,7 @@
     {
       "port": 9100,
       "use_case": "tauri-dashboard-http-api-alternate",
-      "owner": "tauri-dashboard",
+      "owner": "claude-code-dashboard",
       "scope": "machine",
       "status": "reserved",
       "notes": "The documented alternative for the dashboard's API port, kept out of the allocator so that switching to it stays a one-line config change."
@@ -303,7 +303,7 @@
     {
       "port": 9222,
       "use_case": "claude-debug-chrome-cdp",
-      "owner": "claude",
+      "owner": "claude-code-common",
       "scope": "machine",
       "status": "assigned",
       "pinned": "Chrome's DevTools Protocol default, which chrome-devtools MCP and the project-local skills all assume",
@@ -337,7 +337,7 @@
     {
       "port": 27017,
       "use_case": "tripit-dev-mongo",
-      "owner": "tripit",
+      "owner": "trips",
       "scope": "machine",
       "status": "assigned",
       "notes": "Dev MongoDB published to host loopback. MongoDB's vendor default, so a second local instance would contend for it.",

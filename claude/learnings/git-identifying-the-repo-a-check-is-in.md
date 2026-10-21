@@ -8,7 +8,7 @@ The three positions a caller can be in, and what each wants:
 
 - **A linked worktree.** `git worktree add` gives a checkout whose basename is whatever the caller chose — a forked sub-skill creates one per run, named after itself. The *content* under review is this worktree's, and the *identity* is the main worktree's.
 - **A subdirectory.** A path inside the repo is not a repo. Both the identity and the scan root belong to the checkout containing it, because a rule reading only the subtree misses whatever sits above it.
-- **A clone in a renamed directory.** Nothing recovers the intended name from the filesystem here, so this is the case to state as a limit rather than solve.
+- **A clone in a differently named directory.** Nothing on the filesystem recovers the intended name, but the origin remote does: one repo cloned as `tripit` on one machine and `trips` on the other (its GitHub name) is the same repo, and a record keyed on folders judged one of the clones as another project. Measured 2026-10-20, when the Windows clone failed `ports-from-registry` and the macOS one passed.
 
 ## The two questions take different commands
 
@@ -25,15 +25,15 @@ Measured 2026-10-06 across 18 repos: the two agree for every ordinary checkout, 
 
 ## What the alternatives cost, measured rather than reasoned
 
-- **The origin remote is not an identity** wherever the record keys on anything else. Parsing the repo name out of `git remote get-url origin` disagreed with the directory name for 4 of 18 repos — and the record those names index was written against directory names, so switching lost the owner of **19 of 34** entries. A repo whose folder has been renamed to match its remote is the one case where this is the right answer, and it is the case the rename is meant to create rather than one to assume.
+- **The origin remote is the identity, but only together with the record it keys.** The GitHub repository name, parsed from `git remote get-url origin`, is the one name every clone agrees on, so the ports registry's `owner` is that name. Switching the reader alone is not enough: measured 2026-10-06, the origin name disagreed with the directory name for 4 of 18 repos, and a record written against directory names lost the owner of 19 of 34 entries. The switch on 2026-10-20 renamed the record's owners in the same change, and every launch script that passes an owner with them, since `allocate` refuses an owner that differs from the recorded claim. Without a GitHub origin, fall back to the main worktree's directory name below.
 - **`git rev-parse --git-common-dir`** names the main worktree correctly for an ordinary checkout and for a linked one, and fails for `git init --separate-git-dir`, where it points at the external git directory whose parent is unrelated to the work tree. The `worktree list` form is right in that case too, which is why it is the one above.
 - **A symlinked path does not misfire at all**, provided the code resolves the path before taking a basename. That resolution is also what makes the symlink case invisible, so do not count it as evidence the basename approach works.
 
 ## Limits to state rather than close
 
-Two shapes still answer from the directory name, and a docstring should say so instead of implying the problem is solved: a clone sitting in a directory named differently from its recorded name, and `--separate-git-dir`. A third is outside git entirely — a record can name a project that is not a git repository at all, and no git-derived identity reaches it.
+Only a repo with no GitHub origin still answers from the directory name, and there the old limits stand: a clone in a differently named directory, and `--separate-git-dir`. A record can also name a project that is not a git repository at all, which no git-derived identity reaches.
 
-**A record keyed by directory name turns a folder rename into a silent breakage**, which is the other half of this. Whatever renames the folder has to rename the record in the same change; otherwise the next run of the check reports every exempted literal as belonging to some other project. Put that step in whatever skill or script performs the rename, not in a note beside the record.
+**Renaming the GitHub repository is now the silent breakage** that renaming a folder used to be. Whatever renames the repo has to rename the record's owners in the same change; otherwise the next run of the check reports every exempted literal as belonging to some other project.
 
 ## Matching a multi-owner field
 

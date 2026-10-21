@@ -77,7 +77,7 @@ Do this in the repo that is behind, not in the dotfiles repo.
 
    # no claim holds it yet
    python3 ~/.claude/skills/ports/scripts/ports.py allocate \
-     --use-case <repo>-<what-listens> --owner <repo> --port <n> \
+     --use-case <repo>-<what-listens> --owner <github-repo-name> --port <n> \
      --pinned "<why this number and no other>" --notes "<what listens, and how it starts>"
    ```
 
@@ -89,7 +89,8 @@ Do this in the repo that is behind, not in the dotfiles repo.
    is the honest answer, the port is resolvable and belongs in step 3.
 
 3. **Resolve the rest at launch.** Copy `dev.mjs` from this version's folder into the repo's `scripts/`,
-   set its `USE_CASE` and `OWNER` to this repo's, then rewrite the dev and start scripts to call it with
+   set its `USE_CASE` and `OWNER` to this repo's (`OWNER` is the GitHub repository name, which
+   `ports.py repo-name` prints), then rewrite the dev and start scripts to call it with
    the port literal removed:
 
    ```jsonc
