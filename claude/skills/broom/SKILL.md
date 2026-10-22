@@ -101,6 +101,11 @@ This is the part the script cannot do. Find the consumer, then decide where it b
   "live".
 - **APFS frees a large delete lazily.** A 15 GiB removal showed 9.8 GiB free immediately and 37 GiB
   twenty minutes later, so a `df` delta taken straight after is a floor.
+- **Swap is a consumer no folder shows.** It lives in the separate `VM` APFS volume, which shares the
+  container's free space with Data, so `du` over every directory never finds it. Read it with
+  `sysctl vm.swapusage` and `diskutil apfs list` (the `VM` role's Capacity Consumed). On 2026-10-22
+  it held about 17 GiB with two VMs and an Android emulator running, against 5.2 GiB free. Only quitting
+  memory-heavy processes or a restart gives it back, so report it to the user and delete nothing for it.
 - **The scheduled half only measures.** `--alarm` reads `df` and sends one Telegram message below
   15 GiB; it never deletes. The threshold is absolute rather than a percentage because what fails is
   a build, not a ratio — 10%-free on a 228 GiB volume is 22.8 GiB, a level that is genuinely fine,
