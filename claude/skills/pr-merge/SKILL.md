@@ -1,7 +1,7 @@
 ---
 name: pr-merge
 description: Merge a PR locally with fast-forward to preserve GPG-signed commits, then clean up.
-allowed-tools: Bash(git status:*), Bash(git log:*), Bash(git diff:*), Bash(git fetch:*), Bash(git checkout:*), Bash(git rebase:*), Bash(git merge:*), Bash(git push:*), Bash(git branch:*), Bash(git rev-parse:*), Bash(git symbolic-ref:*), Bash(git stash:*), Bash(git remote:*), Bash(gh pr:*), Bash(python ~/.claude/skills/shared/notify_peer_pull.py:*), Bash(python ~/.claude/skills/shared/gate_pushed_tree.py:*), Bash(python3 ~/.claude/skills/shared/gate_pushed_tree.py:*), Read
+allowed-tools: Bash(git status:*), Bash(git log:*), Bash(git diff:*), Bash(git fetch:*), Bash(git checkout:*), Bash(git rebase:*), Bash(git merge:*), Bash(git push:*), Bash(git branch:*), Bash(git rev-parse:*), Bash(git symbolic-ref:*), Bash(git stash:*), Bash(git remote:*), Bash(gh pr:*), Bash(python ~/.claude/skills/shared/notify_peer_pull.py:*), Bash(python ~/.claude/skills/shared/gate_pushed_tree.py:*), Bash(python3 ~/.claude/skills/shared/gate_pushed_tree.py:*), Bash(python ~/.claude/scripts/review_scope.py status), Bash(python3 ~/.claude/scripts/review_scope.py status), Read
 ---
 
 # Merge PR Locally (Preserving GPG Signatures)

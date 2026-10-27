@@ -1,7 +1,7 @@
 ---
 name: pr-create
 description: Prepare commits for the current feature branch, push, and create or update a PR to main.
-allowed-tools: Bash(git status:*), Bash(git log:*), Bash(git diff:*), Bash(git reset --soft:*), Bash(git add:*), Bash(git commit:*), Bash(git push:*), Bash(git rev-parse:*), Bash(git branch:*), Bash(git fetch:*), Bash(git checkout:*), Bash(git merge:*), Bash(git rebase:*), Bash(gh pr create:*), Bash(gh pr view:*), Bash(gh pr edit:*), Bash(ls:*), Bash(python ~/.claude/skills/shared/gate_pushed_tree.py:*), Bash(python3 ~/.claude/skills/shared/gate_pushed_tree.py:*), Read, Glob, Grep
+allowed-tools: Bash(git status:*), Bash(git log:*), Bash(git diff:*), Bash(git reset --soft:*), Bash(git add:*), Bash(git commit:*), Bash(git push:*), Bash(git rev-parse:*), Bash(git branch:*), Bash(git fetch:*), Bash(git checkout:*), Bash(git merge:*), Bash(git rebase:*), Bash(gh pr create:*), Bash(gh pr view:*), Bash(gh pr edit:*), Bash(ls:*), Bash(python ~/.claude/skills/shared/gate_pushed_tree.py:*), Bash(python3 ~/.claude/skills/shared/gate_pushed_tree.py:*), Bash(python ~/.claude/scripts/review_scope.py status), Bash(python3 ~/.claude/scripts/review_scope.py status), Read, Glob, Grep
 ---
 
 # Create PR for Plan-Based Changes

@@ -1,7 +1,7 @@
 ---
 name: release
 description: Tag a new version, push to trigger CI, monitor the build, and verify the GitHub release
-allowed-tools: AskUserQuestion, Read, Edit, Bash(git status --porcelain), Bash(git branch --show-current), Bash(git rev-parse *), Bash(git fetch origin *), Bash(git rev-list *), Bash(git describe --tags *), Bash(git log *), Bash(git tag *), Bash(git push origin *), Bash(git add *), Bash(git commit -S -m *), Bash(python ~/.claude/skills/shared/notify_peer_pull.py:*), Bash(python ~/.claude/skills/shared/gate_pushed_tree.py:*), Bash(python3 ~/.claude/skills/shared/gate_pushed_tree.py:*), Bash(gh run list *), Bash(gh run watch *), Bash(gh run view *), Bash(gh release view *), Bash(gh release edit *), Bash(gh release create *), Bash(gh repo view *), Bash(node -p *), Bash(sed *), Bash(ls *), Bash(test *), Bash(grep *)
+allowed-tools: AskUserQuestion, Read, Edit, Bash(git status --porcelain), Bash(git branch --show-current), Bash(git rev-parse *), Bash(git fetch origin *), Bash(git rev-list *), Bash(git describe --tags *), Bash(git log *), Bash(git tag *), Bash(git push origin *), Bash(git add *), Bash(git commit -S -m *), Bash(python ~/.claude/skills/shared/notify_peer_pull.py:*), Bash(python ~/.claude/skills/shared/gate_pushed_tree.py:*), Bash(python3 ~/.claude/skills/shared/gate_pushed_tree.py:*), Bash(python ~/.claude/scripts/review_scope.py status), Bash(python3 ~/.claude/scripts/review_scope.py status), Bash(gh run list *), Bash(gh run watch *), Bash(gh run view *), Bash(gh release view *), Bash(gh release edit *), Bash(gh release create *), Bash(gh repo view *), Bash(node -p *), Bash(sed *), Bash(ls *), Bash(test *), Bash(grep *)
 ---
 
 # Release
