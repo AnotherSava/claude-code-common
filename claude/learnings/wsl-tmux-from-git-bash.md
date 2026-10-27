@@ -8,6 +8,9 @@ Claude pane that drew at 80 columns inside a wide tmux pane.
 - **Set `MSYS_NO_PATHCONV=1`** on every `wsl -d <distro> -- …` call that names a Linux path.
   Without it Git Bash rewrites `/tmp/x.log` into a Windows temp path before wsl.exe sees it:
   `cat: 'C:/Users/…/AppData/Local/Temp/x.log': No such file or directory`.
+  Any argument with a leading slash is taken for a path, not only real ones: `tmux send-keys -l
+  /exit` typed `C:/Program Files/Git/exit` into a Claude Code composer (measured 2026-10-22), so
+  a keystroke meant to end a session was sent to the agent as a prompt instead.
 - **Do not pass shell variables through `wsl -- sh -c '…'` or `bash -c '…'`.** A loop variable
   arrived empty inside the inner shell even with the outer string single-quoted (`tmux set-hook
   -gu "$h"` → `ambiguous option:`; `capture-pane -t $s` → `-t expects an argument`). Write the

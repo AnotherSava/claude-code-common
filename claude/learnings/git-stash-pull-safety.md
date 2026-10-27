@@ -69,6 +69,14 @@ Verified 2026-09-11: seven dirty files against twenty-eight incoming, two of the
 only those two fast-forwarded cleanly, both popped back as a clean 3-way merge, and the other five were
 never touched.
 
+**A path-scoped stash still records the whole index, so `pop --index` can refuse.** With a staged
+deletion outside the pathspec still staged in the tree, the pop stops with `error: <path>: does not exist
+in index` / `conflicts in index. Try without --index.` and keeps the stash. Where every stashed path was
+an unstaged edit, a plain `git stash pop` loses nothing and is the fix; where a stashed path carried a
+deliberate staged state, unstage the outside entries first and restage them after. Measured 2026-10-23:
+eight unstaged files stashed by path beside three staged deletions; `--index` refused, the plain pop
+restored all eight.
+
 **A dirty file that is *generated* from another one should be discarded, not stashed.** Where the
 overlap includes a file some script rebuilds from a source also in the tree — a rendered index block, a
 lockfile, a compiled manifest — stashing it puts a machine-written file into a three-way merge for no
