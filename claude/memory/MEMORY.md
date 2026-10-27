@@ -271,3 +271,4 @@
 - [Survey a key for collisions](feedback_survey_key_uniqueness.md) — query stored data for values shared across records before matching on a field; ambiguity holds in every direction
 - [Wide tables go to an HTML page](feedback_wide_tables_as_html.md) — a findings/choice table too wide for the terminal is published as an HTML page with a Copy answer button
 - [Sort by what you show](feedback_sort_by_what_you_show.md) — a view that displays an override must order and pick "next" by it too; grep every comparator over the stored field
+- [Label example output](feedback_label_example_output.md) — illustrative output comes from the user's real data or says it is an example; a fixture's sentence shown bare reads as a finding
