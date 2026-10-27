@@ -17,6 +17,8 @@ Three moments act on it, and each belongs to a different caller:
 - `advance`, run by `/commit` after its commits, moves the bookmark to HEAD only when HEAD's tree is exactly the
   recorded one, so an edit made after the review leaves the bookmark where it was. `push` then publishes it.
 
+`status`, run at the end of every skill that pushes, reports where all of that stands and changes none of it.
+
 Between `mark` and `advance`, `/commit`'s change_scope.py reads the record through `polished_since` to skip the
 `/clean-code` and `/docs-relevance` passes the workflow already ran. `snapshot` and `revert` serve the workflow's
 polish phase, which takes back what it cannot keep.
@@ -279,9 +281,43 @@ def push(repo: str) -> str:
     return f"pushed: {REF} -> {bookmark[:12]}"
 
 
+def status(repo: str) -> str:
+    """One line for the end of every report that pushes: where the bookmark stands locally and on origin, how many
+    commits on HEAD the next review covers, and whether a recorded review is still waiting. It reads origin with
+    `ls-remote` and changes nothing, so it can follow a failed `advance` or `push` without disturbing either."""
+    local = _resolve(repo, REF)
+    parts = [f"local {local[:12] if local else 'none'}"]
+    if not _has_remote(repo):
+        parts.append("no origin remote")
+    else:
+        try:
+            listed = _git(repo, "ls-remote", REMOTE, REF, timeout=NETWORK_TIMEOUT)
+            remote = listed.stdout.split()[0] if listed.returncode == 0 and listed.stdout.strip() else None
+            reading = None if listed.returncode == 0 else f"origin unreadable: {listed.stderr.strip()}"
+        except subprocess.TimeoutExpired:
+            remote, reading = None, f"origin unreadable: `git ls-remote {REMOTE}` timed out"
+        if reading:
+            parts.append(reading)
+        else:
+            parts.append(f"origin {remote[:12] if remote else 'none'} ({'agree' if remote == local else 'differ'})")
+    head = _resolve(repo, "HEAD")
+    if local is None:
+        parts.append("no bookmark, so the next review starts from HEAD")
+    elif head and _is_ancestor(repo, local, head):
+        count = _git(repo, "rev-list", "--count", f"{local}..{head}").stdout.strip()
+        parts.append(f"{count} commit(s) on HEAD past it, which the next review covers")
+    else:
+        parts.append("HEAD does not descend from it, so the next review has no base to record")
+    record = _read_record(repo)
+    if record:
+        matches = head and _git(repo, "rev-parse", "HEAD^{tree}").stdout.strip() == record["tree"]
+        parts.append("a recorded review matches HEAD and awaits `advance`" if matches else f"a recorded review covers tree {record['tree'][:12]}, which HEAD does not hold")
+    return "review bookmark: " + " · ".join(parts)
+
+
 def main() -> int:
     parser = argparse.ArgumentParser(description=__doc__.splitlines()[0])
-    parser.add_argument("command", choices=["scope", "mark", "advance", "push", "snapshot", "revert"])
+    parser.add_argument("command", choices=["scope", "mark", "advance", "push", "status", "snapshot", "revert"])
     parser.add_argument("--repo", default=".")
     parser.add_argument("--base")
     parser.add_argument("--tree")
@@ -309,6 +345,8 @@ def main() -> int:
             print(revert(repo, opts.tree, opts.paths))
         elif opts.command == "advance":
             print(advance(repo))
+        elif opts.command == "status":
+            print(status(repo))
         else:
             print(push(repo))
     except (RuntimeError, OSError, subprocess.SubprocessError, ValueError, KeyError) as error:

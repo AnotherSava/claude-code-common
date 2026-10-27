@@ -84,6 +84,7 @@ def main() -> int:
         first = commit(a, "app.txt", "one\n")
         sh(a, "push", "-q", "-u", "origin", "main")
 
+        check("status with no bookmark anywhere", review_scope.status(a), "review bookmark: local none · origin none (agree) · no bookmark, so the next review starts from HEAD")
         found = review_scope.plan(a)
         check("with no bookmark anywhere the base is HEAD", (found["base"], found["commits"], found["problem"]), (first, [], None))
         check("and nothing is added to the scope", review_scope.scope_text(found), "")
@@ -110,22 +111,26 @@ def main() -> int:
         sh(a, "add", "app.txt")
         sh(a, "commit", "-qm", "partial")
         check("a commit leaving out a reviewed file does not advance", review_scope.advance(a).startswith("not advanced: HEAD's tree differs"), True)
+        check("status names the waiting review HEAD does not hold", "a recorded review covers tree" in review_scope.status(a), True)
         sh(a, "add", "new.txt")
         sh(a, "commit", "-qm", "rest")
         reviewed = sh(a, "rev-parse", "HEAD")
         check("committing exactly the reviewed tree, untracked file included, advances", review_scope.advance(a), f"advanced: {review_scope.REF} -> {reviewed[:12]}")
         check("and consumes the record", review_scope.advance(a), "not advanced: no completed review is recorded")
+        check("status before the bookmark is pushed", review_scope.status(a), f"review bookmark: local {reviewed[:12]} · origin none (differ) · 0 commit(s) on HEAD past it, which the next review covers")
 
         check("the bookmark is not pushed before its commit is", review_scope.push(a), "not pushed: the bookmarked commit is not on any remote branch yet")
         sh(a, "push", "-q")
         check("once the commit is on origin it is", review_scope.push(a), f"pushed: {review_scope.REF} -> {reviewed[:12]}")
         check("a second push is a no-op", review_scope.push(a), "up to date")
+        check("status once both agree", review_scope.status(a), f"review bookmark: local {reviewed[:12]} · origin {reviewed[:12]} (agree) · 0 commit(s) on HEAD past it, which the next review covers")
 
         write(a, "app.txt", "three\n")
         review(a)
         write(a, "app.txt", "three, edited after the review\n")
         sh(a, "commit", "-qam", "edited")
         check("an edit made after the review keeps the bookmark back", (review_scope.advance(a).startswith("not advanced"), bookmark(a)), (True, reviewed))
+        check("status counts the commit the next review covers", "· 1 commit(s) on HEAD past it" in review_scope.status(a), True)
         sh(a, "push", "-q")
 
         # The other machine: it has never seen the bookmark, pushes two commits with no review, and its next review

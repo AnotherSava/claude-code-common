@@ -26,6 +26,9 @@ What is asserted, both ways:
   exemptions             each one names a real skill and is still needed — an exempt skill that
                          has since gained the call fails, so the list cannot rot into prose
   the script             the path every caller spells actually exists
+  bookmark state         every skill the clear condition names, exempt or not, ends its report with
+                         `review_scope.py status`, since a push is where the review bookmark is
+                         published or fails to be, and a failure line printed mid-report is missed
 
 A clear condition this file cannot parse stops the run rather than reporting a pass. A check that
 reads nothing and prints success is the failure it exists to prevent.
@@ -50,6 +53,7 @@ CALL = "notify_peer_pull.py"
 # work, and a skill's own allowed-tools line grants the command without any step calling it. Matching
 # either would count a document that mentions the notice as one that sends it.
 INVOCATION = "python ~/.claude/skills/shared/notify_peer_pull.py"
+STATUS = "python ~/.claude/scripts/review_scope.py status"
 RULE_MARKER = "Push to GitHub"
 CLAUSE_MARKER = "a user turn invoking"
 SKILL_RE = re.compile(r"`/([a-z0-9-]+)`")
@@ -141,6 +145,9 @@ def main() -> int:
         except Unreadable as exc:
             fail(str(exc))
             continue
+        if STATUS not in body:
+            fail(f"the push rule clears /{name} to push, and its SKILL.md never runs `{STATUS}`, so its report "
+                 "never says whether the review bookmark moved")
         if name in EXEMPT:
             if INVOCATION in body:
                 fail(f"/{name} is exempt because {EXEMPT[name]} — and its SKILL.md now calls {CALL}, "
@@ -164,7 +171,7 @@ def main() -> int:
         print()
         return 1
     print(f"push notifies peer: {len(authorized)} authorized skill(s), {len(EXEMPT)} exempt — "
-          f"every other one calls {CALL}")
+          f"every other one calls {CALL}, and all of them report the bookmark")
     return 0
 
 
