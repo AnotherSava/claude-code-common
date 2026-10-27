@@ -1,16 +1,19 @@
 #!/bin/sh
-# Attaches the tmux session for one project, creating it first if it is not running yet.
+# Attaches the tmux session for one project, creating it first if it is not running yet, or with
+# `detach` only creates it.
 #
 # The session runs the NATIVE Windows claude.exe, not the WSL one. WSL only holds the pty: a Windows
 # child launched from a /mnt/d working directory reports a real `D:\...` cwd, so native toolchains
 # and the interactive desktop both work. Starting it from an ext4 directory instead gets the
 # cmd.exe "UNC paths are not supported" failure.
 #
-# Usage: cc-session.sh <project> <origin> [<start|resume> [check]]
+# Usage: cc-session.sh <project> <origin> [<start|resume> [check|detach]]
 #
-# <project> is a directory name under WSL_PROJECT_ROOT. <origin> names the machine whose keyboard
-# the person is at — `windows` from this box, `mac` from the other one — and both callers pass it as
-# a bare token, which is the only thing that survives the Windows sshd's cmd.exe.
+# <project> is a directory name under WSL_PROJECT_ROOT, or the project's Windows path (`D:\...`),
+# which must lie under it; the Claude Code Dashboard passes the path, being the one caller that knows
+# a directory and not the root it sits in. <origin> names the machine whose keyboard the person is
+# at — `windows` from this box, `mac` from the other one — and both attaching callers pass it as a
+# bare token, which is the only thing that survives the Windows sshd's cmd.exe.
 #
 # The third word says whether a person asked for this session just now. `start` is a pick, a
 # cmd+shift+r or attach.cmd, and creates whatever is missing. `resume` is the Mac tab reconnecting,
@@ -24,6 +27,13 @@
 # 0 for remote exits 1, 2, 4 and 7, for plain cmd.exe as well as through wsl, while the same commands
 # without a terminal returned each code intact. The attach needs a terminal, so mac/attach.sh asks
 # this question first over an ssh without one, and reads every code below from that run alone.
+#
+# A trailing `detach` instead creates the session and stops before attaching, exiting 0 whether it
+# created one or found one running, and prints the project as an attach takes it: the path below
+# WSL_PROJECT_ROOT, which is what mac/attach.sh and this script's first word expect. It is the
+# Windows dashboard's launcher: a message to a project with no session starts one nobody has
+# opened a terminal for, and an attach with no terminal fails after the session already exists.
+# The origin is then recorded nowhere, there being no client.
 #
 # The exit codes: 2 usage, 1 no such project directory, 4 the holder is down, 5 the session was
 # ended on purpose. A failing `tmux attach-session` also exits 1, its status being this script's
@@ -50,13 +60,30 @@ case $mode in
 esac
 check=${4:-}
 case $check in
-    ''|check) ;;
+    ''|check|detach) ;;
     *) mode= ;;
 esac
 if [ -z "$project" ] || [ -z "$origin" ] || [ -z "$mode" ]; then
-    echo "usage: cc-session.sh <project> <origin> [<start|resume> [check]]" >&2
+    echo "usage: cc-session.sh <project> <origin> [<start|resume> [check|detach]]" >&2
     exit 2
 fi
+
+# A Windows path is translated and must sit under the root, since the session name is derived from
+# the part below it, as start-here.sh derives it, and a path elsewhere would name it by its basename
+# alone and collide with a project of that name under the root.
+case $project in
+    [A-Za-z]:\\*|[A-Za-z]:/*)
+        windows_path=$project
+        project=$(wslpath -u "$windows_path")
+        case $project in
+            "$WSL_PROJECT_ROOT"/*) project=$(remote_session_relative "$project") ;;
+            *)
+                printf 'cc-session: %s is not under %s\n' "$windows_path" "$WSL_PROJECT_ROOT" >&2
+                exit 1
+                ;;
+        esac
+        ;;
+esac
 
 # Recorded in the environment of the tmux client this script attaches, where start-here.sh reads it
 # back to decide whether a terminal on ITS machine is already attached. Demanded rather than
@@ -91,7 +118,7 @@ if [ "$mode" = resume ] && ! tmux has-session -t "$session" 2>/dev/null && [ -e 
     echo "cc-session: $name was ended on purpose, so it is not started again." >&2
     exit 5
 fi
-[ -z "$check" ] || exit 0
+[ "$check" != check ] || exit 0
 
 remote_session_clear_dead "$name" cc-session
 
@@ -100,6 +127,10 @@ remote_session_clear_dead "$name" cc-session
 # terminal, keeps a session started that way from being laid out at tmux's 80x24.
 if ! tmux has-session -t "$session" 2>/dev/null; then
     remote_session_create "$name" "$directory" "$(remote_session_resume_command "$CLAUDE_EXE")" 200 50
+fi
+if [ "$check" = detach ]; then
+    printf '%s\n' "$project"
+    exit 0
 fi
 
 remote_session_attach "$name" "$origin"

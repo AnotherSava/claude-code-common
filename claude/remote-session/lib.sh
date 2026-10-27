@@ -150,8 +150,9 @@ remote_session_clear_dead() {
 # The tmux session name for a project path, given as a path relative to WSL_PROJECT_ROOT.
 #
 # One function because two scripts derive it and they must agree: cc-session.sh is handed a project
-# by the picker, start-here.sh works it out from the directory the shell is standing in, and a name
-# that came out differently would leave the second script's session unreachable by the first.
+# by the picker, or by the Windows dashboard as a Windows path it reduces to the part below
+# WSL_PROJECT_ROOT; start-here.sh works it out from the directory the shell is standing in, and a
+# name that came out differently would leave the second script's session unreachable by the first.
 #
 # The whole relative path goes into the name, not just its last component. `claude` run in two
 # projects' `docs` subdirectories would otherwise ask for the same session, and since a second run

@@ -321,7 +321,10 @@ Every piece below exists because something simpler was measured not to work; the
 - **`windows/run-hidden.py`** launches the holder with no console window, and logs what it otherwise
   could not report.
 - **`wsl/cc-session.sh`** creates or attaches one project's session, running the native `claude.exe`
-  from a `/mnt/d` working directory so the Windows child gets a real `D:\...` path.
+  from a `/mnt/d` working directory so the Windows child gets a real `D:\...` path. With a trailing
+  `detach` it creates the session and stops before attaching, which is how the Windows dashboard
+  starts a session for a project it has a message for and nothing running in; that caller names the
+  project by its Windows path, which must lie under `WSL_PROJECT_ROOT`.
 - **`wsl/start-here.sh`** is what the Windows machine's `claude` function runs. It does the same for
   whatever directory you are standing in, which is what makes every session started there
   attachable. Every shell on that machine calls it and nothing else, so no profile carries behaviour
