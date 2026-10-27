@@ -466,6 +466,35 @@ def main(argv: list[str]) -> int:
         badge = "on" if f["dot"] in ("recaptured", "new", "border", "dropped") else "off"
         fresh = ' <span class="badge fresh">updated this pass</span>' if fid in marked else ""
         body = [f'<h2>{i}. {html.escape(fid)} <span class="badge {badge}">{html.escape(verdict(f))}</span>{fresh}</h2>']
+        cls = lambda c: f' class="{c}"' if c else ""
+        # Read in the order a reviewer decides in: the pictures, side by side
+        # where they fit; then what changed and why; then the corner crops that
+        # prove the edge; then everything else about the entry.
+        for x in f["files"]:
+            parts = [html.escape(x["name"]), html.escape(summary(x))]
+            if len(x["stages"]) > 1:
+                parts.append(" → ".join(f"{html.escape(l)} {im.width} × {im.height}" for l, _, im in x["stages"]))
+            if len(f["files"]) > 1 and x["kind"] in ("recaptured", "border"):
+                parts.append(html.escape(VERDICTS[x["kind"]]))
+            if x["framing"]:
+                parts.append(x["framing"])
+            if len(f["files"]) > 1 and x["name"] in marked_files:
+                parts.append("updated this pass")
+            body.append('<p class="meta">' + " · ".join(parts) + '</p>')
+            if x["stages"]:
+                body.append('<div class="pair">' + "".join(f'<figure{cls(c)}><figcaption>{html.escape(l)}</figcaption><img src="data:image/png;base64,{b64(im)}"></figure>' for l, c, im in x["stages"]) + '</div>')
+        if note.get("proof"):
+            body += [f'<p class="proof">{p}</p>' for p in note["proof"]]
+        else:
+            what = ("File missing; whether it was dropped on purpose is not recorded." if f["orphan"]
+                    else "Left alone; the reason is not recorded." if f["dot"] == "alone" else "No staleness proof recorded.")
+            body.append(f'<p class="proof"><b>{what}</b></p>')
+            print(f"contact-sheet: frame {i} ({fid}) has no proof in the notes", file=sys.stderr)
+        for x in f["files"]:
+            if not x["stages"]:
+                continue
+            body.append(f'<p class="proof">{html.escape(x["name"])}: all four corners at 6× nearest-neighbour, laid out as they sit in the frame.</p>')
+            body.append('<div class="pair">' + "".join(f'<figure{cls(c)}><figcaption>{html.escape(l)}, four corners at 6×</figcaption><img class="px" src="data:image/png;base64,{corners(im)}"></figure>' for l, c, im in x["stages"]) + '</div>')
         if e.get("shows"):
             body.append(f'<p class="proof"><b>Shows.</b> {html.escape(e["shows"])}</p>')
         missing = {repo.rel(shots / x["name"]) for x in f["files"] if x["kind"] == "orphan"} | {repo.rel(shots / n) for n in f["dropped"]}
@@ -482,13 +511,6 @@ def main(argv: list[str]) -> int:
             standard = "its claim, not its literals (impressionistic)" if e.get("precision") == "impressionistic" else "its literals"
         if standard:
             body.append(f'<p class="proof"><b>Judged by.</b> {html.escape(standard)}</p>')
-        if note.get("proof"):
-            body += [f'<p class="proof">{p}</p>' for p in note["proof"]]
-        else:
-            what = ("File missing; whether it was dropped on purpose is not recorded." if f["orphan"]
-                    else "Left alone; the reason is not recorded." if f["dot"] == "alone" else "No staleness proof recorded.")
-            body.append(f'<p class="proof"><b>{what}</b></p>')
-            print(f"contact-sheet: frame {i} ({fid}) has no proof in the notes", file=sys.stderr)
         capture = e.get("capture", {})
         if capture.get("command") or capture.get("steps"):
             body.append('<p class="proof"><b>How it is captured.</b>' + (f' <code>{html.escape(capture["command"])}</code>' if capture.get("command") else "") + '</p>')
@@ -501,23 +523,6 @@ def main(argv: list[str]) -> int:
             print(f"contact-sheet: frame {i} ({fid}) records no way to re-capture it", file=sys.stderr)
         for n in f["dropped"]:
             body.append(f'<p class="meta">{html.escape(n)} · dropped from this entry since {html.escape(repo.base_name)}' + (" · still on disk" if (shots / n).exists() else " · deleted") + '</p>')
-        for x in f["files"]:
-            parts = [html.escape(x["name"]), html.escape(summary(x))]
-            if len(x["stages"]) > 1:
-                parts.append(" → ".join(f"{html.escape(l)} {im.width} × {im.height}" for l, _, im in x["stages"]))
-            if len(f["files"]) > 1 and x["kind"] in ("recaptured", "border"):
-                parts.append(html.escape(VERDICTS[x["kind"]]))
-            if x["framing"]:
-                parts.append(x["framing"])
-            if len(f["files"]) > 1 and x["name"] in marked_files:
-                parts.append("updated this pass")
-            body.append('<p class="meta">' + " · ".join(parts) + '</p>')
-            if not x["stages"]:
-                continue
-            cls = lambda c: f' class="{c}"' if c else ""
-            body.append('<p class="proof">All four corners at 6× nearest-neighbour, laid out as they sit in the frame.</p>')
-            body.append('<div class="pair">' + "".join(f'<figure{cls(c)}><figcaption>{html.escape(l)}, four corners at 6×</figcaption><img class="px" src="data:image/png;base64,{corners(im)}"></figure>' for l, c, im in x["stages"]) + '</div>')
-            body += [f'<figure{cls(c)}><figcaption>{html.escape(l)}</figcaption><img src="data:image/png;base64,{b64(im)}"></figure>' for l, c, im in x["stages"]]
         sections.append(f'<section id="s{i}">\n  ' + "\n  ".join(body) + '\n</section>')
     for i, g in enumerate(gaps, 1):
         body = [f'<h2>G{i}. {html.escape(gap_label(g))} <span class="badge off">{gap_status(g)}</span></h2>']
