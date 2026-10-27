@@ -21,15 +21,8 @@ workflow's own triage is only the pre-ticked recommendation.
 
 ## Steps
 
-1. **Build the workflow's args from the conversation.**
-   - `scope`: what to review, by default "the uncommitted diff in <repo>". The review scope hook adds the commits
-     pushed since the last review, so do not list them.
-   - `lenses`: one `{key, prompt}` per concern the user named or the change plainly needs.
-   - `context`: every decision the user has settled about this change, and every finding an earlier round dropped
-     or the user declined, each with its reason, so neither is reported again as new.
-   - `gate`: the command that actually gates a commit here — `bash .claude/commit-checks.sh` when **Commit gate
-     script** is `PRESENT`, otherwise the project's own build, lint and test scripts.
-   - `fix: false`, and `repo` when the repo is not the working directory.
+1. **Build the workflow's args from the conversation** as `~/.claude/skills/shared/review-auto-args.md` describes,
+   with `fix: false`. **Commit gate script** in Context says whether `.claude/commit-checks.sh` is the gate.
 2. **Run** `Workflow({name: "review-auto", args})` and wait for its completion notification.
 3. **Present the triage** as the workflow's returned `note` says.
 4. **Write the picker's rows** to `tmp/review-findings.json` when **Scratch file ignored** is `IGNORED`; otherwise
