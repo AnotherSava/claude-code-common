@@ -19,13 +19,18 @@ function check(label, got, want) {
   if (a !== b) failures.push(`  FAIL ${label}: got ${a}, want ${b}`)
 }
 
-// The runtime's own semantics, reduced: pipeline runs each item through its stages with no barrier and drops an item
-// whose stage throws to null; parallel resolves a throwing thunk to null and never rejects.
+// The runtime's own semantics, reduced: pipeline runs each item through its stages with no barrier, drops an item whose
+// stage throws to null, and runs no later stage for an item whose stage returned null (a tripit run on 2026-10-28 had
+// two reviewers die and neither reach the stage that would have listed it silent); parallel resolves a throwing thunk
+// to null and never rejects.
 async function pipeline(items, ...stages) {
   return Promise.all(items.map(async (item, index) => {
     try {
       let value = item
-      for (const stage of stages) value = await stage(value, item, index)
+      for (const stage of stages) {
+        value = await stage(value, item, index)
+        if (value == null) return null
+      }
       return value
     } catch { return null }
   }))
@@ -56,6 +61,7 @@ async function run(args, reviews, verdicts, { fixer, reviewer, verifier, polish 
   const calls = []
   async function agent(prompt, opts) {
     calls.push({ prompt, ...opts })
+    opts = { ...opts, label: opts.label.replace(/:retry$/, '') }
     const round = opts.label.endsWith(':polish') ? 'polish' : Number((opts.label.match(/:r(\d+)$/) || [])[1])
     if (opts.phase === 'Polish') {
       const step = opts.label.slice('polish:'.length)
@@ -241,6 +247,17 @@ async function silentLensIsReported() {
     check(`and the round does not call itself clean (reviewer ${label})`, result.stop_reason, 'round 1 found nothing that earns code among what ran; the b lens returned nothing')
     check(`and the log names it (reviewer ${label})`, logs.some(l => l.includes('the b reviewer returned nothing')), true)
   }
+
+  const BOOKMARKED = { ...ARGS, lenses, review_bookmark: BOOKMARK }
+  const dead = await run(BOOKMARKED, { 1: [] }, {}, { reviewer: lens => lens === 'b' ? null : undefined })
+  check('a dead reviewer in a round that found nothing still makes it a gap', dead.result.stop_reason, 'round 1 found nothing that earns code among what ran; the b lens returned nothing')
+  check('so the bookmark is not recorded', dead.result.bookmark.detail, 'not recorded: a lens returned nothing')
+  check('and the polish does not run', dead.calls.some(c => c.phase === 'Polish'), false)
+
+  let drops = 0
+  const once = await run(BOOKMARKED, { 1: [] }, {}, { reviewer: lens => lens === 'b' && !drops++ ? null : undefined })
+  check('a reviewer that dies once is retried', once.calls.filter(c => c.label === 'review:b:r1:retry').length, 1)
+  check('and a retry that answers leaves no silent lens', once.result.silent_lenses, [])
 }
 
 // What the review-scope hook passes. The workflow only ever reads it, so any strings do.

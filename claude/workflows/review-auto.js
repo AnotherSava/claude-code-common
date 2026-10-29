@@ -143,6 +143,16 @@ async function call(prompt, opts) {
   }
 }
 
+// Reviewers and verifiers only, since both are read-only: a second fixer or polish pass over edits its dead first try
+// may already have made would apply them twice. One retry covers the transient drops (a lost connection, a machine
+// asleep), and it also re-runs a call the user skipped, which agent() reports with the same null.
+async function readOnlyCall(prompt, opts) {
+  const first = await call(prompt, opts)
+  if (first) return first
+  log(`${opts.label} returned nothing; retrying it once`)
+  return call(prompt, { ...opts, label: `${opts.label}:retry` })
+}
+
 // Later rounds see every earlier finding with its outcome, not only the fixes: a reviewer told only what was fixed
 // re-finds the dropped and rare cases in new words, and a fresh skeptic can rate them up into code.
 function reviewPrompt(lens, round, earlier, scope) {
@@ -202,22 +212,23 @@ async function reviewRound({ round, tag, scope, earlier, seen, reviewPhase, veri
   const silent = []
   const rows = (await pipeline(
     args.lenses,
-    lens => call(reviewPrompt(lens, round, earlier, scope), { label: `review:${lens.key}:${tag}`, phase: reviewPhase, schema: FINDINGS }),
-    (review, lens) => {
-      if (!review) {
-        silent.push(lens.key)
-        log(`${tag}: the ${lens.key} reviewer returned nothing, so that lens went unreviewed`)
-        return []
-      }
-      return parallel((review.findings || [])
-        .map(f => ({ f, key: `${f.file}::${f.summary}` }))
-        .filter(({ key }) => { if (seen.has(key)) return false; seen.add(key); return true })
-        .map(({ f, key }) => () => call(verifyPrompt(f, lens, scope), { label: `verify:${lens.key}:${tag}`, phase: verifyPhase, schema: VERDICT })
-          .then(v => {
-            if (!v) seen.delete(key)
-            return { ...f, lens: lens.key, round: tag, verdict: v, disposition: triage(v) }
-          })))
+    // The silent lens is recorded here rather than in the next stage: the runtime does not run a later stage for an item
+    // whose stage returned null, so a check there never sees a dead reviewer and the round reads as clean.
+    async lens => {
+      const review = await readOnlyCall(reviewPrompt(lens, round, earlier, scope), { label: `review:${lens.key}:${tag}`, phase: reviewPhase, schema: FINDINGS })
+      if (review) return review
+      silent.push(lens.key)
+      log(`${tag}: the ${lens.key} reviewer returned nothing, so that lens went unreviewed`)
+      return { findings: [] }
     },
+    (review, lens) => parallel((review.findings || [])
+      .map(f => ({ f, key: `${f.file}::${f.summary}` }))
+      .filter(({ key }) => { if (seen.has(key)) return false; seen.add(key); return true })
+      .map(({ f, key }) => () => readOnlyCall(verifyPrompt(f, lens, scope), { label: `verify:${lens.key}:${tag}`, phase: verifyPhase, schema: VERDICT })
+        .then(v => {
+          if (!v) seen.delete(key)
+          return { ...f, lens: lens.key, round: tag, verdict: v, disposition: triage(v) }
+        }))),
   )).flat().filter(Boolean)
   rows.forEach((r, i) => { r.id = `${tag}-${i + 1}` })
   return { rows, silent }
