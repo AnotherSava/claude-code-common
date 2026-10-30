@@ -251,10 +251,12 @@ remote_session_attach() {
     return "$remote_session_attach_status"
 }
 
-# The path of a directory relative to WSL_PROJECT_ROOT, or its basename when it lies outside.
+# The path of a directory relative to WSL_PROJECT_ROOT; fails, printing nothing, when it lies outside.
+# The one containment test: each caller decides what a directory outside the root gets, since
+# start-here.sh names its session after the basename and cc-session.sh refuses it.
 remote_session_relative() {
     case "$1" in
         "$WSL_PROJECT_ROOT"/*) printf '%s' "${1#"$WSL_PROJECT_ROOT"/}" ;;
-        *) printf '%s' "${1##*/}" ;;
+        *) return 1 ;;
     esac
 }

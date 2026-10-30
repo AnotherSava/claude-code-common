@@ -74,14 +74,10 @@ fi
 case $project in
     [A-Za-z]:\\*|[A-Za-z]:/*)
         windows_path=$project
-        project=$(wslpath -u "$windows_path")
-        case $project in
-            "$WSL_PROJECT_ROOT"/*) project=$(remote_session_relative "$project") ;;
-            *)
-                printf 'cc-session: %s is not under %s\n' "$windows_path" "$WSL_PROJECT_ROOT" >&2
-                exit 1
-                ;;
-        esac
+        if ! project=$(remote_session_relative "$(wslpath -u "$windows_path")"); then
+            printf 'cc-session: %s is not under %s\n' "$windows_path" "$WSL_PROJECT_ROOT" >&2
+            exit 1
+        fi
         ;;
 esac
 

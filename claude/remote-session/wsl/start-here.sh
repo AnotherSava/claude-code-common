@@ -70,7 +70,7 @@ if ! remote_session_holder_up; then
     exec sh -c "$inner"
 fi
 
-relative=$(remote_session_relative "$PWD")
+relative=$(remote_session_relative "$PWD") || relative=${PWD##*/}
 session=$(remote_session_name "$relative")
 
 remote_session_clear_dead "$session" claude
