@@ -9,7 +9,7 @@ description: >-
   DO NOT TRIGGER when: the user says "deploy", "ship", "redeploy" or similar in passing — publishing to production
   is deliberate and must be named; when the task is tagging a version or cutting a GitHub Release (that is
   `release`); or when the project publishes from CI only (see §1).
-allowed-tools: Bash(bash ~/.claude/skills/publish/scripts/publish-ssh-compose.sh), Bash(bash scripts/publish.sh), Bash(publish), Bash(git status:*), Bash(git log:*), Bash(git rev-parse:*), Bash(git check-attr:*), Bash(git config:*), Bash(ssh:*), Bash(grep:*), Bash(test:*), Read, Write(config/publish.env), Write(scripts/publish.sh), Edit(~/.gitignore), AskUserQuestion
+allowed-tools: Bash(bash ~/.claude/skills/publish/scripts/publish-ssh-compose.sh), Bash(bash ~/.claude/skills/publish/scripts/await-publish.sh), Bash(bash scripts/publish.sh), Bash(publish), Bash(git status:*), Bash(git log:*), Bash(git rev-parse:*), Bash(git check-attr:*), Bash(git config:*), Bash(ssh:*), Bash(grep:*), Bash(test:*), Read, Write(config/publish.env), Write(scripts/publish.sh), Edit(~/.gitignore), AskUserQuestion
 ---
 
 # Publish
@@ -275,6 +275,15 @@ The script's own steps are documented in its header. What matters here is what i
 
 Report the result plainly, including a failure — never describe a publish as done on the strength of a green
 build.
+
+Every run writes its full output to `<repo>/tmp/publish.log`, overwritten each time, and ends it with a
+`PUBLISH-EXIT=<status>` line. When the permission mode refuses to let you publish, hand it to the user without
+making them report back:
+
+1. Start `bash ~/.claude/skills/publish/scripts/await-publish.sh` as a background command. It exits when a publish
+   started after it finishes, with that publish's status, so its exit is what gives you the turn to report.
+2. Put `! publish` on the clipboard, per `feedback_route_output_not_paste`, and ask the user to run it.
+3. When the waiter exits, read `tmp/publish.log` and report the result.
 
 ## Authorization
 

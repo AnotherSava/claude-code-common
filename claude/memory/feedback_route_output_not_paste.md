@@ -32,6 +32,10 @@ run to the clipboard?" Showing it stays — the fence is what they read — but 
   `2>&1` matters — the diagnostic half of these commands goes to stderr.
 - `tmp/` because file tools refuse reads outside the working directories, per
   [[feedback_scratch_lives_in_project_tmp]]. `$TEMP` is a file I can write and never open.
+- **Start a background wait for the result before handing the command over**, so its completion wakes me: the
+  user's `!` run gives me no turn, a background command of mine exiting does. Wait on the log file for a line that
+  only a finished run writes (`publish` has `skills/publish/scripts/await-publish.sh`), never on a fixed sleep. Asked
+  2026-10-30: "why do i need to ping you after deployment is done - can you automate this too?"
 - When the command genuinely cannot tee (a GUI toggle, a dashboard click), do not ask for a
   transcript of it — go and measure the resulting state myself afterwards.
 - Copying the *output* back to me via the clipboard is the fallback for when no shared filesystem

@@ -869,3 +869,18 @@ decodes UTF-8 — stores `U+FFFD`: the name read back as `Silo � Season 3` wit
 (measured 2026-10-04 against qBittorrent's `torrents/rename`). The same call from Python with
 `urllib.parse.urlencode(..., encoding="utf-8")` stored `—` correctly. Read the value back with `ascii()` or a
 hex dump to check, since the console prints a mangled character and a correct one in ways that are easy to confuse.
+
+## `[ a -nt b ]` is true when `b` is missing, so a shared marker file lets a stale file through
+
+**Give each waiter its own marker (`marker.$$`), never one fixed path.** Testing "has this file changed since I
+started" by touching a marker and then checking `[ "$LOG" -nt "$MARKER" ]` works for one waiter. `test` treats a
+missing right-hand file as older than any file that exists. So when two waiters share one marker path and the
+first one's `trap 'rm -f "$MARKER"' EXIT` deletes it, the second one accepts the old log at once. Found by
+reading a publish waiter on 2026-10-30, not by watching it fail. The `$$` version was measured in Git Bash: a
+stale log gave 124, a 4-second waiter beside a 30-second one gave 124, and the long one then returned the fresh
+log's status.
+
+The marker exists because `date -r "$FILE" +%s` is not portable to every BSD `date`, some of which read `-r` only as
+seconds since the epoch. On macOS 27 it does accept a file. `-nt` with a missing right-hand file came back true
+in both Git Bash and the Mac's `/bin/bash` 3.2, measured 2026-10-30; the Mac's login shell, zsh, returned false,
+so run the check under bash.

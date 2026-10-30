@@ -41,6 +41,13 @@ set -uo pipefail
 source "$(dirname "${BASH_SOURCE[0]}")/../../shared/repo-root.sh"
 REPO_DIR="$(resolve_repo_dir config/publish.env)"
 ENV_PATH="$REPO_DIR/config/publish.env"
+# Every run also lands in <repo>/tmp/publish.log (tmp/ is in the global excludes), overwritten each time. A publish
+# is often run by the user through `!publish` because the agent may not deploy to production itself; the agent
+# then reads the outcome from this file instead of asking for a paste. The script's exit status is unaffected.
+mkdir -p "$REPO_DIR/tmp"
+exec > >(tee "$REPO_DIR/tmp/publish.log") 2>&1
+# The last line of every run, success or failure, so await-publish.sh can tell a finished run from one in progress.
+trap 'echo "PUBLISH-EXIT=$?"' EXIT
 if [ ! -f "$ENV_PATH" ]; then
     echo "ERROR: no config/publish.env found (looked upward from $PWD, settled on $REPO_DIR)."
     echo "       Run the publish skill to write one, or check you are inside the right repo."
