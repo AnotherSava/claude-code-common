@@ -39,17 +39,19 @@
 set -uo pipefail
 
 source "$(dirname "${BASH_SOURCE[0]}")/../../shared/repo-root.sh"
+source "$(dirname "${BASH_SOURCE[0]}")/publish-log.sh"
 REPO_DIR="$(resolve_repo_dir config/publish.env)"
 ENV_PATH="$REPO_DIR/config/publish.env"
-# Every run also lands in <repo>/tmp/publish.log (tmp/ is in the global excludes), overwritten each time. A publish
-# is often run by the user through `!publish` because the agent may not deploy to production itself; the agent
-# then reads the outcome from this file instead of asking for a paste. The script's exit status is unaffected.
-mkdir -p "$REPO_DIR/tmp"
-exec > >(tee "$REPO_DIR/tmp/publish.log") 2>&1
+# Every run also lands in the publish log (publish_log_path). A publish is often run by the user through `!publish`
+# because the agent may not deploy to production itself; the agent then reads the outcome from this file instead of
+# asking for a paste. The script's exit status is unaffected.
+PUBLISH_LOG="$(publish_log_path "$REPO_DIR")"
+mkdir -p "$(dirname "$PUBLISH_LOG")"
+exec > >(tee "$PUBLISH_LOG") 2>&1
 # The last line of every run, success or failure, so await-publish.sh can tell a finished run from one in progress.
-trap 'echo "PUBLISH-EXIT=$?"' EXIT
+trap 'publish_exit_line "$?"' EXIT
 if [ ! -f "$ENV_PATH" ]; then
-    echo "ERROR: no config/publish.env found (looked upward from $PWD, settled on $REPO_DIR)."
+    publish_error "no config/publish.env found (looked upward from $PWD, settled on $REPO_DIR)."
     echo "       Run the publish skill to write one, or check you are inside the right repo."
     exit 1
 fi
@@ -69,7 +71,7 @@ for k in SSH_HOST REMOTE_REPO COMPOSE_DIR APP_CONTAINER VERIFY_URL; do
     [ -n "${!k}" ] || MISSING="$MISSING $k"
 done
 if [ -n "$MISSING" ]; then
-    echo "ERROR: config/publish.env is missing:$MISSING"
+    publish_error "config/publish.env is missing:$MISSING"
     exit 1
 fi
 
@@ -116,10 +118,10 @@ if [ -n "$PORCELAIN" ] || [ "$LOCAL" != "$REMOTE" ]; then
     if [ "$ALLOW_DIRTY" != "1" ]; then
         # Two different failures, and the fix differs, so they are reported apart rather than as one message.
         if [ -n "$PORCELAIN" ]; then
-            echo "ERROR: uncommitted changes. Publish ships commits, not a working tree."
+            publish_error "uncommitted changes. Publish ships commits, not a working tree."
             git status --short
         else
-            echo "ERROR: HEAD is not origin/$BRANCH. Push first — the box pulls from the remote, not from here."
+            publish_error "HEAD is not origin/$BRANCH. Push first — the box pulls from the remote, not from here."
             git log --oneline "origin/$BRANCH..HEAD" 2>/dev/null | sed 's/^/  unpushed: /'
         fi
         exit 1
@@ -148,16 +150,16 @@ PREV="$($SSH "cd $REMOTE_REPO && git rev-parse HEAD" 2>/dev/null)"
 if ! $SSH "test -d $REMOTE_REPO/.git"; then
     echo "=== Step 2: no checkout at $REMOTE_REPO — cloning ==="
     [ -n "$REPO_URL" ] || {
-        echo "ERROR: $REMOTE_REPO does not exist and REPO_URL is not set in config/publish.env."
+        publish_error "$REMOTE_REPO does not exist and REPO_URL is not set in config/publish.env."
         echo "       Set REPO_URL to the URL the BOX should clone from (often an ssh_config alias, not origin)."
         exit 1
     }
     $SSH "git clone -q --branch $BRANCH $REPO_URL $REMOTE_REPO && cd $REMOTE_REPO && git rev-parse --short HEAD" \
-        || { echo "ERROR: clone failed. Can the box read $REPO_URL?"; exit 1; }
+        || { publish_error "clone failed. Can the box read $REPO_URL?"; exit 1; }
 else
     echo "=== Step 2: reconciling $REMOTE_REPO to origin/$BRANCH ==="
     $SSH "cd $REMOTE_REPO && git fetch origin -q && git reset --hard origin/$BRANCH -q && git rev-parse --short HEAD" \
-        || { echo "ERROR: could not reconcile the checkout"; exit 1; }
+        || { publish_error "could not reconcile the checkout"; exit 1; }
 fi
 
 # ── Step 2b: overlay the working tree ────────────────────────────────────────
@@ -193,13 +195,13 @@ if [ -n "$DIRTY" ]; then
     # The env var rather than `--no-mac-metadata`, which says the same thing: GNU tar has no such flag and
     # would abort on it, and this script also runs from a Windows box, where the variable is simply ignored.
     COPYFILE_DISABLE=1 tar --no-xattrs -czf - --null -T "$LIST" 2>/dev/null | $SSH "tar xzf - -C $REMOTE_REPO" \
-        || { rm -f "$LIST"; echo "ERROR: could not overlay the working tree onto $REMOTE_REPO"; exit 1; }
+        || { rm -f "$LIST"; publish_error "could not overlay the working tree onto $REMOTE_REPO"; exit 1; }
     rm -f "$LIST"
 
     if git ls-files --deleted | grep -q .; then
         git ls-files --deleted | sed 's/^/    deleting on the box: /'
         git ls-files -z --deleted | $SSH "cd $REMOTE_REPO && xargs -0 rm -f" \
-            || { echo "ERROR: could not remove deleted files on the box"; exit 1; }
+            || { publish_error "could not remove deleted files on the box"; exit 1; }
     fi
 
     echo "  overlaid $SENT file(s) over ${LOCAL:0:8}"
@@ -209,11 +211,11 @@ fi
 # Piped over SSH so the values never reach this terminal, the transcript, or shell history. umask 077 so the file
 # is not world-readable even for the instant before compose reads it.
 if [ -n "$DOPPLER_PROJECT" ]; then
-    [ -n "$ENV_FILE" ] || { echo "ERROR: ENV_FILE is required when DOPPLER_PROJECT is set"; exit 1; }
+    [ -n "$ENV_FILE" ] || { publish_error "ENV_FILE is required when DOPPLER_PROJECT is set"; exit 1; }
     echo "=== Step 3: rendering $ENV_FILE from Doppler $DOPPLER_PROJECT/$DOPPLER_CONFIG ==="
     doppler secrets download -p "$DOPPLER_PROJECT" -c "$DOPPLER_CONFIG" --format env --no-file \
         | $SSH "umask 077; cat > $COMPOSE_DIR/$ENV_FILE" \
-        || { echo "ERROR: could not render the env file"; exit 1; }
+        || { publish_error "could not render the env file"; exit 1; }
     echo "  wrote $COMPOSE_DIR/$ENV_FILE ($(  $SSH "wc -l < $COMPOSE_DIR/$ENV_FILE" ) keys)"
 else
     echo "=== Step 3: no Doppler project configured — skipping env render ==="
@@ -234,7 +236,7 @@ HOST_GRANTS="$(getval HOST_GRANTS)"; HOST_GRANTS="${HOST_GRANTS:-/opt/landlord/h
 # because the shared-box test below needs it and step 6 runs after the build. Asking the BOX what it is beats
 # asking a key the tenant may never set.
 HOST_PROBE="$($SSH "test -x $HOST_MANIFEST && echo hm=yes || echo hm=no; test -x $VHOST_GATE && echo gate=yes || echo gate=no" 2>/dev/null)"
-[ -n "$HOST_PROBE" ] || { echo "ERROR: could not reach $SSH_HOST to probe for the host's publish facilities."; exit 1; }
+[ -n "$HOST_PROBE" ] || { publish_error "could not reach $SSH_HOST to probe for the host's publish facilities."; exit 1; }
 HM_PRESENT="$(printf '%s\n' "$HOST_PROBE" | sed -n 's/^hm=//p')"
 GATE_PRESENT="$(printf '%s\n' "$HOST_PROBE" | sed -n 's/^gate=//p')"
 
@@ -282,7 +284,7 @@ SHARED_WHY=""
 [ -n "$PROXY_STACK" ]     && SHARED_WHY="${SHARED_WHY:+$SHARED_WHY; }PROXY_STACK is set ($PROXY_STACK)"
 
 if [ "$IDENTITY_SOURCE" = none ] && [ -n "$SHARED_WHY" ]; then
-    echo "ERROR: this box is shared — $SHARED_WHY — but nothing can assert what it serves."
+    publish_error "this box is shared — $SHARED_WHY — but nothing can assert what it serves."
     echo "       No IDENTITY_CHECK is configured and no host default exists at $HOST_MANIFEST."
     echo "       A 200 from a shared proxy does not prove the response is yours. Either restore the host"
     echo "       default, or set IDENTITY_CHECK in config/publish.env — the publish skill carries the"
@@ -306,7 +308,7 @@ if [ "$GATE_PRESENT" = yes ] && [ -n "$VHOST_SRC" ]; then
             [ -n "$_u" ] || continue
             _host="$(printf '%s' "$_u" | sed -e 's#^[a-zA-Z]*://##' -e 's#[/:?].*##')"
             printf '%s\n' "$GRANTS" | grep -qx "$_host" || {
-                echo "ERROR: '$_host' is not a hostname this host grants to '$GRANT_PROJECT'."
+                publish_error "'$_host' is not a hostname this host grants to '$GRANT_PROJECT'."
                 echo "       Verifying it would assert somebody else's site is healthy and report that as this"
                 echo "       publish succeeding. Either VERIFY_URL is wrong, or the grant is missing."
                 echo "       Granted: $(printf '%s' "$GRANTS" | tr '\n' ' ')"
@@ -363,7 +365,7 @@ if [ "$IDENTITY_SOURCE" != none ]; then
     # 0 and 1 are the two verdicts a check that RAN can return; anything else — 2, or a 127 from a missing
     # interpreter or CLI — means it did not run, and is classified exactly as the post-deploy block does.
     if [ "$PREFLIGHT_RC" != 0 ] && [ "$PREFLIGHT_RC" != 1 ]; then
-        echo "ERROR: the identity check cannot run (exit $PREFLIGHT_RC) — manifest unresolved, or its tooling is missing."
+        publish_error "the identity check cannot run (exit $PREFLIGHT_RC) — manifest unresolved, or its tooling is missing."
         printf '%s\n' "$PREFLIGHT_OUT" | sed 's/^/       /'
         echo "       NOTHING has been built or deployed; the box is untouched. Fix the check, then publish again."
         exit 1
@@ -377,22 +379,22 @@ fi
 echo "=== Step 4: building [$BUILD_SERVICES] (detached; polling the log) ==="
 BUILD_LOG="/tmp/publish-build-$(date +%s).log"
 $SSH "cd $COMPOSE_DIR && setsid sh -c 'docker compose build $BUILD_SERVICES >$BUILD_LOG 2>&1; echo EXIT=\$? >>$BUILD_LOG' </dev/null >/dev/null 2>&1 & echo started" \
-    || { echo "ERROR: could not start the build"; exit 1; }
+    || { publish_error "could not start the build"; exit 1; }
 
 for i in $(seq 1 180); do   # 180 x 10s = 30 minutes
     sleep 10
     TAIL="$($SSH "tail -c 4000 $BUILD_LOG 2>/dev/null" || true)"
     case "$TAIL" in
         *EXIT=0*) echo "  build finished"; break ;;
-        *EXIT=*)  echo "ERROR: build failed. Last lines:"; printf '%s\n' "$TAIL" | tail -25; exit 1 ;;
+        *EXIT=*)  publish_error "build failed. Last lines:"; printf '%s\n' "$TAIL" | tail -25; exit 1 ;;
     esac
     [ $((i % 6)) -eq 0 ] && echo "  still building ($((i / 6)) min)"
-    [ "$i" = 180 ] && { echo "ERROR: build did not finish in 30 minutes; log: $SSH_HOST:$BUILD_LOG"; exit 1; }
+    [ "$i" = 180 ] && { publish_error "build did not finish in 30 minutes; log: $SSH_HOST:$BUILD_LOG"; exit 1; }
 done
 
 # ── Step 5: start it ─────────────────────────────────────────────────────────
 echo "=== Step 5: bringing the stack up ==="
-$SSH "cd $COMPOSE_DIR && docker compose up -d" || { echo "ERROR: compose up failed"; exit 1; }
+$SSH "cd $COMPOSE_DIR && docker compose up -d" || { publish_error "compose up failed"; exit 1; }
 
 # ── Step 6: the proxy config, only when it changed ───────────────────────────
 # The proxy bind-mounts its config. Replacing a file there changes the inode, and a running proxy keeps reading the
@@ -422,10 +424,10 @@ if [ -n "$VHOST_SRC" ] && [ "$GATE_PRESENT" = yes ]; then
     # that derivation is an assertion (it must match a tenants/<project>.owns the host wrote), not a convenience.
     # Renaming the candidate to something unique would quietly defeat the check it exists to make.
     GATE_TMP="/tmp/vhost-publish-$$"
-    $SSH "mkdir -p $GATE_TMP" || { echo "ERROR: could not create $GATE_TMP on the box"; exit 1; }
+    $SSH "mkdir -p $GATE_TMP" || { publish_error "could not create $GATE_TMP on the box"; exit 1; }
     if ! $SSH "cat > $GATE_TMP/$VHOST_BASE" < "$REPO_DIR/$VHOST_SRC"; then
         $SSH "rm -rf $GATE_TMP"
-        echo "ERROR: could not copy $VHOST_BASE to the box — nothing was offered to the gate."
+        publish_error "could not copy $VHOST_BASE to the box — nothing was offered to the gate."
         exit 1
     fi
 
@@ -499,7 +501,7 @@ elif [ -n "$VHOST_SRC" ]; then
             # site address is enough ("ambiguous site definition"). Refusing to install unvalidated is the
             # point; a config with no way to check it is not a safer place to leave a file.
             if [ -z "$PROXY_STACK" ]; then
-                echo "ERROR: VHOST_DIR is set but PROXY_STACK is not, so the installed vhost cannot be validated."
+                publish_error "VHOST_DIR is set but PROXY_STACK is not, so the installed vhost cannot be validated."
                 echo "       Set PROXY_STACK to the proxy's compose dir. Installing into a shared conf.d without"
                 echo "       validating is what takes every co-tenant down at the proxy's next start."
                 exit 1
@@ -514,7 +516,7 @@ elif [ -n "$VHOST_SRC" ]; then
             #      the conf.d import proves both that the real file is mounted and that what we install is even
             #      visible to it.
             if [ -z "$($SSH "cd $PROXY_STACK && docker compose ps --status running -q $PROXY_SERVICE" 2>/dev/null)" ]; then
-                echo "ERROR: $PROXY_SERVICE is not running, so the vhost cannot be validated — nothing installed."
+                publish_error "$PROXY_SERVICE is not running, so the vhost cannot be validated — nothing installed."
                 echo "       Start the proxy and re-run."
                 exit 1
             fi
@@ -527,7 +529,7 @@ elif [ -n "$VHOST_SRC" ]; then
             IMPORT_LINE="$($SSH "cd $PROXY_STACK && docker compose exec -T $PROXY_SERVICE grep -m1 -E '^[[:space:]]*import[[:space:]]+[^[:space:]]*conf\.d' /etc/caddy/Caddyfile" 2>/dev/null)"
             CONF_D_IN="$(printf '%s' "$IMPORT_LINE" | awk '{print $2}' | sed 's:/[^/]*$::')"
             if [ -z "$CONF_D_IN" ]; then
-                echo "ERROR: the proxy's live /etc/caddy/Caddyfile does not import a conf.d directory."
+                publish_error "the proxy's live /etc/caddy/Caddyfile does not import a conf.d directory."
                 echo "       Either the base config is not bind-mounted (the caddy image ships a placeholder that"
                 echo "       validates green) or it does not import $VHOST_DIR at all — installing would be invisible."
                 exit 1
@@ -542,7 +544,7 @@ elif [ -n "$VHOST_SRC" ]; then
             # and a swallowed cp leaves RESTORE with nothing to restore — so a later failure would delete the
             # tenant's working vhost while reporting that it put it back.
             $SSH "mkdir -p $VHOST_DIR && rm -f $PREV_F && if [ -f $LIVE_F ]; then cp -p $LIVE_F $PREV_F; fi" \
-                || { echo "ERROR: could not prepare $VHOST_DIR / back up the existing vhost"; exit 1; }
+                || { publish_error "could not prepare $VHOST_DIR / back up the existing vhost"; exit 1; }
 
             # Write to a temp name and mv into place: `>` truncates before the first byte arrives, so a dropped
             # connection mid-transfer would otherwise leave a half-written vhost — unbalanced braces are enough
@@ -550,16 +552,16 @@ elif [ -n "$VHOST_SRC" ]; then
             # is never partial.
             if ! $SSH "cat > $LIVE_F.tmp" < "$REPO_DIR/$VHOST_SRC"; then
                 $SSH "rm -f $LIVE_F.tmp $PREV_F"
-                echo "ERROR: could not transfer the vhost — nothing was replaced."
+                publish_error "could not transfer the vhost — nothing was replaced."
                 exit 1
             fi
             $SSH "mv -f $LIVE_F.tmp $LIVE_F" \
-                || { $SSH "rm -f $LIVE_F.tmp"; echo "ERROR: could not install the vhost"; exit 1; }
+                || { $SSH "rm -f $LIVE_F.tmp"; publish_error "could not install the vhost"; exit 1; }
             # The bytes are on the host; prove the proxy can actually see them. This is what ties VHOST_DIR to the
             # directory the config imports — without it a wrong VHOST_DIR is indistinguishable from success.
             if ! $SSH "cd $PROXY_STACK && docker compose exec -T $PROXY_SERVICE test -f $CONF_D_IN/$VHOST_BASE" >/dev/null 2>&1; then
                 $SSH "$RESTORE" || echo "       (restore also failed — check $LIVE_F by hand)"
-                echo "ERROR: installed $VHOST_BASE is not visible to the proxy at $CONF_D_IN."
+                publish_error "installed $VHOST_BASE is not visible to the proxy at $CONF_D_IN."
                 echo "       VHOST_DIR ($VHOST_DIR) is a HOST path and does not map to the directory the proxy"
                 echo "       imports. The file would sit where nothing reads it, and every check below would pass."
                 exit 1
@@ -569,21 +571,21 @@ elif [ -n "$VHOST_SRC" ]; then
             # blaming a tenant's vhost for a stopped proxy or a dead network would strand it with no config.
             if ! VALIDATE_OUT="$($SSH "$VALIDATE" 2>&1)"; then
                 if ! $SSH true >/dev/null 2>&1; then
-                    echo "ERROR: lost the connection to $SSH_HOST after installing $VHOST_BASE."
+                    publish_error "lost the connection to $SSH_HOST after installing $VHOST_BASE."
                     echo "       The shared config dir is in an UNKNOWN state — $LIVE_F may hold an unvalidated"
                     echo "       vhost. Restore it by hand before the proxy is next started:"
                     echo "         $RESTORE"
                     exit 1
                 fi
                 if [ -z "$($SSH "$RUNNING" 2>/dev/null)" ]; then
-                    $SSH "$RESTORE" || { echo "ERROR: could not restore $LIVE_F — do it by hand: $RESTORE"; exit 1; }
-                    echo "ERROR: $PROXY_SERVICE is not running, so the config could not be validated — restored"
+                    $SSH "$RESTORE" || { publish_error "could not restore $LIVE_F — do it by hand: $RESTORE"; exit 1; }
+                    publish_error "$PROXY_SERVICE is not running, so the config could not be validated — restored"
                     echo "       the previous vhost and stopped. This is NOT a verdict on $VHOST_BASE; start the"
                     echo "       proxy and re-run."
                     exit 1
                 fi
-                $SSH "$RESTORE" || { echo "ERROR: could not restore $LIVE_F — do it by hand: $RESTORE"; exit 1; }
-                echo "ERROR: proxy config does not validate with $VHOST_BASE installed — restored the previous state."
+                $SSH "$RESTORE" || { publish_error "could not restore $LIVE_F — do it by hand: $RESTORE"; exit 1; }
+                publish_error "proxy config does not validate with $VHOST_BASE installed — restored the previous state."
                 echo "$VALIDATE_OUT" | sed "s/^/       caddy: /"
                 if $SSH "$VALIDATE" >/dev/null 2>&1; then
                     echo "       Valid again without it, so the fault is in this repo's vhost."
@@ -598,7 +600,7 @@ elif [ -n "$VHOST_SRC" ]; then
         fi
         if [ -n "$PROXY_STACK" ]; then
             $SSH "cd $PROXY_STACK && docker compose up -d --force-recreate $PROXY_SERVICE" \
-                || { echo "ERROR: could not recreate $PROXY_SERVICE"; exit 1; }
+                || { publish_error "could not recreate $PROXY_SERVICE"; exit 1; }
         fi
     else
         echo "=== Step 6: $VHOST_BASE unchanged — leaving $PROXY_SERVICE alone ==="
@@ -697,9 +699,9 @@ if [ "$OK" = 0 ]; then
     # copies into an incident note.
     STAMP="${LOCAL:0:8}${DIRTY:+ + UNCOMMITTED WORKING TREE}"
     if [ "$IDENTITY_ASSERTED" = yes ]; then
-        echo "PUBLISH OK  ($SSH_HOST, $STAMP)"
+        publish_headline "OK  ($SSH_HOST, $STAMP)"
     else
-        echo "PUBLISH OK — NOT IDENTITY-VERIFIED  ($SSH_HOST, $STAMP)"
+        publish_headline "OK — NOT IDENTITY-VERIFIED  ($SSH_HOST, $STAMP)"
         echo "  The pages answered 200, which proves something is serving them, not that it is yours."
     fi
     [ -n "$DIRTY" ] && echo "  Nothing in git describes what is now running. Commit and publish again to make it reproducible."
@@ -710,7 +712,7 @@ if [ "$OK" = 0 ]; then
     # here would do it again; an explicit exit makes the success path immune.
     exit 0
 else
-    echo "PUBLISH FAILED — the stack is up but is not serving correctly."
+    publish_headline "FAILED — the stack is up but is not serving correctly."
     echo "  logs: ssh $SSH_HOST 'cd $COMPOSE_DIR && docker compose logs --tail 80 $APP_CONTAINER'"
     exit 1
 fi

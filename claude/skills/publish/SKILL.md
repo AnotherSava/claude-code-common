@@ -277,7 +277,8 @@ Report the result plainly, including a failure — never describe a publish as d
 build.
 
 Every run writes its full output to `<repo>/tmp/publish.log`, overwritten each time, and ends it with a
-`PUBLISH-EXIT=<status>` line. When the permission mode refuses to let you publish, hand it to the user without
+`PUBLISH-EXIT=<status>` line; `scripts/publish-log.sh` defines both for the script that writes them and the one
+that waits on them. When the permission mode refuses to let you publish, hand it to the user without
 making them report back:
 
 1. Start `bash ~/.claude/skills/publish/scripts/await-publish.sh` as a background command. It exits when a publish
