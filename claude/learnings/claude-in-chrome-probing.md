@@ -1,6 +1,6 @@
 # Probing a third-party page with claude-in-chrome
 
-Measuring a live page you don't control — to verify a CSS change, read a framework's real behaviour, or reproduce a layout bug — runs into three constraints that are not obvious from the tool descriptions. All were hit while verifying an extension's injected UI against boardgamearena.com.
+Measuring a live page you don't control — to verify a CSS change, read a framework's real behaviour, or reproduce a layout bug — runs into constraints that are not obvious from the tool descriptions. The first ones were hit while verifying an extension's injected UI against boardgamearena.com.
 
 ## The tab is backgrounded, so anything asynchronous hangs
 
@@ -453,3 +453,16 @@ check costs one line.
 The `chrome-devtools` MCP is not a fallback unless Chrome is already listening on
 `--remote-debugging-port=9222`. Without it the call fails at the connection rather than at the URL:
 `Failed to fetch browser webSocket URL from http://localhost:9222/json/version`.
+
+## Testing an extension's injected function without the extension
+
+claude-in-chrome cannot load an unpacked extension or click its toolbar button: `navigate` refuses every `chrome://` URL ("Can't interact with browser-internal or unparseable URLs"), so `chrome://extensions` and its Load unpacked button are out of reach, and the toolbar is outside the page a screenshot or click can touch. An end-to-end run of the extension itself needs the user.
+
+What can be covered is the function the extension injects. A function passed to `chrome.scripting.executeScript({ func })` is self-contained by construction, so it runs the same pasted into the page. Bundle it from the real source rather than retyping it, together with whatever turns its result into the output under test:
+
+```bash
+# tmp/e2e-entry.ts imports the real modules and assigns the result to window.e2e
+npx rolldown tmp/e2e-entry.ts --format iife --file tmp/e2e.js
+```
+
+Paste the bundle into `javascript_tool` on the live page and read `window.e2e`. This covers the live markup and anything downstream of the result (a link opened on a local server, say), and leaves the injection itself and the click unexercised. Say which of the two was run. Measured 2026-10-30 on a live forum topic page with a Vite-built MV3 extension.
