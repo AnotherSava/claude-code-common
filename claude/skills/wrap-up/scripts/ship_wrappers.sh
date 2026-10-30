@@ -23,3 +23,8 @@ done
 
 deploy_type=$(sed -n 's/^DEPLOY_TYPE=//p' "$root/config/deploy.env" 2>/dev/null | head -1)
 echo "deploy type: ${deploy_type:-unknown}"
+
+# Checks the repo wants offered before a publish (SKILL.md step 8): one command per line, `#` comments allowed.
+if [ -f "$root/.claude/pre-publish" ]; then
+  grep -v '^[[:space:]]*\(#\|$\)' "$root/.claude/pre-publish" | sed 's/^/pre-publish: /'
+fi

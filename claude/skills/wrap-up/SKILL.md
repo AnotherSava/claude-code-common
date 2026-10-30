@@ -239,7 +239,9 @@ Report what you did in one short line per item, then continue to step 7 in the s
 ### 7. Commit
 
 Run `/commit`. It owns the rest, every step its own `SKILL.md` numbers, through the commit plan
-and the push. Honor its gates, and do not duplicate its work here. In particular, leave
+and the push. Honor its gates, and do not duplicate its work here. Where a converged review is recorded,
+`/commit` step 6 splits the reviewed tree from what changed after it, so do not commit an answer early to
+"get it out of the way": a commit made before `/commit` runs is one its split never sees. In particular, leave
 the remote alone: syncing a branch whose tree is dirty has a specific safe order that `/commit`
 step 1 already encodes, and doing it early here would only get it wrong differently.
 
@@ -290,6 +292,15 @@ included.
 declined in step 7. Withhold it there and say why — a project carrying `ALLOW_DIRTY_PUBLISH=1` would ship
 that work regardless, and a decision not to put something on the remote is the one thing the script cannot
 see, because it reads a configuration.
+
+**pre-publish checks — offered just before the publish offer.** **Ship wrappers** also lists each
+`pre-publish:` line a repo declares in its committed `.claude/pre-publish`: a check too slow, too costly or too
+nondeterministic for its commit gate, which its owner still wants offered before shipping — an evaluation run
+against a live model is the standing case. Offer each one, by its command and the description after its `#`,
+right before the publish offer, and run it on a yes, from the repo root. Report what it printed, and a failure
+plainly, then make the publish offer anyway: the check informs that decision and does not gate it, since a
+nondeterministic one falls short on some runs by its nature. A repo with no such file lists none, and then
+say nothing about it.
 
 **Do not restate the script's own shipping guard here.** It decides what is shippable, and a second copy of
 that rule in this file drifts from it: writing "the script refuses an unpushed tree" without the
