@@ -25,6 +25,11 @@ settled, and this skill decides everything else.**
 - This skill — run it, read it, settle the rows it refuses to settle alone, and look for what no
   rule covers. A script cannot classify a consumer it has never heard of; that is the work here.
 
+**Scope is the Mac's own free space.** A consumer belongs here only if reclaiming it raises the volume's
+available space. A disk inside a VM or container filling up is that tool's problem, not this skill's: colima's
+data disk, for one, is a fixed-cap image that frees nothing on the Mac when it is pruned inside
+(`learnings/colima-vm-disk-io-errors.md`).
+
 ## Running it
 
 ```bash
@@ -106,6 +111,8 @@ This is the part the script cannot do. Find the consumer, then decide where it b
   `sysctl vm.swapusage` and `diskutil apfs list` (the `VM` role's Capacity Consumed). On 2026-10-22
   it held about 17 GiB with two VMs and an Android emulator running, against 5.2 GiB free. Only quitting
   memory-heavy processes or a restart gives it back, so report it to the user and delete nothing for it.
+- **A container's "disk full" under colima is the VM's disk, not the Mac's**, so it is out of scope here;
+  measuring and freeing it is in `learnings/colima-vm-disk-io-errors.md`.
 - **The scheduled half only measures.** `--alarm` reads `df` and sends one Telegram message below
   15 GiB; it never deletes. The threshold is absolute rather than a percentage because what fails is
   a build, not a ratio — 10%-free on a 228 GiB volume is 22.8 GiB, a level that is genuinely fine,
