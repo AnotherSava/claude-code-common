@@ -110,8 +110,8 @@ def main() -> int:
         review(a)
         sh(a, "add", "app.txt")
         sh(a, "commit", "-qm", "partial")
-        check("a commit leaving out a reviewed file does not advance", review_scope.advance(a).startswith("not advanced: HEAD's tree differs"), True)
-        check("status names the waiting review HEAD does not hold", "cannot advance: HEAD's tree differs" in review_scope.status(a), True)
+        check("a commit leaving out a reviewed file does not advance", review_scope.advance(a).startswith("not advanced: no commit since the review's base holds the reviewed tree"), True)
+        check("status names the waiting review HEAD does not hold", "cannot advance: no commit since the review's base holds the reviewed tree" in review_scope.status(a), True)
         sh(a, "add", "new.txt")
         sh(a, "commit", "-qm", "rest")
         reviewed = sh(a, "rev-parse", "HEAD")
@@ -272,6 +272,64 @@ def main() -> int:
         with open(os.path.join(p, "app.py"), encoding="utf-8") as handle:
             check("an absolutely named file holds the snapshot's content", handle.read(), "two\n")
         check("the ignored file and the outside one survive", [os.path.exists(os.path.join(p, ".env")), os.path.exists(outside)], [True, True])
+
+        # The reviewed tree is committed as reviewed, and everything changed after the review follows it: /wrap-up's
+        # answers, /reflect's memory, a closed memo. A file in both sets keeps its reviewed content in the first commit.
+        r = os.path.join(scratch, "r")
+        subprocess.run(["git", "init", "-q", r], check=True)
+        commit(r, "app.txt", "base\n")
+        write(r, "app.txt", "reviewed\n")
+        write(r, "feature.txt", "reviewed new file\n")
+        found = review(r)
+        reviewed_tree = review_scope.worktree_tree(r)
+        write(r, "app.txt", "reviewed, then edited by a later step\n")
+        write(r, "memory.md", "written by /reflect\n")
+        got = review_scope.layout(r)
+        check("layout splits the change set at the reviewed tree", (got["applies"], got["reviewed"], got["after"]),
+              (True, [("M", "app.txt"), ("A", "feature.txt")], [("M", "app.txt"), ("A", "memory.md")]))
+        check("layout names the reviewed tree", "reviewed tree: " + reviewed_tree[:12] in review_scope.layout_text(got), True)
+        check("staging the reviewed paths takes their reviewed content", review_scope.stage_reviewed(r, ["app.txt", "feature.txt"]), f"staged from reviewed tree {reviewed_tree[:12]}: 2 staged, 0 removed")
+        sh(r, "commit", "-qm", "reviewed")
+        reviewed_commit = sh(r, "rev-parse", "HEAD")
+        check("the reviewed commit holds exactly the reviewed tree", sh(r, "rev-parse", "HEAD^{tree}"), reviewed_tree)
+        with open(os.path.join(r, "app.txt"), encoding="utf-8") as handle:
+            check("and the later edit is still on disk for its follow-up", handle.read(), "reviewed, then edited by a later step\n")
+        sh(r, "add", "app.txt", "memory.md")
+        sh(r, "commit", "-qm", "follow-up")
+        check("status names the reviewed commit a waiting review would advance to", f"a recorded review ending at {reviewed_commit[:12]} awaits `advance`" in review_scope.status(r), True)
+        check("advance moves to the reviewed commit, past which the follow-up waits", review_scope.advance(r), f"advanced: {review_scope.REF} -> {reviewed_commit[:12]}, with 1 follow-up commit(s) after it for the next review")
+        check("layout has nothing to split once the record is consumed", review_scope.layout(r), {"applies": False, "why": "no completed review is recorded"})
+
+        # A commit pulled in after the review, as /commit's remote sync does: its diff from HEAD to the reviewed tree
+        # would undo that commit, so layout offers no split rather than one whose reviewed commit reverts it.
+        write(r, "app.txt", "reviewed again\n")
+        review(r)
+        sh(r, "stash", "push", "-q")
+        commit(r, "other.txt", "the other machine's work\n")
+        sh(r, "stash", "pop", "-q")
+        got = review_scope.layout(r)
+        check("layout refuses once HEAD has moved since the review", (got["applies"], got["why"].startswith("HEAD has moved since the review was recorded")), (False, True))
+        sh(r, "add", "-A")
+        sh(r, "commit", "-qm", "committed as usual")
+
+        # A deletion the review covered is staged as one.
+        write(r, "gone.txt", "doomed\n")
+        sh(r, "add", "gone.txt")
+        sh(r, "commit", "-qm", "add gone")
+        os.remove(os.path.join(r, "gone.txt"))
+        review(r)
+        check("a path the reviewed tree lacks is removed from the index", review_scope.stage_reviewed(r, ["gone.txt"]).endswith("0 staged, 1 removed"), True)
+        sh(r, "commit", "-qm", "delete gone")
+        check("and committing it reaches the reviewed tree", review_scope.advance(r).startswith("advanced"), True)
+
+        # A confidentiality fix is committed with the reviewed content, so the reviewed tree is never committed and the
+        # bookmark stays back rather than vouching for the redaction.
+        write(r, "app.txt", "carries a secret\n")
+        review(r)
+        write(r, "app.txt", "redacted\n")
+        sh(r, "add", "app.txt")
+        sh(r, "commit", "-qm", "reviewed, redacted")
+        check("a reviewed commit carrying a later fix does not advance", review_scope.advance(r).startswith("not advanced: no commit since the review's base holds the reviewed tree"), True)
     finally:
         shutil.rmtree(scratch, ignore_errors=True)
 

@@ -6,16 +6,20 @@ bookmark is the ref `refs/review/last`, shared through origin so both machines r
 points at a real commit whose content a review covered. Every review then takes in everything between the
 bookmark and the working tree, whoever pushed it and however.
 
-Three moments act on it, and each belongs to a different caller:
+Several moments act on it, and each belongs to a different caller:
 
 - `plan`, called in-process by the `review-scope.py` PreToolUse hook when the `review-auto` workflow launches,
   brings the local bookmark up to date with origin's and works out what the review must cover. The `scope` command
   prints the same for a run by hand.
-- `mark`, run by the workflow's last agent once a review finished with no gaps, records which tree it covered
-  and from which base, and whether the workflow's polish ran over it. Nothing moves yet: the tree is usually
+- `mark`, run by the workflow's last agent once a review finished with no gaps, records which tree it covered,
+  from which base and on top of which HEAD, and whether the workflow's polish ran over it. Nothing moves yet: the tree is usually
   uncommitted.
-- `advance`, run by `/commit` after its commits, moves the bookmark to HEAD only when HEAD's tree is exactly the
-  recorded one, so an edit made after the review leaves the bookmark where it was. `push` then publishes it.
+- `layout`, run by `/commit` before it plans, splits the change set at the recorded tree: what the review covered,
+  which `stage-reviewed` stages from the recorded tree itself so the reviewed commits hold exactly what was reviewed,
+  and what changed after it, which goes in follow-up commits.
+- `advance`, run by `/commit` after its commits, moves the bookmark to the newest commit since the review's base whose
+  tree is exactly the recorded one, so an edit made after the review and committed with it leaves the bookmark where
+  it was, while one committed after it does not hold it back. `push` then publishes it.
 
 `status`, run at the end of every skill that pushes, reports where all of that stands and changes none of it.
 
@@ -186,7 +190,7 @@ def mark(repo: str, base: str, tree: str | None, polished: bool) -> str:
         raise RuntimeError(f"base {base} is not a commit in {repo}")
     tree = tree or worktree_tree(repo)
     with open(_git_path(repo, RECORD), "w", encoding="utf-8") as handle:
-        handle.write(json.dumps({"base": base, "tree": tree, "polished": polished}) + "\n")
+        handle.write(json.dumps({"base": base, "head": _resolve(repo, "HEAD"), "tree": tree, "polished": polished}) + "\n")
     return f"recorded: tree {tree[:12]} reviewed from {base[:12]}{', polished' if polished else ''}"
 
 
@@ -213,13 +217,20 @@ def polished_since(repo: str) -> dict | None:
     listed = _git(repo, *before)
     if listed.returncode != 0 or listed.stdout.strip():
         return None
-    diff = _git(repo, "diff", "--raw", "-z", "--no-renames", "--no-abbrev", "--diff-filter=ACMT", record["tree"], worktree_tree(repo))
-    if diff.returncode != 0:
-        raise RuntimeError(f"git diff against the polished tree failed: {diff.stderr.strip()}")
-    # `--raw -z` alternates a `:<old mode> <new mode> <old blob> <new blob> <status>` field with the path it describes.
-    fields = diff.stdout.split("\0")
-    changed = [path for meta, path in zip(fields[::2], fields[1::2]) if meta.split()[2] != meta.split()[3]]
+    # `--raw` gives each path a `:<old mode> <new mode> <old blob> <new blob> <status>` field.
+    pairs = _diff_pairs(repo, "--raw", "--no-abbrev", "--diff-filter=ACMT", record["tree"], worktree_tree(repo))
+    changed = [path for meta, path in pairs if meta.split()[2] != meta.split()[3]]
     return {"tree": record["tree"], "changed": sorted(changed)}
+
+
+def _diff_pairs(repo: str, *args: str) -> list[tuple[str, str]]:
+    """`(field, path)` for every path `git diff -z --no-renames <args>` reports, the field being whatever the format
+    flag in `args` puts before each path."""
+    diff = _git(repo, "diff", "-z", "--no-renames", *args)
+    if diff.returncode != 0:
+        raise RuntimeError(f"git diff {' '.join(args)} failed: {diff.stderr.strip()}")
+    fields = diff.stdout.split("\0")
+    return list(zip(fields[::2], fields[1::2]))
 
 
 def _repo_relative(repo: str, path: str) -> str | None:
@@ -255,17 +266,42 @@ def revert(repo: str, tree: str, paths: list[str]) -> str:
     return f"reverted to {tree}: {len(restored)} restored, {len(deleted)} deleted{left}"
 
 
-def _advance_refusal(repo: str, record: dict, head: str | None) -> str | None:
-    """Why `advance` would refuse to move the bookmark to HEAD for this record, or None when it would move it.
-    Both `advance` and `status` call this, so the line `status` prints cannot promise an advance that refuses."""
-    if head is None or _git(repo, "rev-parse", "HEAD^{tree}").stdout.strip() != record["tree"]:
-        return "HEAD's tree differs from the reviewed one, so something committed was never reviewed"
-    if not _is_ancestor(repo, record["base"], head):
+def _reviewed_commit(repo: str, record: dict, head: str) -> str | None:
+    """The newest commit on HEAD's first-parent line since the review's base whose tree is the reviewed one: the
+    commit the reviewed change set ended at, with any follow-up commits after it. The base itself counts, for a
+    review of a tree nothing changed since."""
+    listed = _git(repo, "rev-list", "--first-parent", f"{record['base']}..{head}")
+    if listed.returncode != 0:
+        raise RuntimeError(f"git rev-list from the review's base failed: {listed.stderr.strip()}")
+    for commit in listed.stdout.split() + [record["base"]]:
+        if _git(repo, "rev-parse", f"{commit}^{{tree}}").stdout.strip() == record["tree"]:
+            return commit
+    return None
+
+
+def _ancestry_refusal(repo: str, record: dict, head: str | None, reviewed: str | None) -> str | None:
+    """Why the bookmark could not move to the commit holding the reviewed tree, or None. `reviewed` is that commit,
+    or None while no commit holds it yet, when the one that will is a descendant of HEAD and HEAD stands in for it.
+    Both `_advance_target` and `layout` call this, so `layout` cannot offer a split that `advance` then refuses on ancestry
+    grounds; `advance` can still refuse when no commit ends at the reviewed tree, which `layout` cannot foresee."""
+    if head is None or not _is_ancestor(repo, record["base"], head):
         return "the review's base is no longer an ancestor of HEAD"
     current = _resolve(repo, REF)
-    if current and not _is_ancestor(repo, current, head):
-        return f"the bookmark {current[:12]} is not an ancestor of HEAD"
+    if current and not _is_ancestor(repo, current, reviewed or head):
+        return f"the bookmark {current[:12]} is not an ancestor of the reviewed commit"
     return None
+
+
+def _advance_target(repo: str, record: dict, head: str | None) -> tuple[str | None, str | None]:
+    """The commit `advance` would move the bookmark to for this record, or None with the reason it would refuse.
+    Both `advance` and `status` call this, so the line `status` prints cannot promise an advance that refuses."""
+    reviewed = _reviewed_commit(repo, record, head) if head else None
+    refusal = _ancestry_refusal(repo, record, head, reviewed)
+    if refusal:
+        return None, refusal
+    if reviewed is None:
+        return None, "no commit since the review's base holds the reviewed tree: it is still uncommitted, or a commit left part of it out or added a change it does not hold"
+    return reviewed, None
 
 
 def advance(repo: str) -> str:
@@ -274,12 +310,73 @@ def advance(repo: str) -> str:
     if record is None:
         return "not advanced: no completed review is recorded"
     head = _resolve(repo, "HEAD")
-    refusal = _advance_refusal(repo, record, head)
+    reviewed, refusal = _advance_target(repo, record, head)
     if refusal:
         return f"not advanced: {refusal}"
-    _git(repo, "update-ref", REF, head)
+    _git(repo, "update-ref", REF, reviewed)
     os.remove(path)
-    return f"advanced: {REF} -> {head[:12]}"
+    after = _git(repo, "rev-list", "--count", f"{reviewed}..{head}").stdout.strip()
+    return f"advanced: {REF} -> {reviewed[:12]}" + (f", with {after} follow-up commit(s) after it for the next review" if after != "0" else "")
+
+
+def _changes(repo: str, old: str, new: str) -> list[tuple[str, str]]:
+    """`(status, path)` for every path that differs between two trees, renames split into a delete and an add."""
+    return _diff_pairs(repo, "--name-status", old, new)
+
+
+def layout(repo: str) -> dict:
+    """How /commit splits the change set when a recorded review covers it: `reviewed` holds what HEAD lacks of the
+    reviewed tree, staged from that tree so the commits end at exactly it; `after` holds what changed since the
+    review, committed after them. A path can be in both, with its reviewed content first. `applies` is false, with
+    the reason, wherever the record cannot be committed as reviewed, and the change set is then committed as usual."""
+    record = _read_record(repo)
+    if record is None:
+        return {"applies": False, "why": "no completed review is recorded"}
+    head = _resolve(repo, "HEAD")
+    refusal = _ancestry_refusal(repo, record, head, None)
+    if refusal:
+        return {"applies": False, "why": refusal}
+    if _reviewed_commit(repo, record, head):
+        return {"applies": False, "why": "a commit since the review's base already holds the reviewed tree"}
+    # `reviewed` is HEAD's diff to the reviewed tree, so a commit that reached HEAD after `mark` (a pull of the other
+    # machine's work) would enter it as a change to undo, and committing it would revert that work.
+    if record.get("head") != head:
+        return {"applies": False, "why": "HEAD has moved since the review was recorded (or the record, written before HEAD was recorded, cannot say which HEAD it was taken on), so the reviewed tree is not known to sit on top of it"}
+    return {"applies": True, "tree": record["tree"], "base": record["base"], "polished": bool(record.get("polished")),
+            "reviewed": _changes(repo, "HEAD", record["tree"]), "after": _changes(repo, record["tree"], worktree_tree(repo))}
+
+
+def layout_text(found: dict) -> str:
+    if not found["applies"]:
+        return f"reviewed tree: none to commit as reviewed — {found['why']}; commit the change set as usual"
+    lines = [f"reviewed tree: {found['tree'][:12]} (from {found['base'][:12]}{', polished' if found['polished'] else ''})",
+             "reviewed — the first commits, staged with `review_scope.py stage-reviewed <paths>`, the last of them ending at exactly the reviewed tree:"]
+    lines += [f"  {status} {path}" for status, path in found["reviewed"]] or ["  (none)"]
+    lines.append("after the review — follow-up commits, staged from the working tree as usual:")
+    lines += [f"  {status} {path}" for status, path in found["after"]] or ["  (none)"]
+    return "\n".join(lines)
+
+
+def stage_reviewed(repo: str, paths: list[str]) -> str:
+    """Stage each path as the recorded review's tree holds it, removing from the index one the tree does not hold.
+    The working tree is left alone, so a file edited after the review keeps that edit for its follow-up commit."""
+    record = _read_record(repo)
+    if record is None:
+        raise RuntimeError("no completed review is recorded, so there is no reviewed tree to stage from")
+    staged, removed = [], []
+    for path in paths:
+        relative = _repo_relative(repo, path)
+        if relative is None:
+            raise RuntimeError(f"{path} lies outside the repo")
+        if _git(repo, "cat-file", "-e", f"{record['tree']}:{relative}").returncode == 0:
+            done = _git(repo, "restore", f"--source={record['tree']}", "--staged", "--", relative)
+            staged.append(relative)
+        else:
+            done = _git(repo, "rm", "--cached", "-q", "--ignore-unmatch", "--", relative)
+            removed.append(relative)
+        if done.returncode != 0:
+            raise RuntimeError(f"staging {relative} from the reviewed tree failed: {done.stderr.strip()}")
+    return f"staged from reviewed tree {record['tree'][:12]}: {len(staged)} staged, {len(removed)} removed"
 
 
 def push(repo: str) -> str:
@@ -340,14 +437,14 @@ def status(repo: str) -> str:
         parts.append(f"{len(commits)} commit(s) on HEAD past {past}, which the next review covers")
     record = _read_record(repo)
     if record:
-        refusal = _advance_refusal(repo, record, head)
-        parts.append(f"a recorded review of tree {record['tree'][:12]} cannot advance: {refusal}" if refusal else "a recorded review matches HEAD and awaits `advance`")
+        reviewed, refusal = _advance_target(repo, record, head)
+        parts.append(f"a recorded review of tree {record['tree'][:12]} cannot advance: {refusal}" if refusal else f"a recorded review ending at {reviewed[:12]} awaits `advance`")
     return "review bookmark: " + " · ".join(parts)
 
 
 def main() -> int:
     parser = argparse.ArgumentParser(description=__doc__.splitlines()[0])
-    parser.add_argument("command", choices=["scope", "mark", "advance", "push", "status", "snapshot", "revert"])
+    parser.add_argument("command", choices=["scope", "mark", "advance", "push", "status", "snapshot", "revert", "layout", "stage-reviewed"])
     parser.add_argument("--repo", default=".")
     parser.add_argument("--base")
     parser.add_argument("--tree")
@@ -375,6 +472,12 @@ def main() -> int:
             print(revert(repo, opts.tree, opts.paths))
         elif opts.command == "advance":
             print(advance(repo))
+        elif opts.command == "layout":
+            print(layout_text(layout(repo)))
+        elif opts.command == "stage-reviewed":
+            if not opts.paths:
+                parser.error("stage-reviewed needs the paths to stage")
+            print(stage_reviewed(repo, opts.paths))
         elif opts.command == "status":
             print(status(repo))
         else:
