@@ -81,3 +81,10 @@ So a command meant to be copied out of a reply:
   away, never the reverse;
 - is not handed over at all when what remains is a plain file write: the Write tool can do that part
   without the user's keyboard.
+- for a script run with its output teed to a log, takes the shape `memory/feedback_route_output_not_paste.md`
+  prescribes. The pipe and the log path of `bash <script> 2>&1 | tee <log>` are what push such a command
+  past the terminal's width, and the break lands exactly there: measured 2026-10-30 on macOS, three such
+  commands arrived as `bash <script> 2>&1 | tee` plus a second line holding the log path, so the script
+  ran with no log and zsh tried to execute the path. The same command had also been put on the
+  clipboard as one line, and which of the two the user pasted was not established, so whether a
+  clipboard copy keeps a wide command whole is still unmeasured.

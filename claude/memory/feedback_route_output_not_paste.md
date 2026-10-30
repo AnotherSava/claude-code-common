@@ -6,8 +6,9 @@ metadata:
 ---
 
 When I hand the user a command *because only they can run it* (sudo, an interactive login, a GUI
-step) and I need its result, route the output to a file under the repo's gitignored `tmp/` with
-`2>&1 | tee <path>` and read it myself. Never close with "paste the output back".
+step) and I need its result, route the output to a log under the repo's gitignored `tmp/`, teed by
+the script itself (the default under **How to apply**), and read it myself. Never close with "paste
+the output back".
 
 **Why:** asking for a paste hands the user a second chore for something that is mine —
 [[feedback_keep_your_half]] — and it is the slower path for them too: scroll, select, copy, paste,
@@ -25,11 +26,13 @@ run to the clipboard?" Showing it stays — the fence is what they read — but 
 - Copy the exact line they will submit, `!` prefix included when it is meant for the prompt:
   `printf '%s' '<cmd>' > /dev/clipboard` in Git Bash on Windows, `| pbcopy` on macOS. Read it back
   (`cat /dev/clipboard`, `pbpaste`) in the same call, and say in the reply that it is on the
-  clipboard. `/dev/clipboard` is measured byte-exact both ways; `Get-Clipboard` appends a CRLF and
+  clipboard. Copy it last, right before the handover, for the reason the **Why** gives. `/dev/clipboard` is measured byte-exact both ways; `Get-Clipboard` appends a CRLF and
   transliterates non-ASCII, so its read-back never matches (`learnings/windows-clipboard-git-bash.md`).
   Not for a command carrying a secret, which never goes through `!` at all.
-- Default for the command: `sudo bash <script> 2>&1 | tee <repo>/tmp/<name>.log`, then Read that file next turn.
-  `2>&1` matters — the diagnostic half of these commands goes to stderr.
+- Default for the command: a script that tees its own output (`exec > >(tee <repo>/tmp/<name>.log) 2>&1` at
+  its top, as `publish` does), handed over as just `bash <absolute-script-path>`; then Read that log. The path is absolute because `!` runs in the session's current cwd, which an earlier `cd` has moved (`learnings/claude-code-auto-mode-permissions.md`). A hand-over carrying
+  `2>&1 | tee <path>` itself is wide enough to wrap, and the paste splits after `| tee`
+  (`learnings/claude-code-rendering.md`). Capture stderr as well — the diagnostic half of these commands goes there.
 - `tmp/` because file tools refuse reads outside the working directories, per
   [[feedback_scratch_lives_in_project_tmp]]. `$TEMP` is a file I can write and never open.
 - **Start a background wait for the result before handing the command over**, so its completion wakes me: the

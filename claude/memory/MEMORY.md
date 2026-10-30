@@ -56,7 +56,7 @@
 - [Stash-pop sides flipped](feedback_stash_pop_conflict_sides.md) — `--ours` = post-pull tree, `--theirs` = stash; checkout from a named ref when unsure
 - [Migrate, don't degrade persistence](feedback_migrate_dont_degrade_persistence.md) — fix stale persisted data with a one-time cleanup; don't switch compute-once/first-write-wins into recompute-every-time
 - [Fold by visual volume, not line count](feedback_fold_by_visual_volume.md) — budget folds by lines AND chars; expand control on its own line
-- [No unsolicited past-data fixes](feedback_no_unsolicited_data_fixes.md) {always} — fix the going-forward code only; don't migrate stale data unasked, or judge a new feature by records made before it
+- [No unsolicited past-data fixes](feedback_no_unsolicited_data_fixes.md) {always} — fix going-forward code only; don't migrate stale data unasked or judge a feature by older records; fix a one-time import's defect in the data
 - [Check the source before deriving](feedback_check_the_source_before_deriving.md) {always} — before writing a computed value over stored data, check whether the system that imported it already holds the right one
 - [Verify the symptom, not a proxy](feedback_verify_symptom_not_proxy.md) — confirm the symptom changed under the user's reported conditions (e.g. reboot), not a proxy signal or convenient test scenario
 - [Explicit keywords over positional defaults in APIs](feedback_api_explicit_over_positional.md) — context-dependent params are named keywords; make invalid chains fail by type; drop create() when chain ends are statically known
@@ -238,7 +238,7 @@
 - [Relative timestamps](feedback_relative_timestamps.md) {always} — "3h ago" visible, stamp on hover; absolute when the ask names a precision; port `formatInterval`
 - [Report timestamps in local time](feedback_local_time_timestamps.md) {always} — logs store UTC and these machines run hours behind it; convert before showing, or the quoted moment can't be matched to what the user saw
 - [Never weaken permissions in a subagent prompt](feedback_no_subagent_permission_bypass.md) {always} — approval for a task is never approval to disable approval gates; no `--dangerously-skip-permissions` in a subagent's instructions, ask first
-- [Route the output, don't ask for a paste](feedback_route_output_not_paste.md) {always} — a command only they can run goes on their clipboard and gets `2>&1 | tee tmp/<name>.log`; I read the log, never ask for a paste
+- [Route the output, don't ask for a paste](feedback_route_output_not_paste.md) {always} — a command only they can run goes on their clipboard as a script that tees its own log to `tmp/`; I read the log, never ask for a paste
 - [Offer the mode switch](feedback_offer_the_mode_switch.md) {always} — repeated classifier refusals in one task: offer switching to `manual`, not a third handed-over command; never `bypassPermissions`
 - [Fix the class, not the instance](feedback_fix_the_class_not_the_instance.md) {always} — a defect in one member of an already-enumerated set is a defect in the set; find the list and check all of it
 - [A gap in a gate is a fix, not a memo](feedback_gap_in_a_gate_is_a_fix.md) {always} — a blind spot in a check the project already runs gets that check extended; parking it re-files the same class every review

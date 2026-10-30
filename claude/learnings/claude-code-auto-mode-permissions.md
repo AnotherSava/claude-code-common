@@ -122,6 +122,10 @@ The denial text says it: stop and explain, and let the user decide. Concretely:
   text — `"$(doppler secrets get KEY -p proj -c cfg --plain)"` *fetches* the value rather than embedding it,
   so the transcript records the fetch, not the secret. A literal token in the command text is not safe there;
   that needs a terminal outside the session.
+- **Give it absolute paths.** A `!` command runs in the session's current Bash working directory, which any
+  earlier `cd` in a tool call has moved, not at the repo root the command was written against. A
+  `bash web/tmp/<script>.sh` handed over from a session last `cd`'d into `web/` failed with
+  `No such file or directory`, and the user had to `cd ..` and run it again.
 - **Mention the permission rule.** `Bash(ssh root@host:*)` in settings lifts it for future runs — while noting
   what else that rule would cover, which for a shared host is every destructive command on it.
 

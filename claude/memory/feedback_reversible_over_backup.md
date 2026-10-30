@@ -23,5 +23,9 @@ Two failures in one session, both while inverting `#[cfg(target_os = ...)]` gate
 - An appended probe (`echo '#error probe' >> f`) is only reversible by a `^…$` delete when `f` ends in a newline. On 2026-09-24 a source file ending in `}` with none turned the probe into `}#error probe`. The delete matched nothing, and `git diff --quiet` was the only thing that caught it. For a tracked file that was clean beforehand, restore with `git checkout -- <path>` rather than an inverse edit.
 - Better still, do not touch the real file: a parser or predicate can be imported and called on synthetic input in-process, which proves the same refusal with nothing to restore.
 - Under zsh, `$var` in a `for` list is one word. Use an explicit list or `${=var}`.
+- **A setting flipped for a test is put back to the value it held, not to the default.** Read the
+  prior value first and restore that. On 2026-10-29 a dev-DB setting was toggled with `$set` and
+  "restored" with `$unset`, which silently reverted a choice the user had saved through the settings
+  page minutes earlier; only a later screenshot showing the wrong layout exposed it.
 
 Related: [[feedback_not_run_is_not_pass]], [[feedback_post_iteration_cleanup]].
