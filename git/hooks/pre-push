@@ -3,7 +3,8 @@
 # pre-push — reject commits that are Claude-attributed, unsigned, or carry a message breaking the
 # conventions, then upload Git LFS objects.
 #
-# Checks every NEW commit (held by none of the destination remote's tracking refs) for:
+# Checks every NEW commit (held by none of the destination remote's tracking refs, or of any remote's
+# when the push names a URL rather than a remote) for:
 #   1. Author/committer name or email containing "claude" or "anthropic"
 #   2. Co-Authored-By trailer mentioning "claude" or "anthropic"
 #   3. Missing good GPG signature (only "G" status passes)
@@ -14,7 +15,8 @@
 # In a fork (origin ours, upstream someone else's, as ~/.claude/conventions/engine.py decides it),
 # commits reachable from the upstream remote are not checked: a rebase onto upstream pushes the
 # upstream author's commits to origin, and they carry that author's signature and message style.
-# Only `upstream` is exempted, never every remote: a commit some third remote holds is still checked.
+# Only `upstream` is exempted, never every remote: a commit some third remote holds is still checked,
+# except on a push to a URL, where every remote's tracking refs count as published.
 # A commit the destination already holds on any branch is not new, so a ref moving over published work
 # (the review bookmark passing main) checks none of it again
 # (~/.claude/learnings/git-rev-list-new-commits.md).
@@ -85,7 +87,8 @@ while read -r local_ref local_sha remote_ref remote_sha; do
     # Determine range of new commits: whatever the destination's remote-tracking branches do not hold,
     # so a ref moving over commits another branch there already published (the review bookmark
     # passing main) re-checks none of them. Only the destination's refs count: another remote's
-    # commits are exempt solely through upstream_exempt. A remote sha this clone has never fetched
+    # commits are exempt solely through upstream_exempt, except on a push to a URL, where $published
+    # is every remote's refs. A remote sha this clone has never fetched
     # cannot bound a range, as for a new branch.
     if is_null "$remote_sha" || ! git cat-file -e "$remote_sha^{commit}" 2>/dev/null; then
         range="$local_sha"

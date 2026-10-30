@@ -26,7 +26,8 @@ What is asserted, both ways:
   exemptions             each one names a real skill and is still needed — an exempt skill that
                          has since gained the call fails, so the list cannot rot into prose
   the script             the path every caller spells actually exists
-  bookmark state         every skill the clear condition names, exempt or not, ends its report with
+  bookmark state         every skill the clear condition names, exempt or not, closes its report as
+                         shared/review-bookmark-status.md describes, and that file runs
                          `review_scope.py status`, since a push is where the review bookmark is
                          published or fails to be, and a failure line printed mid-report is missed
 
@@ -54,6 +55,10 @@ CALL = "notify_peer_pull.py"
 # either would count a document that mentions the notice as one that sends it.
 INVOCATION = "python ~/.claude/skills/shared/notify_peer_pull.py"
 STATUS = "python ~/.claude/scripts/review_scope.py status"
+# One file holds the closing step so its wording cannot drift between the skills that push; each skill
+# points at it, and the file itself is what has to run STATUS.
+STATUS_STEP = "~/.claude/skills/shared/review-bookmark-status.md"
+STATUS_FILE = os.path.join(SKILLS, "shared", "review-bookmark-status.md")
 RULE_MARKER = "Push to GitHub"
 CLAUSE_MARKER = "a user turn invoking"
 SKILL_RE = re.compile(r"`/([a-z0-9-]+)`")
@@ -136,6 +141,14 @@ def main() -> int:
     if not os.path.isfile(NOTIFIER):
         fail(f"every caller spells {CALL}, and claude/skills/shared/{CALL} does not exist")
 
+    try:
+        with open(STATUS_FILE, encoding="utf-8") as handle:
+            if STATUS not in handle.read():
+                fail(f"{STATUS_STEP} never runs `{STATUS}`, so no pushing skill's report says whether the review "
+                     "bookmark moved")
+    except OSError:
+        fail(f"every pushing skill points at {STATUS_STEP}, and it does not exist")
+
     for name in authorized:
         try:
             body = skill_body(name)
@@ -145,9 +158,9 @@ def main() -> int:
         except Unreadable as exc:
             fail(str(exc))
             continue
-        if STATUS not in body:
-            fail(f"the push rule clears /{name} to push, and its SKILL.md never runs `{STATUS}`, so its report "
-                 "never says whether the review bookmark moved")
+        if STATUS_STEP not in body:
+            fail(f"the push rule clears /{name} to push, and its SKILL.md never points at {STATUS_STEP}, so its "
+                 "report never says whether the review bookmark moved")
         if name in EXEMPT:
             if INVOCATION in body:
                 fail(f"/{name} is exempt because {EXEMPT[name]} — and its SKILL.md now calls {CALL}, "

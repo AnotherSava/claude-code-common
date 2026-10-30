@@ -155,4 +155,4 @@ be fast-forwardable. If not, rebase first.
    ```
    git log --oneline --format="%h %G? %s" -5
    ```
-   Then run `python ~/.claude/scripts/review_scope.py status` (`python3` on macOS) and make its line the last line of the report, with any `not advanced` or `not pushed` line this run printed quoted beside it, so whether the bookmark moved is read at the end rather than scrolled past mid-report.
+   Then close the report as `~/.claude/skills/shared/review-bookmark-status.md` describes.

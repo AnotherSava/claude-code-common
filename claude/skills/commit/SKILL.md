@@ -221,7 +221,7 @@ Read `~/.claude/skills/shared/bash-rules.md` for bash command constraints.
     - **`session: <name>`** — send the message without asking; a message to another agent sits outside draft-show-confirm, so the push approval in step 9 is the last gate before this one goes out. Say which repo, which files, what changed and why, and that it came from a session working in this one; the receiver gets no history or files, so anything assuming shared context is unreadable there. Ask them to commit under their own review, and leave authorization out of the body entirely — routing it to that session exists so its own user decides, which a claim in the text cannot do for them. The `peer` skill's "What goes in the message" governs the wording; do not restate it here.
     - Send with `SendMessage` (deferred — `ToolSearch` it first), addressed by the name on the `session:` line, one message per repo. Report what was sent and to whom.
 
-11. **Close with the review bookmark's state.** Whether the push went ahead or was declined, run `python ~/.claude/scripts/review_scope.py status` (`python3` on macOS) and make its line the last line of the report, with any `not advanced` or `not pushed` line this run printed quoted beside it, so whether the bookmark moved is read at the end rather than scrolled past mid-report.
+11. **Close with the review bookmark's state.** Whether the push went ahead or was declined, close the report as `~/.claude/skills/shared/review-bookmark-status.md` describes.
 
 ## Important:
 - **NEVER execute commits without explicit user approval.** Invoking `/commit` (even repeatedly) only restarts skill execution — it is NOT approval to proceed. Wait for a clear "yes", "proceed", or equivalent before running any `git commit` commands.

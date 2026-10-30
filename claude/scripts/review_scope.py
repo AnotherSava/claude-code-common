@@ -100,18 +100,27 @@ def _has_remote(repo: str) -> bool:
     return _git(repo, "remote", "get-url", REMOTE).returncode == 0
 
 
+def _origin_bookmark(repo: str) -> tuple[str | None, str | None]:
+    """Read origin's bookmark without writing anything. Returns (sha, None), (None, None) when origin has no bookmark, or
+    (None, a sentence saying why origin could not be read)."""
+    try:
+        listed = _git(repo, "ls-remote", REMOTE, REF, timeout=NETWORK_TIMEOUT)
+    except subprocess.TimeoutExpired:
+        return None, f"`git ls-remote {REMOTE}` timed out"
+    if listed.returncode != 0:
+        return None, f"`git ls-remote {REMOTE}` failed: {listed.stderr.strip()}"
+    return (listed.stdout.split()[0] if listed.stdout.strip() else None), None
+
+
 def _sync(repo: str) -> str:
     """Bring the local bookmark up to origin's when origin's is newer. Returns `ok`, `local-only` or a sentence saying
     why origin could not be read. A failure leaves the local bookmark as it was, which can only be older."""
     if not _has_remote(repo):
         return "local-only"
-    try:
-        listed = _git(repo, "ls-remote", REMOTE, REF, timeout=NETWORK_TIMEOUT)
-    except subprocess.TimeoutExpired:
-        return f"`git ls-remote {REMOTE}` timed out"
-    if listed.returncode != 0:
-        return f"`git ls-remote {REMOTE}` failed: {listed.stderr.strip()}"
-    if not listed.stdout.strip():
+    origin_sha, error = _origin_bookmark(repo)
+    if error:
+        return error
+    if origin_sha is None:
         return "ok"
     try:
         fetched = _git(repo, "fetch", "--no-tags", REMOTE, f"+{REF}:{FETCHED}", timeout=NETWORK_TIMEOUT)
@@ -120,10 +129,31 @@ def _sync(repo: str) -> str:
     if fetched.returncode != 0:
         return f"fetching {REF} from {REMOTE} failed: {fetched.stderr.strip()}"
     remote = _resolve(repo, FETCHED)
-    local = _resolve(repo, REF)
-    if remote and (not local or (local != remote and _is_ancestor(repo, local, remote))):
+    if _supersedes(repo, _resolve(repo, REF), remote):
         _git(repo, "update-ref", REF, remote)
     return "ok"
+
+
+def _supersedes(repo: str, local: str | None, remote: str | None) -> bool:
+    """Whether origin's bookmark replaces the local one: it exists, and the local one is absent or older. `_sync`
+    applies this and `status` predicts it, so the count `status` prints is the one the next `plan` covers."""
+    return bool(remote) and (not local or (local != remote and _is_ancestor(repo, local, remote)))
+
+
+def _coverage(repo: str, sync: str, head: str | None, bookmark: str | None) -> tuple[str | None, list[str], str | None]:
+    """The base a review diffs from, the commits it adds past the bookmark, and why there is no base when there is
+    none. Both `plan` and `status` call this, so the line `status` prints cannot promise a coverage `plan` refuses."""
+    if sync not in ("ok", "local-only"):
+        return None, [], f"Origin's review bookmark could not be read ({sync}), so the commits it would add are unknown."
+    if head is None:
+        return None, [], "The repo has no commits yet."
+    if bookmark and not _is_ancestor(repo, bookmark, head):
+        return None, [], (f"The review bookmark {bookmark[:12]} is not an ancestor of HEAD, so history was rewritten "
+                          f"after the last review and the unreviewed range is unknown.")
+    if not bookmark:
+        return head, [], None
+    log = _git(repo, "log", "--format=%h %s", f"{bookmark}..{head}").stdout.splitlines()
+    return bookmark, [line for line in log if line.strip()], None
 
 
 def plan(repo: str) -> dict:
@@ -132,22 +162,8 @@ def plan(repo: str) -> dict:
     status = _sync(repo)
     head = _resolve(repo, "HEAD")
     bookmark = _resolve(repo, REF)
-    result = {"repo": repo, "head": head, "bookmark": bookmark, "sync": status, "base": None, "commits": [], "problem": None}
-    if status not in ("ok", "local-only"):
-        result["problem"] = f"Origin's review bookmark could not be read ({status}), so the commits it would add are unknown."
-        return result
-    if head is None:
-        result["problem"] = "The repo has no commits yet."
-        return result
-    if bookmark and not _is_ancestor(repo, bookmark, head):
-        result["problem"] = (f"The review bookmark {bookmark[:12]} is not an ancestor of HEAD, so history was rewritten "
-                             f"after the last review and the unreviewed range is unknown.")
-        return result
-    result["base"] = bookmark or head
-    if bookmark:
-        log = _git(repo, "log", "--format=%h %s", f"{bookmark}..{head}").stdout.splitlines()
-        result["commits"] = [line for line in log if line.strip()]
-    return result
+    base, commits, problem = _coverage(repo, status, head, bookmark)
+    return {"repo": repo, "head": head, "bookmark": bookmark, "sync": status, "base": base, "commits": commits, "problem": problem}
 
 
 def scope_text(found: dict) -> str:
@@ -239,20 +255,28 @@ def revert(repo: str, tree: str, paths: list[str]) -> str:
     return f"reverted to {tree}: {len(restored)} restored, {len(deleted)} deleted{left}"
 
 
+def _advance_refusal(repo: str, record: dict, head: str | None) -> str | None:
+    """Why `advance` would refuse to move the bookmark to HEAD for this record, or None when it would move it.
+    Both `advance` and `status` call this, so the line `status` prints cannot promise an advance that refuses."""
+    if head is None or _git(repo, "rev-parse", "HEAD^{tree}").stdout.strip() != record["tree"]:
+        return "HEAD's tree differs from the reviewed one, so something committed was never reviewed"
+    if not _is_ancestor(repo, record["base"], head):
+        return "the review's base is no longer an ancestor of HEAD"
+    current = _resolve(repo, REF)
+    if current and not _is_ancestor(repo, current, head):
+        return f"the bookmark {current[:12]} is not an ancestor of HEAD"
+    return None
+
+
 def advance(repo: str) -> str:
     path = _git_path(repo, RECORD)
     record = _read_record(repo)
     if record is None:
         return "not advanced: no completed review is recorded"
     head = _resolve(repo, "HEAD")
-    head_tree = _git(repo, "rev-parse", "HEAD^{tree}").stdout.strip()
-    if head_tree != record["tree"]:
-        return "not advanced: HEAD's tree differs from the reviewed one, so something committed was never reviewed"
-    if not _is_ancestor(repo, record["base"], head):
-        return "not advanced: the review's base is no longer an ancestor of HEAD"
-    current = _resolve(repo, REF)
-    if current and not _is_ancestor(repo, current, head):
-        return f"not advanced: the bookmark {current[:12]} is not an ancestor of HEAD"
+    refusal = _advance_refusal(repo, record, head)
+    if refusal:
+        return f"not advanced: {refusal}"
     _git(repo, "update-ref", REF, head)
     os.remove(path)
     return f"advanced: {REF} -> {head[:12]}"
@@ -283,35 +307,41 @@ def push(repo: str) -> str:
 
 def status(repo: str) -> str:
     """One line for the end of every report that pushes: where the bookmark stands locally and on origin, how many
-    commits on HEAD the next review covers, and whether a recorded review is still waiting. It reads origin with
-    `ls-remote` and changes nothing, so it can follow a failed `advance` or `push` without disturbing either."""
+    commits on HEAD the next review covers, and whether a recorded review is still waiting or why `advance` would
+    refuse it. It reads origin with `ls-remote` and changes nothing, so it can follow a failed `advance` or `push`
+    without disturbing either."""
     local = _resolve(repo, REF)
     parts = [f"local {local[:12] if local else 'none'}"]
+    bookmark, sync = local, "local-only"
     if not _has_remote(repo):
         parts.append("no origin remote")
     else:
-        try:
-            listed = _git(repo, "ls-remote", REMOTE, REF, timeout=NETWORK_TIMEOUT)
-            remote = listed.stdout.split()[0] if listed.returncode == 0 and listed.stdout.strip() else None
-            reading = None if listed.returncode == 0 else f"origin unreadable: {listed.stderr.strip()}"
-        except subprocess.TimeoutExpired:
-            remote, reading = None, f"origin unreadable: `git ls-remote {REMOTE}` timed out"
-        if reading:
-            parts.append(reading)
+        remote, error = _origin_bookmark(repo)
+        if error:
+            parts.append(f"origin unreadable: {error}")
+            sync = error
         else:
             parts.append(f"origin {remote[:12] if remote else 'none'} ({'agree' if remote == local else 'differ'})")
+            sync = "ok"
+            if remote and remote != local:
+                fetched = _resolve(repo, remote)
+                if fetched is None:
+                    sync = f"origin's bookmark {remote[:12]} is not in this clone yet"
+                elif _supersedes(repo, local, fetched):
+                    bookmark = fetched
     head = _resolve(repo, "HEAD")
-    if local is None:
+    base, commits, problem = _coverage(repo, sync, head, bookmark)
+    if problem:
+        parts.append(f"the next review has no base to record: {problem}")
+    elif bookmark is None:
         parts.append("no bookmark, so the next review starts from HEAD")
-    elif head and _is_ancestor(repo, local, head):
-        count = _git(repo, "rev-list", "--count", f"{local}..{head}").stdout.strip()
-        parts.append(f"{count} commit(s) on HEAD past it, which the next review covers")
     else:
-        parts.append("HEAD does not descend from it, so the next review has no base to record")
+        past = "it" if bookmark == local else f"origin's {bookmark[:12]}"
+        parts.append(f"{len(commits)} commit(s) on HEAD past {past}, which the next review covers")
     record = _read_record(repo)
     if record:
-        matches = head and _git(repo, "rev-parse", "HEAD^{tree}").stdout.strip() == record["tree"]
-        parts.append("a recorded review matches HEAD and awaits `advance`" if matches else f"a recorded review covers tree {record['tree'][:12]}, which HEAD does not hold")
+        refusal = _advance_refusal(repo, record, head)
+        parts.append(f"a recorded review of tree {record['tree'][:12]} cannot advance: {refusal}" if refusal else "a recorded review matches HEAD and awaits `advance`")
     return "review bookmark: " + " · ".join(parts)
 
 

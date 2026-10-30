@@ -54,14 +54,15 @@ REVIEW_STAGE = re.compile(
 ESCAPE = re.compile(r"\\[nrt]")
 REALISM = re.compile(r"\bfrequency\b|\breached_by\b|" + re.escape(SAVED))
 
+ARGS_RECIPE = "~/.claude/skills/shared/review-auto-args.md"
+
 REMINDER = (
     f"This workflow fixes what it reviews, but its script never rates realism — no `frequency`, no "
     f"`reached_by`, no call to the saved `{SAVED}` workflow. A loop that verifies and fixes on its own "
     f"shows its findings to nobody, so feedback_realism_before_hardening never fires: every confirmed "
-    f"edge case gets code. Run review loops through the saved workflow instead — "
-    f"Workflow({{name: \"{SAVED}\", args: {{scope, lenses: [{{key, prompt}}], context, gate, fix, rounds}}}}) — which "
-    f"makes every finding carry who reaches it, how often and what it costs, triages in code, caps at "
-    f"`rounds` rounds (three by default) and returns the triage table. If this one is already running, consider stopping it "
+    f"edge case gets code. Run review loops through the saved workflow instead, building its args as "
+    f"{ARGS_RECIPE} describes, which makes every finding carry who reaches it, how often and what it costs, "
+    f"triages in code, caps its rounds and returns the triage table. If this one is already running, consider stopping it "
     f"and relaunching that way; otherwise present its findings as a triage with realism ratings, not "
     f"as \"all fixed\"."
 )
@@ -70,8 +71,8 @@ READ_ONLY_REMINDER = (
     f"This workflow reviews code inline instead of through the saved `{SAVED}` workflow. Only that workflow "
     f"gets the commits pushed since the last review added to its scope (the review-scope hook), and only it "
     f"records what it covered, so this review leaves those commits out and the next one cannot start after it. "
-    f"For a read-only review call Workflow({{name: \"{SAVED}\", args: {{scope, lenses: [{{key, prompt}}], context, "
-    f"fix: false}}}}), which reviews and verifies one round, changes nothing, and returns the triage table."
+    f"For a read-only review call the saved workflow with `fix: false`, building the rest of its args as "
+    f"{ARGS_RECIPE} describes; it reviews and verifies one round, changes nothing, and returns the triage table."
 )
 
 

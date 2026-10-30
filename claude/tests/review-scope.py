@@ -111,7 +111,7 @@ def main() -> int:
         sh(a, "add", "app.txt")
         sh(a, "commit", "-qm", "partial")
         check("a commit leaving out a reviewed file does not advance", review_scope.advance(a).startswith("not advanced: HEAD's tree differs"), True)
-        check("status names the waiting review HEAD does not hold", "a recorded review covers tree" in review_scope.status(a), True)
+        check("status names the waiting review HEAD does not hold", "cannot advance: HEAD's tree differs" in review_scope.status(a), True)
         sh(a, "add", "new.txt")
         sh(a, "commit", "-qm", "rest")
         reviewed = sh(a, "rev-parse", "HEAD")
@@ -150,6 +150,8 @@ def main() -> int:
         check("a review of a clean tree advances on the commit it sits on", review_scope.advance(b).startswith("advanced"), True)
         check("and pushes", review_scope.push(b).startswith("pushed"), True)
         sh(a, "pull", "-q")
+        newer = sh(b, "rev-parse", "HEAD")
+        check("status counts from origin's newer bookmark, as the next plan will", f"· 0 commit(s) on HEAD past origin's {newer[:12]}, which the next review covers" in review_scope.status(a), True)
         check("the first machine picks it up at its next plan", review_scope.plan(a)["base"], sh(b, "rev-parse", "HEAD"))
         check("an older local bookmark never overwrites origin's newer one", review_scope.push(a), "up to date")
 

@@ -302,7 +302,7 @@ Take `{summary}` from the stack branch above. Leave the "What's new" section unt
 
 ## 9. Close with the review bookmark's state
 
-Once the release is verified, run `python ~/.claude/scripts/review_scope.py status` (`python3` on macOS) and make its line the last line of the report, with any `not advanced` or `not pushed` line this run printed quoted beside it, so whether the bookmark moved is read at the end rather than scrolled past mid-report.
+Once the release is verified, close the report as `~/.claude/skills/shared/review-bookmark-status.md` describes.
 
 ## Checklist
 
