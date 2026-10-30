@@ -1,6 +1,6 @@
 ---
 name: feedback_route_output_not_paste
-description: When handing over a command whose output I need back, tee it to a file I read myself — never end with "paste the output"
+description: A command only the user can run goes onto their clipboard, ready to paste, with its output teed to a file I read myself — never end with "paste the output"
 metadata:
   type: feedback
 ---
@@ -16,11 +16,23 @@ hope nothing was truncated. A `tee` costs them nothing extra, since they still s
 worse answer: `pbcopy` still needs a deliberate paste, and a sibling session overwrites the shared
 clipboard before I get there ([[feedback_check_live_sibling_session]]).
 
+**Put the command itself on the clipboard too.** Copying the output back is the chore the `tee`
+removes; copying the command in is the other half, and it is mine as well. Asked 2026-10-30, after a
+publish command was shown in a fence and the user had to select it: "why didn't you copy command to
+run to the clipboard?" Showing it stays — the fence is what they read — but the copy is what they use.
+
 **How to apply:**
-- Default: `sudo bash <script> 2>&1 | tee <repo>/tmp/<name>.log`, then Read that file next turn.
+- Copy the exact line they will submit, `!` prefix included when it is meant for the prompt:
+  `printf '%s' '<cmd>' > /dev/clipboard` in Git Bash on Windows, `| pbcopy` on macOS. Read it back
+  (`cat /dev/clipboard`, `pbpaste`) in the same call, and say in the reply that it is on the
+  clipboard. `/dev/clipboard` is measured byte-exact both ways; `Get-Clipboard` appends a CRLF and
+  transliterates non-ASCII, so its read-back never matches (`learnings/windows-clipboard-git-bash.md`).
+  Not for a command carrying a secret, which never goes through `!` at all.
+- Default for the command: `sudo bash <script> 2>&1 | tee <repo>/tmp/<name>.log`, then Read that file next turn.
   `2>&1` matters — the diagnostic half of these commands goes to stderr.
 - `tmp/` because file tools refuse reads outside the working directories, per
   [[feedback_scratch_lives_in_project_tmp]]. `$TEMP` is a file I can write and never open.
 - When the command genuinely cannot tee (a GUI toggle, a dashboard click), do not ask for a
   transcript of it — go and measure the resulting state myself afterwards.
-- `pbcopy` is the fallback for when no shared filesystem exists, not the first offer.
+- Copying the *output* back to me via the clipboard is the fallback for when no shared filesystem
+  exists, not the first offer.
