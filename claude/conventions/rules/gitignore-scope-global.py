@@ -148,9 +148,9 @@ def owned_ignore_files(root: str) -> list[str]:
     `.gitignore` this repo neither owns nor should be judged on — the fleet holds nine such files under
     `.venv/`, `.next/` and `.idea/`, every one of them inside an ignored directory.
 
-    An untracked one still counts. `/commit` unstages everything at skill load before running the gate,
-    so a `.gitignore` this change set creates is in no index when the rule looks, and reading `--cached`
-    alone measured none of it while reporting a pass.
+    An untracked one still counts: a `.gitignore` this change set creates is on its way into the
+    commit. Why `--cached` alone misses it is in claude/conventions/authoring.md, under "Ask git what
+    it hides".
     """
     done = _git.git(root, "ls-files", "-z", "--cached", "--others", "--exclude-standard",
                     "--", "*.gitignore")

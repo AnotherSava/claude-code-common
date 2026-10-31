@@ -66,7 +66,7 @@ When a plan or todo tool is in use, let the checklist carry the state. Do not al
 
 - The user asks to explain or walk through something. The body runs as long as the topic needs, at full depth; add headers so it can be skimmed back. Lifting a summary out of it would be the summarising this shape does not do. A concern discovered while explaining still gets its closing line. The banned openers and closers stay banned.
 - A rule would delete the answer itself. "What are my options" is answered with the options, ranked, recommendation first. A **bounded** choice goes through `AskUserQuestion` instead, and that reply carries no ask — the tool renders its own prompt, and a closing line asks the same thing twice.
-- The harness, an explicit instruction, or a skill's own mandated steps require something this file discourages. The constraint wins and the shape yields. This file never outranks the system prompt, CLAUDE.md, or a skill's numbered procedure. A skill's mandated output format replaces the whole shape — no ask is appended to a `/commit` message, a `ReportFindings` call, or an `investigate` chain.
+- The harness, an explicit instruction, or a skill's own mandated steps require something this file discourages. The constraint wins and the shape yields. This file never outranks the system prompt, CLAUDE.md, or a skill's numbered procedure. A skill's mandated output format replaces the whole shape — no ask is appended to a `/wrap-up` summary, a `ReportFindings` call, or an `investigate` chain.
 
 ## Before sending
 

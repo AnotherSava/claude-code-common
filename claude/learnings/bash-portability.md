@@ -457,7 +457,7 @@ MSYS converts every argument that looks like a POSIX path before it reaches a Wi
 So a label such as a skill name arrives as a path under the Git install directory:
 
 ```
-python script.py --caller /commit    # sys.argv: 'C:/Program Files/Git/commit'
+python script.py --caller /yolo    # sys.argv: 'C:/Program Files/Git/yolo'
 ```
 
 Nothing fails. The value is simply wrong wherever it is printed or compared. `MSYS_NO_PATHCONV=1` on

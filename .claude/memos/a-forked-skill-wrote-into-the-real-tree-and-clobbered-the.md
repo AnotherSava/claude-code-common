@@ -16,6 +16,6 @@ README's Docs Relevance section already states the contract: it edits a detached
 
 Both sides wrote commit-message drafts to `/tmp/m1.txt` and `/tmp/m2.txt`. The fork's writes (18:52:31, 18:53:24) landed over the parent's (~18:47), so `git commit -F /tmp/m1.txt` produced commit `7253b80`: a `fix(release): quote the signing probe's glob` subject, with a body describing a glob fix, over a diff containing the `docs-relevance` step-9 rule and a README bullet. A message cannot be repaired by a later commit, so this cost a `/reset` and a re-commit (now `cb4448a` and `787e931`).
 
-Cheap fix for this half: scratch and message files go to the repo's own `tmp/` under a per-agent name, never a bare `/tmp/<short>.txt`. The repo `tmp/` is already the documented home for agent scratch and is gitignored. Worth applying wherever a skill writes a message file — `/commit` and `/wrap-up` both do.
+Cheap fix for this half: scratch and message files go to the repo's own `tmp/` under a per-agent name, never a bare `/tmp/<short>.txt`. The repo `tmp/` is already the documented home for agent scratch and is gitignored. Worth applying wherever a skill writes a message file — `/yolo` and `/wrap-up` both do, through `shared/commit-grouping.md`.
 
 Why this is worth fixing rather than remembering: both failures produced output that looked correct. The stray tree write arrived as a plausible fix, and the clobbered message passed `check-commit-message.py` — it is a valid Conventional Commit, just about different code.

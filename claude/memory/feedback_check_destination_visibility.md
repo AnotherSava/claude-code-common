@@ -5,7 +5,7 @@ metadata:
   type: feedback
 ---
 
-Before writing or moving anything into a shared config/dotfiles repo, establish **two** things, not one: that it is reachable from where it needs to be, and that it is not published. Check the repo's visibility (`gh repo view <repo> --json isPrivate,visibility`) and whether the path is actually ignored (`git check-ignore -v <path>`). **Untracked is not ignored** — an untracked file is one `git add -A` or one `/commit` sweep away from the internet.
+Before writing or moving anything into a shared config/dotfiles repo, establish **two** things, not one: that it is reachable from where it needs to be, and that it is not published. Check the repo's visibility (`gh repo view <repo> --json isPrivate,visibility`) and whether the path is actually ignored (`git check-ignore -v <path>`). **Untracked is not ignored** — an untracked file is one `git add -A` or one `/yolo` sweep away from the internet.
 
 **Why:** near-miss on 2026-08-26. A per-host identity manifest was moved into the dotfiles repo to delete a sibling-clone dependency — three projects needed it, and putting it beside the shared tooling made it resolve identically from every repo on every machine. That reasoning was correct and was verified from four directories. What was never checked was the destination: the dotfiles repo is **public**, and `claude/hosts/` was untracked but not ignored, while commits were being made to that repo throughout the same session. The file would have published the complete hostname inventory of a box fronting a commercial storefront, the exact string each site emits to prove the right application is answering, and prose describing which routes are deliberately hidden and how. A sibling agent caught it before the next commit.
 

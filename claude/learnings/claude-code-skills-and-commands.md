@@ -71,7 +71,7 @@ So the flag means three things at once, and only the first is obvious:
 2. Claude cannot start it **when directly asked to** either.
 3. Claude is barred from hand-running the equivalent steps, so there is no sanctioned workaround.
 
-It follows that **no skill can delegate to a flagged skill**. A `/commit` that wants to sync a behind
+It follows that **no skill can delegate to a flagged skill**. A skill that wants to sync a behind
 remote cannot hand that off to a flagged `/pull`; it has to keep its own inline copy of the procedure.
 Weigh that duplication before flagging anything other skills would want to call.
 

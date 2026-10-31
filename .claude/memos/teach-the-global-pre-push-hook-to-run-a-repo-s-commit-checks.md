@@ -4,14 +4,14 @@ created: 2026-10-07 04:52:08
 
 # Teach the global pre-push hook to run a repo's commit-checks.sh
 
-A repo's `.claude/commit-checks.sh` runs only inside `/commit` — at its step 6, and again at step 9
-through `gate_pushed_tree.py`. Nothing else runs it. Measured 2026-10-07 in the claude dotfiles repo:
+A repo's `.claude/commit-checks.sh` runs only through `gate_pushed_tree.py`, which the skills call before
+committing (`/yolo`, `/wrap-up`, `/adopt`) and `shared/push.py` calls again before pushing. Nothing else runs it. Measured 2026-10-07 in the claude dotfiles repo:
 `grep -rn "commit-checks" ~/.git-hooks/` finds nothing, and the repo has no `.github/workflows/` at all,
-so `gh run list` is empty unfiltered. A commit made and pushed without `/commit` — by hand, by another
-tool, or by a session that skipped the skill — reaches the remote with none of the suite having run.
+so `gh run list` is empty unfiltered. A commit made and pushed outside those skills — by hand, by another
+tool, or by a session that skipped them — reaches the remote with none of the suite having run.
 
 The asymmetry is what makes this worth doing rather than merely noting. The pre-push hook already covers
-that exact bypass path for commit *messages*: its own comment names "a lone follow-up commit [that]
+that exact bypass path for commit *messages*, and since 2026-10-31 for the privacy scan too: on 2026-10-07 its own comment named "a lone follow-up commit [that]
 reaches the push without `/commit` having seen it", and `check-commit-message.py` runs there for any repo
 holding a `.claude/conventions` record. So the bypass was recognised and half-closed. The test half was
 never examined.

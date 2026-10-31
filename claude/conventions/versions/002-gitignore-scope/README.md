@@ -163,6 +163,7 @@ human rather than to a check that quietly passes.
 in the global excludes file, and no bare `scripts/` line exists. That set is tracked and merely
 untracked files alike, with the ignored ones left out: a `.gitignore` a virtualenv or a build
 directory wrote is nobody's declaration, while one this change set adds is on its way into the commit
-the rule gates, and the index does not hold it when `/commit` runs the gate. Both sides are re-read
+the rule gates. Why reading the index alone misses such a file is in `claude/conventions/authoring.md`,
+under "Ask git what it hides". Both sides are re-read
 from disk on every run, so a later change to the global file is measured rather than frozen into
 whatever was true on the day the repo adopted this.

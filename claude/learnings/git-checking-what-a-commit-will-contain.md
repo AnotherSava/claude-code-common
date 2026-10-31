@@ -1,16 +1,17 @@
 # Asking git which files a check should read
 
 A check that inspects a repo to decide whether something is present — a convention rule, a lint gate, a
-"does this project still declare X" assertion — is normally run by a commit flow. That flow empties the
-index first, on purpose, so that the diff it builds a message from cannot describe a half-staged tree. The
-obvious instrument for "which files does this repo have" then answers about the *previous* commit rather
-than the one being made, and it answers with no error.
+"does this project still declare X" assertion — is normally run by a commit flow at a point where a file the
+change set adds may still be untracked; when the gate runs, and why that leaves an added file untracked, is in
+`conventions/authoring.md` under "Ask git what it hides". The obvious instrument for "which files does
+this repo have" then answers about the *previous* commit rather than the one being made, and it answers
+with no error.
 
 `git ls-files` lists the index. A tracked file the change set modifies still appears, because `HEAD` put it
 there. A file the change set **adds** appears only while it is staged, so it vanishes the moment anything
-unstages — and `/commit` runs `git reset HEAD` among its context probes, before it runs the project's gate.
-Every new file in the change set is therefore invisible to a check reading `--cached` at the one moment the
-check actually runs.
+unstages — and the shared commit step, `shared/commit.py`, clears the index with `git reset` before staging
+each commit. Whether a new file is staged when the project's gate runs therefore depends on where in the flow
+the gate runs, never on the file, and a check reading `--cached` cannot rely on seeing it.
 
 Which *repo* the check is in is the separate question, answered in
 `git-identifying-the-repo-a-check-is-in.md`; `ports-from-registry` had both defects at once.
@@ -58,7 +59,7 @@ scratch repo in all three states and require the same answer:
 git -C "$repo" status --short            # shows it as untracked
 # staged, as a migration's own instructions usually leave it
 git -C "$repo" add -- scripts/dev.mjs
-# and after the unstage a commit flow performs before running the gate
+# and unstaged again, as an index reset such as `git reset HEAD` leaves it
 git -C "$repo" reset HEAD --quiet
 ```
 

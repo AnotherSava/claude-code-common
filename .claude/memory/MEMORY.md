@@ -11,7 +11,7 @@
 - [Remote session diagnostics](remote-session-diagnostics.md) — "remote session" means the tmux feature, not Remote Control; the four read-only commands for its live state, and why an attach can work while the conversation is new
 - [Docs stay text-only](docs-stay-text-only.md) — why there are no images here (2026-09-24); the instruction itself is in `CLAUDE.md`, where `/screenshot-relevance` reads it
 - [v9 stock-take is inventory only](v9-stocktake-inventory-only.md) — nothing runs before the commit-gate question; running candidates was rejected 2026-09-26, don't re-propose it
-- [Commit and wrap-up stay separate](commit-wrapup-stay-separate.md) — merging them was rejected 2026-09-30; they are already composed and the assumed overlap is absent
+- [/commit removed, /yolo and /wrap-up share steps](commit-wrapup-stay-separate.md) — decided 2026-10-31, superseding the 2026-09-30 keep-separate call; no top-level skill calls another to commit or push
 - [Port uniqueness is not a rule](port-uniqueness-not-a-rule.md) — it lives in this repo's gate because three port-claiming repos have no gate at all; v15 does the per-repo replacement instead
 - [Registry prose audited against repos](registry-prose-audited-against-repos.md) — 2026-10-05: 29 claims read against their owning repos, numbers all held; a v15 adoption falsifies a note and nothing here reports it
 - [Memo surfacing is session start only](memo-surfacing-session-start-only.md) — decided 2026-10-06; a count in place of the list and keeping the task-completion listing were both declined, don't re-propose either

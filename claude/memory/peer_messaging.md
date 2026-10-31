@@ -32,7 +32,7 @@ Send when another project's agent has a stake in what just happened here:
 - **A live session over there outranks asking the user to run it by hand.** Handing the user a command is the fallback for when no session there can do it; see [[feedback_route_output_not_paste]] for the output once it is.
 - **Work only the other machine can do is routed, not memo'd.** A memo defers it to whoever next reads the backlog, on whichever machine they are on; the backlog is for work nobody is doing yet, not for work this machine cannot do.
 - **Work inside another repo's tree goes to that repo's session, even where this one could do it** — a commit, a rekey, unlocking a clone. Offer the routing before doing it from here, and do it from here only on the user's explicit approval, as for a clone with no session.
-- **Sequence the send on whether the receiver can act yet.** Where their half depends on this side's work — a commit to pull, a file still uncommitted here — send only after it is finished and pushed, and say that it is; sent earlier it names a hash they cannot resolve and costs a turn for nothing. Where they can act on what is already on the remote, send as soon as the finding is settled. `/commit` sends the after-push pull request itself.
+- **Sequence the send on whether the receiver can act yet.** Where their half depends on this side's work — a commit to pull, a file still uncommitted here — send only after it is finished and pushed, and say that it is; sent earlier it names a hash they cannot resolve and costs a turn for nothing. Where they can act on what is already on the remote, send as soon as the finding is settled. The after-push pull request is sent by `shared/push.py`, so `/yolo` and `/wrap-up` both send it themselves.
 
 ## Receiving
 

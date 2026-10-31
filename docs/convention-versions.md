@@ -15,7 +15,7 @@ A convention changes here, and the change ships with its version folder, committ
 
 1. **The session-start notice says so** in that repo, the next time a session opens there.
 2. **You run `/adopt` there**, in one clone of that repo only. It walks the pending versions in ascending order, one at a time: reading the version's prose in full, performing the migration where it applies, and advancing the number by one.
-3. **`/commit` commits the record with the work**, and the repo's other clone takes it through `/pull`.
+3. **`/adopt` commits the record with the work** through the shared commit step, `claude/skills/shared/commit.py`, and once the next `/yolo` or `/wrap-up` pushes it, the repo's other clone takes it through `/pull`.
 
 No session ever writes to a repo other than its own. `/github-status` reports where every repo stands, across both machines at once, but closing a gap takes a session opened in the repo itself.
 
@@ -118,9 +118,9 @@ Silence means the repo is current, its origin belongs to someone else, its recor
 
 ## Adopting
 
-Run `/adopt` in the repo that is behind, from that repo's own session — and in one clone of it only. A repo behind on conventions is behind in both clones, so the notice fires in both, but a second walk from the same base migrates the same files again and writes a record claiming a number the first walk already claimed. The machine you typed `/adopt` in walks; the other clone takes the resulting commit through `/pull`, which `/commit` asks it for after the push like any other work.
+Run `/adopt` in the repo that is behind, from that repo's own session — and in one clone of it only. A repo behind on conventions is behind in both clones, so the notice fires in both, but a second walk from the same base migrates the same files again and writes a record claiming a number the first walk already claimed. The machine you typed `/adopt` in walks; the other clone takes the resulting commit through `/pull`, which the push step of the next `/yolo` or `/wrap-up` asks it for like any other work.
 
-Commit or stash what you have first: the walk does not commit, but it hands to `/commit`, and a tree already carrying unrelated work makes that commit harder to review. A dirty tree is not a gate — several repos hold a convention's work already done and never committed, and the record and that pending change commit together.
+Commit or stash what you have first: the walk ends in one commit of every path it changed, and a tree already carrying unrelated work makes it harder to tell which paths those are. A dirty tree is not a gate — several repos hold a convention's work already done and never committed, and the record and that pending change commit together.
 
 The walk takes the pending versions in ascending order, one at a time:
 

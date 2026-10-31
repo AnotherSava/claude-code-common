@@ -23,7 +23,7 @@ whether it can be done today. The 2026-10-08 case was a repo with no CI at all, 
 memo on exactly that reasoning while the adoption was one workflow file and a container rehearsal.
 Having answered "yes, reachable", that is the answer.
 
-**A step that forbids the fix defers it; it does not turn it into a report.** `/commit` may change no
+**A step that forbids the fix defers it; it does not turn it into a report.** The since-removed `/commit` could change no
 files outside its own sub-skills, so a sibling defect its `/docs-relevance` run found — the same race
 in `cleanup-tauri.sh` that the change set had just fixed elsewhere — was carried as "still open"
 through the end of `/wrap-up`. Once the fix is reachable, the blocking step ending is when it

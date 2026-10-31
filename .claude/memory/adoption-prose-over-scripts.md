@@ -13,7 +13,7 @@ Three facts remove the requirement, and all three had to hold:
 
 - **The source is not destroyed.** It leaves the working tree, but the commit that deletes it carries its full text in the diff, so `git show` recovers it permanently. What the adoption commit removes is the evidence from `HEAD`, not from history.
 - **A second, independent pass is available.** Checking the diff rather than the migrator's account of what it migrated is a different reading from the one that did the work, which is the property that mattered — not that a program did the checking.
-- **That pass always runs before anything is committed.** `/commit` analyses the change set before it commits, so there is no committed-but-wrong state to unwind; the correction is a working-tree edit. See [[project-memory-versioning]] for the sibling case of a decision that only works because a later step already owns it.
+- **That pass always runs before anything is committed.** Before a migration deletes or rewrites a committed file, `/adopt` shows what would be lost and how to compare it against the diff, and it commits only once the walk is done, so there is no committed-but-wrong state to unwind; the correction is a working-tree edit. See [[project-memory-versioning]] for the sibling case of a decision that only works because a later step already owns it.
 
 What survives as code is the continuous half — the rules under `claude/conventions/rules/`, which run unattended in a commit gate where no agent exists. A generic completeness check (every non-blank source line appears somewhere under the destination) is still worth having for the one case with no agent in it at all: a plain `git commit -m` typed by hand.
 

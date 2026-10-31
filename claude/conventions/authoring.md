@@ -177,8 +177,10 @@ Two things every rule has to get right, both already paid for once:
   form, so a force-added file inside an ignored directory still counts. Any git exit outside
   `{0, 1}` means the question went unanswered: raise. A rule that *enumerates* the files it judges
   asks for the set a commit would carry — `git ls-files --cached --others --exclude-standard` — not
-  the index alone, which cannot see a file the migration has just written, since the commit flow
-  unstages before running the gate. Both of this repo's file-listing rules failed on that, one by
+  the index alone, which cannot see a file the migration has just written, since that file is
+  still untracked on the gate run `/yolo`, `/wrap-up` and `/adopt` make before committing (the run
+  `push.py` makes after the commits sees it as committed, so `--cached` would find it there). Both
+  of this repo's file-listing rules failed on that, one by
   reporting a missing resolver already present and one by printing a pass over zero files;
   `learnings/git-checking-what-a-commit-will-contain.md` has the measurements.
 - **Abort rather than skip.** A parser that meets a line it cannot classify stops and prints it

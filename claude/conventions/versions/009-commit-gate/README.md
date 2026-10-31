@@ -4,13 +4,15 @@ title: The commit gate runs what the deploy runs, and the conventions checker
 
 ## What changed
 
-A commit gate is one file, `.claude/commit-checks.sh`, run from the repo root by `/commit` before it
-will draft a commit plan. A non-zero exit stops the commit and hands the failures back. That is the
+A commit gate is one file, `.claude/commit-checks.sh`, run from the repo root by `/yolo` and
+`/wrap-up` before they commit, and again over the state a push would publish by the shared push step.
+A non-zero exit stops the commit or the push and hands the failures back. That is the
 whole mechanism, and it is the only thing in these repos that reads a change before it reaches
 `main`: across the fleet's fifteen repos, the last forty commits — the whole history where it is
 shorter — held zero merge commits when this was written, so every one commits straight to `main`.
 The two global git hooks do not close that gap: the pre-commit hook checks that `config/publish.env`
-is marked for encryption, and the pre-push hook checks authorship and signatures. Neither compiles,
+is marked for encryption, and the pre-push hook checks authorship, signatures, commit messages and
+private content in the lines a push adds. Neither compiles,
 type-checks or runs anything.
 
 The gate carries two things.
@@ -73,7 +75,7 @@ chosen what goes in it. Then put the question with the inventory beside it:
 
 > What actually gates a commit here — a build, a lint, a test suite, a schema check — and does
 > `.claude/commit-checks.sh` run it? A file that exists but runs nothing is worse than none, because
-> `/commit` reports it green.
+> `/yolo` and `/wrap-up` report it green.
 
 The inventory informs the answer and does not replace it. A `test` script in a `package.json` says a
 suite exists, never that the suite is what would have caught the last thing to break.

@@ -8,4 +8,4 @@ When a skill or tool fails (e.g. shell expansion error, hook failure), fix the r
 
 **Why:** A workaround means the skill stays broken and will fail again in the next session. Fixing it once saves repeated friction.
 
-**How to apply:** If a `/commit`, `/pr-create`, or any other skill errors out, read the SKILL.md, diagnose the failure, fix it, then re-run the skill. Only fall back to manual execution if the fix is impossible within the current session.
+**How to apply:** If a `/yolo`, `/wrap-up`, `/pr-create`, or any other skill errors out, read the SKILL.md, diagnose the failure, fix it, then re-run the skill. Only fall back to manual execution if the fix is impossible within the current session.

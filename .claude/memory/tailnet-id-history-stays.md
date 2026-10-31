@@ -9,4 +9,4 @@ The real tailnet id is in this public repo's history in two places: `claude/lear
 
 **Rewriting history to remove it was declined on 2026-10-09.** A rewrite of a public repo cloned on both machines forces a re-clone or reset on each, and the id names the tailnet without granting access to it, since joining still needs a login.
 
-**How to apply:** keep new commits free of the id, which `/commit`'s confidentiality scan covers. A future scan that finds it in old commits is this known state, not a new leak, so don't propose a rewrite again.
+**How to apply:** keep new commits free of the id, which the privacy scan blocks at both `shared/commit.py` and the global `pre-push` hook. A future scan that finds it in old commits is this known state, not a new leak, so don't propose a rewrite again.

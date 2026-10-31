@@ -24,7 +24,7 @@ Count only repos whose `origin` is AnotherSava. Two traps caught while gathering
 **The duplication, which is the actual target.** Both are one markdown file per item, in a committed directory, with a sibling subdirectory meaning addressed, kept forever. Implemented twice:
 
 - memos — `.claude/memos/` + `done/`, mechanics in `memos.py`, listed newest-first by a positional index
-- plans — `docs/plans/` + `completed/`, filed by `plan-archive.py start`, archived by `/commit` step 6, filename slug validated by `/commit` step 7
+- plans — `docs/plans/` + `completed/`, filed by `plan-archive.py start`, archived and filename slug validated under `shared/commit-grouping.md` (`/wrap-up` proposes the move)
 
 One shared helper behind both, with the namespaces as a parameter, is the step that shrinks this without deciding the merge.
 
