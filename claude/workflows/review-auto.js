@@ -214,6 +214,9 @@ let stopReason = `hard cap of ${MAX_ROUNDS} rounds reached`
 // items in old code. Without a snapshot to bound that diff (no bookmark, or a snapshot that failed) a round falls back
 // to the whole scope, which is slower but misses nothing.
 let scope = args.scope
+// The tree the last fixer left, as its snapshot saw it: what the bookmark records after fixes. The live tree would also
+// take in anything another writer changed outside a fixer's window, which no diff-scoped round ever read.
+let lastFixed = null
 let quiet = false
 let capped = false
 
@@ -261,7 +264,10 @@ for (let round = 1; round <= MAX_ROUNDS; round++) {
   }
   if (!fixes.length) {
     quiet = true
-    if (warns.length) await fixRound(round, [], warns)
+    if (warns.length) {
+      await fixRound(round, [], warns)
+      lastFixed = BOOKMARK ? await snapshot(`snapshot:after:r${round}`, 'Snapshot') : null
+    }
     const gaps = [
       ...(silent.length ? [`the ${silent.join(', ')} lens returned nothing`] : []),
       ...(unverified.length ? [`${unverified.length} finding(s) went unverified`] : []),
@@ -272,6 +278,7 @@ for (let round = 1; round <= MAX_ROUNDS; round++) {
   const before = BOOKMARK ? await snapshot(`snapshot:before:r${round}`, 'Snapshot') : null
   const report = await fixRound(round, fixes, warns)
   const after = before ? await snapshot(`snapshot:after:r${round}`, 'Snapshot') : null
+  lastFixed = after
   scope = before && after ? `Only the changes round ${round}'s fixes made to ${BOOKMARK.repo}, and nothing else: \`git -C "${BOOKMARK.repo}" diff ${before} ${after}\`. Everything outside that diff was already reviewed. The original scope, for context: ${args.scope}` : args.scope
   if (!report) {
     stopReason = `round ${round}'s fixer returned nothing, so none of its fixes were applied`
@@ -393,7 +400,7 @@ async function polish() {
   // from code, but nothing runs a fixer after the polish, and a clean-up that changed behaviour at all is not one to keep.
   const defects = rows.filter(r => r.verdict?.real)
   if (defects.length) return takeBack(`the polish review confirmed ${defects.map(r => r.id).join(', ')}`)
-  return { ...result, polished: true, kept: true, detail: `kept: ${result.rows.filter(r => r.disposition === 'polish').length} change(s), reviewed` }
+  return { ...result, polished: true, kept: true, tree: after, detail: `kept: ${result.rows.filter(r => r.disposition === 'polish').length} change(s), reviewed` }
 }
 
 // Taken before the polish adds its own rows: a finding over a polish that was then reverted is no gap in the review.
@@ -404,9 +411,11 @@ table.push(...polished.rows)
 async function recordBookmark() {
   const gap = reviewGap || polished.gap
   if (gap) return { recorded: false, detail: `not recorded: ${gap}` }
-  // With nothing applied the tree at launch is the reviewed one, even if something else wrote to the repo meanwhile.
-  // After fixes or a kept polish it is the tree now, which also takes in anything another writer changed while the run was going.
-  const tree = fixReports.length || polished.kept ? '' : ` --tree ${BOOKMARK.tree}`
+  // The reviewed tree is the one at launch when nothing was applied, the last fixer's snapshot after fixes, and the
+  // polished snapshot after a kept polish; none of them holds what another writer changed meanwhile. Only a fix round
+  // whose snapshot failed falls back to the live tree.
+  const reviewed = polished.kept ? polished.tree : fixReports.length ? lastFixed : BOOKMARK.tree
+  const tree = reviewed ? ` --tree ${reviewed}` : ''
   const done = await runCommand(`${SCOPE_SCRIPT} mark --repo "${BOOKMARK.repo}" --base ${BOOKMARK.base}${tree}${polished.polished ? ' --polished' : ''}`, 'bookmark', 'Bookmark')
   if (!done) return { recorded: false, detail: 'not recorded: the bookmark agent returned nothing' }
   return { recorded: done.exit_status === 0, detail: done.output }

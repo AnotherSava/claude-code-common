@@ -315,7 +315,9 @@ async function fixModeRecording() {
 
   const fixed = await run({ ...ARGS, review_bookmark: BOOKMARK }, { 1: [FIXABLE], 2: [] }, FIXABLE_VERDICT)
   check('after fixes a quiet round records', fixed.result.bookmark.recorded, true)
-  check('the tree as it is now, which holds the fixes', bookmarkCalls(fixed.calls)[0]?.prompt.includes('--tree'), false)
+  check('the tree the last fixer\'s snapshot saw, not the live one', bookmarkCalls(fixed.calls)[0]?.prompt.includes(`--tree ${'d'.repeat(40)}`), true)
+  const blind = await run({ ...ARGS, review_bookmark: BOOKMARK }, { 1: [FIXABLE], 2: [] }, FIXABLE_VERDICT, { polish: { snapshot: () => ({ exit_status: 1, output: 'failed' }) } })
+  check('a failed fix snapshot falls back to the live tree', bookmarkCalls(blind.calls)[0]?.prompt.includes('--tree'), false)
 
   const always = n => [finding(`fix-${n}`, { frequency: 'common', cost_unhandled: 'crash' })]
   const verdicts = Object.fromEntries([1, 2].map(n => [`defect fix-${n}`, verdict(true, true, 'common', 'crash')]))
@@ -347,7 +349,7 @@ async function polishKept() {
   check('nothing is reverted', polishCalls(calls, 'revert').length, 0)
   check('the polish rows are in the table as applied', result.triage.filter(r => r.disposition === 'polish').map(r => [r.lens, r.file, r.outcome]), [['clean-code', 'src/app.ts', 'applied'], ['docs-relevance', 'README.md', 'applied']])
   check('with what a pass would have asked about', result.polish.notes, [{ skill: 'docs-relevance', notes: 'a page per command would help' }])
-  check('the bookmark records the polished tree as it is now', markPrompt(calls).endsWith('--base b45e --polished') && !markPrompt(calls).includes('--tree'), true)
+  check('the bookmark records the polished snapshot', markPrompt(calls).endsWith(`--tree ${AFTER} --polished`), true)
   check('and says it was kept', result.polish.detail, 'kept: 2 change(s), reviewed')
 }
 
