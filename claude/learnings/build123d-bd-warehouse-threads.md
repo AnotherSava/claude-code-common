@@ -38,7 +38,8 @@ threads (a 1.4 pitch ISO external thread reaches about Ø8.3 on a Ø10 major, wh
 
 ## The solid's z-extent is not `length`
 
-The bounding box depends on `end_finishes`. Measured for `length=7`, pitch 1.5:
+The bounding box depends on `end_finishes`. Measured for an `IsoThread` of Ø10, pitch 1.5, `length=7`, on bd_warehouse
+0.1.1 with build123d 0.10.0 (re-measured 2026-10-31):
 
 | `end_finishes` | z range |
 |---|---|
@@ -47,6 +48,9 @@ The bounding box depends on `end_finishes`. Measured for `length=7`, pitch 1.5:
 | `("fade", "square")` | 0.19 .. 8.31 |
 | `("fade", "raw")` | 0.19 .. 8.31 |
 | `("raw", "raw")` | -1.31 .. 8.31 |
+
+A square far end stops at `length` after a square near end, `("square", "square")` ending at 7.0, but after a
+fading near end it overshoots to 8.31 exactly as `raw` does. That row is measured, not a copy slip.
 
 So never place a thread by aligning its bounding box. Build it in its native frame together with a cylinder
 of known height, and align that cylinder. A `raw` end overshoots by roughly one pitch, which is useful on a

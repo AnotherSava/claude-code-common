@@ -95,7 +95,7 @@ The `</dev/null` matters: `icacls` reads standard input, and without it the firs
 
 ## Making a file undeletable on purpose, for a test
 
-A test that needs a delete to fail cannot use the read-only attribute from Rust: `std::fs::remove_file` deletes a read-only file on Windows, so `set_readonly(true)` leaves the delete succeeding and the test asserting a failure that never comes (observed 2026-10-30). Hold the file open without delete sharing instead, which is also the realistic case of a player reading a subtitle:
+A test that needs a delete to fail cannot use the read-only attribute from Rust: `std::fs::remove_file` deletes a read-only file on Windows, so `set_readonly(true)` leaves the delete succeeding and the test asserting a failure that never comes (observed 2026-10-30, and re-measured on Rust 1.95.0 on 2026-10-31; older toolchains are reported to refuse instead, which was not measured here). Hold the file open without delete sharing instead, which is also the realistic case of a player reading a subtitle:
 
 ```rust
 use std::os::windows::fs::OpenOptionsExt;
