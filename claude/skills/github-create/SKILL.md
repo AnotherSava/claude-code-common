@@ -9,7 +9,7 @@ description: >-
   project's own files.
   TRIGGER when: user asks to "create a github repo", "publish this to github",
   "put this project on github", or runs /github-create in a project with no origin.
-  DO NOT TRIGGER when: the project already has an origin remote (use /commit to
+  DO NOT TRIGGER when: the project already has an origin remote (use /yolo or /wrap-up to
   push), the user wants to clone or fork an existing repo, or the user wants to cut
   a release (use /release).
 allowed-tools: AskUserQuestion, Read, Bash(git init:*), Bash(git rev-parse:*), Bash(git status:*), Bash(git log:*), Bash(git rev-list:*), Bash(git branch:*), Bash(git remote:*), Bash(git fetch:*), Bash(git pull:*), Bash(git config:*), Bash(git rm:*), Bash(gh auth status:*), Bash(gh config get:*), Bash(gh repo create:*), Bash(gh repo view:*), Bash(gh repo list:*), Bash(gh api:*), Bash(bash ~/.claude/skills/github-create/scripts/seed-license.sh:*), Bash(rm LICENSE:*)
@@ -45,7 +45,7 @@ When this skill finishes:
 - `origin` is wired and the local branch tracks it.
 - The repo is subscribed for email notifications.
 
-The project's own files are never committed or pushed. Pushing is a separate, explicitly-requested step (`/commit`).
+The project's own files are never committed or pushed. Pushing is a separate, explicitly-requested step (`/yolo` or `/wrap-up`).
 
 ## Working directory
 
@@ -58,7 +58,7 @@ Check these against Context and stop with a plain explanation if any fails:
 | Check | Data | Failure |
 |---|---|---|
 | Authenticated | **GitHub account** | `NOT-AUTHENTICATED` → tell the user to run `gh auth login` in a terminal, then stop |
-| No remote yet | **Existing remotes** | anything containing `origin` → this project already has a remote; stop and point at `/commit` |
+| No remote yet | **Existing remotes** | anything containing `origin` → this project already has a remote; stop and point at `/yolo` |
 | Copyright holder known | **Copyright holder** | `(unset)` → ask the user for the name to put in the license |
 
 If **Is a git repo** is `NO`, run `git init -b main`. Do not create any commit.
@@ -100,7 +100,7 @@ The license is a separate question from visibility, not a consequence of it: pri
 **Existing LICENSE.** If **LICENSE on disk** is `PRESENT`, the seeded commit will collide — an add/add merge conflict if the file is committed, or `untracked working tree files would be overwritten` if it isn't. Read the first 10 lines of the local `LICENSE`, show them, and ask via `AskUserQuestion`:
 
 - **Replace it with the license chosen in step 3** — delete the local file (`git rm LICENSE` if tracked, otherwise `rm LICENSE`), then continue normally. Compare the two texts before offering this: if the local file already says what step 3 chose, replacing it changes nothing and is the tidy path; if it is a different license, this is a licensing change rather than a cleanup, and it needs to read as one. Never choose it silently — a project may deliberately carry the license it has.
-- **Keep the local license** — skip step 6 and the rebase half of step 7. Say two things explicitly: there will be no initial commit to rebase onto, and **the remote will have zero commits, not one**, so step 7's `git fetch` finds no `origin/<default>` and the upstream cannot be set. Tracking then arrives only with the first push, and until it does, `/commit` cannot tell what is unpushed. Prefer the replace option whenever the two texts agree; this branch is for a license the skill cannot generate.
+- **Keep the local license** — skip step 6 and the rebase half of step 7. Say two things explicitly: there will be no initial commit to rebase onto, and **the remote will have zero commits, not one**, so step 7's `git fetch` finds no `origin/<default>` and the upstream cannot be set. Tracking then arrives only with the first push, which `push.py` makes normally, and until it does, the sync step's upstream comparison cannot tell what is unpushed. Prefer the replace option whenever the two texts agree; this branch is for a license the skill cannot generate.
 
 ## 5. Create the empty repository
 
@@ -156,7 +156,7 @@ Run these as separate Bash calls, in order.
 
 5. `git pull --rebase origin <default>` — replays local commits on top of the LICENSE commit, making it the root of history. When **Commit count** is `0` this simply brings LICENSE into the tree and leaves untracked files alone.
 
-6. `git branch --set-upstream-to=origin/<default> <default>` — `git pull` does not set tracking on its own, and without it `/commit` cannot tell what is unpushed.
+6. `git branch --set-upstream-to=origin/<default> <default>` — `git pull` does not set tracking on its own, and without it the sync step's upstream comparison cannot tell what is unpushed.
 
 If the rebase stops on a conflict, do not improvise: run `git rebase --abort` and report which file conflicted. See `references/repo-init-flags.md` for the failure matrix.
 
@@ -190,12 +190,12 @@ State plainly:
 - That the remote holds exactly one commit (LICENSE) and the project's files are still local and unpushed. If step 4's keep-local branch was taken, say instead that the remote holds **zero** commits and the branch has no upstream yet.
 - The local branch name and what it tracks.
 - Notification subscription confirmed.
-- That `/commit` is the next step when they want to push — as a fact, not an offer.
+- That `/yolo` (or `/wrap-up`, to close out the work) is the next step when they want to push — as a fact, not an offer.
 
 ## Out of scope
 
 - Do NOT commit or push the project's files. The only remote commit is the LICENSE one, created server-side.
-- Do NOT run `/commit`, `git add`, or `git push`.
+- Do NOT run `/yolo`, `/wrap-up`, `git add`, or `git push`.
 - Do NOT add a `.gitignore`, README, or CI config the user didn't ask for.
 - Do NOT create branches beyond renaming the current one to match the remote default.
 - Do NOT delete or archive repositories.

@@ -41,8 +41,9 @@ trap '' PIPE
 # Deliberately ONLY publish.env. `.env` as a class is the wrong unit: `host.env` in the landlord repo
 # is committed plaintext on purpose (non-secret facts, one source for two consumers), while its
 # sibling rendered `.env` carries secret values and must never be committed. Same suffix, opposite
-# handling — the filename cannot carry that decision, so judgement stays in /commit's confidentiality
-# step and only the one decided path is enforced here.
+# handling — the filename cannot carry that decision, so judgement stays with the committing skill,
+# which reads the review findings of the privacy scan `shared/commit.py` runs, and only the one
+# decided path is enforced here.
 #
 # Only what this commit stages is read, so a publish.env carried in by a command that skips
 # pre-commit (see check 2) is not refused later. The paths are read NUL-separated, so a name holding

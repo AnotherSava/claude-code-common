@@ -1,6 +1,6 @@
 #!/usr/bin/env bash
-# What /commit runs before it will draft a commit plan here. This repo commits straight to main and
-# has no CI, so nothing else reads a change on its way in.
+# What /yolo and /wrap-up run before they commit here. This repo commits straight to main and has
+# no CI, so nothing else reads a change on its way in.
 #
 # What makes a defect here expensive is reach rather than severity: everything under `claude/` is
 # symlinked into `~/.claude/` on both machines, so a broken hook fires at every session start
@@ -66,7 +66,7 @@ run "memos.py" python3 claude/tests/memos.py
 # by hand until this ran.
 run "install links" python3 claude/tests/install-links.py
 
-# The scanner /commit step 5 runs before every commit, against its own controls. It replaced prose
+# The scanner `shared/commit.py` runs before every commit, against its own controls. It replaced prose
 # that each run reimplemented, and both failures the prose warns about recurred on 2026-10-08: a
 # scan reading no files and reporting "none", and a candidate set of English words whose 1083
 # matches buried every real hit. A control that cannot fail loudly is the one thing this scanner
@@ -118,10 +118,22 @@ run "repo-root.sh" python3 claude/tests/repo-root.py
 # checker exists to close.
 run "commit messages" python3 claude/tests/check-commit-message.py
 
-# The gate run before every push from /commit, /pr-create, /pr-merge and /release. It skips a run whose tree
-# the pre-commit run already passed, and nothing after it measures the push, so a wrong skip publishes a
-# tree no gate passed; the cases try to make it skip when it must not.
+# The gate run before every push from `shared/push.py` (behind /yolo, /wrap-up, /release and /pr-merge)
+# and /pr-create. It skips a run whose tree the pre-commit run already passed, and nothing after it
+# measures the push, so a wrong skip publishes a tree no gate passed; the cases try to make it skip when it must not.
 run "gate pushed tree" python3 claude/tests/gate-pushed-tree.py
+
+# The one place a commit is made, for every skill that commits. A commit holding a path someone else staged, a
+# blocking privacy finding or content the review never read is in history by the time anyone looks.
+run "shared commit" python3 claude/tests/commit.py
+
+# The one push every pushing skill makes. A push over a failing gate, or a report missing the bookmark's state, is
+# what each case tries to produce.
+run "shared push" python3 claude/tests/push.py
+
+# Only shared/commit.py commits. A skill granted `git commit`, or a script running it, makes commits that skip the
+# exact staged set, the message check, the privacy scan and the signature.
+run "no raw commits" python3 claude/tests/no-raw-commits.py
 
 # The sandbox a sub-skill reviews instead of the user's tree. A change set it fails to carry in is a
 # review that reports success over files it never saw.
@@ -159,7 +171,7 @@ run "review picker" python3 claude/tests/review-picker.py
 # failure is moving past code no review saw, which then never gets reviewed; most cases try to make it do exactly that.
 run "review scope" python3 claude/tests/review-scope.py
 
-# The verdict /commit reads before its clean-up passes, which skips them over a tree review-auto already polished. A
+# The verdict /wrap-up reads before its clean-up passes, which skips them over a tree review-auto already polished. A
 # wrong skip sends code no clean-up pass saw into a commit and nothing later notices, so the cases press on the skips.
 run "change scope" python3 claude/tests/change-scope.py
 

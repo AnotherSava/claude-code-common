@@ -3,13 +3,13 @@ name: adopt
 description: >-
   Bring one repo up to date with the conventions defined in the claude dotfiles repo — walk the
   convention versions this repo has not adopted yet, perform each migration, confirm the continuing
-  rules hold, and hand the new number to /commit.
+  rules hold, and commit the new number through the shared commit step.
   TRIGGER when: the user runs /adopt; a session-start message says this repo is N versions behind or
   has no convention record; or the user asks where this repo stands on the conventions.
   DO NOT TRIGGER when: the task is authoring a NEW convention version — that is work in the dotfiles
   repo, and `claude/conventions/authoring.md` is its contract — or the repo is a third-party clone,
   which adopts nothing and records nothing.
-allowed-tools: Read, Write, Edit, Glob, Grep, AskUserQuestion, Skill, Bash(echo *), Bash(git rev-parse:*), Bash(git fetch:*), Bash(git log:*), Bash(git status:*), Bash(git check-ignore:*), Bash(git show:*), Bash(git ls-files:*), Bash(git diff:*), Bash(git -C ~/.claude/skills:*), Bash(python ~/.claude/conventions/engine.py:*), Bash(python ~/.claude/conventions/check.py:*), Bash(python ~/.claude/conventions/versions/:*), Bash(python ~/.claude/hooks/check-install.py:*)
+allowed-tools: Read, Write, Edit, Glob, Grep, AskUserQuestion, Skill, Bash(echo *), Bash(git rev-parse:*), Bash(git fetch:*), Bash(git log:*), Bash(git status:*), Bash(git check-ignore:*), Bash(git show:*), Bash(git ls-files:*), Bash(git diff:*), Bash(git -C ~/.claude/skills:*), Bash(python ~/.claude/conventions/engine.py:*), Bash(python3 ~/.claude/skills/shared/commit.py:*), Bash(python ~/.claude/skills/shared/commit.py:*), Bash(python3 ~/.claude/skills/shared/gate_pushed_tree.py:*), Bash(python ~/.claude/skills/shared/gate_pushed_tree.py:*), Bash(python ~/.claude/conventions/check.py:*), Bash(python ~/.claude/conventions/versions/:*), Bash(python ~/.claude/hooks/check-install.py:*)
 ---
 
 # Adopt
@@ -250,23 +250,25 @@ before it. Do not skip the failing version and carry on with the next: later mig
 and the engine will refuse the skip regardless. The repo stays behind at that number, and the
 session-start notice keeps saying so, which is the pressure working rather than a gap being filed away.
 
-## 4. Hand to /commit
+## 4. Commit the walk
 
-Run `/commit`. One commit for the whole walk, subject:
+One commit for the whole walk, subject:
 
 ```
 chore(conventions): adopt through vN
 ```
 
 N is the new number — re-run `engine.py status` to read it rather than counting the versions you walked.
-The record and whatever the migrations changed in the working tree commit together; `/commit` is what
-runs `.claude/commit-checks.sh`, the confidentiality scan and the memo and issue notices, so nothing here
-commits directly.
+The record and whatever the migrations changed in the working tree commit together: run the repo's gate
+first (`python3 ~/.claude/skills/shared/gate_pushed_tree.py --caller adopt --record`), write the subject to a
+file under `tmp/`, and commit every path `git status --short` lists that the walk changed with
+`python3 ~/.claude/skills/shared/commit.py -F <file> <paths…>`, which checks the message, scans what the
+commit adds and signs it. Nothing here commits any other way.
 
-The other machine's clone takes this walk through `/pull`, and `/commit` already asks its session for
-exactly that after the push, so nothing further has to be sent from here. What that session must not do
-is run `/adopt`: its own session-start notice was derived before the pull arrived and will still report a
-convention gap, which is the one thing that turns this into the record conflict this section ends with.
+Leave the push to the user's next `/yolo` or `/wrap-up`; its push step asks the other machine's session to
+`/pull`, which is how that clone takes this walk. What that session must not do is run `/adopt`: its own
+session-start notice was derived before the pull arrived and will still report a convention gap, which is
+the one thing that turns this into the record conflict this section ends with.
 
 Two things to say once the walk is over. If this repo's `.claude/commit-checks.sh` does not run
 `check.py`, the rules this walk just took on were measured by the walk and by nothing since, and the

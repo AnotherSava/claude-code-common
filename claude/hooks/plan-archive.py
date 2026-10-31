@@ -28,8 +28,8 @@ is not the user's. Whose repo it is comes from the conventions engine, the same
 answer /adopt and the session-start conventions check get.
 
 The other half of a plan's lifecycle — moving a finished plan into
-docs/plans/completed/ — is a step in the `commit` skill, not a hook. It used to
-be a `done` subcommand on Notification[idle_prompt], and that had no way to tell
+docs/plans/completed/ — is a step in shared/commit-grouping.md, proposed in
+/wrap-up's summary, not a hook. It used to be a `done` subcommand on Notification[idle_prompt], and that had no way to tell
 a plan it had filed itself from a document the repo tracks upstream: it globbed
 every .md under docs/plans/ and moved whatever declared itself finished. In a
 third-party clone that silently deleted tracked files between turns, with
@@ -143,7 +143,7 @@ def start(payload: dict) -> None:
     derived = slug is not None
     if not derived:
         # No H1 — the filename falls back to the session's codename, and the filed copy carries a
-        # visible marker so the user (and /commit) can flag it for renaming. `filePath` is written
+        # visible marker so the user (and the commit grouping) can flag it for renaming. `filePath` is written
         # by Claude Code on whichever OS it runs, and PureWindowsPath splits on both separators.
         source = response.get("filePath")
         slug = slugify(PureWindowsPath(source).stem) if isinstance(source, str) else ""

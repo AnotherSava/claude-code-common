@@ -16,9 +16,13 @@ Audit modified files for dead code, duplication, needless complexity, naming con
 
 ## Process
 
+**When `/wrap-up` runs this skill, do not stop for approval.** It collects every question of a close-out into one
+summary, so make the changes that need none (debug prints, imports), and return each proposal the steps below would
+wait on as a list — what, where, why — for that summary. Apply the approved ones when the caller says so.
+
 **The scope is the working tree AND the unpushed commits**, not whichever of the two the first
 two probes happen to show. Code that has not been pushed is unreviewed whether or not it is still
-in the tree, and `/commit` sends this skill here for code sitting in a commit as readily as for
+in the tree, and `/wrap-up` sends this skill here for code sitting in a commit as readily as for
 an edit on disk. When **Code in unpushed commits** is non-empty, read that patch with
 `git log -p --no-textconv HEAD --not --remotes` and audit those files too. Measured 2026-10-01:
 three unpushed commits changing two C# files were invisible to the `git diff HEAD` probes, so this

@@ -6,7 +6,7 @@ allowed-tools: AskUserQuestion, Bash(git log:*), Bash(git reset:*), Bash(git rev
 
 # Reset Unpushed Commits
 
-Soft-reset selected unpushed commits back into the working tree so they can be re-committed with `/commit`.
+Soft-reset selected unpushed commits back into the working tree so they can be re-committed through `/wrap-up`, or through `/yolo` to push them as they are.
 
 Read `~/.claude/skills/shared/bash-rules.md` for bash command constraints.
 
@@ -43,9 +43,9 @@ Read `~/.claude/skills/shared/bash-rules.md` for bash command constraints.
    ```
    git status --short
    ```
-   Tell the user they can now run `/commit` to re-commit the changes.
+   Tell the user they can now run `/wrap-up` (or `/yolo`) to re-commit the changes.
 
 ## Out of scope
-- Do NOT create commits — that is `/commit`'s job
+- Do NOT create commits — that is `/wrap-up`'s or `/yolo`'s job
 - Do NOT push
 - Do NOT switch branches

@@ -16,15 +16,16 @@ passes. Running it per commit needs a checkout per commit, which this repo canno
 conventions assert the `~/.claude` symlinks and derive a project id from the checkout path, so any
 scratch worktree collects 17 violations across two rules that have nothing to do with the tree.
 
-Run twice by /commit, and so built to skip the second run when it would repeat the first. Step 6
-calls it with --record, before any commit exists: it gates the working tree and, on a pass, writes
-down the tree it measured. Step 9 calls it plainly, and when HEAD holds exactly that tree, it
+Run twice by /yolo and /wrap-up, and so built to skip the second run when it would repeat the first.
+/adopt also makes the --record run and pushes nothing, so its record can make the next push.py run
+within RECORD_MAX_AGE skip. The skill calls it with --record, before any commit exists: it gates the working tree and, on a pass,
+writes down the tree it measured. push.py calls it plainly, and when HEAD holds exactly that tree, it
 reports SKIPPED instead of gating again. The gate reads one tree, the
-tip, so a matching tree is the whole of what a second run would see; commits made before /commit
-started were in the working tree step 6 gated. What a match cannot vouch for is everything the
+tip, so a matching tree is the whole of what a second run would see; commits made before the skill
+started were in the working tree the recorded run gated. What a match cannot vouch for is everything the
 gate reads outside the tree — ignored build output, the `~/.claude` checker other repos' gates
 call — so the record is consumed by the next plain run and expires after RECORD_MAX_AGE, which
-keeps the skip inside one /commit run rather than letting a stale pass stand for a later push.
+keeps the skip inside one skill run rather than letting a stale pass stand for a later push.
 
 Called by every skill that pushes. Exits non-zero when the gate fails, when the unpushed range
 cannot be read at all, and when no bash is on PATH to run the gate — an unmeasured range is not a
@@ -120,7 +121,7 @@ def _record(root: str, bash: str) -> None:
 
 def main() -> None:
     parser = argparse.ArgumentParser(description=__doc__)
-    # Taken without its slash: Git Bash rewrites an argument like "/commit" into a Windows path
+    # Taken without its slash: Git Bash rewrites an argument like "/yolo" into a Windows path
     # ("C:/Program Files/Git/commit") before Python sees it.
     parser.add_argument("--caller", required=True, help="skill name without the leading slash, for the report lines")
     parser.add_argument("--record", action="store_true", help="gate the working tree before committing and record the tree that passed")

@@ -17,13 +17,21 @@
 #
 # Re-run safe (idempotent). Run once per project per machine:
 #   bash ~/.claude/scripts/link-project-memory.sh [project-path]
-# With no argument it uses the current git repo root.
+# With no argument it uses the current git repo root. With `--cache-path` first it
+# only prints the cache path it would link and changes nothing, so a caller that
+# needs the path asks here instead of re-deriving it.
 #
 # On Windows, run it from an elevated shell. Windows refuses to follow a link created by a
 # non-administrator, so without elevation this refuses and prints the command rather than
 # making one — see the case in learnings/git-bash-windows-symlinks.md.
 
 set -euo pipefail
+
+print_cache_path=0
+if [ "${1:-}" = "--cache-path" ]; then
+  print_cache_path=1
+  shift
+fi
 
 # --- Resolve the project repo root and its Claude project ID ----------------
 # Mirror gather-context.sh EXACTLY so the computed ID matches the cache dir the
@@ -47,6 +55,11 @@ claude_dir="${CLAUDE_CONFIG_DIR:-$HOME/.claude}"
 cache_parent="$claude_dir/projects/$project_id"
 cache_mem="$cache_parent/memory"
 repo_mem="$repo_root/.claude/memory"
+
+if [ "$print_cache_path" = 1 ]; then
+  echo "$cache_mem"
+  exit 0
+fi
 
 mkdir -p "$repo_mem"
 

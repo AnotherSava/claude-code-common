@@ -296,7 +296,7 @@ wildcard-free path in `.gitignore`, which already reads as a deliberate exclusio
 Never leave such a decision in conversation alone — it dies at the next `/clear`, and the skill is
 raised again on every commit thereafter.
 
-`/commit` runs the same script, so a forgotten skill also surfaces at the moment it would
+`/wrap-up` runs the same script, so a forgotten skill also surfaces at the moment it would
 otherwise be left out of a commit — the case the write hook cannot see, because it only fires
 when a `SKILL.md` goes through the Write tool. A directory that was copied, moved, renamed, or
 unpacked by a plugin reaches the repo without one.

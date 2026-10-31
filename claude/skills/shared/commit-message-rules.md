@@ -17,10 +17,10 @@ Summarize the "why" not just the "what".
 ## Validation checklist
 
 The countable rules are checked by `~/.claude/scripts/check-commit-message.py` — run it on a
-prepared message with `--file <path>`, or over commits with `--range @{upstream}..HEAD`. `/commit`
-runs it over the unpushed range, and the global `pre-push` hook refuses a push that fails it in any
-repo carrying a `.claude/conventions` record. Run it on a message written outside a commit plan
-too: a lone follow-up commit reaches the push without `/commit` having seen it, and measured
+prepared message with `--file <path>`, or over commits with `--range @{upstream}..HEAD`. `shared/commit.py`
+runs it on every message it commits, and the global `pre-push` hook refuses a push that fails it in
+any repo carrying a `.claude/conventions` record. Run it on a message committed outside `commit.py`
+too: a lone follow-up commit reaches the push without that check having seen it, and measured
 2026-09-14 one went out at 58 characters and needed `/reset` to fix, because it was eyeballed. The
 rules the script cannot judge — the mood, whether a body restates the code's own comments, whether
 the reason is the author's to give — are below it and stay with the reader.

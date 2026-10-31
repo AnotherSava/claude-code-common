@@ -15,6 +15,8 @@ import subprocess
 import sys
 import tempfile
 
+from git_scratch import check, failures, seal, sh, write
+
 ROOT = os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 SCRIPT = os.path.join(ROOT, "claude", "skills", "shared", "gate_pushed_tree.py")
 
@@ -27,26 +29,6 @@ case "${GATE_MODE:-pass}" in
 esac
 exit 0
 """
-
-failures: list[str] = []
-
-
-def check(label: str, got: object, want: object) -> None:
-    if got != want:
-        failures.append(f"  FAIL {label}: got {got!r}, want {want!r}")
-
-
-def sh(repo: str, *args: str) -> str:
-    done = subprocess.run(["git", "-C", repo, *args], capture_output=True, text=True, timeout=30)
-    if done.returncode != 0:
-        raise RuntimeError(f"git {' '.join(args)} failed: {done.stderr}")
-    return done.stdout.strip()
-
-
-def write(repo: str, name: str, text: str) -> None:
-    with open(os.path.join(repo, name), "w", encoding="utf-8", newline="\n") as handle:
-        handle.write(text)
-
 
 def commit_all(repo: str) -> None:
     sh(repo, "add", "-A")
@@ -85,9 +67,8 @@ def fresh(scratch: str, name: str) -> str:
 
 def main() -> int:
     scratch = tempfile.mkdtemp(prefix="gate-pushed-tree-test-")
-    os.environ.update({"GIT_CONFIG_GLOBAL": os.path.join(scratch, "gitconfig"), "GIT_CONFIG_NOSYSTEM": "1", "GATE_COUNT": os.path.join(scratch, "count")})
-    with open(os.environ["GIT_CONFIG_GLOBAL"], "w", encoding="utf-8") as handle:
-        handle.write("[user]\n\tname = t\n\temail = t@example.invalid\n[commit]\n\tgpgsign = false\n[init]\n\tdefaultBranch = main\n")
+    seal(scratch)
+    os.environ.update({"GATE_COUNT": os.path.join(scratch, "count")})
     try:
         repo = fresh(scratch, "skip")
         code, out = gate(repo, "--record")

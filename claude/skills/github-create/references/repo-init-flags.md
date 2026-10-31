@@ -59,8 +59,9 @@ easy to misreport as success:
 - `git fetch origin` succeeds and creates no `origin/<default>` ref, because there is none. The
   API answers a read of the default branch's tree with HTTP 409 `Git Repository is empty`.
 - `git branch --set-upstream-to=origin/<default>` therefore fails, so step 7.6 cannot run and the
-  branch has no upstream. `/commit` reads unpushed work by comparing against the upstream, so
-  until the first push it cannot tell what is unpushed.
+  branch has no upstream. The sync step reads unpushed work by comparing against the upstream, so
+  until the first push it cannot tell what is unpushed; `push.py` gates and pushes the branch
+  normally and sets the upstream on that push.
 
 Neither is a fault to repair — the first push creates the branch, the ref and the tracking
 together. It just has to be *said*, or the report reads as the normal one-commit end state.

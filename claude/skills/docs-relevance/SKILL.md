@@ -2,7 +2,7 @@
 name: docs-relevance
 description: >-
   Check that a project's documentation still matches the code and that what should be documented is.
-  TRIGGER when: /commit step 4 runs it, or the user asks whether the docs are stale, out of date, or missing a feature.
+  TRIGGER when: /wrap-up runs it as a clean-up pass, or the user asks whether the docs are stale, out of date, or missing a feature.
   DO NOT TRIGGER when: the task is how a document is written rather than whether it is true — that is `docs-style` — or the question is whether the screenshots are current, which is `screenshot-relevance`.
 user-invocable: false
 context: fork
@@ -93,4 +93,4 @@ Say in the report which of its rules applied, so a skipped step reads as a decis
 - Do NOT patch, or memo, a documentation gap in a file the project's upstream owns, except where it belongs to a change the user carries on their own branch or to an issue they have already raised. Report a gap that makes upstream's documentation false about this repo's own diff and stop there; raise one upstream only when the user asks
 - Do NOT examine an upstream-owned file for refinement at all, and do not report what such an examination would have found
 - Do NOT create new documentation files or restructure existing ones without explicit approval
-- Do NOT check screenshots — that is `screenshot-relevance`, which `/commit` runs on its own verdict
+- Do NOT check screenshots — that is `screenshot-relevance`, which `/wrap-up` runs on its own verdict

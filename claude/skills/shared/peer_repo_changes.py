@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
 """Report repositories OTHER than this one that this session edited and left dirty.
 
-The commit skill's scope guard says each project's commits are handled separately, so work
+shared/commit-grouping.md commits only this repository's files, so work
 that spilled into a second repo is never in the change set being committed here. This finds
 those repos mechanically instead of relying on the session to remember them, and narrows the
 answer to what is still uncommitted — a file a peer session already committed needs no notice.
@@ -30,8 +30,7 @@ import re
 import subprocess
 import sys
 
-sys.path.insert(0, os.path.join(os.path.dirname(os.path.abspath(__file__)), "..", "..", "shared"))
-from peer_relay import PeerUnmeasured, local_session  # noqa: E402  (the shared module's path is set above)
+from peer_relay import PeerUnmeasured, local_session
 
 WRITE_TOOLS = ("Edit", "Write", "NotebookEdit", "MultiEdit")
 PATH_KEYS = ("file_path", "notebook_path")

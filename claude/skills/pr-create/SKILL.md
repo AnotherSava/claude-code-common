@@ -1,7 +1,7 @@
 ---
 name: pr-create
 description: Prepare commits for the current feature branch, push, and create or update a PR to main.
-allowed-tools: Bash(git status:*), Bash(git log:*), Bash(git diff:*), Bash(git reset --soft:*), Bash(git add:*), Bash(git commit:*), Bash(git push:*), Bash(git rev-parse:*), Bash(git branch:*), Bash(git fetch:*), Bash(git checkout:*), Bash(git merge:*), Bash(git rebase:*), Bash(gh pr create:*), Bash(gh pr view:*), Bash(gh pr edit:*), Bash(ls:*), Bash(python ~/.claude/skills/shared/gate_pushed_tree.py:*), Bash(python3 ~/.claude/skills/shared/gate_pushed_tree.py:*), Bash(python ~/.claude/scripts/review_scope.py status), Bash(python3 ~/.claude/scripts/review_scope.py status), Read, Glob, Grep
+allowed-tools: Bash(git status:*), Bash(git log:*), Bash(git diff:*), Bash(git reset --soft:*), Bash(python ~/.claude/skills/shared/commit.py:*), Bash(python3 ~/.claude/skills/shared/commit.py:*), Bash(git push:*), Bash(git rev-parse:*), Bash(git branch:*), Bash(git fetch:*), Bash(git checkout:*), Bash(git merge:*), Bash(git rebase:*), Bash(gh pr create:*), Bash(gh pr view:*), Bash(gh pr edit:*), Bash(ls:*), Bash(python ~/.claude/skills/shared/gate_pushed_tree.py:*), Bash(python3 ~/.claude/skills/shared/gate_pushed_tree.py:*), Bash(python ~/.claude/scripts/review_scope.py status), Bash(python3 ~/.claude/scripts/review_scope.py status), Read, Glob, Grep
 ---
 
 # Create PR for Plan-Based Changes
@@ -36,11 +36,11 @@ Read `~/.claude/skills/shared/bash-rules.md` for bash command constraints.
 
 ### Step 2: Prepare commits
 
-Reset commits back to the working tree and use `/commit` to create clean, atomic commits:
+Reset commits back to the working tree and re-commit them as clean, atomic commits:
 
 1. Run `/reset` — let the user choose which commits to reset.
 
-2. Run `/commit`. It handles everything: diff analysis, atomic grouping, commit messages, import optimization, doc updates. Pass the plan doc and progress log context so it can write informed messages.
+2. Group the change set as `~/.claude/skills/shared/commit-grouping.md` describes, drawing on the plan doc and progress log for the messages, and show the plan for the user's approval. Then commit each group with `python ~/.claude/skills/shared/commit.py -F <message-file> <paths…>` (`python3` on macOS), which stages exactly those paths, checks the message, scans what they add and signs the commit.
 
 ### Step 3: Rebase onto main
 

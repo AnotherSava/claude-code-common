@@ -18,8 +18,8 @@ import subprocess
 import sys
 
 HERE = os.path.dirname(os.path.abspath(__file__))
-sys.path.insert(0, os.path.join(HERE, "..", "..", "shared"))
-sys.path.insert(0, os.path.join(HERE, "..", "..", "..", "scripts"))
+sys.path.insert(0, HERE)
+sys.path.insert(0, os.path.join(HERE, "..", "..", "scripts"))
 from git_changeset import changed_paths, git  # noqa: E402  (the shared module's path is set above)
 import review_scope  # noqa: E402  (its path is set above)
 

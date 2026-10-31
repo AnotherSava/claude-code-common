@@ -6,4 +6,5 @@ run printed quoted beside it, so whether the bookmark moved is read at the end r
 
 The command reads origin and changes nothing, so it runs after a failed `advance` or `push` as safely as after a
 successful one. Each skill that follows this file grants the command in its own `allowed-tools`, and
-`claude/tests/push-notifies-peer.py` fails any skill the push rule clears that does not point here.
+`claude/tests/push-notifies-peer.py` fails any skill the push rule clears that neither points here nor pushes
+through `shared/push.py`, which prints the status line as its own last line.

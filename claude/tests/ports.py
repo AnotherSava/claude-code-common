@@ -276,8 +276,8 @@ def main() -> int:
         check("and the message names the file and line", "web/package.json:1" in found[0], True)
 
         # The scan reads what the repo would commit, so staging is not what makes a file count — only a
-        # gitignored one is nobody's declaration. `/commit` unstages at skill load before running the
-        # gate, so a resolver a migration just added is never in the index when the rule looks.
+        # gitignored one is nobody's declaration. Why a resolver a migration just added can be untracked
+        # when the rule looks: claude/conventions/authoring.md, under "Ask git what it hides".
         (scan / "scripts" / "unstaged.sh").write_text("PORT=4321\n", encoding="utf-8")
         found, _ = ports.check_repo(pinned, scan)
         check("an untracked launch file counts, being on its way into the commit", len(found), 2)
@@ -333,9 +333,9 @@ def main() -> int:
         found, _ = ports.check_repo(unpinned, scan)
         check("a doc naming the tool does not count as a resolver", len(found), 1)
 
-        # Unstaged first, which is the state /commit's `git reset HEAD` probe leaves a migration's new
-        # resolver in. Measured in tripit 2026-10-06: v15 step 5 staged it, the probe un-staged it, and the
-        # gate then told the reader to copy in a file already sitting in scripts/.
+        # Unstaged first, which is the state an index reset such as `shared/commit.py`'s leaves a migration's
+        # new resolver in. Measured in tripit 2026-10-06: v15 step 5 staged it, a `git reset HEAD` probe
+        # un-staged it, and the gate then told the reader to copy in a file already sitting in scripts/.
         (scan / "scripts" / "dev.mjs").write_text("import { run } from '.../ports/scripts/dev-port.mjs'\n",
                                                   encoding="utf-8")
         check("an unstaged resolver settles it", ports.check_repo(unpinned, scan), ([], []))

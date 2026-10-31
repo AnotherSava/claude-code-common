@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Cases for `claude/skills/commit/scripts/change_scope.py`, the verdict /commit reads before its clean-up passes.
+"""Cases for `claude/skills/shared/change_scope.py`, the verdict /wrap-up reads before its clean-up passes.
 
 A wrong `SKIP` sends code to a commit that no clean-up pass looked at, and nothing later notices; a wrong `RUN` only
 costs time. So the cases lean on the skips: the polish record the review-auto workflow leaves, and the images that
@@ -15,33 +15,13 @@ import subprocess
 import sys
 import tempfile
 
+from git_scratch import check, failures, seal, sh, write
+
 ROOT = os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
-SCRIPT = os.path.join(ROOT, "claude", "skills", "commit", "scripts", "change_scope.py")
+SCRIPT = os.path.join(ROOT, "claude", "skills", "shared", "change_scope.py")
 sys.path.insert(0, os.path.join(ROOT, "claude", "scripts"))
 
 import review_scope  # noqa: E402 — needs the sys.path line above
-
-failures: list[str] = []
-
-
-def check(label: str, got: object, want: object) -> None:
-    if got != want:
-        failures.append(f"  FAIL {label}: got {got!r}, want {want!r}")
-
-
-def sh(repo: str, *args: str) -> str:
-    done = subprocess.run(["git", "-C", repo, *args], capture_output=True, text=True, timeout=30)
-    if done.returncode != 0:
-        raise RuntimeError(f"git {' '.join(args)} failed: {done.stderr}")
-    return done.stdout.strip()
-
-
-def write(repo: str, name: str, text: str) -> None:
-    path = os.path.join(repo, name)
-    os.makedirs(os.path.dirname(path), exist_ok=True)
-    with open(path, "w", encoding="utf-8") as handle:
-        handle.write(text)
-
 
 def verdicts(repo: str) -> dict[str, str]:
     done = subprocess.run([sys.executable, SCRIPT], cwd=repo, capture_output=True, text=True, timeout=60)
@@ -57,9 +37,7 @@ def polish(repo: str) -> None:
 
 def main() -> int:
     scratch = tempfile.mkdtemp(prefix="change-scope-test-")
-    os.environ.update({"GIT_CONFIG_GLOBAL": os.path.join(scratch, "gitconfig"), "GIT_CONFIG_NOSYSTEM": "1"})
-    with open(os.environ["GIT_CONFIG_GLOBAL"], "w", encoding="utf-8") as handle:
-        handle.write("[user]\n\tname = t\n\temail = t@example.invalid\n[commit]\n\tgpgsign = false\n[init]\n\tdefaultBranch = main\n")
+    seal(scratch)
     try:
         origin, repo = os.path.join(scratch, "origin.git"), os.path.join(scratch, "repo")
         subprocess.run(["git", "init", "-q", "--bare", origin], check=True)

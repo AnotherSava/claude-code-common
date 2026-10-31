@@ -9,7 +9,7 @@ receipts are `peer_relay.py`'s; this script only composes the request.
 Every skill that pushes calls this, which is why it lives here rather than under one of them: a
 release or a PR merge leaves the peer exactly as far behind as a commit does. The skill names itself
 in the second argument, which the relay carries as the sender's label and the receiving session is
-shown: a message from `/commit` arrives there headed `Sender's own description: the /commit skill,
+shown: a message from `/yolo` arrives there headed `Sender's own description: the /yolo skill,
 after a push`.
 
 Takes the upstream sha recorded before the push (`none` on a first push) to list what was pushed.

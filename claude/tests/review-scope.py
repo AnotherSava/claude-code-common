@@ -17,38 +17,13 @@ import subprocess
 import sys
 import tempfile
 
+from git_scratch import check, commit, failures, seal, sh, write
+
 ROOT = os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 sys.path.insert(0, os.path.join(ROOT, "claude", "scripts"))
 HOOK = os.path.join(ROOT, "claude", "hooks", "review-scope.py")
 
 import review_scope  # noqa: E402 — needs the sys.path line above
-
-failures: list[str] = []
-
-
-def check(label: str, got: object, want: object) -> None:
-    if got != want:
-        failures.append(f"  FAIL {label}: got {got!r}, want {want!r}")
-
-
-def sh(repo: str, *args: str) -> str:
-    done = subprocess.run(["git", "-C", repo, *args], capture_output=True, text=True, timeout=30)
-    if done.returncode != 0:
-        raise RuntimeError(f"git {' '.join(args)} failed: {done.stderr}")
-    return done.stdout.strip()
-
-
-def write(repo: str, name: str, text: str) -> None:
-    with open(os.path.join(repo, name), "w", encoding="utf-8") as handle:
-        handle.write(text)
-
-
-def commit(repo: str, name: str, text: str) -> str:
-    write(repo, name, text)
-    sh(repo, "add", "-A")
-    sh(repo, "commit", "-qm", f"edit {name}")
-    return sh(repo, "rev-parse", "HEAD")
-
 
 def bookmark(repo: str) -> str | None:
     return review_scope._resolve(repo, review_scope.REF)
@@ -74,9 +49,7 @@ def main() -> int:
     check("the saved workflow's meta.name is the name the hooks match", name and name.group(1), review_scope.WORKFLOW)
 
     scratch = tempfile.mkdtemp(prefix="review-scope-test-")
-    os.environ.update({"GIT_CONFIG_GLOBAL": os.path.join(scratch, "gitconfig"), "GIT_CONFIG_NOSYSTEM": "1"})
-    with open(os.environ["GIT_CONFIG_GLOBAL"], "w", encoding="utf-8") as handle:
-        handle.write("[user]\n\tname = t\n\temail = t@example.invalid\n[commit]\n\tgpgsign = false\n[init]\n\tdefaultBranch = main\n")
+    seal(scratch)
     try:
         origin, a, b = (os.path.join(scratch, n) for n in ("origin.git", "a", "b"))
         subprocess.run(["git", "init", "-q", "--bare", origin], check=True)
@@ -215,7 +188,7 @@ def main() -> int:
         check("and strips a bookmark the caller wrote, so the review cannot be recorded", "review_bookmark" in context.get("updatedInput", {}).get("args", {"review_bookmark": 1}), False)
         check("garbage on stdin exits quietly", subprocess.run([sys.executable, "-S", HOOK], input="not json", capture_output=True, text=True, timeout=30).stdout, "")
 
-        # The polish record /commit reads to skip its own clean-up passes. Skipping on a record that does not cover
+        # The polish record /wrap-up reads to skip its own clean-up passes. Skipping on a record that does not cover
         # the change set leaves code nobody cleaned, so most cases try to make `polished_since` answer when it must not.
         p_origin, p = os.path.join(scratch, "p-origin.git"), os.path.join(scratch, "p")
         subprocess.run(["git", "init", "-q", "--bare", p_origin], check=True)
@@ -300,7 +273,7 @@ def main() -> int:
         check("advance moves to the reviewed commit, past which the follow-up waits", review_scope.advance(r), f"advanced: {review_scope.REF} -> {reviewed_commit[:12]}, with 1 follow-up commit(s) after it for the next review")
         check("layout has nothing to split once the record is consumed", review_scope.layout(r), {"applies": False, "why": "no completed review is recorded"})
 
-        # A commit pulled in after the review, as /commit's remote sync does: its diff from HEAD to the reviewed tree
+        # A commit pulled in after the review, as /wrap-up's remote sync does: its diff from HEAD to the reviewed tree
         # would undo that commit, so layout offers no split rather than one whose reviewed commit reverts it.
         write(r, "app.txt", "reviewed again\n")
         review(r)

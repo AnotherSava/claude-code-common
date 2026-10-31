@@ -26,7 +26,10 @@ What is asserted, both ways:
   exemptions             each one names a real skill and is still needed — an exempt skill that
                          has since gained the call fails, so the list cannot rot into prose
   the script             the path every caller spells actually exists
-  bookmark state         every skill the clear condition names, exempt or not, closes its report as
+  the push step          a skill pushing through shared/push.py counts as notifying and reporting the
+                         bookmark, and push.py itself must call the notifier and `review_scope.py status`
+  bookmark state         every skill the clear condition names, exempt or not, either pushes through
+                         shared/push.py or closes its report as
                          shared/review-bookmark-status.md describes, and that file runs
                          `review_scope.py status`, since a push is where the review bookmark is
                          published or fails to be, and a failure line printed mid-report is missed
@@ -59,6 +62,10 @@ STATUS = "python ~/.claude/scripts/review_scope.py status"
 # points at it, and the file itself is what has to run STATUS.
 STATUS_STEP = "~/.claude/skills/shared/review-bookmark-status.md"
 STATUS_FILE = os.path.join(SKILLS, "shared", "review-bookmark-status.md")
+# The shared push step does both after-push duties itself, so a skill that pushes through it notifies and reports the
+# bookmark without spelling either; the script is then what has to carry both calls.
+PUSH_STEP = "~/.claude/skills/shared/push.py --caller"
+PUSH_SCRIPT = os.path.join(SKILLS, "shared", "push.py")
 RULE_MARKER = "Push to GitHub"
 CLAUSE_MARKER = "a user turn invoking"
 SKILL_RE = re.compile(r"`/([a-z0-9-]+)`")
@@ -123,7 +130,8 @@ def callers() -> set[str]:
     for name in sorted(os.listdir(SKILLS)):
         if not os.path.isfile(os.path.join(SKILLS, name, "SKILL.md")):
             continue
-        if INVOCATION in skill_body(name):
+        body = skill_body(name)
+        if INVOCATION in body or PUSH_STEP in body:
             found.add(name)
     return found
 
@@ -149,6 +157,15 @@ def main() -> int:
     except OSError:
         fail(f"every pushing skill points at {STATUS_STEP}, and it does not exist")
 
+    try:
+        with open(PUSH_SCRIPT, encoding="utf-8") as handle:
+            script = handle.read()
+        if CALL not in script or 'REVIEW_SCOPE, "status"' not in script:
+            fail(f"shared/push.py no longer calls {CALL} and `review_scope.py status`, so every skill pushing through it "
+                 "skips one of the duties this check exists for")
+    except OSError:
+        fail("skills push through shared/push.py, and it does not exist")
+
     for name in authorized:
         try:
             body = skill_body(name)
@@ -158,14 +175,15 @@ def main() -> int:
         except Unreadable as exc:
             fail(str(exc))
             continue
-        if STATUS_STEP not in body:
+        notifies = INVOCATION in body or PUSH_STEP in body
+        if STATUS_STEP not in body and PUSH_STEP not in body:
             fail(f"the push rule clears /{name} to push, and its SKILL.md never points at {STATUS_STEP}, so its "
                  "report never says whether the review bookmark moved")
         if name in EXEMPT:
-            if INVOCATION in body:
+            if notifies:
                 fail(f"/{name} is exempt because {EXEMPT[name]} — and its SKILL.md now calls {CALL}, "
                      "so remove the exemption")
-        elif INVOCATION not in body:
+        elif not notifies:
             fail(f"the push rule clears /{name} to push, and its SKILL.md never calls {CALL}, so a push "
                  "from it leaves the other machine's clone behind with nothing saying so")
 

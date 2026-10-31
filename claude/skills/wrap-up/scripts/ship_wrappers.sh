@@ -2,8 +2,8 @@
 # Reports which of the two per-machine ship wrappers this repo has, resolved from the project root so the answer
 # cannot depend on the directory /wrap-up was invoked from — a cwd-relative `test -f` answers "absent" from any
 # subdirectory, and the skipped offer then looks identical to a project that has no wrapper. DEPLOY_TYPE is the
-# only key read out of config/deploy.env: step 8 needs to know whether the deploy raises a window before asking
-# to run it.
+# only key read out of config/deploy.env: the ship and release offer step needs to know whether the deploy raises a
+# window before asking to run it.
 #
 # Four anchors rather than one, unlike the deploy and publish targets that share this resolver: they each read a
 # single config file and must resolve against that one, while this script reports on a project that may have
@@ -24,7 +24,7 @@ done
 deploy_type=$(sed -n 's/^DEPLOY_TYPE=//p' "$root/config/deploy.env" 2>/dev/null | head -1)
 echo "deploy type: ${deploy_type:-unknown}"
 
-# Checks the repo wants offered before a publish (SKILL.md step 8): one command per line, `#` comments allowed.
+# Checks the repo wants offered before a publish (SKILL.md, the ship and release offer step): one command per line, `#` comments allowed.
 if [ -f "$root/.claude/pre-publish" ]; then
   grep -v '^[[:space:]]*\(#\|$\)' "$root/.claude/pre-publish" | sed 's/^/pre-publish: /'
 fi

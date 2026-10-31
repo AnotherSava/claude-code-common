@@ -100,8 +100,8 @@ Cross-machine, your identity is a claim — the receiver sees the peer dashboard
 
 Where work goes is decided by `peer_messaging.md`. Two routes are mechanised; do not repeat them by hand:
 
-- Every skill that pushes asks the other machine's session on the same project to run `/pull` afterwards (`skills/shared/notify_peer_pull.py`) — `/commit` at step 9, `/release` after the version-bump push, `/pr-merge` after the merge push. A push made any other way leaves that clone behind with nothing saying so.
-- `/commit` step 10 asks the owning session on this machine to commit files this session wrote into another repo.
+- Every skill that pushes asks the other machine's session on the same project to run `/pull` afterwards (`skills/shared/notify_peer_pull.py`) — `shared/push.py`, which `/yolo`, `/wrap-up` and `/release` push through, and `/pr-merge` after the merge push. A push made any other way leaves that clone behind with nothing saying so.
+- `/yolo` and `/wrap-up` ask the owning session on this machine to commit files this session wrote into another repo, through `shared/peer_repo_changes.py`.
 
 ## 5. Handle what arrives
 

@@ -1,6 +1,6 @@
 #!/usr/bin/env bash
-# Reports whether this repo has user-facing work since its last release, for /wrap-up step 8's release offer.
-# Runs after /commit's push rather than as a Context line: Context is evaluated when the skill loads, before the
+# Reports whether this repo has user-facing work since its last release, for /wrap-up step 9's release offer.
+# Runs after step 8's push rather than as a Context line: Context is evaluated when the skill loads, before the
 # commits this section of work produces exist, so a count taken there would miss exactly the work being wrapped up.
 #
 # Tags are fetched first because a release cut on the other machine exists here only once fetched, and a stale tag

@@ -43,27 +43,25 @@ workflow's own triage is only the pre-ticked recommendation.
    - Exit 1: report its stderr and fall back to the chat table.
 6. **Fix exactly the chosen ids**, following each one's feedback where it has some. Add or update tests wherever
    behaviour changed, then run the gate from step 1 and judge it by its exit status.
-7. **When the tree changed**, say so and stop. The fixes were made after the review; `/commit` step 6 decides
-   how they are committed against the reviewed tree, including when that split does not apply.
+7. **When the tree changed**, say so and stop. The fixes were made after the review; the next `/wrap-up` or `/yolo`
+   commits the reviewed tree first and the fixes as follow-up commits, as `~/.claude/skills/shared/commit-grouping.md`
+   describes, including when that split does not apply.
 8. **When nothing was ticked, the tree is unchanged and the workflow's `bookmark` says it was recorded, commit
-   exactly the reviewed tree**, so the bookmark moves now and whatever a later `/commit` adds — its reflection,
-   clean-code and docs fixes — goes into later commits that the next review picks up. `/commit` would split the
-   change set the same way; this path commits without its sub-steps and leaves the push to it. An unrecorded
-   bookmark has nothing to move: report why it was not recorded and leave committing to `/commit`.
-   1. Run `git status --short` now, since the tree at skill load predates the review. Plan one or more commits per
-      `~/.claude/skills/shared/commit-message-rules.md`, together holding every path it lists and nothing else, and
-      run `python3 ~/.claude/scripts/check-commit-message.py --file <message file>` on each message.
-   2. Run `python3 ~/.claude/scripts/scan-commit-confidentiality.py <every path> --range 'HEAD --not --remotes'`
-      and triage its output as `/commit` step 5 describes, reading the exit code. A confirmed finding is redacted
-      in the commit itself, as step 5 says, and the plan says what that does to the bookmark.
-   3. Show the plan with each full message and ask for a yes. On it, run `git reset HEAD --quiet`, stage each
-      commit's paths by name, and commit with `git commit -S`.
-   4. Run `python3 ~/.claude/scripts/review_scope.py advance` and report its line.
-   5. Report the commits, and that a later `/commit` reviews them, adds its own fixes as new commits and offers the
-      push.
+   exactly the reviewed tree**, so the bookmark moves now and whatever a later close-out adds — its reflection,
+   clean-up and docs fixes — goes into later commits that the next review picks up. An unrecorded bookmark has
+   nothing to move: report why it was not recorded and leave committing to `/wrap-up` or `/yolo`.
+   1. Run `git status --short` now, since the tree at skill load predates the review. Group the paths as
+      `~/.claude/skills/shared/commit-grouping.md` describes, together holding every path it lists and nothing else,
+      and draft each message to a file under `tmp/`.
+   2. Show the plan with each full message and ask for a yes. On it, commit each group with
+      `python3 ~/.claude/skills/shared/commit.py -F <message-file> --reviewed <paths…>`, which stages the reviewed
+      content, checks the message, scans what it adds and signs the commit. A blocking privacy finding is redacted
+      in the commit itself, as the grouping document says, and the report says what that does to the bookmark.
+   3. Run `python3 ~/.claude/scripts/review_scope.py advance` and report its line.
+   4. Report the commits, and that the next `/wrap-up` or `/yolo` pushes them.
 
 ## Out of scope
 
 - Do NOT fix a finding the user left unticked, however clearly it looks right.
 - Do NOT run `review-auto` in fix mode, or an inline review workflow in its place.
-- Do NOT commit a tree the review did not cover, amend a commit, or push; the push is `/commit`'s.
+- Do NOT commit a tree the review did not cover, amend a commit, or push; the push is `/wrap-up`'s or `/yolo`'s.

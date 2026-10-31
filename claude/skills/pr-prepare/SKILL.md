@@ -68,7 +68,7 @@ Based on progress logs and code changes, identify:
 - **Unaddressed**: {bulleted list of open concerns, if any}
 
 ### Recommendation
-{Any concerns to address, or "Ready to proceed with /reset and /commit"}
+{Any concerns to address, or "Ready to proceed with /reset and /wrap-up"}
 ```
 
 ## Important

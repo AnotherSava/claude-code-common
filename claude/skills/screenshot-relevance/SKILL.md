@@ -2,7 +2,7 @@
 name: screenshot-relevance
 description: >-
   Check that a project's documentation screenshots still show the product as it is, carry an edge, and exist where a page needs one.
-  TRIGGER when: /commit step 4 runs it, or the user asks whether the docs' screenshots are stale, orphaned, or missing.
+  TRIGGER when: /wrap-up runs it as a clean-up pass, or the user asks whether the docs' screenshots are stale, orphaned, or missing.
   DO NOT TRIGGER when: the task is taking, framing or filing a picture — that is `screenshot`, which this skill hands its captures to — or the question is whether the docs' prose is current, which is `docs-relevance`.
 user-invocable: false
 context: fork
@@ -31,7 +31,7 @@ Find the screenshots in a project's docs that no longer show the product, that h
 - Remotes, nothing above `(end of remotes)` meaning none: !`git remote -v; echo "(end of remotes)"`
 - Repository private (`true`, `false`, or `unknown` when GitHub could not answer): !`gh repo view --json isPrivate -q .isPrivate 2>/dev/null || echo unknown`
 
-The **Doc image files** pathspec is mirrored in `DOC_IMAGES` in `~/.claude/skills/commit/scripts/change_scope.py`, which decides whether `/commit` runs this skill; change both together.
+The **Doc image files** pathspec is mirrored in `DOC_IMAGES` in `~/.claude/skills/shared/change_scope.py`, which decides whether `/wrap-up` runs this skill; change both together.
 
 ## Working directory
 
@@ -47,7 +47,7 @@ A repo that says nothing gets every step as written, with one default: a **priva
 
 0. **Work in a sandbox**, as step 0 of `~/.claude/skills/shared/forked-sandbox.md` says.
 
-1. **Check documentation screenshots.** A screenshot is documentation that goes stale invisibly — the prose beside it stays true while the pixels stop being. Run the staleness checks whenever **Doc image files** is not `NONE`; when it is `NONE`, say so rather than staying silent, and go straight to the missing-shot pass below — a project with no images at all is the one most likely to want its first. `/commit` does not reach that case: its `change_scope.py` skips this skill when the docs hold no images, so in an image-less public repo the first-shot offer comes only from running `/screenshot-relevance` directly. Report the counts on every run, including a clean one.
+1. **Check documentation screenshots.** A screenshot is documentation that goes stale invisibly — the prose beside it stays true while the pixels stop being. Run the staleness checks whenever **Doc image files** is not `NONE`; when it is `NONE`, say so rather than staying silent, and go straight to the missing-shot pass below — a project with no images at all is the one most likely to want its first. `/wrap-up` does not reach that case: `change_scope.py` skips this skill when the docs hold no images, so in an image-less public repo the first-shot offer comes only from running `/screenshot-relevance` directly. Report the counts on every run, including a clean one.
 
    **Unless the project has said it does not use them.** This whole step is governed by the guidelines read at the top of the Process: a repo whose `CLAUDE.md` rules out screenshots in its documentation gets no staleness pass, no manifest, no gap hunt and no offer — say the rule applied and go to the report. Asking anyway is the specific failure that rule exists to stop, since the gap hunt below finds the same absence every run and would re-raise it forever.
 

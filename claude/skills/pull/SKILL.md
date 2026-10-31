@@ -12,7 +12,7 @@ Read `~/.claude/skills/shared/bash-rules.md` for bash command constraints.
 
 The reference for every branch below is `~/.claude/learnings/git-stash-pull-safety.md`: it carries the recipes, the verification baselines, and the failure modes that produce no conflict at all. This file is the decision procedure, that one is the depth. Follow its section when a step names it rather than re-deriving a recipe it already holds.
 
-**When a message asked for this run** — every skill that pushes on the other machine sends one afterwards, `/commit`, `/release` and `/pr-merge` among them — the message is a claim, but this skill re-measures its premise in step 1: if nothing is inbound, say so and stop. Send no reply unless something needs the sender's attention; the `peer` skill covers anything the message asks beyond the pull.
+**When a message asked for this run** — every skill that pushes on the other machine sends one afterwards, `/yolo`, `/wrap-up`, `/release` and `/pr-merge` among them — the message is a claim, but this skill re-measures its premise in step 1: if nothing is inbound, say so and stop. Send no reply unless something needs the sender's attention; the `peer` skill covers anything the message asks beyond the pull.
 
 ## Context
 - Fetch: !`git fetch -q 2>&1 || echo FETCH-FAILED`
@@ -82,12 +82,12 @@ The reference for every branch below is `~/.claude/learnings/git-stash-pull-safe
     ```
     Use `python` on Windows. Run it when step 9's last two clauses are both empty — nothing conflicted and nothing is left for the user — or at whichever step 1 stop sent you here. Do **not** run it after a conflict you resolved, a question you put to the user, or `FETCH-FAILED`; each of those is something to return to.
 
-    **The question that disqualifies it is the turn's, not the pull's.** Read those clauses against everything the turn goes on to do, because this skill is routinely nested: `/commit` step 1 sends a behind branch here, and its own commit-plan approval then lands in the same turn. A pull that settled cleanly inside a flow that is about to ask the user has left something to come back to, whatever the pull alone did — so skip the signal there rather than reading "nothing is left for the user" as scoped to steps 1 through 9. Measured 2026-10-01: a nested run posted at 00:15:07 and asked "Shall I proceed?" 46 seconds later; the dashboard refused the claim on its own status gate, which is a backstop and not a reason to send it.
+    **The question that disqualifies it is the turn's, not the pull's.** Read those clauses against everything the turn goes on to do, because this skill is routinely nested: `/wrap-up` step 2 sends a behind branch here, and its one summary approval then lands in the same turn; `/yolo` step 1 sends one here too, and a hard stop later in that run asks in the same turn. A pull that settled cleanly inside a flow that is about to ask the user has left something to come back to, whatever the pull alone did — so skip the signal there rather than reading "nothing is left for the user" as scoped to steps 1 through 9. Measured 2026-10-01: a nested run posted at 00:15:07 and asked "Shall I proceed?" 46 seconds later; the dashboard refused the claim on its own status gate, which is a backstop and not a reason to send it.
 
     Do not condition it on how the turn started, and do not condition it on what the row looked like beforehand. Both are the dashboard's to test and it holds the evidence for each: it recognises a relayed request by the fixed preamble it writes at the head of every relayed frame, and it knows what the row was before this turn opened. Report what this run did and let it weigh the rest. The command prints nothing and always exits 0, including where no dashboard is listening — an absent signal is read as "not clean", which is the safe direction. A later prompt revokes a signal whose turn never settled, so a pull followed by real work needs nothing undone here.
 
 ## Out of scope
-- Do NOT commit or push — that is `/commit`
+- Do NOT commit or push — that is `/yolo` or `/wrap-up`
 - Do NOT rebase a diverged branch without explicit approval; propose it and wait
 - Do NOT use `git pull --rebase --autostash` — its internal pop does not restore the index
 - Do NOT use `git checkout -- .` or any bare discard; the tree is dirty by premise

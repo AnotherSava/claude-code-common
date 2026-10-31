@@ -22,7 +22,6 @@ claude/skills/*
 !claude/skills/build/
 !claude/skills/clean-code/
 !claude/skills/cleanup/
-!claude/skills/commit/
 !claude/skills/deploy/
 !claude/skills/docs-relevance/
 !claude/skills/docs-style/
@@ -60,3 +59,4 @@ claude/skills/publish-chrome-extension/config/
 !claude/skills/transcrypt/
 !claude/skills/tune-output/
 !claude/skills/wrap-up/
+!claude/skills/yolo/

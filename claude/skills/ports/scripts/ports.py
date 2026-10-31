@@ -525,9 +525,9 @@ def _launch_path_files(repo: Path) -> List[Path]:
     Ignored files are excluded, not untracked ones: a `package.json` inside a gitignored `node_modules/`
     or a scratch `tmp/` is nobody's declaration, and two repos in this fleet have their only manifest
     inside a virtualenv. A file merely untracked is a different thing — it is on its way into the commit
-    this check gates, and the index at that moment does not hold it. `/commit` unstages everything at
-    skill load before running the gate, so a resolver added by a migration is invisible to `--cached`
-    alone: the rule then reported a port nothing resolves and told the reader to copy in a file already
+    this check gates, and the index at that moment does not hold it. `/yolo` and `/wrap-up` run the
+    gate before any commit, over a tree nothing has staged, and `shared/commit.py` clears the index
+    before staging, so a resolver added by a migration is invisible to `--cached` alone: the rule then reported a port nothing resolves and told the reader to copy in a file already
     sitting in `scripts/`, which is what every v15 adoption hit.
     """
     result = subprocess.run(["git", "-C", str(repo), "ls-files", "-z", "--cached", "--others",

@@ -196,7 +196,7 @@ From Context and the user's request:
    that this is Doppler's key. The learning's openssl exit-status test proves that. If the index really does show plaintext, **STOP**
    — the filter didn't run (transcrypt not initialized, or the `.gitattributes` pattern doesn't match).
    Fix before anything is committed.
-6. Do **not** commit. Report that the file is staged, encrypted, and ready; the commit happens via `/commit`
+6. Do **not** commit. Report that the file is staged, encrypted, and ready; the commit happens via `/wrap-up` or `/yolo`
    with the rest of the change set.
 
 ## B — Unlock a repo after clone
@@ -263,10 +263,10 @@ from then on, and anyone holding the old key can still read what history holds.
    emits the file's plaintext, and `--stat` reports `0 insertions(+), 0 deletions(-)`, which looks like a change
    with nothing in it. To see the ciphertext, use `git diff --no-textconv`. The mechanism is in
    `~/.claude/learnings/transcrypt-verify-before-commit.md`, under verifying a rekey.
-5. **Commit the rekey on its own and push it.** Any `git reset HEAD` throws the rekey's staging away, and
-   `/commit` runs one in its Context. Re-stage each encrypted file with a plain `git add` before the commit. The
-   ciphertext is deterministic, so that reproduces the identical blob. Run the loop again: it reports
-   `not rekeyed` until the staging is back.
+5. **Hand the rekey to `/yolo` or `/wrap-up` to commit on its own and push**; this skill commits nothing (see Out
+   of scope). A `git reset HEAD` undoes the rekey's staging, and the loop above then reports `not rekeyed`. That
+   needs no repair before committing: `shared/commit.py` stages the paths itself, and the ciphertext is
+   deterministic, so what it commits is the identical new-key blob.
 6. **In every other clone of that repo, once the rekey is on origin, flush, then pull, then set up.** Until then,
    leave the clone alone. The shared-key sequence reads the new key, which cannot open old-key blobs, so unlocking
    early fills each encrypted file with garbage followed by the raw ciphertext. Start from a clean tree with nothing
@@ -301,7 +301,7 @@ from then on, and anyone holding the old key can still read what history holds.
 
 ## Out of scope
 
-- Do **not** commit or push — staging + verify only; `/commit` owns the commit.
+- Do **not** commit or push — staging + verify only; `/wrap-up` or `/yolo` owns the commit.
 - Do **not** generate a new passphrase — always the Doppler `TRANSCRYPT_KEY`. The one exception is mode C, and only
   when the user has asked for a rotation.
 - Do **not** put env-style secrets (keys, tokens, passwords) in committed files — those belong in Doppler.

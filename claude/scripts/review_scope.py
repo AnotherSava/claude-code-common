@@ -14,16 +14,16 @@ Several moments act on it, and each belongs to a different caller:
 - `mark`, run by the workflow's last agent once a review finished with no gaps, records which tree it covered,
   from which base and on top of which HEAD, and whether the workflow's polish ran over it. Nothing moves yet: the tree is usually
   uncommitted.
-- `layout`, run by `/commit` before it plans, splits the change set at the recorded tree: what the review covered,
-  which `stage-reviewed` stages from the recorded tree itself so the reviewed commits hold exactly what was reviewed,
-  and what changed after it, which goes in follow-up commits.
-- `advance`, run by `/commit` after its commits, moves the bookmark to the newest commit since the review's base whose
-  tree is exactly the recorded one, so an edit made after the review and committed with it leaves the bookmark where
+- `layout`, run by `/yolo` and `/wrap-up` before they group commits (`shared/commit-grouping.md`), splits the change
+  set at the recorded tree: what the review covered, which `shared/commit.py --reviewed` stages from the recorded tree itself so
+  the reviewed commits hold exactly what was reviewed, and what changed after it, which goes in follow-up commits.
+- `advance`, run by `/yolo`, `/wrap-up` and `/review-manual` after their commits, moves the bookmark to the newest
+  commit since the review's base whose tree is exactly the recorded one, so an edit made after the review and committed with it leaves the bookmark where
   it was, while one committed after it does not hold it back. `push` then publishes it.
 
 `status`, run at the end of every skill that pushes, reports where all of that stands and changes none of it.
 
-Between `mark` and `advance`, `/commit`'s change_scope.py reads the record through `polished_since` to skip the
+Between `mark` and `advance`, `/wrap-up`'s change_scope.py reads the record through `polished_since` to skip the
 `/clean-code` and `/docs-relevance` passes the workflow already ran. `snapshot` and `revert` serve the workflow's
 polish phase, which takes back what it cannot keep.
 
@@ -55,6 +55,13 @@ def _git(repo: str, *args: str, env: dict | None = None, timeout: int = 10) -> s
     return subprocess.run(["git", "-C", repo, *args], capture_output=True, text=True, timeout=timeout, env=env)
 
 
+def _git_paths(repo: str, *args: str, env: dict | None = None) -> subprocess.CompletedProcess:
+    """A git command whose pathspecs are literal, as every call in shared/commit.py is, since it stages through
+    `stage_reviewed`: a path holding `*` or `[` (a Next route such as `app/[slug]/page.tsx`) names that file, never a
+    pattern matching its siblings. Not the default for `_git`, because `check-ignore` refuses the flag outright."""
+    return _git(repo, "--literal-pathspecs", *args, env=env)
+
+
 def toplevel(path: str) -> str | None:
     try:
         done = _git(path, "rev-parse", "--show-toplevel")
@@ -77,11 +84,46 @@ def _git_path(repo: str, name: str) -> str:
     return path if os.path.isabs(path) else os.path.join(repo, path)
 
 
+def _wants_exec(repo: str, path: str) -> bool:
+    """A git hook, or a file whose first line is a shebang and whose disk copy is already executable. A shebang alone
+    is not enough: a library module may carry one and be deliberately `644`."""
+    full = os.path.join(repo, path)
+    if not os.path.isfile(full):
+        return False
+    if path.startswith("git/hooks/"):
+        return True
+    with open(full, "rb") as handle:
+        shebang = handle.read(2) == b"#!"
+    return shebang and os.access(full, os.X_OK)
+
+
+def fix_modes(repo: str, paths: list[str], env: dict | None = None) -> list[str]:
+    """Give each of `paths` that the index (`GIT_INDEX_FILE` in `env`, or the real one) holds as `100644` and that
+    `_wants_exec` says is a script its execute bit, because git records the mode and a hook committed `644` is silently
+    never run, and on Windows `core.filemode=false` means the disk cannot carry the bit. Both shared/commit.py and
+    `worktree_tree` call it, so a reviewed tree records the mode the reviewed commit will carry and `advance` finds it."""
+    wanted = set(paths)
+    listed = _git(repo, "ls-files", "-s", "-z", env=env, timeout=60)
+    if listed.returncode != 0:
+        raise RuntimeError(f"git ls-files -s failed: {listed.stderr.strip()}")
+    fixed = []
+    for entry in listed.stdout.split("\0"):
+        meta, _, path = entry.partition("\t")
+        if path in wanted and meta.startswith("100644 ") and _wants_exec(repo, path):
+            fixed.append(path)
+    if fixed:
+        done = _git_paths(repo, "update-index", "--chmod=+x", "--", *fixed, env=env)
+        if done.returncode != 0:
+            raise RuntimeError(f"git update-index --chmod=+x failed: {done.stderr.strip()}")
+    return fixed
+
+
 def worktree_tree(repo: str) -> str:
     """The tree of every file git does not ignore, tracked or not, written through a scratch index so the real one is
     untouched. Seeded from the real index, or a tracked file under an ignored directory would be left out, and copied
     with its mtime, or a same-size edit made in the real index's own tick enters the tree as its old content
-    (learnings/git-snapshot-dirty-tree.md)."""
+    (learnings/git-snapshot-dirty-tree.md). Every path that differs from HEAD gets the execute bit shared/commit.py
+    would give it (`fix_modes`), or the commit of this tree would carry a mode the tree does not."""
     scratch = _git_path(repo, SCRATCH_INDEX)
     real = _git_path(repo, "index")
     try:
@@ -91,6 +133,11 @@ def worktree_tree(repo: str) -> str:
         added = _git(repo, "add", "-A", env=env, timeout=60)
         if added.returncode != 0:
             raise RuntimeError(f"git add -A into the scratch index failed: {added.stderr.strip()}")
+        has_head = _resolve(repo, "HEAD") is not None
+        changed = _git(repo, *(("diff", "--cached", "--name-only", "-z", "--no-renames", "HEAD") if has_head else ("ls-files", "-z")), env=env, timeout=60)
+        if changed.returncode != 0:
+            raise RuntimeError(f"listing the scratch index's changes failed: {changed.stderr.strip()}")
+        fix_modes(repo, [p for p in changed.stdout.split("\0") if p], env)
         written = _git(repo, "write-tree", env=env)
         if written.returncode != 0:
             raise RuntimeError(f"git write-tree failed: {written.stderr.strip()}")
@@ -206,7 +253,7 @@ def polished_since(repo: str) -> dict | None:
     """The paths changed since the workflow polished a tree, or None when no polished review covers the change set.
 
     A review launched with no bookmark scopes from HEAD, so commits not yet on a remote that precede its base were
-    never in it; the record then covers only part of what /commit is about to send, and nothing may be skipped on it.
+    never in it; the record then covers only part of what /wrap-up is about to send, and nothing may be skipped on it.
     Commits the bookmark already holds were reviewed by an earlier run. A deletion is left out of `changed`, since
     neither skipped pass can review a path that no longer exists, and so is a mode change with the content intact,
     which leaves nothing for either pass to read."""
@@ -233,7 +280,7 @@ def _diff_pairs(repo: str, *args: str) -> list[tuple[str, str]]:
     return list(zip(fields[::2], fields[1::2]))
 
 
-def _repo_relative(repo: str, path: str) -> str | None:
+def repo_relative(repo: str, path: str) -> str | None:
     """The path relative to the repo root, or None when it lies outside it. The paths come from agents' reports,
     which name a file absolutely as often as not, and `<tree>:<path>` only resolves a relative one."""
     root = os.path.realpath(repo)
@@ -249,11 +296,11 @@ def revert(repo: str, tree: str, paths: list[str]) -> str:
     The output names the whole tree id, which is the only way back to content a wrong deletion took."""
     restored, deleted, skipped = [], [], []
     for path in paths:
-        relative = _repo_relative(repo, path)
+        relative = repo_relative(repo, path)
         if relative is None:
             skipped.append(f"{path} (outside the repo)")
         elif _git(repo, "cat-file", "-e", f"{tree}:{relative}").returncode == 0:
-            done = _git(repo, "restore", f"--source={tree}", "--worktree", "--", relative)
+            done = _git_paths(repo, "restore", f"--source={tree}", "--worktree", "--", relative)
             if done.returncode != 0:
                 raise RuntimeError(f"restoring {relative} from {tree} failed: {done.stderr.strip()}")
             restored.append(relative)
@@ -325,7 +372,7 @@ def _changes(repo: str, old: str, new: str) -> list[tuple[str, str]]:
 
 
 def layout(repo: str) -> dict:
-    """How /commit splits the change set when a recorded review covers it: `reviewed` holds what HEAD lacks of the
+    """How /yolo and /wrap-up split the change set when a recorded review covers it: `reviewed` holds what HEAD lacks of the
     reviewed tree, staged from that tree so the commits end at exactly it; `after` holds what changed since the
     review, committed after them. A path can be in both, with its reviewed content first. `applies` is false, with
     the reason, wherever the record cannot be committed as reviewed, and the change set is then committed as usual."""
@@ -350,7 +397,7 @@ def layout_text(found: dict) -> str:
     if not found["applies"]:
         return f"reviewed tree: none to commit as reviewed — {found['why']}; commit the change set as usual"
     lines = [f"reviewed tree: {found['tree'][:12]} (from {found['base'][:12]}{', polished' if found['polished'] else ''})",
-             "reviewed — the first commits, staged with `review_scope.py stage-reviewed <paths>`, the last of them ending at exactly the reviewed tree:"]
+             "reviewed — the first commits, committed with `shared/commit.py --reviewed <paths>`, the last of them ending at exactly the reviewed tree:"]
     lines += [f"  {status} {path}" for status, path in found["reviewed"]] or ["  (none)"]
     lines.append("after the review — follow-up commits, staged from the working tree as usual:")
     lines += [f"  {status} {path}" for status, path in found["after"]] or ["  (none)"]
@@ -365,14 +412,14 @@ def stage_reviewed(repo: str, paths: list[str]) -> str:
         raise RuntimeError("no completed review is recorded, so there is no reviewed tree to stage from")
     staged, removed = [], []
     for path in paths:
-        relative = _repo_relative(repo, path)
+        relative = repo_relative(repo, path)
         if relative is None:
             raise RuntimeError(f"{path} lies outside the repo")
         if _git(repo, "cat-file", "-e", f"{record['tree']}:{relative}").returncode == 0:
-            done = _git(repo, "restore", f"--source={record['tree']}", "--staged", "--", relative)
+            done = _git_paths(repo, "restore", f"--source={record['tree']}", "--staged", "--", relative)
             staged.append(relative)
         else:
-            done = _git(repo, "rm", "--cached", "-q", "--ignore-unmatch", "--", relative)
+            done = _git_paths(repo, "rm", "--cached", "-q", "--ignore-unmatch", "--", relative)
             removed.append(relative)
         if done.returncode != 0:
             raise RuntimeError(f"staging {relative} from the reviewed tree failed: {done.stderr.strip()}")

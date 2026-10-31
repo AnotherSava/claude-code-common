@@ -2,7 +2,8 @@
 """Check a commit message against the mechanical rules in `commit-message-rules.md`.
 
 Only the countable rules live here. Whether a body restates the code's own comments, or
-explains a reason that is not the author's, needs a reader — those stay with `/commit`.
+explains a reason that is not the author's, needs a reader — those stay with the skill drafting
+the message (`shared/commit-grouping.md`).
 
     check-commit-message.py <rev> [<rev> …]      # from git history
     check-commit-message.py --file <path>        # a prepared message, e.g. COMMIT_EDITMSG
