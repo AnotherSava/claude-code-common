@@ -83,7 +83,7 @@ run "/bin/sh", args: ["-c", "/usr/bin/open '{{appdir}}/Some App.app' || true"]
 
 ## Automation
 
-**`brew audit --online` needs a token in CI.** It calls the GitHub API to validate the homepage and release URL; unauthenticated that is 60 requests/hour shared across every job on the runner's IP, so the step fails at random with `API rate limit exceeded for <ip>` and nothing wrong with the cask. Set `HOMEBREW_GITHUB_API_TOKEN: ${{ secrets.GITHUB_TOKEN }}` on the job for 5000/hour. A red tap CI is worth reading before assuming the cask regressed — `--online` is the only network-dependent step.
+**`brew audit --online` needs a token in CI.** It calls the GitHub API to validate the homepage and release URL; unauthenticated that is 60 requests/hour shared across every job on the runner's IP, so the step fails at random with `API rate limit exceeded for <ip>` and nothing wrong with the cask. Set `HOMEBREW_GITHUB_API_TOKEN: ${{ secrets.GITHUB_TOKEN }}` on the job for 1,000/hour per repository, the documented `GITHUB_TOKEN` limit. A red tap CI is worth reading before assuming the cask regressed — `--online` is the only network-dependent step.
 
 **New style rules fail an unchanged cask, so a red bump is not always a release defect.** By October 2026 Homebrew's `Homebrew/OSDependsOn` cop rejects `depends_on macos: :big_sur` as "a redundant minimum macOS version" (it is below what Homebrew itself supports) and asks for `depends_on :macos`; the identical line had passed a bump three days earlier. Read the failing cop's name before looking at the release.
 
