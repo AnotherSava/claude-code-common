@@ -1,0 +1,11 @@
+# Blocking privacy-scan findings accepted as false positives, one fingerprint per line (scan-commit-confidentiality.py
+# prints each as allow=<fingerprint>). Each entry says why the value is not private.
+afaffb743844  # Tailscale's public MagicDNS resolver address, named in a scanner comment
+fb5040c907f4  # planted email in the scanner's self-test
+bea1773cd873  # planted CGNAT address and invented tailnet host in the scanner's self-test
+02cc81a32c5e  # planted public address in the scanner's self-test
+680ebe08b7fa  # planted addresses in the scanner's added-lines self-test patch
+c1b8ce8a37d1  # planted address in the scanner's added-lines self-test assertion
+c26b9f4079a4  # planted address in the commit.py test fixture
+7210d926b968  # planted address in the pre-push hook test
+4e6bd2a0c2b7  # planted address in the pre-push hook test
