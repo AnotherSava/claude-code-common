@@ -490,6 +490,7 @@ Closes out a section of work with one approval. It reviews the change through th
 
 **Features:**
 - Runs `review-auto` in fix mode over everything since the last recorded review — the working tree and every commit [`/yolo`](#yolo) pushed since — in the background while it reads the transcript, and skips it only when nothing has changed since the bookmark
+- Settles what belongs in the tree before launching that review, deleting junk such as crash dumps and checking every path the session did not write for another live session still writing it, since the review snapshots every untracked file that is not ignored and a reviewed path left out of the commits stops the bookmark from moving
 - Reads the transcript on disk rather than the live context, so a session that has been compacted still gets a complete review
 - Keeps every word both sides said and discards tool traffic; prose is a small fraction of a transcript (82 KB of a 3.5 MB session, measured), so no keyword heuristic has to decide which findings are allowed to surface
 - Restores answers given through question prompts, which carry direction that often appears nowhere else in the session
