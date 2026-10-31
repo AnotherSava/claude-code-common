@@ -55,11 +55,11 @@ def _git(repo: str, *args: str, env: dict | None = None, timeout: int = 10) -> s
     return subprocess.run(["git", "-C", repo, *args], capture_output=True, text=True, timeout=timeout, env=env)
 
 
-def _git_paths(repo: str, *args: str, env: dict | None = None) -> subprocess.CompletedProcess:
+def _git_paths(repo: str, *args: str, env: dict | None = None, timeout: int = 10) -> subprocess.CompletedProcess:
     """A git command whose pathspecs are literal, as every call in shared/commit.py is, since it stages through
     `stage_reviewed`: a path holding `*` or `[` (a Next route such as `app/[slug]/page.tsx`) names that file, never a
     pattern matching its siblings. Not the default for `_git`, because `check-ignore` refuses the flag outright."""
-    return _git(repo, "--literal-pathspecs", *args, env=env)
+    return _git(repo, "--literal-pathspecs", *args, env=env, timeout=timeout)
 
 
 def toplevel(path: str) -> str | None:
@@ -102,22 +102,29 @@ def _wants_exec(repo: str, path: str, tracked: bool) -> bool:
     return shebang and os.access(full, os.X_OK)
 
 
-def fix_modes(repo: str, paths: list[str], env: dict | None = None) -> list[str]:
-    """Give each of `paths` that the index (`GIT_INDEX_FILE` in `env`, or the real one) holds as `100644` and that
-    `_wants_exec` says is a script its execute bit, because git records the mode and a hook committed `644` is silently
-    never run, and on Windows `core.filemode=false` means the disk cannot carry the bit. Both shared/commit.py and
-    `worktree_tree` call it, so a reviewed tree records the mode the reviewed commit will carry and `advance` finds it."""
-    wanted = set(paths)
-    listed = _git(repo, "ls-files", "-s", "-z", env=env, timeout=60)
+def index_modes(repo: str, paths: list[str] | None = None, env: dict | None = None) -> dict[str, str]:
+    """The mode the index (`GIT_INDEX_FILE` in `env`, or the real one) holds for each file, every file when `paths` is
+    None and those under `paths` otherwise. The one reader of index modes: `fix_modes` and shared/commit.py both go
+    through it, so a change to how a mode is read reaches the reviewed tree and the commit alike."""
+    if paths is not None and not paths:
+        return {}
+    listed = _git_paths(repo, "ls-files", "-s", "-z", *(() if paths is None else ("--", *paths)), env=env, timeout=60)
     if listed.returncode != 0:
         raise RuntimeError(f"git ls-files -s failed: {listed.stderr.strip()}")
+    return {path: meta.split()[0] for meta, _, path in (e.partition("\t") for e in listed.stdout.split("\0") if e)}
+
+
+def fix_modes(repo: str, paths: list[str], env: dict | None = None, keep_exec: set[str] | frozenset[str] = frozenset()) -> list[str]:
+    """Give each of `paths` that the index (`GIT_INDEX_FILE` in `env`, or the real one) holds as `100644` its execute
+    bit when `_wants_exec` says it is a script, because git records the mode and a hook committed `644` is silently never
+    run, and on Windows `core.filemode=false` means the disk cannot carry the bit. A path in `keep_exec` gets it too:
+    shared/commit.py passes the paths staged `+x` (`git add --chmod=+x`) before its index clear under
+    `core.filemode=false`, where nothing on disk would restore the bit. Both shared/commit.py and `worktree_tree` call
+    it, so a reviewed tree records the mode the reviewed commit will carry and `advance` finds it."""
+    modes = index_modes(repo, env=env)
     in_head = _git(repo, "ls-tree", "-r", "-z", "--name-only", "HEAD", env=env, timeout=60)
     tracked = set(in_head.stdout.split("\0")) if in_head.returncode == 0 else set()
-    fixed = []
-    for entry in listed.stdout.split("\0"):
-        meta, _, path = entry.partition("\t")
-        if path in wanted and meta.startswith("100644 ") and _wants_exec(repo, path, path in tracked):
-            fixed.append(path)
+    fixed = sorted(p for p in set(paths) if modes.get(p) == "100644" and (p in keep_exec or _wants_exec(repo, p, p in tracked)))
     if fixed:
         done = _git_paths(repo, "update-index", "--chmod=+x", "--", *fixed, env=env)
         if done.returncode != 0:

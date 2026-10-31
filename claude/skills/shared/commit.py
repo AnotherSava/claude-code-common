@@ -13,10 +13,13 @@ Each call:
    working tree, or with `--reviewed` from the tree a completed review recorded, so the commit holds what the review
    read whatever happened to the disk copy since;
 3. gives a script its execute bit in the index, because git records the mode and a hook committed `644` is silently
-   never run: a new one the disk marks executable, a `git/hooks/` file always, and, under `core.filemode=false` (Windows,
-   where the disk cannot carry the bit), a named path staged `+x` before the call (`git add --chmod=+x`), which the
-   clearing would otherwise discard;
-4. refuses unless the index holds exactly the paths given — a path with no change is a caller's mistake, not a no-op;
+   never run: a new one the disk marks executable (never on Windows, where every file reads as executable), a
+   `git/hooks/` file always, and, under `core.filemode=false` (Windows, where the disk cannot carry the bit), a named
+   path staged `+x` before the call (`git add --chmod=+x`), which the clearing would otherwise discard;
+4. refuses unless the index holds exactly the paths given — a path with no change is a caller's mistake, not a no-op.
+   The paths are measured before step 3 sets a mode, so a change that is only an execute bit (a tracked script staged
+   `git add --chmod=+x` under `core.filemode=false`, or a tracked `git/hooks/` file stored `644`) is refused as no
+   change, and the refusal's index clear discards that staged `+x`; such a change is committed with plain `git commit`;
 5. checks the message with `check-commit-message.py`;
 6. scans the lines the index adds with `scan-commit-confidentiality.py --staged`; a blocking finding refuses, and the
    review findings are printed under a header telling the caller to read them before it pushes — in the output, so
@@ -39,7 +42,7 @@ import sys
 HERE = os.path.dirname(os.path.abspath(__file__))
 SCRIPTS = os.path.join(HERE, "..", "..", "scripts")
 sys.path.insert(0, SCRIPTS)
-from review_scope import fix_modes, repo_relative, stage_reviewed
+from review_scope import fix_modes, index_modes, repo_relative, stage_reviewed
 
 MESSAGE_CHECK = os.path.join(SCRIPTS, "check-commit-message.py")
 SCANNER = os.path.join(SCRIPTS, "scan-commit-confidentiality.py")
@@ -66,14 +69,6 @@ def _staged(repo: str) -> list[str]:
     return sorted(p for p in out.split("\0") if p)
 
 
-def _index_modes(repo: str, paths: list[str]) -> dict[str, str]:
-    """The mode the index holds for each file under `paths`."""
-    if not paths:
-        return {}
-    out = _git(repo, "ls-files", "-s", "-z", "--", *paths).stdout
-    return {path: meta.split()[0] for meta, _, path in (e.partition("\t") for e in out.split("\0") if e)}
-
-
 def _signs(repo: str) -> bool:
     return _git(repo, "config", "--get", "commit.gpgsign", check=False).stdout.strip().lower() != "false"
 
@@ -94,7 +89,7 @@ def commit(repo: str, paths: list[str], message_file: str, reviewed: bool = Fals
     plain = [p for p in wanted if p not in from_rel]
 
     filemode = _git(repo, "config", "--bool", "core.filemode", check=False).stdout.strip() != "false"
-    marked_exec = set() if filemode else {p for p, m in _index_modes(repo, plain).items() if m == "100755"}
+    marked_exec = set() if filemode else {p for p, m in index_modes(repo, plain).items() if m == "100755"}
     has_head = _git(repo, "rev-parse", "-q", "--verify", "HEAD", check=False).returncode == 0
     _git(repo, *(("reset", "-q") if has_head else ("read-tree", "--empty")))
     if _staged(repo):
@@ -105,9 +100,9 @@ def commit(repo: str, paths: list[str], message_file: str, reviewed: bool = Fals
     elif plain:
         _git(repo, "add", "-A", "--", *plain)
     for path, source in from_rel.items():
-        mode = _git(repo, "ls-files", "-s", "--", path).stdout.split()[:1] or ["100644"]
+        mode = index_modes(repo, [path]).get(path, "100644")
         blob = _git(repo, "hash-object", "-w", "--", source).stdout.strip()
-        _git(repo, "update-index", "--add", "--cacheinfo", f"{mode[0]},{blob},{path}")
+        _git(repo, "update-index", "--add", "--cacheinfo", f"{mode},{blob},{path}")
 
     staged = _staged(repo)
     # `git status --short` names a new directory once (`?? dir/`), and callers build their path lists from it, so a
@@ -118,11 +113,7 @@ def commit(repo: str, paths: list[str], message_file: str, reviewed: bool = Fals
         covered = {d for d in dirs if any(s.startswith(d + "/") for s in inside)}
         wanted = sorted((set(wanted) - covered) | inside)
         plain = sorted((set(plain) - covered) | inside)
-    fixed = fix_modes(repo, plain)
-    restore = sorted(p for p, m in _index_modes(repo, plain).items() if m == "100644" and p in marked_exec)
-    if restore:
-        _git(repo, "update-index", "--chmod=+x", "--", *restore)
-        fixed = sorted(set(fixed) | set(restore))
+    fixed = fix_modes(repo, plain, keep_exec=marked_exec)
     unchanged = [p for p in wanted if p not in staged]
     stray = [p for p in staged if p not in wanted]
     if unchanged or stray:
