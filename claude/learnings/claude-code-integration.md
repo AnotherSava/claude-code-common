@@ -531,6 +531,14 @@ Bounding stops the walk writing to a stranger's tab; it does not let you *find* 
 
 The trap is that this daemon is **shared**. One daemon hosted three sessions at once in the observed case, so the chain of *every* one of them exits through whichever client happened to spawn it. Measured result before this was understood: 558 title writes putting one agent's status on another agent's tab over 21h, while that agent's own tab stayed blank. So this is not "widen the walk by one hop" — no walk of any shape recovers the tab, and `--spawned-by` is one answer shared by every job in the daemon, not per-session.
 
+**The move can happen with nobody asking, and it changes the session id.** Seen once on 2.1.296: an interactive `claude --continue` that had run for two days moved its conversation into a daemon-hosted session on its own, with no command typed. The old transcript's last line records it:
+
+```json
+{"type":"continued-in","sessionId":"<old>","continuedInSessionId":"<new>"}
+```
+
+The new transcript opens with a full copy of the old conversation, and every later prompt, `Stop` and `/clear` in that tab belongs to the new session id and arrives from the daemon's process. The interactive process does **not** exit: its registry record stays `kind:"interactive"`, `status:"idle"`, frozen at the moment of the move. So anything that tracks a session by its process liveness, or keeps the first session it saw in a directory until that one leaves, keeps following a process that will never speak again. `continued-in` is the one record that names the successor; read it rather than inferring the move from activity.
+
 **What works: match the row's cwd against `~/.claude/sessions/<pid>.json`.** Claude Code keeps one file per live session:
 
 ```json
