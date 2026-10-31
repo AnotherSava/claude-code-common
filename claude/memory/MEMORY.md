@@ -239,6 +239,7 @@
 - [Report timestamps in local time](feedback_local_time_timestamps.md) {always} — logs store UTC and these machines run hours behind it; convert before showing, or the quoted moment can't be matched to what the user saw
 - [Never weaken permissions in a subagent prompt](feedback_no_subagent_permission_bypass.md) {always} — approval for a task is never approval to disable approval gates; no `--dangerously-skip-permissions` in a subagent's instructions, ask first
 - [Route the output, don't ask for a paste](feedback_route_output_not_paste.md) {always} — a command only they can run goes on their clipboard as a script that tees its own log to `tmp/`; I read the log, never ask for a paste
+- [No null-result lines](feedback_no_null_result_lines.md) {always} — leave a step out of a report when it had nothing to do; "nothing to watch" lines are noise
 - [Offer the mode switch](feedback_offer_the_mode_switch.md) {always} — repeated classifier refusals in one task: offer switching to `manual`, not a third handed-over command; never `bypassPermissions`
 - [Fix the class, not the instance](feedback_fix_the_class_not_the_instance.md) {always} — a defect in one member of an already-enumerated set is a defect in the set; find the list and check all of it
 - [A gap in a gate is a fix, not a memo](feedback_gap_in_a_gate_is_a_fix.md) {always} — a blind spot in a check the project already runs gets that check extended; parking it re-files the same class every review
