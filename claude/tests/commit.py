@@ -101,6 +101,9 @@ def main() -> int:
         sh(repo, "add", "--chmod=+x", "tool.sh")
         run(repo, "feat: add a tool\n", "tool.sh")
         check("a path staged +x before the call keeps it where core.filemode is false", mode(repo, "tool.sh"), "100755")
+        sh(repo, "add", "--chmod=+x", "lib.py")
+        code, out = run(repo, "fix: make the library executable\n", "lib.py")
+        check("a tracked file staged +x commits as a mode-only change", (code, mode(repo, "lib.py")), (0, "100755"))
         sh(repo, "config", "core.filemode", "true")
 
         write(repo, "app.txt", "redacted reviewed version\n")

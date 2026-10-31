@@ -16,10 +16,8 @@ Each call:
    never run: a new one the disk marks executable (never on Windows, where every file reads as executable), a
    `git/hooks/` file always, and, under `core.filemode=false` (Windows, where the disk cannot carry the bit), a named
    path staged `+x` before the call (`git add --chmod=+x`), which the clearing would otherwise discard;
-4. refuses unless the index holds exactly the paths given — a path with no change is a caller's mistake, not a no-op.
-   The paths are measured before step 3 sets a mode, so a change that is only an execute bit (a tracked script staged
-   `git add --chmod=+x` under `core.filemode=false`, or a tracked `git/hooks/` file stored `644`) is refused as no
-   change, and the refusal's index clear discards that staged `+x`; such a change is committed with plain `git commit`;
+4. refuses unless the index holds exactly the paths given — a path with no change is a caller's mistake, not a no-op,
+   and a change that is only the execute bit step 3 set counts as a change;
 5. checks the message with `check-commit-message.py`;
 6. scans the lines the index adds with `scan-commit-confidentiality.py --staged`; a blocking finding refuses, and the
    review findings are printed under a header telling the caller to read them before it pushes — in the output, so
@@ -114,6 +112,8 @@ def commit(repo: str, paths: list[str], message_file: str, reviewed: bool = Fals
         wanted = sorted((set(wanted) - covered) | inside)
         plain = sorted((set(plain) - covered) | inside)
     fixed = fix_modes(repo, plain, keep_exec=marked_exec)
+    # Counted again after the mode fix, or a change that is only an execute bit reads as no change at all.
+    staged = _staged(repo)
     unchanged = [p for p in wanted if p not in staged]
     stray = [p for p in staged if p not in wanted]
     if unchanged or stray:
