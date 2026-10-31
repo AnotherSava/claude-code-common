@@ -71,6 +71,12 @@ Read the `=== session ===` header of **Session digest** before trusting a word o
 Sync as `~/.claude/skills/shared/sync-and-push.md` describes. A diverged branch goes at the top of the summary in
 step 7, and a fetch failure is said there too.
 
+Before launching it, settle what belongs in the tree, since the review snapshots every untracked file that is not
+ignored and a reviewed path left out of the commits stops the bookmark from moving: delete junk such as crash dumps,
+and check every path this session did not write for a peer still writing it, both as
+`~/.claude/skills/shared/commit-grouping.md` describes under what belongs in the change set. A path held for a peer
+goes at the top of the summary, since the review will include it.
+
 Then launch the saved `review-auto` workflow in fix mode, building its args as
 `~/.claude/skills/shared/review-auto-args.md` describes. Pass no `rounds`: the workflow runs until a round finds nothing worth
 fixing, and its default cap is only a guard against a fixer and reviewers that never settle. It reviews everything since the last recorded review —
@@ -183,15 +189,17 @@ Nothing here asks the user anything; each sub-step's question, if it has one, be
 
 ### 7. Present one summary
 
-One message, in this order, numbered in one continuous sequence so any line can be overridden by number:
+One message, in this order, under these headings. The headings carry no numbers: the items under them are numbered in
+one continuous sequence so any of them can be overridden by number, and a numbered heading above numbered items reads
+as two clashing lists.
 
-1. **Review** — the triage table as the workflow returned it, and whether the bookmark was recorded.
-2. **Open items** — the findings from step 5, grouped under the four category headings, the strongest first inside
-   each group.
-3. **To save** — what `/reflect` drafted, each with its destination.
-4. **To decide** — clean-up proposals, untracked skills, related issues, finished plans to archive, a diverged branch.
-5. **Commits** — the plan, each commit with its message and file list, and which reviewed commit ends at the reviewed
-   tree where `layout` named one. Then the push.
+- **Review** — the triage table as the workflow returned it, and whether the bookmark was recorded.
+- **Open items** — the findings from step 5, grouped under the four category headings, the strongest first inside
+  each group.
+- **To save** — what `/reflect` drafted, each with its destination.
+- **To decide** — clean-up proposals, untracked skills, related issues, finished plans to archive, a diverged branch.
+- **Commits** — the plan, each commit with its message and file list, and which reviewed commit ends at the reviewed
+  tree where `layout` named one. Then the push.
 
 For each open item give a short bold title, the quoted words
 with their `[N] HH:MM` reference from the digest, one line on why it is still open, and a
