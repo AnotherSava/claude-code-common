@@ -26,14 +26,16 @@ Each call:
 
 It never pushes; that is `push.py`'s, so a skill can commit without publishing.
 
-Exit codes: 0 committed, 1 refused by a check (the index is cleared again, the working tree untouched), 2 could not
-run.
+Exit codes: 0 committed, 1 refused by a check (the index is cleared again, the working tree untouched; a `+x` staged
+before the call is cleared with it, and the refusal names the paths to stage it on again, along with any new path step 3
+marked itself, which a retry marks again), 2 could not run.
 """
 
 from __future__ import annotations
 
 import argparse
 import os
+import shlex
 import subprocess
 import sys
 
@@ -48,6 +50,33 @@ SCANNER = os.path.join(SCRIPTS, "scan-commit-confidentiality.py")
 
 class Refused(Exception):
     """A check said no. Carries what to show the caller."""
+
+
+def _staged_exec(repo: str, paths: list[str]) -> set[str]:
+    """The paths among `paths` the index holds as 100755, under `core.filemode=false`, where the index is the only
+    holder of a `git add --chmod=+x`; empty elsewhere, where the disk is the authority and staging reads it again."""
+    if _git(repo, "config", "--bool", "core.filemode", check=False).stdout.strip() != "false":
+        return set()
+    return {p for p, m in index_modes(repo, paths).items() if m == "100755"}
+
+
+def _empty_index(repo: str, check: bool = True) -> None:
+    # `git reset` needs a HEAD to reset to; a repo with no commits yet has none.
+    has_head = _git(repo, "rev-parse", "-q", "--verify", "HEAD", check=False).returncode == 0
+    _git(repo, *(("reset", "-q") if has_head else ("read-tree", "--empty")), check=check)
+
+
+def _clear_index(repo: str) -> str:
+    """Clear the index after a refusal, and return a note naming each path whose staged execute bit the clear threw
+    away, with the command that stages it again; empty when none was."""
+    # Best effort, so a failure here never hides the refusal. Compared across the clear because a path already 100755
+    # in HEAD keeps its bit. Read from the index as the refusal left it, so it also names a bit `fix_modes` set itself.
+    before = _staged_exec(repo, _staged(repo))
+    _empty_index(repo, check=False)
+    dropped = sorted(before - _staged_exec(repo, sorted(before)))
+    if not dropped:
+        return ""
+    return f"\nclearing the index drops the execute bit staged on {', '.join(dropped)}; stage it again before retrying: git add --chmod=+x -- {' '.join(shlex.quote(p) for p in dropped)}"
 
 
 def _git(repo: str, *args: str, check: bool = True) -> subprocess.CompletedProcess:
@@ -86,10 +115,8 @@ def commit(repo: str, paths: list[str], message_file: str, reviewed: bool = Fals
     from_rel = {repo_relative(repo, p): f for p, f in from_files.items()}
     plain = [p for p in wanted if p not in from_rel]
 
-    filemode = _git(repo, "config", "--bool", "core.filemode", check=False).stdout.strip() != "false"
-    marked_exec = set() if filemode else {p for p, m in index_modes(repo, plain).items() if m == "100755"}
-    has_head = _git(repo, "rev-parse", "-q", "--verify", "HEAD", check=False).returncode == 0
-    _git(repo, *(("reset", "-q") if has_head else ("read-tree", "--empty")))
+    marked_exec = _staged_exec(repo, plain)
+    _empty_index(repo)
     if _staged(repo):
         raise RuntimeError("the index is not empty after `git reset` — another git process holds it; retry")
 
@@ -170,8 +197,7 @@ def main() -> int:
         print(commit(repo, opts.paths, os.path.abspath(opts.message_file), opts.reviewed, from_files))
         return 0
     except Refused as refusal:
-        _git(repo, "reset", "-q", check=False)
-        print(f"NOT COMMITTED: {refusal}")
+        print(f"NOT COMMITTED: {refusal}{_clear_index(repo)}")
         return 1
     except RuntimeError as error:
         print(f"ERROR: {error}")

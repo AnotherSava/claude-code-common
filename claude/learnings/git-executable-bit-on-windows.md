@@ -28,6 +28,8 @@ Windows clones run with `core.filemode=false`, and there git ignores the disk bi
 
 A commit helper that runs `git reset` before staging, so that nothing staged earlier rides along, also wipes a `+x` the user staged on purpose. After the reset, `git add` records the new file as `644` again. Read the modes of the paths being committed before the reset, and re-apply `+x` after staging to any path that was `100755` and came back `100644`. Do this only under `core.filemode=false`, because elsewhere the disk is the authority and git already recorded it.
 
+The same reset on a refusal throws the bit away for good, since the helper's own memory of it ends with the run: the retry reads `100644` before its reset and has nothing to re-apply. Measured with `core.filemode=false` and a rejected commit message: `git add --chmod=+x tool.sh` gave `100755`, the refusal left `tool.sh` unstaged, and the retry committed it `100644`. A refusal that clears the index has to name the `+x` paths it dropped, so the caller stages them again before retrying.
+
 A snapshot built in a scratch index seeded from the real one keeps a pre-staged mode with no extra work, because `git add` preserves the seeded entry's mode.
 
 ## Testing it from a non-Windows machine
