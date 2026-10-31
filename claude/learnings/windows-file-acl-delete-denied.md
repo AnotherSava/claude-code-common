@@ -92,3 +92,13 @@ done < /tmp/tracked.txt
 ```
 
 The `</dev/null` matters: `icacls` reads standard input, and without it the first call swallows the rest of the loop's input and the sweep reports every remaining file as affected.
+
+## Making a file undeletable on purpose, for a test
+
+A test that needs a delete to fail cannot use the read-only attribute from Rust: `std::fs::remove_file` deletes a read-only file on Windows, so `set_readonly(true)` leaves the delete succeeding and the test asserting a failure that never comes (observed 2026-10-30). Hold the file open without delete sharing instead, which is also the realistic case of a player reading a subtitle:
+
+```rust
+use std::os::windows::fs::OpenOptionsExt;
+let held = std::fs::OpenOptions::new().read(true).share_mode(0).open(&path)?;
+// remove_file(&path) now fails with a sharing violation until `held` is dropped
+```
