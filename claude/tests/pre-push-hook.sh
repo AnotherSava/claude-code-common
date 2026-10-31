@@ -210,5 +210,28 @@ fi
 # A repo with no LFS never calls git-lfs, which would cost every push an SSH handshake
 check "$(cd "$T/plain" && echo x > x.txt && git add x.txt && git commit -q -m x && GIT_TRACE=1 git push -q origin main 2>&1 | grep -c 'git-lfs')" 0 "no git-lfs call without LFS content"
 
+# Privacy scan: a pushed commit adding a routable address is refused in a repo that adopted the conventions, passes
+# once its fingerprint is allowed, and is never scanned in a repo that did not adopt them.
+SCANNER_PATH="$HOME/.claude/scripts/scan-commit-confidentiality.py"
+if [ -f "$SCANNER_PATH" ]; then
+    git init -q --bare "$T/private.git"; repo "$T/private"
+    mkdir -p "$T/private/.claude"; echo 1 > "$T/private/.claude/conventions"
+    commit "$T/private" "chore: start"; git -C "$T/private" remote add origin "$(url "$T/private.git")"
+    check "$(push "$T/private" -u origin main)" 0 "a clean conventions repo pushes"
+    echo "reach the box at 100.64.12.7" > "$T/private/deploy.txt"; commit "$T/private" "docs: add deploy notes"
+    check "$(push "$T/private" origin main)" 1 "a pushed commit adding a routable address is refused"
+    check "$(grep -c 'ipv4' "$T/last.log" | grep -c '^[1-9]')" 1 "the refusal names the finding"
+    fp=$(sed -n 's/.*allow=\([0-9a-f]*\).*/\1/p' "$T/last.log" | head -1)
+    echo "$fp  # documentation address" > "$T/private/.claude/confidentiality-allow"; commit "$T/private" "chore: allow the address"
+    check "$(push "$T/private" origin main)" 0 "the push passes once the finding is allowed"
+
+    git init -q --bare "$T/foreign.git"; repo "$T/foreign"
+    echo "reach the box at 100.64.12.7" > "$T/foreign/deploy.txt"; commit "$T/foreign" "add deploy notes"
+    git -C "$T/foreign" remote add origin "$(url "$T/foreign.git")"
+    check "$(push "$T/foreign" -u origin main)" 0 "a repo without a conventions record is not scanned"
+else
+    not_covered "the privacy-scan cases (no installed scanner at $SCANNER_PATH)" 5
+fi
+
 echo "pre-push hook: $pass passed, $fail failed$([ "$skipped" -gt 0 ] && echo ", $skipped NOT COVERED")"
 [ "$fail" = 0 ]

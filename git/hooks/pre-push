@@ -11,6 +11,8 @@
 #   4. A message failing ~/.claude/scripts/check-commit-message.py, in a repo holding a
 #      .claude/conventions record — a third-party clone keeps its own style, and core.hooksPath
 #      points every repo on the machine at this hook
+#   5. A blocking finding from ~/.claude/scripts/scan-commit-confidentiality.py in the lines those
+#      commits add, gated on the same record
 #
 # In a fork (origin ours, upstream someone else's, as ~/.claude/conventions/engine.py decides it),
 # commits reachable from the upstream remote are not checked: a rebase onto upstream pushes the
@@ -43,6 +45,7 @@ declares_lfs=0
 new_commits=""
 MSG_CHECKER="$HOME/.claude/scripts/check-commit-message.py"
 ENGINE="$HOME/.claude/conventions/engine.py"
+SCANNER="$HOME/.claude/scripts/scan-commit-confidentiality.py"
 
 # The null object id is 40 zeros under SHA-1 and 64 under SHA-256; blank counts as null too.
 is_null() {
@@ -148,10 +151,34 @@ if [ -n "$new_commits" ] && [ -f "$(git rev-parse --show-toplevel)/.claude/conve
         echo "$msg_output"
         echo ""
         echo "Push blocked: the message rules in commit-message-rules.md are not met."
-        echo "Fix with /reset to bring these commits back into the tree, then /commit."
+        echo "Fix with /reset to bring these commits back into the tree, then /yolo or /wrap-up."
         echo "To push anyway: git push --no-verify (which also skips the signature and"
         echo "attribution checks, so prefer fixing the messages)."
         exit 1
+    fi
+fi
+
+# The privacy scan reads only the lines the new commits add, and blocks only on its blocking kind, which the docstring
+# of scan-commit-confidentiality.py lists. Gated on the conventions record like the message check, for the same reason. A scan that could not run blocks too: an unmeasured
+# push is not a clean one.
+if [ -n "${new_commits// /}" ] && [ -f "$(git rev-parse --show-toplevel)/.claude/conventions" ]; then
+    if [ ! -f "$SCANNER" ]; then
+        echo "WARNING: $SCANNER is missing, so the pushed commits were NOT scanned for private content." >&2
+    else
+        scan_status=0
+        scan_output=$(python3 "$SCANNER" --repo "$(git rev-parse --show-toplevel)" --range "--no-walk $new_commits" 2>&1) || scan_status=$?
+        if [ "$scan_status" -ne 0 ]; then
+            echo "$scan_output" | sed -n '/^CONTROL FAILED/,$p;/^blocking:/,$p'
+            echo ""
+            if [ "$scan_status" -eq 1 ]; then
+                echo "Push blocked: a pushed commit adds content that must not be published."
+                echo "Remove it with /reset and re-commit, or, for a false positive, add its allow= value to"
+                echo ".claude/confidentiality-allow with a comment saying why."
+            else
+                echo "Push blocked: the privacy scan could not run, so nothing says this push is clean."
+            fi
+            exit 1
+        fi
     fi
 fi
 
