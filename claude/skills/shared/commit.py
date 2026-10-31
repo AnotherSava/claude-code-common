@@ -69,8 +69,9 @@ def _empty_index(repo: str, check: bool = True) -> None:
 def _clear_index(repo: str) -> str:
     """Clear the index after a refusal, and return a note naming each path whose staged execute bit the clear threw
     away, with the command that stages it again; empty when none was."""
-    # Best effort, so a failure here never hides the refusal. Compared across the clear because a path already 100755
-    # in HEAD keeps its bit. Read from the index as the refusal left it, so it also names a bit `fix_modes` set itself.
+    # The clear itself runs unchecked, so a failed reset still prints the refusal. Compared across the clear because a
+    # path already 100755 in HEAD keeps its bit. Read from the index as the refusal left it, so it also names a bit
+    # `fix_modes` set itself.
     before = _staged_exec(repo, _staged(repo))
     _empty_index(repo, check=False)
     dropped = sorted(before - _staged_exec(repo, sorted(before)))
