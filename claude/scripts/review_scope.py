@@ -84,14 +84,19 @@ def _git_path(repo: str, name: str) -> str:
     return path if os.path.isabs(path) else os.path.join(repo, path)
 
 
-def _wants_exec(repo: str, path: str) -> bool:
-    """A git hook, or a file whose first line is a shebang and whose disk copy is already executable. A shebang alone
-    is not enough: a library module may carry one and be deliberately `644`."""
+def _wants_exec(repo: str, path: str, tracked: bool) -> bool:
+    """A git hook, or a new file whose first line is a shebang and whose disk copy is executable. A shebang alone is not
+    enough: a library module may carry one and be deliberately `644`. A file HEAD already tracks keeps the mode it
+    records, since under `core.filemode=false` `git add` preserves that mode and the disk has nothing better to offer.
+    On Windows the disk carries no execute bit at all (`os.access(X_OK)` is true for any existing file), so there only a
+    hook qualifies, and a new script takes its bit from `git add --chmod=+x`."""
     full = os.path.join(repo, path)
     if not os.path.isfile(full):
         return False
     if path.startswith("git/hooks/"):
         return True
+    if tracked or os.name == "nt":
+        return False
     with open(full, "rb") as handle:
         shebang = handle.read(2) == b"#!"
     return shebang and os.access(full, os.X_OK)
@@ -106,10 +111,12 @@ def fix_modes(repo: str, paths: list[str], env: dict | None = None) -> list[str]
     listed = _git(repo, "ls-files", "-s", "-z", env=env, timeout=60)
     if listed.returncode != 0:
         raise RuntimeError(f"git ls-files -s failed: {listed.stderr.strip()}")
+    in_head = _git(repo, "ls-tree", "-r", "-z", "--name-only", "HEAD", env=env, timeout=60)
+    tracked = set(in_head.stdout.split("\0")) if in_head.returncode == 0 else set()
     fixed = []
     for entry in listed.stdout.split("\0"):
         meta, _, path = entry.partition("\t")
-        if path in wanted and meta.startswith("100644 ") and _wants_exec(repo, path):
+        if path in wanted and meta.startswith("100644 ") and _wants_exec(repo, path, path in tracked):
             fixed.append(path)
     if fixed:
         done = _git_paths(repo, "update-index", "--chmod=+x", "--", *fixed, env=env)

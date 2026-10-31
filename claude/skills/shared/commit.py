@@ -13,7 +13,9 @@ Each call:
    working tree, or with `--reviewed` from the tree a completed review recorded, so the commit holds what the review
    read whatever happened to the disk copy since;
 3. gives a script its execute bit in the index, because git records the mode and a hook committed `644` is silently
-   never run, and on Windows `core.filemode=false` means the disk cannot carry the bit for us;
+   never run: a new one the disk marks executable, a `git/hooks/` file always, and, under `core.filemode=false` (Windows,
+   where the disk cannot carry the bit), a named path staged `+x` before the call (`git add --chmod=+x`), which the
+   clearing would otherwise discard;
 4. refuses unless the index holds exactly the paths given — a path with no change is a caller's mistake, not a no-op;
 5. checks the message with `check-commit-message.py`;
 6. scans the lines the index adds with `scan-commit-confidentiality.py --staged`; a blocking finding refuses, and the
@@ -64,6 +66,14 @@ def _staged(repo: str) -> list[str]:
     return sorted(p for p in out.split("\0") if p)
 
 
+def _index_modes(repo: str, paths: list[str]) -> dict[str, str]:
+    """The mode the index holds for each file under `paths`."""
+    if not paths:
+        return {}
+    out = _git(repo, "ls-files", "-s", "-z", "--", *paths).stdout
+    return {path: meta.split()[0] for meta, _, path in (e.partition("\t") for e in out.split("\0") if e)}
+
+
 def _signs(repo: str) -> bool:
     return _git(repo, "config", "--get", "commit.gpgsign", check=False).stdout.strip().lower() != "false"
 
@@ -83,6 +93,8 @@ def commit(repo: str, paths: list[str], message_file: str, reviewed: bool = Fals
     from_rel = {repo_relative(repo, p): f for p, f in from_files.items()}
     plain = [p for p in wanted if p not in from_rel]
 
+    filemode = _git(repo, "config", "--bool", "core.filemode", check=False).stdout.strip() != "false"
+    marked_exec = set() if filemode else {p for p, m in _index_modes(repo, plain).items() if m == "100755"}
     has_head = _git(repo, "rev-parse", "-q", "--verify", "HEAD", check=False).returncode == 0
     _git(repo, *(("reset", "-q") if has_head else ("read-tree", "--empty")))
     if _staged(repo):
@@ -107,6 +119,10 @@ def commit(repo: str, paths: list[str], message_file: str, reviewed: bool = Fals
         wanted = sorted((set(wanted) - covered) | inside)
         plain = sorted((set(plain) - covered) | inside)
     fixed = fix_modes(repo, plain)
+    restore = sorted(p for p, m in _index_modes(repo, plain).items() if m == "100644" and p in marked_exec)
+    if restore:
+        _git(repo, "update-index", "--chmod=+x", "--", *restore)
+        fixed = sorted(set(fixed) | set(restore))
     unchanged = [p for p in wanted if p not in staged]
     stray = [p for p in staged if p not in wanted]
     if unchanged or stray:
