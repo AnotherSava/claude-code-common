@@ -84,6 +84,8 @@ async function run(args, reviews, verdicts, { fixer, reviewer, verifier, polish 
       if (verifier) { const answer = verifier(summary, round); if (answer !== undefined) return answer }
       return verdicts[summary] || null
     }
+    // Between fix rounds the workflow snapshots the tree; a before and an after that differ bound the next round's diff.
+    if (opts.phase === 'Snapshot') return 'snapshot' in polish ? polish.snapshot(opts.label) : { exit_status: 0, output: `${opts.label.includes(':before:') ? 'c'.repeat(40) : 'd'.repeat(40)}\n` }
     if (opts.phase === 'Fix') return fixer ? fixer(prompt, round) : { applied: promptIds(prompt).map(id => ({ id, change: 'done' })), skipped: [], gate_exit: 0, gate_tail: 'ok' }
     if (opts.phase === 'Bookmark') return { exit_status: 0, output: 'recorded: scripted' }
     throw new Error(`unexpected phase ${opts.phase}`)
@@ -172,11 +174,28 @@ async function nothingFoundCallsNoFixer() {
 }
 
 async function capsAtDefaultRounds() {
+  const rounds = Array.from({ length: 11 }, (_, i) => i + 1)
   const always = n => [finding(`fix-${n}`, { frequency: 'common', cost_unhandled: 'crash' })]
-  const verdicts = Object.fromEntries([1, 2, 3].map(n => [`defect fix-${n}`, verdict(true, true, 'common', 'crash')]))
-  const { result, calls } = await run({ ...ARGS, lenses: [LENSES[0], { key: 'perf', prompt: 'find slow code' }] }, { 1: always(1), 2: always(2), 3: always(3), 4: always(4) }, verdicts)
-  check('the loop stops at the default cap while fix-class findings keep coming', result.stop_reason, 'hard cap of 3 rounds reached')
-  check('no fourth round of reviewers', calls.some(c => c.label.endsWith(':r4')), false)
+  const verdicts = Object.fromEntries(rounds.map(n => [`defect fix-${n}`, verdict(true, true, 'common', 'crash')]))
+  const { result, calls } = await run({ ...ARGS, lenses: [LENSES[0], { key: 'perf', prompt: 'find slow code' }] }, Object.fromEntries([...rounds, 12].map(n => [n, always(n)])), verdicts)
+  check('the loop stops at the default cap of 10 while fix-class findings keep coming', result.stop_reason, 'cap of 10 rounds reached; the verify-only round found 1 fix-class finding(s), left unapplied')
+  check('the cap is followed by one verify round of reviewers', calls.filter(c => c.phase === 'Review' && c.label.endsWith(':r11')).length, 2)
+  check('which fixes nothing', calls.some(c => c.phase === 'Fix' && c.label.endsWith(':r11')), false)
+  check('and is not followed by another round', calls.some(c => c.label.endsWith(':r12')), false)
+  check('its finding stays in the table, unapplied', result.triage.find(r => r.finding === 'defect fix-11')?.outcome ?? null, null)
+}
+
+async function laterRoundsReviewTheFixDiff() {
+  const fixed = await run({ ...ARGS, review_bookmark: BOOKMARK }, { 1: [FIXABLE], 2: [] }, FIXABLE_VERDICT)
+  const second = fixed.calls.filter(c => c.phase === 'Review' && c.label.endsWith(':r2'))
+  check('round two reviews only the diff round one\'s fixes made', second.length > 0 && second.every(c => c.prompt.includes(`diff ${'c'.repeat(40)} ${'d'.repeat(40)}`)), true)
+  check('round one still reviews the whole scope', fixed.calls.filter(c => c.phase === 'Review' && c.label.endsWith(':r1')).every(c => c.prompt.includes('Scope: the diff\n')), true)
+
+  const blind = await run({ ...ARGS, review_bookmark: BOOKMARK }, { 1: [FIXABLE], 2: [] }, FIXABLE_VERDICT, { polish: { snapshot: () => ({ exit_status: 1, output: 'failed' }) } })
+  check('a failed snapshot falls back to the whole scope', blind.calls.filter(c => c.phase === 'Review' && c.label.endsWith(':r2')).every(c => c.prompt.includes('Scope: the diff\n')), true)
+
+  const unbooked = await run(ARGS, { 1: [FIXABLE], 2: [] }, FIXABLE_VERDICT)
+  check('without a bookmark no snapshot is taken and round two reviews the whole scope', [unbooked.calls.some(c => c.phase === 'Snapshot'), unbooked.calls.filter(c => c.phase === 'Review' && c.label.endsWith(':r2')).every(c => c.prompt.includes('Scope: the diff\n'))], [false, true])
 }
 
 async function noGate() {
@@ -300,8 +319,12 @@ async function fixModeRecording() {
 
   const always = n => [finding(`fix-${n}`, { frequency: 'common', cost_unhandled: 'crash' })]
   const verdicts = Object.fromEntries([1, 2].map(n => [`defect fix-${n}`, verdict(true, true, 'common', 'crash')]))
-  const capped = await run({ ...ARGS, review_bookmark: BOOKMARK, rounds: 2 }, { 1: always(1), 2: always(2) }, verdicts)
-  check('a loop stopped at the cap is not recorded, since its last fixes went unreviewed', [capped.result.bookmark.recorded, bookmarkCalls(capped.calls).length], [false, 0])
+  const capped = await run({ ...ARGS, review_bookmark: BOOKMARK, rounds: 2 }, { 1: always(1), 2: always(2), 3: always(3) }, { ...verdicts, 'defect fix-3': verdict(true, true, 'common', 'crash') })
+  check('a loop whose verify round still finds fix-class work is not recorded', [capped.result.bookmark.recorded, bookmarkCalls(capped.calls).length], [false, 0])
+
+  const settled = await run({ ...ARGS, review_bookmark: BOOKMARK, rounds: 2 }, { 1: always(1), 2: always(2), 3: [] }, verdicts)
+  check('a loop whose verify round is quiet after the cap records the review', settled.result.bookmark.recorded, true)
+  check('and says the cap was reached and verified', settled.result.stop_reason, 'cap of 2 rounds reached; the verify-only round found nothing that earns code in the last fixes')
 
   const fixer = prompt => ({ applied: promptIds(prompt).map(id => ({ id, change: 'done' })), skipped: [], gate_exit: 1, gate_tail: 'FAILED' })
   const red = await run({ ...ARGS, review_bookmark: BOOKMARK }, { 1: [FIXABLE], 2: [] }, FIXABLE_VERDICT, { fixer })
@@ -391,7 +414,7 @@ async function refusesNonBooleanFix() {
 // ~/.claude/workflows, so a CRLF file breaks every run while git, normalizing to LF, shows nothing changed.
 check('the workflow file carries no carriage return', SOURCE.includes('\r'), false)
 
-for (const test of [triageAndStop, stopsAfterQuietRound, nothingFoundCallsNoFixer, capsAtDefaultRounds, noGate, refusesBadArgs, unverifiedIsNotRefuted, verifierThatThrows, deadFixerStopsTheLoop, skippedFixIsNotReportedAsFixed, silentLensIsReported, readOnly, readOnlyGapIsNotRecorded, noBookmarkPassed, fixModeRecording, polishKept, polishNothingToDo, polishTakenBack, polishRevertIncomplete, deadPolishPass, polishOnlyAfterCleanReview, refusesNonBooleanFix]) {
+for (const test of [triageAndStop, stopsAfterQuietRound, nothingFoundCallsNoFixer, capsAtDefaultRounds, laterRoundsReviewTheFixDiff, noGate, refusesBadArgs, unverifiedIsNotRefuted, verifierThatThrows, deadFixerStopsTheLoop, skippedFixIsNotReportedAsFixed, silentLensIsReported, readOnly, readOnlyGapIsNotRecorded, noBookmarkPassed, fixModeRecording, polishKept, polishNothingToDo, polishTakenBack, polishRevertIncomplete, deadPolishPass, polishOnlyAfterCleanReview, refusesNonBooleanFix]) {
   try { await test() } catch (error) { failures.push(`  FAIL ${test.name} threw: ${error.stack}`) }
 }
 for (const line of failures) console.log(line)

@@ -15,5 +15,6 @@ calling session builds. Build the whole object from the conversation before call
   otherwise the project's own build, lint and test scripts.
 - `fix`: `true` unless the review is meant to be read-only; `/review-manual` always passes `false`.
 - `rounds`: a number the user typed in plain words — "cap 6", "rounds 6", "6 rounds" — is the round cap. Leave it out
-  otherwise; the workflow defaults to 3.
+  otherwise; the workflow defaults to 10, a guard against a fixer and reviewers that never settle, since rounds after
+  the first review only what the previous fixes changed. `/wrap-up` passes none.
 - `repo`: only when the repo is not the working directory.

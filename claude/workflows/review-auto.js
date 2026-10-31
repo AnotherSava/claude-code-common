@@ -1,7 +1,7 @@
 export const meta = {
   name: 'review-auto',
   description: 'Review a change through given lenses, verify each finding for truth and realism, triage in code, and fix only what earns code',
-  whenToUse: 'Any automated review loop, fixing what it finds or, with fix: false, read-only. args: {scope, lenses: [{key, prompt}], context, gate, fix, rounds}; scope and lenses are required, so before calling read ~/.claude/skills/shared/review-auto-args.md and build the whole object from the conversation, reading plain text such as "cap 6" as rounds. rounds caps the review-and-fix rounds, 3 when absent. In fix mode a converged run then polishes the change with /clean-code and /docs-relevance, reviews the polish, and reverts it whole if anything fails, so /commit has no code or prose left to polish (screenshot-relevance still runs there); a polish pass that returns nothing is the exception, left unreverted in the tree and unrecorded, since what it edited is unknown. Returns the full triage table for the user, never just "all fixed".',
+  whenToUse: 'Any automated review loop, fixing what it finds or, with fix: false, read-only. args: {scope, lenses: [{key, prompt}], context, gate, fix, rounds}; scope and lenses are required, so before calling read ~/.claude/skills/shared/review-auto-args.md and build the whole object from the conversation, reading plain text such as "cap 6" as rounds. rounds caps the review-and-fix rounds, 10 when absent, as a runaway guard: rounds after the first review only the diff the previous fixes made, so a run converges well before it; a run that reaches the cap ends with one verify-only round over the last fixes, which fixes nothing and records the review only when it finds nothing that earns code. In fix mode a converged run then polishes the change with /clean-code and /docs-relevance, reviews the polish, and reverts it whole if anything fails, so /wrap-up has no code or prose left to polish (screenshot-relevance still runs there); a polish pass that returns nothing is the exception, left unreverted in the tree and unrecorded, since what it edited is unknown. Returns the full triage table for the user, never just "all fixed".',
   phases: [
     { title: 'Review', detail: 'one reviewer per lens; every finding names who reaches it, how often, and what it costs' },
     { title: 'Verify', detail: 'one skeptic per finding, judging truth and realism' },
@@ -125,9 +125,10 @@ const GATE = typeof args.gate === 'string' && args.gate.trim() ? args.gate.trim(
 // Read-only collects one round of findings and changes nothing (~/.claude/memory/feedback_read_only_review_loop.md). One
 // round, because a later round exists to review the code an earlier round's fixes added, and here there is none.
 const FIX = args.fix !== false
-// A cap rather than a target: the loop stops sooner when a round finds nothing worth fixing. Read-only runs one round
-// whatever this says, for the reason given above `FIX`.
-const MAX_ROUNDS = args.rounds ?? 3
+// A runaway guard rather than a target: the loop stops when a round finds nothing worth fixing, and rounds after the
+// first read only what the previous fixes changed, so a run reaching this many is a fixer and a reviewer undoing each
+// other. Read-only runs one round whatever this says, for the reason given above `FIX`.
+const MAX_ROUNDS = args.rounds ?? 10
 // Set by the review-scope hook (claude/hooks/review-scope.py), never by the caller: the repo, the commit the scope runs
 // from, and the tree at launch. Absent when the hook could not trust a base, and then nothing is recorded.
 const BOOKMARK = args.review_bookmark && typeof args.review_bookmark === 'object' && ['repo', 'base', 'tree'].every(k => typeof args.review_bookmark[k] === 'string') ? args.review_bookmark : null
@@ -199,12 +200,22 @@ async function fixRound(round, fixes, warns) {
   return report
 }
 
+// Above the loop, which snapshots between rounds: a `const` read before its line runs is a ReferenceError.
+const SCOPE_SCRIPT = 'python3 ~/.claude/scripts/review_scope.py'
+const TREE_ID = /^[0-9a-f]{40}([0-9a-f]{24})?$/
+
 const table = []
 const fixReports = []
 const silentLenses = []
 const seen = new Set()
 let stopReason = `hard cap of ${MAX_ROUNDS} rounds reached`
+// What the next round reviews. The first round reads the whole scope; each later one reads only the diff the previous
+// round's fixes made, since everything else was already read — re-reading it is what kept every round finding new
+// items in old code. Without a snapshot to bound that diff (no bookmark, or a snapshot that failed) a round falls back
+// to the whole scope, which is slower but misses nothing.
+let scope = args.scope
 let quiet = false
+let capped = false
 
 // One reviewer per lens, one skeptic per new finding. `tag` names the round in labels and ids; the polish review passes
 // its own `seen`, so a finding worded like an earlier round's is still verified against the polish diff.
@@ -235,7 +246,7 @@ async function reviewRound({ round, tag, scope, earlier, seen, reviewPhase, veri
 }
 
 for (let round = 1; round <= MAX_ROUNDS; round++) {
-  const { rows, silent } = await reviewRound({ round, tag: `r${round}`, scope: args.scope, earlier: table, seen, reviewPhase: 'Review', verifyPhase: 'Verify' })
+  const { rows, silent } = await reviewRound({ round, tag: `r${round}`, scope, earlier: table, seen, reviewPhase: 'Review', verifyPhase: 'Verify' })
   rows.forEach(r => { r.round = round })
   silentLenses.push(...silent.map(lens => ({ round, lens })))
   table.push(...rows)
@@ -258,7 +269,10 @@ for (let round = 1; round <= MAX_ROUNDS; round++) {
     stopReason = `round ${round} found nothing that earns code${gaps.length ? ` among what ran; ${gaps.join(' and ')}` : ''}`
     break
   }
+  const before = BOOKMARK ? await snapshot(`snapshot:before:r${round}`, 'Snapshot') : null
   const report = await fixRound(round, fixes, warns)
+  const after = before ? await snapshot(`snapshot:after:r${round}`, 'Snapshot') : null
+  scope = before && after ? `Only the changes round ${round}'s fixes made to ${BOOKMARK.repo}, and nothing else: \`git -C "${BOOKMARK.repo}" diff ${before} ${after}\`. Everything outside that diff was already reviewed. The original scope, for context: ${args.scope}` : args.scope
   if (!report) {
     stopReason = `round ${round}'s fixer returned nothing, so none of its fixes were applied`
     break
@@ -267,6 +281,24 @@ for (let round = 1; round <= MAX_ROUNDS; round++) {
     stopReason = `round ${round}'s fixer applied none of its fixes`
     break
   }
+  if (round === MAX_ROUNDS) capped = true
+}
+
+// A run that reaches its cap ends with fixes no round reviewed, so on its own it can never record a review. One more
+// round reviews them and fixes nothing: when it finds nothing that earns code, the tree it read is the tree that
+// exists, and the run counts as converged; what it does find stays in the table for the user, unapplied.
+if (capped) {
+  const round = MAX_ROUNDS + 1
+  const { rows, silent } = await reviewRound({ round, tag: `r${round}`, scope, earlier: table, seen, reviewPhase: 'Review', verifyPhase: 'Verify' })
+  rows.forEach(r => { r.round = round })
+  silentLenses.push(...silent.map(lens => ({ round, lens })))
+  table.push(...rows)
+  const fixes = rows.filter(r => r.disposition === 'fix')
+  log(`verify round ${round}: ${rows.length} found, ${fixes.length} fix-class, none applied`)
+  quiet = !fixes.length
+  stopReason = quiet
+    ? `cap of ${MAX_ROUNDS} rounds reached; the verify-only round found nothing that earns code in the last fixes`
+    : `cap of ${MAX_ROUNDS} rounds reached; the verify-only round found ${fixes.length} fix-class finding(s), left unapplied`
 }
 
 // The bookmark advances past a range only when every part of the run that covers it came back: a silent lens or an
@@ -277,7 +309,7 @@ function bookmarkGap() {
   if (silentLenses.length) return 'a lens returned nothing'
   if (table.some(r => r.disposition === 'unverified')) return 'a finding went unverified'
   if (!FIX) return null
-  if (!quiet) return 'the loop stopped before a round found nothing to fix, so its last fixes were never reviewed'
+  if (!quiet) return capped ? `the cap of ${MAX_ROUNDS} rounds was reached and the verify-only round still found fix-class work, so the fixer and the reviewers did not settle` : 'the loop stopped before a round found nothing to fix, so its last fixes were never reviewed'
   if (fixReports.some(({ report }) => !report || report.gate_exit !== (GATE ? 0 : null))) return 'a fix round\'s gate did not pass'
   return null
 }
@@ -287,17 +319,15 @@ function runCommand(command, label, phase) {
   return call(`${HANDS_OFF} Run this one command and nothing else (on Windows the interpreter is \`python\`, not \`python3\`), then report its exit status and its output verbatim:\n\n${command}`, { label, phase, schema: COMMAND_REPORT })
 }
 
-const SCOPE_SCRIPT = 'python3 ~/.claude/scripts/review_scope.py'
-const TREE_ID = /^[0-9a-f]{40}([0-9a-f]{24})?$/
 
-async function snapshot(label) {
-  const done = await runCommand(`${SCOPE_SCRIPT} snapshot --repo "${BOOKMARK.repo}"`, label, 'Polish')
+async function snapshot(label, phase = 'Polish') {
+  const done = await runCommand(`${SCOPE_SCRIPT} snapshot --repo "${BOOKMARK.repo}"`, label, phase)
   const tree = done?.exit_status === 0 ? done.output.trim() : ''
   return TREE_ID.test(tree) ? tree : null
 }
 
 // The passes work over the skill's own scope, the whole working tree and unpushed commits, never over args.scope: a
-// kept polish is recorded as `mark --polished` over the whole tree, and /commit's change_scope.py then skips both skills
+// kept polish is recorded as `mark --polished` over the whole tree, and /wrap-up's change_scope.py then skips both skills
 // for every file in it, so a polish narrowed to the review's scope would mark files outside it polished unread.
 function polishPrompt(skill, steps) {
   return `${CONTEXT}\n\nReviewed scope: ${args.scope}\n\n${HANDS_OFF}\n\nThe review of that scope has converged. Polish the repo's whole pending change set: read ~/.claude/skills/${skill}/SKILL.md in full and follow its Process over the scope that skill defines — the working tree and the unpushed commits — even where it is wider than the reviewed scope, since the workflow then records the whole tree as polished. Follow it with these differences, which the workflow sets because nobody is there to answer:\n- Run the commands in its Context section yourself; nothing has run them for you.\n- Apply every change the skill would propose instead of asking. Each one is shown to the user afterwards, and a later step reviews them all and reverts the whole polish if any one changed behaviour.\n${steps}\n\nReport every file you changed, one entry per change with one line on what changed and why, and nothing you did not change. Put what the skill would have asked the user, or suggested without doing, in notes.`
@@ -313,7 +343,7 @@ function gatePrompt() {
 // The polish runs only over a review that would otherwise be recorded, so what it adds is the one change left
 // unreviewed. Everything it cannot keep — a failed gate, a confirmed defect, a lens or a verifier that returned
 // nothing — takes the whole polish back to the reviewed tree. A polish pass that returned nothing is the one outcome left
-// unreverted, since what it edited is unknown; the run then records no bookmark, so /commit polishes that tree again.
+// unreverted, since what it edited is unknown; the run then records no bookmark, so /wrap-up polishes that tree again.
 async function polish() {
   const result = { polished: false, kept: false, detail: '', rows: [], notes: [], gap: null }
   if (!FIX) return { ...result, detail: 'not run: read-only' }
