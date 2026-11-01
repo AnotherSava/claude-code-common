@@ -5,7 +5,8 @@
 # The handed-over script must log to <log> and write `HANDOFF-EXIT=<status>` as its last line, which it does with
 # two lines at its top:
 #   exec > >(tee "<log>") 2>&1
-#   trap 'echo "HANDOFF-EXIT=$?"' EXIT
+#   trap 'printf "\nHANDOFF-EXIT=%s\n" "$?"' EXIT
+# The leading newline keeps the end line off output that ended without one, where the anchored match would miss it.
 # Exits with the script's own status, or 124 after the timeout.
 #   usage: await-handoff.sh <log> [timeout-seconds]   (default 3600)
 set -uo pipefail

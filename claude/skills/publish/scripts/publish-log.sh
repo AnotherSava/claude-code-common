@@ -9,7 +9,7 @@
 publish_log_path() { printf '%s/tmp/publish.log\n' "$1"; }
 
 # The last line of every run, carrying its exit status $1.
-publish_exit_line() { printf 'PUBLISH-EXIT=%s\n' "$1"; }
+publish_exit_line() { printf '\nPUBLISH-EXIT=%s\n' "$1"; }
 
 # The status from the last end line in log $1, or nothing while the run is still in progress.
 publish_exit_status() { sed -n 's/^PUBLISH-EXIT=\([0-9]*\)$/\1/p' "$1" | tail -1; }

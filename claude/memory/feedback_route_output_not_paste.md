@@ -46,7 +46,7 @@ run to the clipboard?" Showing it stays — the fence is what they read — but 
   is done - can you automate this too?"
 - **Every script I hand over writes that finish line, and every hand-over starts the waiter for it** — not only
   `publish`, which has its own (`skills/publish/scripts/await-publish.sh`). For anything else, the script's top two
-  lines are `exec > >(tee "<abs-log>") 2>&1` and `trap 'echo "HANDOFF-EXIT=$?"' EXIT`, and before copying the command
+  lines are `exec > >(tee "<abs-log>") 2>&1` and `trap 'printf "\nHANDOFF-EXIT=%s\n" "$?"' EXIT` (the leading newline keeps it off output that ended without one), and before copying the command
   I run `bash ~/.claude/scripts/await-handoff.sh <abs-log>` as a background command; its exit is my turn to read the
   log and report. On 2026-11-01 a one-off data-fix script was handed over without either, so the user had to type
   "done" for something the session could have seen, and asked for this to hold for every script, not just publish.
