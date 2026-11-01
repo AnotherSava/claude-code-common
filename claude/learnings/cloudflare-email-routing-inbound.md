@@ -61,7 +61,10 @@ Those MX records coexist with a **proxied apex CNAME** to a Pages site. Cloudfla
 the apex a normal name with records of several types, so a zone whose root serves a website can still
 receive mail.
 
-A routing rule pointing at a Worker needs no verified destination address; only `forward` actions do.
+A routing rule pointing at a Worker needs no verified destination address; only `forward` actions do. A `forward`
+rule to an unverified address is refused with `2054 Destination address is not verified`; adding the destination
+takes a click in the email Cloudflare sends it, so that part cannot be done from the API alone. A second rule for
+the same literal address is refused with `2014 Duplicated Zone rule`.
 
 ```bash
 curl -s -X POST "https://api.cloudflare.com/client/v4/zones/$ZONE/email/routing/rules" \
