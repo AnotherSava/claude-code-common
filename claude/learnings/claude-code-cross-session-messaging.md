@@ -184,6 +184,30 @@ Also free, so don't rebuild it: per-sender rate limiting, identical-repeat dropp
 50-message accepted-queue cap, and burst refusal **at the sender** — per the docs, a message loop
 between two sessions "stops on its own". Same-machine size cap ≈ 1M chars.
 
+## How the receiving terminal shows a message
+
+Since 2.1.247 a `SendMessage` delivery is folded into one dim row, `› Message from @<name>: <first line>
+(ctrl+o to expand)`. A frame a script or relay writes to the inbox is **not** folded: an idle receiver
+prints the whole thing, Claude Code's header and anti-laundering footer included (open upstream as
+anthropics/claude-code#93720). A top-level `from`, `name` or `sender` field in the frame changes nothing.
+
+The fold keys on the content, not the frame. Wrap `message.content` in
+`<cross-session-message from-name="<name>">…</cross-session-message>` and the receiver folds it under
+that name, while the model still reads the full text. Measured 2026-11-01 on Windows, 2.1.316: a post to
+the session's own pipe (auth line first) and a real relay from another machine both folded. Two details
+from the same test:
+
+- With no `from` attribute, Claude Code's footer leaves out its "reply via SendMessage to the `from=`
+  address" line, so a relay that carries its own reply instructions is not contradicted.
+- A consumer that recognises its own envelope by a marker at the start of the prompt has to peel the
+  wrapper first. Leaving `from` out also keeps the wrapper apart from a genuine `SendMessage`, which
+  always opens `<cross-session-message from="uds:…"`.
+
+The behaviour is undocumented, so a release can drop it; the cost is only the fold.
+
+No hook can rewrite the text instead: `UserPromptSubmit` can add context or block, and the recorded
+prompt stays unchanged.
+
 ## Inbound policy
 
 `crossSessionInbound` = `accept` | `hold` | `refuse`. Unset means **permission-mode class parity**:
