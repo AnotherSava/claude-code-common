@@ -56,6 +56,21 @@ def _request(path: str, body: dict | None = None) -> dict:
         return json.load(response)
 
 
+def _post_receipt(path: str, body: dict) -> dict:
+    """POST to the dashboard and return its receipt, decoding a non-2xx answer's body as the receipt too.
+
+    The dashboard answers a refusal with an error status and a JSON receipt, so an HTTPError is an answer, never a
+    transport failure. Transport errors (URLError, OSError, a malformed 2xx body) propagate for the caller to judge.
+    """
+    try:
+        return _request(path, body)
+    except urllib.error.HTTPError as exc:
+        try:
+            return json.loads(exc.read().decode("utf-8", "replace"))
+        except ValueError:
+            return {"outcome": "refused", "reason": f"HTTP {exc.code}"}
+
+
 def current_project() -> str:
     """This repo's project id — the directory name, which is what the dashboard derives from a cwd."""
     root = subprocess.run(["git", "rev-parse", "--show-toplevel"], capture_output=True, text=True).stdout.strip()
@@ -120,12 +135,7 @@ def _send(target: str, text: str, from_agent: str, from_label: str | None = None
     if from_label:
         body["from_label"] = from_label
     try:
-        return _request("/api/message", body)
-    except urllib.error.HTTPError as exc:
-        try:
-            return json.loads(exc.read().decode("utf-8", "replace"))
-        except ValueError:
-            return {"outcome": "refused", "reason": f"HTTP {exc.code}"}
+        return _post_receipt("/api/message", body)
     except (urllib.error.URLError, OSError, ValueError) as exc:
         return {"outcome": "unknown", "detail": f"no answer from the local dashboard ({exc}); the frame may or may not have been written"}
 
@@ -138,12 +148,7 @@ def _open_session(directory: str) -> dict:
     `started`, `running` or `refused` with a `reason`. It opens a terminal window, so the caller asks the user first.
     """
     try:
-        return _request("/api/session/open", {"dir": os.path.abspath(directory)})
-    except urllib.error.HTTPError as exc:
-        try:
-            return json.loads(exc.read().decode("utf-8", "replace"))
-        except ValueError:
-            return {"outcome": "refused", "reason": f"HTTP {exc.code}"}
+        return _post_receipt("/api/session/open", {"dir": os.path.abspath(directory)})
     except (urllib.error.URLError, OSError, ValueError) as exc:
         raise PeerUnmeasured(f"the local dashboard did not answer ({exc})") from exc
 
