@@ -18,8 +18,8 @@ allowed-tools: Bash(python ~/.claude/skills/wrap-up/scripts/session_scan.py:*), 
 Close out a section of work: review the change, review everything said in this session for business left
 unfinished, then put all of it in front of the user **once** — the review's triage, the open items, what reflection
 would save, the commit plan. One answer settles everything; after it the skill applies, commits and pushes, asking
-again only where step 8 names a question of its own, then offers to run and ship what was committed, offers a release when it holds features or fixes, and
-hands over to `/clear`.
+again only where step 8 names a question of its own, then offers to run and ship what was committed, offers a
+release when it holds features or fixes, and hands over to `/clear`.
 
 The commit and the push go through the shared steps every committing skill uses — `shared/commit.py`,
 `shared/push.py`, `shared/commit-grouping.md` — never through another top-level skill, so nothing here has to guess
@@ -324,8 +324,8 @@ close the memos the change set delivers (one `memos.py done` call, per `commit-g
 **Commits.** Re-run `review_scope.py layout` if anything above changed the tree, regroup only what changed, and
 commit each group with `python3 ~/.claude/skills/shared/commit.py -F <message-file> [--reviewed] <paths…>`. A
 blocking privacy finding stops here and goes to the user with the finding, since nothing approved at the gate
-covered content that must not be published. Any other refusal is yours to
-fix and retry. Then `python3 ~/.claude/scripts/review_scope.py advance`.
+covered content that must not be published. Any other refusal is yours to fix and retry. Then
+`python3 ~/.claude/scripts/review_scope.py advance`.
 
 **Push**, unless the answer was `hold`: `python3 ~/.claude/skills/shared/push.py --caller wrap-up`. Report its lines,
 then watch CI and hand off files written in other repos as the "After the push" section of `shared/sync-and-push.md`
