@@ -76,6 +76,9 @@ def peer_devices() -> list[str]:
     return devices
 
 
+NO_LOCAL_SESSION = "no live session on this machine works in it; `peer_relay.py open --dir <folder>` starts one"
+
+
 def local_session(project: str) -> tuple[str | None, str]:
     """The `ListAgents` name of the one live session on this machine working in `project`, or None and why.
 
@@ -98,14 +101,16 @@ def local_session(project: str) -> tuple[str | None, str]:
     if (roster.get("device") or "this device") in roster.get("registry_unreadable", []):
         raise PeerUnmeasured("the dashboard could not read this machine's session registry")
     rows = [r for r in roster.get("agents", []) + roster.get("registry_only", []) if r.get("local") and r.get("project") == project]
-    row = rows[0] if rows else {"sessions": 0}
+    if not rows:
+        return None, NO_LOCAL_SESSION
+    row = rows[0]
     if row.get("name"):
         return row["name"], ""
     sessions = row.get("sessions")
     if sessions is None:
         raise PeerUnmeasured("the running dashboard predates the session name on agents rows; redeploy it")
     if sessions == 0:
-        return None, "no live session on this machine works in it; `peer_relay.py open --dir <folder>` starts one"
+        return None, NO_LOCAL_SESSION
     return None, f"{sessions} live sessions share its directory, so neither address is the one"
 
 
