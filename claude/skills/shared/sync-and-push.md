@@ -22,8 +22,7 @@ Run `git fetch` and `git rev-list --left-right --count @{upstream}...HEAD`, then
   too: the list can answer with a subset, and a run missing from it is a result nobody reads.
 - **Other repos.** Run `python3 ~/.claude/skills/shared/peer_repo_changes.py`. For each repo with a `session: <name>`
   line, send that session one message naming the files this session wrote there and asking it to commit them under
-  its own review. For `session: none`, start one rather than leaving the files stranded: ask the user right before,
-  since it opens a terminal window, then run `peer_relay.py open --dir <that repo's root>`, look its name up with
-  `peer_relay.py session --project <project>` once it registers, and send it the same message. Only a declined start,
-  a refused open or `UNMEASURED` leaves the repo and its files named in the report instead. Print nothing for
-  `peer-repos: none`.
+  its own review. For `session: none`, start that repo's session and send it the same message, as the `peer` skill's
+  **Find the session** section describes, ask included. When no session can be reached that way — a declined start,
+  a refused open, a directory two sessions share, or `UNMEASURED` — name the repo and its files in the report
+  instead. Print nothing for `peer-repos: none`.

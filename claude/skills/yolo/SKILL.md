@@ -24,8 +24,8 @@ Windows throughout.
 
 ## Hard stops
 
-The run asks nothing unless one of these happens. Each stops it before anything is pushed and puts the specific
-question to the user:
+Before the push, the run asks nothing unless one of these happens. Each stops it before anything is pushed and
+puts the specific question to the user:
 
 - **A blocking privacy finding** from `commit.py`, of any class the docstring of
   `~/.claude/scripts/scan-commit-confidentiality.py` lists as blocking. Show the finding and ask whether it is a leak (remove it) or a
@@ -33,6 +33,11 @@ question to the user:
 - **A failing gate.** Show its output.
 - **A branch that has diverged from its upstream.** A rebase is the user's call.
 - **A path another session may still be writing** (`shared/commit-grouping.md`, the busy-peer check).
+
+After the push, the one question the run may ask is the shared step's ask before starting another repo's session
+for files this session wrote there (`shared/sync-and-push.md`, **Other repos**), since that opens a terminal window.
+The `peer_relay.py open` and `session` calls that follow a yes are not in this skill's `allowed-tools`, so they go
+through the permission check; when it refuses them, name the repo and its files in the final report.
 
 Anything else a step reports — a review finding from the scan, a debug print kept, junk left in place — goes in the
 final report, not into a question.

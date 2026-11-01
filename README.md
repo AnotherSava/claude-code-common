@@ -515,7 +515,7 @@ Finds, messages and routes work to other Claude Code sessions, on this machine o
 **Command:** `/peer`
 
 **Features:**
-- Reaches sessions on this machine through `SendMessage`, finding the one working in a project with `peer_relay.py session`, which asks the dashboard to match by working directory so a renamed session is still found; sessions on the other machine are reached through the Claude Code Dashboard relay
+- Reaches sessions on this machine through `SendMessage`, finding the one working in a project with `peer_relay.py session`, which asks the dashboard to match by working directory so a renamed session is still found, and starting one with `peer_relay.py open --dir` when none is running, after asking since it opens a terminal window; sessions on the other machine are reached through the Claude Code Dashboard relay
 - Sends cross-machine with one shared client, `skills/shared/peer_relay.py`, which addresses the project on the peer and lets the peer's dashboard resolve the session
 - Reports each relay receipt literally, keeping "written" apart from "delivered" and "not sent" apart from "nobody there"
 - Explains each relay refusal code and what to do about it

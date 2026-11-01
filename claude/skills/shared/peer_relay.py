@@ -98,9 +98,7 @@ def local_session(project: str) -> tuple[str | None, str]:
     if (roster.get("device") or "this device") in roster.get("registry_unreadable", []):
         raise PeerUnmeasured("the dashboard could not read this machine's session registry")
     rows = [r for r in roster.get("agents", []) + roster.get("registry_only", []) if r.get("local") and r.get("project") == project]
-    if not rows:
-        return None, "no live session on this machine works in it; `peer_relay.py open --dir <folder>` starts one"
-    row = rows[0]
+    row = rows[0] if rows else {"sessions": 0}
     if row.get("name"):
         return row["name"], ""
     sessions = row.get("sessions")
@@ -127,7 +125,7 @@ def _send(target: str, text: str, from_agent: str, from_label: str | None = None
         return {"outcome": "unknown", "detail": f"no answer from the local dashboard ({exc}); the frame may or may not have been written"}
 
 
-def open_session(directory: str) -> dict:
+def _open_session(directory: str) -> dict:
     """Start a Claude Code session in `directory` on THIS machine, or learn that one is already running there.
 
     The dashboard's `/api/session/open` does the start: it re-checks for a live session under a claim, so two agents
@@ -192,7 +190,7 @@ def main() -> int:
             print(name or f"none — {why}")
             return 0
         if args.command == "open":
-            answer = open_session(args.dir)
+            answer = _open_session(args.dir)
             outcome = answer.get("outcome", "?")
             print(f"{answer.get('project') or args.dir}: {outcome}" + "".join(f" — {answer[k]}" for k in ("reason", "detail") if answer.get(k)))
             return 0 if outcome in ("started", "running") else 1
