@@ -33,12 +33,23 @@ run to the clipboard?" Showing it stays — the fence is what they read — but 
   its top, as `publish` does), handed over as just `bash <absolute-script-path>`; then Read that log. The path is absolute because `!` runs in the session's current cwd, which an earlier `cd` has moved (`learnings/claude-code-auto-mode-permissions.md`). A hand-over carrying
   `2>&1 | tee <path>` itself is wide enough to wrap, and the paste splits after `| tee`
   (`learnings/claude-code-rendering.md`). Capture stderr as well — the diagnostic half of these commands goes there.
+- **Check the command from where it will run, right before copying it.** In the same Bash call that copies it, print
+  `pwd` (the cwd `!` will use) and `test -e` every path the command names, resolved exactly as written, so the folder
+  is the one expected and each file exists from there; say both in the handover. A relative path written from memory
+  of where I was is the failure: on 2026-11-01 `! bash tmp/fix-ground-legs.sh` answered "No such file or directory"
+  because an earlier `cd web` had moved the cwd, while the script sat in the repo root's `tmp/`.
 - `tmp/` because file tools refuse reads outside the working directories, per
   [[feedback_scratch_lives_in_project_tmp]]. `$TEMP` is a file I can write and never open.
 - **Start a background wait for the result before handing the command over**, so its completion wakes me: the
   user's `!` run gives me no turn, a background command of mine exiting does. Wait on the log file for a line that
-  only a finished run writes (`publish` has `skills/publish/scripts/await-publish.sh`), never on a fixed sleep. Asked
-  2026-10-30: "why do i need to ping you after deployment is done - can you automate this too?"
+  only a finished run writes, never on a fixed sleep. Asked 2026-10-30: "why do i need to ping you after deployment
+  is done - can you automate this too?"
+- **Every script I hand over writes that finish line, and every hand-over starts the waiter for it** — not only
+  `publish`, which has its own (`skills/publish/scripts/await-publish.sh`). For anything else, the script's top two
+  lines are `exec > >(tee "<abs-log>") 2>&1` and `trap 'echo "HANDOFF-EXIT=$?"' EXIT`, and before copying the command
+  I run `bash ~/.claude/scripts/await-handoff.sh <abs-log>` as a background command; its exit is my turn to read the
+  log and report. On 2026-11-01 a one-off data-fix script was handed over without either, so the user had to type
+  "done" for something the session could have seen, and asked for this to hold for every script, not just publish.
 - When the command genuinely cannot tee (a GUI toggle, a dashboard click), do not ask for a
   transcript of it — go and measure the resulting state myself afterwards.
 - Copying the *output* back to me via the clipboard is the fallback for when no shared filesystem
