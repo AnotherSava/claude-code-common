@@ -17,8 +17,8 @@ allowed-tools: Bash(python ~/.claude/skills/wrap-up/scripts/session_scan.py:*), 
 
 Close out a section of work: review the change, review everything said in this session for business left
 unfinished, then put all of it in front of the user **once** — the review's triage, the open items, what reflection
-would save, the commit plan. One answer settles everything; after it the skill applies, commits and pushes without
-asking again, then offers to run and ship what was committed, offers a release when it holds features or fixes, and
+would save, the commit plan. One answer settles everything; after it the skill applies, commits and pushes, asking
+again only where step 8 names a question of its own, then offers to run and ship what was committed, offers a release when it holds features or fixes, and
 hands over to `/clear`.
 
 The commit and the push go through the shared steps every committing skill uses — `shared/commit.py`,
@@ -279,7 +279,9 @@ Then stop and wait. This is the skill's only gate: nothing is applied, saved, co
 
 ### 8. Apply, commit and push
 
-Apply in this order, without asking again.
+Apply in this order. The gate's answer covers everything below; the only questions left are the ones a step
+names itself, each because it opens a window, drives a capture, settles a ping that did not go out, or covers
+what the gate could not see.
 
 **Dispositions.**
 
@@ -321,8 +323,8 @@ close the memos the change set delivers (one `memos.py done` call, per `commit-g
 
 **Commits.** Re-run `review_scope.py layout` if anything above changed the tree, regroup only what changed, and
 commit each group with `python3 ~/.claude/skills/shared/commit.py -F <message-file> [--reviewed] <paths…>`. A
-blocking privacy finding stops here and goes to the user with the finding: it is the one question this step may
-ask, since nothing approved at the gate covered content that must not be published. Any other refusal is yours to
+blocking privacy finding stops here and goes to the user with the finding, since nothing approved at the gate
+covered content that must not be published. Any other refusal is yours to
 fix and retry. Then `python3 ~/.claude/scripts/review_scope.py advance`.
 
 **Push**, unless the answer was `hold`: `python3 ~/.claude/skills/shared/push.py --caller wrap-up`. Report its lines,
@@ -445,9 +447,9 @@ on it.
 
 ## Important
 
-- The gate in step 7 is the skill, and it is the only one. Committing before the user has
-  answered defeats the reason for looking at all; asking again after it defeats the reason
-  for asking once.
+- The gate in step 7 is the skill, and it is the only approval of the work. Committing before
+  the user has answered defeats the reason for looking at all; after it, ask only the questions
+  step 8 names, never to re-approve what the gate already settled.
 - Present a finding only after checking it is still live. An item the user has to dismiss
   because a file already answers it costs more trust than the item was worth.
 - Quote the user and yourself accurately from the digest, with the reference so either can be
