@@ -11,6 +11,7 @@ from __future__ import annotations
 
 import json
 import os
+import re
 import subprocess
 import sys
 
@@ -18,6 +19,8 @@ ROOT = os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__)
 HOOK = os.path.join(ROOT, "claude", "hooks", "local-time.py")
 # POSIX form, which Windows' C runtime also honours; an IANA name would not be read there.
 ENV = {**os.environ, "TZ": "PST8PDT"}
+# The hook names the zone in force at run time, so either half of the year is the pinned zone.
+PINNED_ZONE = re.compile(r"\((PDT, UTC-07:00|PST, UTC-08:00)\)")
 
 failures: list[str] = []
 
@@ -34,7 +37,7 @@ def fires(payload: dict) -> bool | None:
     if not out.strip():
         return False
     context = json.loads(out)["hookSpecificOutput"]["additionalContext"]
-    return "(PDT, UTC-07:00)" in context
+    return bool(PINNED_ZONE.search(context))
 
 
 def expect(name: str, tool_response: object, want: bool) -> None:
