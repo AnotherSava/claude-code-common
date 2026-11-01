@@ -24,6 +24,7 @@ model read them; `unknown` means the answer was lost and the frame may exist, so
     peer_relay.py send [--project P] [--label L] [TEXT]   # TEXT or stdin; P defaults to this repo
     peer_relay.py peers                                   # the peer devices the dashboard hears
     peer_relay.py session [--project P]                   # the ListAgents name of P's session on THIS machine
+    peer_relay.py open --dir D                            # start a session in D on THIS machine (opens a window)
 """
 
 from __future__ import annotations
@@ -98,7 +99,7 @@ def local_session(project: str) -> tuple[str | None, str]:
         raise PeerUnmeasured("the dashboard could not read this machine's session registry")
     rows = [r for r in roster.get("agents", []) + roster.get("registry_only", []) if r.get("local") and r.get("project") == project]
     if not rows:
-        return None, "no live session on this machine works in it"
+        return None, "no live session on this machine works in it; `peer_relay.py open --dir <folder>` starts one"
     row = rows[0]
     if row.get("name"):
         return row["name"], ""
@@ -106,7 +107,7 @@ def local_session(project: str) -> tuple[str | None, str]:
     if sessions is None:
         raise PeerUnmeasured("the running dashboard predates the session name on agents rows; redeploy it")
     if sessions == 0:
-        return None, "no live session on this machine works in it"
+        return None, "no live session on this machine works in it; `peer_relay.py open --dir <folder>` starts one"
     return None, f"{sessions} live sessions share its directory, so neither address is the one"
 
 
@@ -124,6 +125,24 @@ def _send(target: str, text: str, from_agent: str, from_label: str | None = None
             return {"outcome": "refused", "reason": f"HTTP {exc.code}"}
     except (urllib.error.URLError, OSError, ValueError) as exc:
         return {"outcome": "unknown", "detail": f"no answer from the local dashboard ({exc}); the frame may or may not have been written"}
+
+
+def open_session(directory: str) -> dict:
+    """Start a Claude Code session in `directory` on THIS machine, or learn that one is already running there.
+
+    The dashboard's `/api/session/open` does the start: it re-checks for a live session under a claim, so two agents
+    never land in one folder, and places the new one where the project's terminal last lived. Answers `outcome`
+    `started`, `running` or `refused` with a `reason`. It opens a terminal window, so the caller asks the user first.
+    """
+    try:
+        return _request("/api/session/open", {"dir": os.path.abspath(directory)})
+    except urllib.error.HTTPError as exc:
+        try:
+            return json.loads(exc.read().decode("utf-8", "replace"))
+        except ValueError:
+            return {"outcome": "refused", "reason": f"HTTP {exc.code}"}
+    except (urllib.error.URLError, OSError, ValueError) as exc:
+        raise PeerUnmeasured(f"the local dashboard did not answer ({exc})") from exc
 
 
 def send_to_project(project: str, text: str, from_label: str | None = None) -> list[tuple[str, dict]]:
@@ -161,6 +180,8 @@ def main() -> int:
     sub.add_parser("peers")
     session_parser = sub.add_parser("session")
     session_parser.add_argument("--project", default=None, help="project id (default: this repo's)")
+    open_parser = sub.add_parser("open")
+    open_parser.add_argument("--dir", required=True, help="the project folder to start a session in")
     args = parser.parse_args()
     try:
         if args.command == "peers":
@@ -170,12 +191,17 @@ def main() -> int:
             name, why = local_session(args.project or current_project())
             print(name or f"none — {why}")
             return 0
+        if args.command == "open":
+            answer = open_session(args.dir)
+            outcome = answer.get("outcome", "?")
+            print(f"{answer.get('project') or args.dir}: {outcome}" + "".join(f" — {answer[k]}" for k in ("reason", "detail") if answer.get(k)))
+            return 0 if outcome in ("started", "running") else 1
         text = args.text if args.text is not None else sys.stdin.read()
         receipts = send_to_project(args.project or current_project(), text, args.label)
         for target, receipt in receipts:
             print(describe(target, receipt))
     except PeerUnmeasured as exc:
-        if args.command == "session":
+        if args.command in ("session", "open"):
             print(f"UNMEASURED — {exc}")
             return 1
         print(f"NOT SENT — {exc}, so the other machine is unmeasured")

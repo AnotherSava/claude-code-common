@@ -299,9 +299,11 @@ Apply in this order, without asking again.
   describes — `SendMessage` on this machine, `peer_relay.py send --project <project>` for the
   other one. Write the message to stand on its own under that skill's "What goes in the message".
   A ping the peer can act on now goes out here. One that depends on this side's work waits for
-  the push below. When no session for that project is live, or
-  the send is refused, `NOT SENT` or `unknown`, report it and ask whether to memo the item
-  instead — never let a ping that did not go out read as routed.
+  the push below. When no session for that project is live on this machine, start one as the
+  `peer` skill's **Find the session** describes (asking first, since it opens a window) and send
+  to it. When the start is declined or refused, or the send is refused, `NOT SENT` or `unknown`,
+  report it and ask whether to memo the item instead — never let a ping that did not go out read
+  as routed.
 - **drop** means do nothing at all: no memo, no work, no argument, no raising it again later in
   the same run.
 - **A memo number read in step 7 may be stale by now.** The listing is positional and
@@ -398,7 +400,10 @@ the script's business, not a precondition to guess at here.
 The `publish` skill's **Authorization** section binds this offer as much as a typed `/publish`: the user has
 to name publishing, so a "yes" carried over from the deploy offer does not clear it — ask for the verb. That
 script proves success by observing the live target rather than by building cleanly; report what it
-observed, and never call a publish done on a green build.
+observed, and never call a publish done on a green build. When the permission mode refuses the run, follow the
+`publish` skill's hand-off at the end of its **Publish** section — background waiter, `! publish` on the clipboard,
+read `tmp/publish.log` when the waiter exits. The script already logs every run there, so never hand over a
+command with a redirect or a `tee` of your own.
 
 **Do not fold any of these offers into step 7's gate.** All of them are asked after the push: the
 machine-takeover ask is valid only immediately before the thing it drives, and a publish or release agreed to
