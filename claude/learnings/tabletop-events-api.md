@@ -61,6 +61,17 @@ conventions. `_sort_by` is ignored on `/api/convention`. Date and derived-field 
 nothing — validate every new filter against a known-mixed dataset before trusting it. Corollary that bites
 hard: **an absent key never proves a permission gate**, because a bogus `_include` also adds no key.
 
+**There is no API lookup by `uri_part`, and the name search omits private conventions.** `/convention/<uri_part>`
+is a 404 and the `uri_part=` filter is ignored, so the only API route from a public address to a GUID is
+`/convention?query=<words>`, which matches names, and returns nothing at all for a convention marked
+`private: 1`. Measured 2026-11-01: a private convention's own name → 0 items, while its page answered 200 and
+`/convention/<id>/events` returned its scheduled events anonymously. Private hides it from search, not from reads.
+The convention's own page, `https://tabletop.events/conventions/<uri_part>`, names the GUID for its page script as
+`var params = { convention_id : '<GUID>' };`, and an unknown `uri_part` answers 404 there. Read the GUID off the
+page, then read `/convention/<GUID>` back and compare its `uri_part`, so a redesigned page that names some other
+GUID fails instead of binding the wrong convention. `start_date`/`end_date` on the convention are naive UTC like
+everything else; a convention ending at local midnight needs the end stepped back before taking its date.
+
 **Some `_include` values mutate existing data.** `_include=end_date` rewrites `end_date` to
 `start + duration − eventtype.end_buffer`, silently shortening every activity by ~10 minutes.
 `_include=host_badge_numbers` adds a field inside the existing `hosts[]` objects. Others

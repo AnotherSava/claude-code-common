@@ -29,6 +29,18 @@ another repo's run.
 - Committed text must still never reference these paths — see
   [[feedback_no_scratch_paths_in_committed_code]]. The directory is for artifacts, not for anything
   the repo's own prose points at.
+- **A throwaway install goes here too, and is gone before the command ends.** An `npm i playwright-core`
+  to drive a headless browser lives in `tmp/<name>/`, run with `npm --prefix` and absolute paths
+  rather than a `cd` into it, and is `rm -rf`'d by absolute path in the same Bash call that used it.
+  Being ignored is what makes that delete need no confirmation; under `$TEMP`, outside every repo,
+  `git check-ignore` cannot answer and the delete becomes a question for the user. Never `cd` into it:
+  the harness refuses to delete the shell's working directory, which stranded `tmp/pw` on 2026-11-01.
+  And never leave it between calls: the conventions checker reads `package.json` files under ignored
+  `tmp/` too, so a stray scratch install fails the commit gate on node-engines and package-manager-pin.
+  Write the scratch `package.json` by hand (`{"private":true}`); never `npm --prefix <dir> init -y`.
+  `init` ignores `--prefix` and writes into the shell's cwd, so on 2026-11-01 it appended
+  `"type": "commonjs"` and five blank fields to the app's own `web/package.json`, and every page of the
+  running dev server answered 500 until `git checkout` restored it.
 - **tmp/ holds artifacts, not tools.** A script used a second time, or one every repo would need,
   moves out of tmp/ the first time it is reused: into the shared skill when it is generic, into the
   repo when it is this project's. On 2026-09-27 a contact-sheet builder and its spec lived in tmp/
