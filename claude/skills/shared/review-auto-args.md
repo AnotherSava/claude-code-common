@@ -10,7 +10,10 @@ calling session builds. Build the whole object from the conversation before call
 - `lenses`: one `{key, prompt}` per concern the user named or the change plainly needs. With nothing named, cover
   correctness, duplicated logic, and documentation that the change made stale.
 - `context`: every decision the user has settled about this change, and every finding an earlier round dropped or the
-  user declined, each with its reason, so neither is reported again as new.
+  user declined, each with its reason, so neither is reported again as new. Only what the user decided goes in. A
+  choice you made yourself is not settled because you made it: listing it tells the reviewers not to look at it. On
+  2026-11-01 a dev-origin pattern picked by the session, `*.*.ts.net`, went in as "deliberate", the review passed
+  over it, and it admitted every other tailnet; the user asked why it was marked settled at all.
 - `gate`: the command that actually gates a commit here — `bash .claude/commit-checks.sh` when that file exists,
   otherwise the project's own build, lint and test scripts.
 - `fix`: `true` unless the review is meant to be read-only; `/review-manual` always passes `false`.
