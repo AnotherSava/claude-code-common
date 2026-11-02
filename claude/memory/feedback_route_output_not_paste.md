@@ -29,24 +29,25 @@ run to the clipboard?" Showing it stays — the fence is what they read — but 
   clipboard. Copy it last, right before the handover, for the reason the **Why** gives. `/dev/clipboard` is measured byte-exact both ways; `Get-Clipboard` appends a CRLF and
   transliterates non-ASCII, so its read-back never matches (`learnings/windows-clipboard-git-bash.md`).
   Not for a command carrying a secret, which never goes through `!` at all.
-- Default for the command: a script that tees its own output (`exec > >(tee <repo>/tmp/<name>.log) 2>&1` at
-  its top, as `publish` does), handed over as just `bash <absolute-script-path>`; then Read that log. The path is absolute because `!` runs in the session's current cwd, which an earlier `cd` has moved (`learnings/claude-code-auto-mode-permissions.md`). A hand-over carrying
-  `2>&1 | tee <path>` itself is wide enough to wrap, and the paste splits after `| tee`
-  (`learnings/claude-code-rendering.md`). Capture stderr as well — the diagnostic half of these commands goes there.
-- **Check the command from where it will run, right before copying it.** In the same Bash call that copies it, print
-  `pwd` (the cwd `!` will use) and `test -e` every path the command names, resolved exactly as written, so the folder
-  is the one expected and each file exists from there; say both in the handover. A relative path written from memory
-  of where I was is the failure: on 2026-11-01 `! bash tmp/fix-ground-legs.sh` answered "No such file or directory"
-  because an earlier `cd web` had moved the cwd, while the script sat in the repo root's `tmp/`.
+- Default for the command: a script that tees its own output, stderr included, to `<repo>/tmp/<name>.log`, using
+  the header the finish-line bullet names, handed over as just `bash <absolute-script-path>`; then Read that log.
+  A hand-over carrying `2>&1 | tee <path>` itself is wide enough to wrap, and the paste splits after `| tee`
+  (`learnings/claude-code-rendering.md`).
+- **Every path in the command is absolute, checked from where it will run, right before copying it.** `!` runs in
+  the session's current cwd, which an earlier `cd` has moved (`learnings/claude-code-auto-mode-permissions.md`). In
+  the same Bash call that copies the command, print `pwd` (the cwd `!` will use) and `test -e` every path it names,
+  exactly as written; say both in the handover. On 2026-11-01 `! bash tmp/fix-ground-legs.sh` answered "No such file
+  or directory" because an earlier `cd web` had moved the cwd, while the script sat in the repo root's `tmp/`.
 - `tmp/` because file tools refuse reads outside the working directories, per
   [[feedback_scratch_lives_in_project_tmp]]. `$TEMP` is a file I can write and never open.
 - **Start a background wait for the result before handing the command over**, so its completion wakes me: the
   user's `!` run gives me no turn, a background command of mine exiting does. Wait on the log file for a line that
   only a finished run writes, never on a fixed sleep. Asked 2026-10-30: "why do i need to ping you after deployment
   is done - can you automate this too?"
-- **Every script I hand over writes that finish line, and every hand-over starts the waiter for it** — not only
-  `publish`, which has its own (`skills/publish/scripts/await-publish.sh`). For anything else, the script's top two
-  lines are `exec > >(tee "<abs-log>") 2>&1` and `trap 'printf "\nHANDOFF-EXIT=%s\n" "$?"' EXIT` (the leading newline keeps it off output that ended without one), and before copying the command
+- **Every script I hand over writes a finish line, and every hand-over starts the waiter for it** — not only
+  `publish`, which has its own (`skills/publish/scripts/await-publish.sh`). For anything else, the script opens with
+  the two lines the header of `scripts/await-handoff.sh` gives, the tee and the trap that writes the end line its
+  parser matches; copy them from there, where the format is defined, and before copying the command
   I run `bash ~/.claude/scripts/await-handoff.sh <abs-log>` as a background command; its exit is my turn to read the
   log and report. On 2026-11-01 a one-off data-fix script was handed over without either, so the user had to type
   "done" for something the session could have seen, and asked for this to hold for every script, not just publish.
