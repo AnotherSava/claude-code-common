@@ -15,4 +15,4 @@ REPO_DIR="$(resolve_repo_dir config/publish.env)"
 
 publish_result_lines() { publish_summary "$1" | tail -3; }
 
-await_end_line "$(publish_log_path "$REPO_DIR")" "${1:-3600}" publish_exit_status publish_result_lines publish
+await_end_line "$(publish_log_path "$REPO_DIR")" "${1:-3600}" "$PUBLISH_END_PREFIX" publish_result_lines publish

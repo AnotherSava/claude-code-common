@@ -13,7 +13,6 @@ set -uo pipefail
 
 source "$(dirname "${BASH_SOURCE[0]}")/await-end-line.sh"
 
-handoff_exit_status() { sed -n 's/^HANDOFF-EXIT=\([0-9]*\)$/\1/p' "$1" | tail -1; }
 handoff_summary() { tail -5 "$1"; }
 
-await_end_line "${1:?usage: await-handoff.sh <log> [timeout-seconds]}" "${2:-3600}" handoff_exit_status handoff_summary "handed-over script"
+await_end_line "${1:?usage: await-handoff.sh <log> [timeout-seconds]}" "${2:-3600}" HANDOFF-EXIT handoff_summary "handed-over script"

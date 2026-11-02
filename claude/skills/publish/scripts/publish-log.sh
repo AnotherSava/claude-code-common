@@ -8,11 +8,10 @@
 # The log of the latest run of the repo rooted at $1, overwritten each run (tmp/ is in the global excludes).
 publish_log_path() { printf '%s/tmp/publish.log\n' "$1"; }
 
-# The last line of every run, carrying its exit status $1.
-publish_exit_line() { printf '\nPUBLISH-EXIT=%s\n' "$1"; }
-
-# The status from the last end line in log $1, or nothing while the run is still in progress.
-publish_exit_status() { sed -n 's/^PUBLISH-EXIT=\([0-9]*\)$/\1/p' "$1" | tail -1; }
+# The last line of every run, `$PUBLISH_END_PREFIX=<status>` with its exit status $1. The reader matches it with
+# end_line_status in scripts/await-end-line.sh, which needs the leading newline to find it on a line of its own.
+PUBLISH_END_PREFIX=PUBLISH-EXIT
+publish_exit_line() { printf '\n%s=%s\n' "$PUBLISH_END_PREFIX" "$1"; }
 
 # The run's outcome headline, "PUBLISH <outcome>", and an error line. publish_summary picks exactly these out of log
 # $1 for the waiter to show, so the writer prints them only through these two helpers.
