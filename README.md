@@ -687,7 +687,7 @@ Conventions for writing and changing skills — the directory shape, the frontma
 - Tabulates the frontmatter that decides where a skill runs — `context: fork`, `agent`, `model`, `effort`, `background`, `user-invocable`, `disallowed-tools`, `paths` — so a forked, cheaper, read-only or Claude-only pass is configured rather than hand-built out of `Agent` calls
 - Points at `claude/learnings/claude-code-skill-profiling.md` for what a skill costs in wall-clock seconds and how to attribute it, measured with `claude/scripts/profile-skill-run.py` against a session transcript
 - Covers injecting dynamic context through `!` commands, and what that costs on every invocation
-- Points at `references/claude-project-memory-paths.md` for the `~/.claude/projects/<project-id>/` mangling rule, so no skill re-derives it
+- Points at `references/claude-project-memory-paths.md` for the `~/.claude/projects/<project-id>/` mangling rule, so no skill re-derives it, and at `claude/skills/shared/transcripts.py`, which every Python script that opens a transcript imports for the rule and for reading records
 - Carries the checks owed before writing anywhere shared — whether the destination is published, and which gitignore scope applies — plus the cross-platform rules for scripts that run on both Windows and macOS
 
 ---

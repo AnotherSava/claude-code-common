@@ -29,6 +29,8 @@ Replace **every non-alphanumeric character** in the absolute path with a single 
 
 **Dots and underscores collapse to dashes too** — `api.answers.daily` becomes `api-answers-daily`, not `api.answers.daily`. Verified against a real harness-written transcript path; do not assume dots are preserved.
 
+A Python script imports `project_dir_name()` from `skills/shared/transcripts.py` instead of re-implementing this; the sites that cannot import it are listed in the comment above its `_MANGLE_RE`.
+
 **Common mistake:** do NOT replace path separators with `--` (double dash). Each character becomes exactly one `-`. `D:\` is `D--` only because `:` and `\` are two consecutive non-alphanumeric characters, each getting its own single replacement.
 
 ## Cross-platform CWD recipe
