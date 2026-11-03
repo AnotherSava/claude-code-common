@@ -22,7 +22,7 @@ really wrote rather than on what its SKILL.md asks for.
 ## Process
 
 1. **Name the skill.** `/wrap-up` is the only skill `scripts/collect.py` recognises. For any other, stop here and
-   generalise the script against that skill first: replace the `/wrap-up` command and `is_wrap_up_summary()` with
+   generalise the script against that skill first: replace the `/wrap-up` command and `_is_wrap_up_summary()` with
    what identifies the new skill's output, worked out from its real transcripts, and extend this file's Context and
    steps to match. Do not generalise for a skill nobody has asked about yet.
 

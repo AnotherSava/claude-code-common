@@ -4,7 +4,7 @@
     collect.py --since 2026-10-31T03:38:29-07:00 [--out <file>]
 
 Only /wrap-up's summary is recognised so far. A second skill's output is a reason to generalise
-WRAP_UP_COMMAND and is_wrap_up_summary() against that real case, not before.
+WRAP_UP_COMMAND and _is_wrap_up_summary() against that real case, not before.
 
 The page lists one tab per summary and a toggle per section; a section is a heading at the level of
 the summary's Review heading (its first heading where it has none), so the toggles follow whatever
@@ -33,17 +33,17 @@ WRAP_UP_PROMPTS = ("Reply `go`", "Reply `recommended`")
 DEFAULT_OUT = os.path.join(HERE, "..", "..", "..", "..", "tmp", "skill-outputs-wrap-up.html")
 
 
-def is_wrap_up_summary(text: str) -> bool:
+def _is_wrap_up_summary(text: str) -> bool:
     return any(prompt in text for prompt in WRAP_UP_PROMPTS)
 
 
-def project_name(transcript: str) -> str:
+def _project_name(transcript: str) -> str:
     prefix = project_dir_name(os.path.join(os.path.expanduser("~"), "Projects")) + "-"
     name = os.path.basename(os.path.dirname(transcript))
     return name[len(prefix):] if name.startswith(prefix) else name
 
 
-def read_rows(transcript: str) -> list:
+def _read_rows(transcript: str) -> list[tuple[dict, datetime]]:
     """The transcript's user and assistant records, each paired with its timestamp; a record without one is skipped."""
     rows = []
     for r in records(transcript):
@@ -54,24 +54,24 @@ def read_rows(transcript: str) -> list:
     return rows
 
 
-def when(stamp: datetime) -> str:
+def _when(stamp: datetime) -> str:
     # `%-d` is glibc and BSD only; Windows' C runtime rejects it, so the day is formatted by hand.
     return f"{stamp:%b} {stamp.day}, {stamp:%H:%M}"
 
 
-def collect(since: datetime) -> list:
+def _collect(since: datetime) -> list[dict[str, str]]:
     entries = []
     for transcript in glob.glob(os.path.join(PROJECTS, "*", "*.jsonl")):
-        rows = read_rows(transcript)
+        rows = _read_rows(transcript)
         for i, (row, row_stamp) in enumerate(rows):
             if row["type"] != "user" or WRAP_UP_COMMAND not in text_of(row) or row_stamp < since:
                 continue
             for later, later_stamp in rows[i + 1:]:
                 if later["type"] == "user" and WRAP_UP_COMMAND in text_of(later):
                     break
-                if later["type"] == "assistant" and is_wrap_up_summary(text_of(later)):
+                if later["type"] == "assistant" and _is_wrap_up_summary(text_of(later)):
                     stamp = later_stamp.astimezone()
-                    entries.append({"project": project_name(transcript), "when": when(stamp), "sort": stamp.isoformat(), "session": os.path.basename(transcript)[:8], "md": text_of(later)})
+                    entries.append({"project": _project_name(transcript), "when": _when(stamp), "sort": stamp.isoformat(), "session": os.path.basename(transcript)[:8], "md": text_of(later)})
                     break
     return sorted(entries, key=lambda e: e["sort"], reverse=True)
 
@@ -143,8 +143,8 @@ def main() -> None:
         sys.exit(f"collect.py: --since is not an ISO 8601 time: {args.since}")
     if since.tzinfo is None:
         sys.exit("collect.py: --since needs an offset, such as 2026-10-31T03:38:29-07:00")
-    entries = collect(since)
-    title = "/wrap-up summaries since " + when(since.astimezone())
+    entries = _collect(since)
+    title = "/wrap-up summaries since " + _when(since.astimezone())
     out = os.path.abspath(args.out)
     os.makedirs(os.path.dirname(out), exist_ok=True)
     with open(out, "w", encoding="utf-8") as f:
