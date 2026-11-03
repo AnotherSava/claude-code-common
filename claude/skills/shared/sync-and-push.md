@@ -16,9 +16,14 @@ Run `git fetch` and `git rev-list --left-right --count @{upstream}...HEAD`, then
 
 ## After the push
 
+A push that cannot go through `push.py`, such as a rebased branch that needs `--force-with-lease`, still owes every
+step `push.py` would have taken after it: `review_scope.py push`, `notify_peer_pull.py`, and the CI watch below,
+querying with `gh run list --repo <url of the remote pushed to> --commit <sha>` and re-querying until every workflow
+a push triggers has a run. A single query made before the list catches up reads as "no CI" while a run fails.
+
 - **CI.** For each `ci:` line `push.py` printed, make one `run_in_background` Bash call with the command it names, and
   report each result when it arrives. A `ci:` line saying no run is listed yet, or fewer runs than workflow files,
-  means re-query `gh run list --commit <sha>` until every workflow a push triggers appears, then watch the new runs
+  means re-query with the `gh run list --repo … --commit <sha>` command it names until every workflow a push triggers appears, then watch the new runs
   too: the list can answer with a subset, and a run missing from it is a result nobody reads.
 - **Other repos.** Run `python3 ~/.claude/skills/shared/peer_repo_changes.py`. For each repo with a `session: <name>`
   line, send that session one message naming the files this session wrote there and asking it to commit them under

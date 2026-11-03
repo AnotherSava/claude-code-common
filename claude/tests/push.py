@@ -71,6 +71,26 @@ def main() -> int:
         commit(ci, ".github/workflows/build.yml", "on: push\n")
         code, lines = run(ci)
         check("a repo with workflows gets a CI line", (code, any(line.startswith("ci:") for line in lines)), (0, True))
+
+        # A fork: gh defaults to `upstream` when that remote exists, so the CI lookup has to name the remote pushed to.
+        origin, fork = clone(scratch, "fork")
+        subprocess.run(["git", "init", "-q", "--bare", os.path.join(scratch, "third-party.git")], check=True)
+        sh(fork, "remote", "add", "upstream", os.path.join(scratch, "third-party.git"))
+        commit(fork, ".github/workflows/build.yml", "on: push\n")
+        stubs, argv = os.path.join(scratch, "bin"), os.path.join(scratch, "gh-argv")
+        write(stubs, "gh", f'#!/usr/bin/env bash\nprintf "%s\\n" "$@" > "{argv}"\necho "[]"\n')
+        os.chmod(os.path.join(stubs, "gh"), 0o755)
+        saved_path = os.environ["PATH"]
+        os.environ["PATH"] = stubs + os.pathsep + saved_path
+        try:
+            code, lines = run(fork)
+        finally:
+            os.environ["PATH"] = saved_path
+        with open(argv) as f:
+            args = f.read().split("\n")
+        named = args[args.index("--repo") + 1] if "--repo" in args else None
+        check("in a fork the CI lookup names the remote the push went to", (code, named), (0, origin))
+        check("and so does the re-query it prints", any(f"--repo {origin}" in line for line in lines if line.startswith("ci:")), True)
     finally:
         shutil.rmtree(scratch, ignore_errors=True)
 

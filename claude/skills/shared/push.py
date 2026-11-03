@@ -41,26 +41,38 @@ def _git(repo: str, *args: str) -> subprocess.CompletedProcess:
     return _run("git", *args, cwd=repo)
 
 
-def _ci_runs(repo: str, sha: str) -> list[str]:
+def _ci_runs(repo: str, sha: str, remote_url: str) -> list[str]:
     """One line per run the push started, or a line saying they could not be listed. `gh run list --commit` lags the
     push and can answer with a subset of the runs (measured in `learnings/gh-cli.md`), so fewer runs than workflow
-    files adds a re-query line; the caller watches each in the background."""
+    files adds a re-query line; the caller watches each in the background.
+
+    Every gh call names the remote the push went to: with an `upstream` remote present gh defaults to upstream, so in
+    a fork a bare `gh run list` asks the third-party repo for a commit that only exists on origin."""
     workflows = os.path.join(repo, ".github", "workflows")
     if not os.path.isdir(workflows):
         return []
-    listed = _run("gh", "run", "list", "--commit", sha, "--json", "databaseId,workflowName,status", cwd=repo)
+    gh_repo = f"--repo {remote_url}"
+    listed = _run("gh", "run", "list", "--repo", remote_url, "--commit", sha, "--json", "databaseId,workflowName,status", cwd=repo)
     if listed.returncode != 0:
         return [f"ci: the repo has workflows, but `gh run list` failed, so their result is unknown: {listed.stderr.strip()}"]
     runs = json.loads(listed.stdout or "[]")
     if not runs:
-        return [f"ci: no run listed yet for {sha[:12]} — the list lags a push; re-query with `gh run list --commit {sha}`"]
-    lines = [f"ci: {run['workflowName']} {run['status']} — watch with `gh run watch {run['databaseId']} --exit-status --compact`" for run in runs]
+        return [f"ci: no run listed yet for {sha[:12]} — the list lags a push; re-query with `gh run list {gh_repo} --commit {sha}`"]
+    lines = [f"ci: {run['workflowName']} {run['status']} — watch with `gh run watch {run['databaseId']} {gh_repo} --exit-status --compact`" for run in runs]
     # A workflow file that never triggers on a push (a tag release, a manual dispatch) also counts here, so a short list
     # asks for a re-query rather than reporting a run as missing.
     files = [name for name in os.listdir(workflows) if name.endswith((".yml", ".yaml"))]
     if len(runs) < len(files):
-        lines.append(f"ci: {len(runs)} run(s) listed for {len(files)} workflow file(s) — the list lags a push; re-query with `gh run list --commit {sha}` until every workflow a push triggers is listed")
+        lines.append(f"ci: {len(runs)} run(s) listed for {len(files)} workflow file(s) — the list lags a push; re-query with `gh run list {gh_repo} --commit {sha}` until every workflow a push triggers is listed")
     return lines
+
+
+def _pushed_to(porcelain: str) -> str:
+    """The URL of the remote the push went to, from the `To <url>` line git's porcelain report opens with."""
+    for line in porcelain.splitlines():
+        if line.startswith("To "):
+            return line[3:].strip()
+    return ""
 
 
 def _pushed_from(porcelain: str, head: str) -> str:
@@ -96,7 +108,7 @@ def push(repo: str, caller: str) -> int:
 
     for line in (_run(sys.executable, REVIEW_SCOPE, "push", cwd=repo).stdout.strip(),
                  _run(sys.executable, os.path.join(HERE, "notify_peer_pull.py"), before, caller, cwd=repo).stdout.strip(),
-                 *_ci_runs(repo, head),
+                 *_ci_runs(repo, head, _pushed_to(pushed.stdout)),
                  _run(sys.executable, REVIEW_SCOPE, "status", cwd=repo).stdout.strip()):
         if line:
             print(line)
