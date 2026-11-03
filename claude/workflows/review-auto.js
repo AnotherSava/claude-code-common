@@ -5,7 +5,7 @@ export const meta = {
   phases: [
     { title: 'Review', detail: 'one reviewer per lens; every finding names who reaches it, how often, and what it costs' },
     { title: 'Verify', detail: 'one skeptic per finding, judging truth and realism' },
-    { title: 'Fix', detail: 'one agent applies the fix-class findings, adds a log line or doc sentence for warn-class, runs the gate' },
+    { title: 'Fix', detail: 'one agent applies the fix-class findings, adds a log line or doc sentence for note-class, runs the gate' },
     { title: 'Polish', detail: 'once the review converged with no gap: /clean-code, then /docs-relevance over the polished code, then the gate' },
     { title: 'Polish review', detail: 'every lens over the polish diff alone; a confirmed defect or a gap reverts the whole polish' },
     { title: 'Bookmark', detail: 'one agent records which tree the review covered, when it covered all of it' },
@@ -18,7 +18,7 @@ export const meta = {
 // carry, the skeptic judges it, plain code decides what gets code, and the loop stops when a round finds nothing
 // worth fixing.
 
-const SEVERE = ['data_loss', 'crash', 'wrong_core_output', 'identity_leak']
+const SEVERE = ['data_loss', 'crash', 'wrong_output', 'identity_leak']
 const FREQUENCIES = ['common', 'plausible', 'rare', 'theoretical']
 const COSTS = [...SEVERE, 'recoverable', 'cosmetic']
 
@@ -107,7 +107,7 @@ function triage(verdict) {
   if (!verdict.reached) return 'drop'
   if (SEVERE.includes(verdict.cost_unhandled)) return 'fix'
   if (verdict.frequency === 'common' || verdict.frequency === 'plausible') return 'fix'
-  if (verdict.frequency === 'rare') return 'warn_or_doc'
+  if (verdict.frequency === 'rare') return 'note'
   return 'drop'
 }
 
@@ -163,7 +163,7 @@ function reviewPrompt(lens, round, earlier, scope) {
   const later = round > 1
     ? `\n\nRound ${round}. Earlier rounds already triaged the findings below, and the scope now also includes the code their applied fixes added. Do not re-report any of them in any wording, including the dropped and refuted ones; a finding is new only if it lies in code a fix added or is absent from this list:\n${settled.map(line).join('\n')}${unverified.length ? `\nThese were never verified, so report them again if they still hold:\n${unverified.map(r => `- ${r.file}: ${r.summary}`).join('\n')}` : ''}`
     : ''
-  return `${CONTEXT}\n\nScope: ${scope}\n\nLens (${lens.key}): ${lens.prompt}${later}\n\n${READ_ONLY} ${HANDS_OFF}\n\nReport only concrete defects. For each one say who reaches it: the writer, caller or user action that puts the code in that state, with evidence (a call site, a log line, a stored record). A case you can construct but cannot show anyone reaching gets reached_by "none found" and frequency "theoretical" — report it that way rather than leaving it out, so the triage can see it. Rate frequency (common, plausible, rare, theoretical) and the cost of leaving it unhandled (data_loss, crash, wrong_core_output, identity_leak, recoverable, cosmetic). No style nits.`
+  return `${CONTEXT}\n\nScope: ${scope}\n\nLens (${lens.key}): ${lens.prompt}${later}\n\n${READ_ONLY} ${HANDS_OFF}\n\nReport only concrete defects. For each one say who reaches it: the writer, caller or user action that puts the code in that state, with evidence (a call site, a log line, a stored record). A case you can construct but cannot show anyone reaching gets reached_by "none found" and frequency "theoretical" — report it that way rather than leaving it out, so the triage can see it. Rate frequency (common, plausible, rare, theoretical) and the cost of leaving it unhandled (data_loss, crash, wrong_output, identity_leak, recoverable, cosmetic). No style nits.`
 }
 
 function verifyPrompt(finding, lens, scope) {
@@ -172,12 +172,12 @@ function verifyPrompt(finding, lens, scope) {
 
 // Each item carries the skeptic's evidence rather than the reviewer's: the reviewer may have had none for a case the
 // skeptic showed reached, and the skeptic's reasoning names the case it confirmed, which can be narrower. A round with
-// only warn-class items sends no fix instruction at all, so the rare cases cannot be read as defects to code.
-function fixPrompt(fixes, warns) {
+// only note-class items sends no fix instruction at all, so the rare cases cannot be read as defects to code.
+function fixPrompt(fixes, noted) {
   const list = items => items.map(r => `- [${r.id}] ${r.file}: ${r.summary}\n  scenario: ${r.failure_scenario}\n  reached by: ${r.verdict.reached_by}\n  verifier's reasoning: ${r.verdict.reasoning}`).join('\n')
   const sections = [
     ...(fixes.length ? [`Fix these confirmed defects. Each was verified true and shown to be reached; where the verifier's reasoning confirms a narrower case than the scenario, fix the case it confirmed. An item the verifier marked duplicates_logic is fixed by making one definition every site calls, never by patching the copies in place, since patching each one ships the duplication intact:\n${list(fixes)}`] : []),
-    ...(warns.length ? [`For each of these rare cases, add only a log line or a sentence in the docs that names the case. Add no logic, no branch, no guard and no test for them:\n${list(warns)}`] : []),
+    ...(noted.length ? [`For each of these rare cases, add only a log line or a sentence in the docs that names the case. Add no logic, no branch, no guard and no test for them:\n${list(noted)}`] : []),
   ]
   const gate = GATE
     ? `When done, run the project's gate exactly as \`${GATE}\` with its output redirected to a file and no pipe after it, and report its exit status as gate_exit. A pipe would replace the gate's exit status with the last command's. Do not trim or filter what you read to decide pass or fail.`
@@ -185,13 +185,13 @@ function fixPrompt(fixes, warns) {
   return `${CONTEXT}\n\nScope: ${args.scope}\n\n${HANDS_OFF}\n\n${sections.join('\n\n')}\n\nTouch nothing beyond what these items need. If an item turns out not to need a change, skip it and say why. ${gate}`
 }
 
-// Each fix- and warn-class row records what the fixer did with it, read from its report rather than assumed.
-async function fixRound(round, fixes, warns) {
-  const report = await call(fixPrompt(fixes, warns), { label: `fix:r${round}`, phase: 'Fix', schema: FIX_REPORT })
+// Each fix- and note-class row records what the fixer did with it, read from its report rather than assumed.
+async function fixRound(round, fixes, noted) {
+  const report = await call(fixPrompt(fixes, noted), { label: `fix:r${round}`, phase: 'Fix', schema: FIX_REPORT })
   fixReports.push({ round, report })
   const applied = new Set((report?.applied || []).map(a => a.id))
   const skipped = new Map((report?.skipped || []).map(s => [s.id, s.why]))
-  for (const r of [...fixes, ...warns]) {
+  for (const r of [...fixes, ...noted]) {
     r.outcome = !report ? 'not applied: the fixer returned nothing'
       : applied.has(r.id) ? 'applied'
       : skipped.has(r.id) ? `skipped: ${skipped.get(r.id)}`
@@ -254,9 +254,9 @@ for (let round = 1; round <= MAX_ROUNDS; round++) {
   silentLenses.push(...silent.map(lens => ({ round, lens })))
   table.push(...rows)
   const fixes = rows.filter(r => r.disposition === 'fix')
-  const warns = rows.filter(r => r.disposition === 'warn_or_doc')
+  const noted = rows.filter(r => r.disposition === 'note')
   const unverified = rows.filter(r => r.disposition === 'unverified')
-  log(`round ${round}: ${rows.length} found, ${fixes.length} fix, ${warns.length} warn_or_doc, ${rows.filter(r => r.disposition === 'drop').length} drop, ${rows.filter(r => r.disposition === 'refuted').length} refuted, ${unverified.length} unverified`)
+  log(`round ${round}: ${rows.length} found, ${fixes.length} fix, ${noted.length} note, ${rows.filter(r => r.disposition === 'drop').length} drop, ${rows.filter(r => r.disposition === 'refuted').length} refuted, ${unverified.length} unverified`)
 
   if (!FIX) {
     stopReason = `read-only: one round reviewed, nothing changed${silent.length ? `; the ${silent.join(', ')} lens returned nothing` : ''}`
@@ -264,8 +264,8 @@ for (let round = 1; round <= MAX_ROUNDS; round++) {
   }
   if (!fixes.length) {
     quiet = true
-    if (warns.length) {
-      await fixRound(round, [], warns)
+    if (noted.length) {
+      await fixRound(round, [], noted)
       lastFixed = BOOKMARK ? await snapshot(`snapshot:after:r${round}`, 'Snapshot') : null
     }
     const gaps = [
@@ -276,7 +276,7 @@ for (let round = 1; round <= MAX_ROUNDS; round++) {
     break
   }
   const before = BOOKMARK ? await snapshot(`snapshot:before:r${round}`, 'Snapshot') : null
-  const report = await fixRound(round, fixes, warns)
+  const report = await fixRound(round, fixes, noted)
   const after = before ? await snapshot(`snapshot:after:r${round}`, 'Snapshot') : null
   lastFixed = after
   scope = before && after ? `Only the changes round ${round}'s fixes made to ${BOOKMARK.repo}, and nothing else: \`git -C "${BOOKMARK.repo}" diff ${before} ${after}\`. Everything outside that diff was already reviewed. The original scope, for context: ${args.scope}` : args.scope
@@ -359,14 +359,16 @@ async function polish() {
   const before = await snapshot('polish:snapshot')
   if (!before) return { ...result, detail: 'not run: the tree could not be snapshotted', gap: 'the polish snapshot failed' }
 
-  const passes = [['clean-code', CLEAN_STEPS], ['docs-relevance', DOCS_STEPS]]
+  // The third entry is the lens the pass's rows carry, matching the `docs` lens shared/review-auto-args.md has callers
+  // name, so documentation rows read alike whichever pass found them.
+  const passes = [['clean-code', CLEAN_STEPS, 'clean-code'], ['docs-relevance', DOCS_STEPS, 'docs']]
   const reports = []
-  for (const [skill, steps] of passes) reports.push([skill, await call(polishPrompt(skill, steps), { label: `polish:${skill}`, phase: 'Polish', schema: POLISH_REPORT })])
-  for (const [skill, report] of reports) {
-    for (const c of report?.changes || []) result.rows.push({ id: `polish-edit-${result.rows.length + 1}`, round: 'polish', lens: skill, file: c.file, summary: c.change, disposition: 'polish', outcome: 'applied', why: null })
+  for (const [skill, steps, lens] of passes) reports.push([skill, lens, await call(polishPrompt(skill, steps), { label: `polish:${skill}`, phase: 'Polish', schema: POLISH_REPORT })])
+  for (const [skill, lens, report] of reports) {
+    for (const c of report?.changes || []) result.rows.push({ id: `polish-edit-${result.rows.length + 1}`, round: 'polish', lens, file: c.file, summary: c.change, disposition: 'polish', outcome: 'applied', why: null })
     if (report?.notes) result.notes.push({ skill, notes: report.notes })
   }
-  const dead = reports.filter(([, report]) => !report).map(([skill]) => skill)
+  const dead = reports.filter(([, , report]) => !report).map(([skill]) => skill)
   // A pass that died may have edited files it never reported, so nothing here can say what to take back.
   if (dead.length) return { ...result, detail: `the ${dead.join(' and ')} polish returned nothing; its edits, if any, are unreviewed in the tree`, gap: 'a polish pass returned nothing' }
 
@@ -397,7 +399,7 @@ async function polish() {
   result.rows.push(...rows)
   if (silent.length) return takeBack(`the ${silent.join(', ')} lens returned nothing over the polish`)
   if (rows.some(r => r.disposition === 'unverified')) return takeBack('a finding in the polish went unverified')
-  // Any confirmed finding, whatever its realism: the triage's warn_or_doc and drop route a rare or unreached case away
+  // Any confirmed finding, whatever its realism: the triage's note and drop route a rare or unreached case away
   // from code, but nothing runs a fixer after the polish, and a clean-up that changed behaviour at all is not one to keep.
   const defects = rows.filter(r => r.verdict?.real)
   if (defects.length) return takeBack(`the polish review confirmed ${defects.map(r => r.id).join(', ')}`)

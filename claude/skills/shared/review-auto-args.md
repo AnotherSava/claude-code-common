@@ -8,7 +8,8 @@ calling session builds. Build the whole object from the conversation before call
 - `scope`: what to review, by default "the uncommitted diff in <repo>". The review scope hook adds the commits pushed
   since the last review, so do not list them.
 - `lenses`: one `{key, prompt}` per concern the user named or the change plainly needs. With nothing named, cover
-  correctness, duplicated logic, and documentation that the change made stale.
+  correctness, duplicated logic, and documentation that the change made stale, keying that last one `docs`, the
+  lens the workflow's docs clean-up pass gives its rows too.
 - `context`: every decision the user has settled about this change, and every finding an earlier round dropped or the
   user declined, each with its reason, so neither is reported again as new. Of the decisions, only the user's go in. A
   choice you made yourself is not settled because you made it: listing it tells the reviewers not to look at it. On
