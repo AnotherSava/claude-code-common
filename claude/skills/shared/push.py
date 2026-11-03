@@ -12,7 +12,8 @@ In order:
 2. `git push`, or `git push -u origin HEAD` when the branch tracks nothing yet, reading from git's report where the
    pushed branch stood before it (`none` for a new branch).
 3. `review_scope.py push`, so the other machine's next review starts from this bookmark.
-4. `notify_peer_pull.py`, asking the other machine's session on this project to `/pull`.
+4. `notify_peer_pull.py`, asking the other machine's session on this project to `/pull`, unless the push moved
+   nothing.
 5. The CI runs the push started, when the repo has workflows: their ids and the command to watch each. A repo
    without `.github/workflows/` has no CI, and says nothing about it.
 6. `review_scope.py status`, last, so whether the bookmark moved is read at the end of the report.
@@ -68,10 +69,18 @@ def _ci_runs(repo: str, sha: str, remote_url: str) -> list[str]:
 
 
 def _pushed_to(porcelain: str) -> str:
-    """The URL of the remote the push went to, from the `To <url>` line git's porcelain report opens with."""
+    """The URL of the remote the push went to, from the `To <url>` line git's porcelain report opens with, in a form
+    `gh --repo` accepts. Git strips the user from an scp-style remote, printing `git@github.com:Owner/repo.git` as
+    `github.com:Owner/repo.git`, which gh cannot parse (it asks the API for `/repos/github.com:Owner/...` and gets a
+    404), so that form is rewritten to the equivalent `ssh://` URL. A local path is left as it is: git reads a colon
+    after a slash, or after a single drive letter, as part of a path."""
     for line in porcelain.splitlines():
         if line.startswith("To "):
-            return line[3:].strip()
+            url = line[3:].strip()
+            host, colon, path = url.partition(":")
+            if colon and "://" not in url and "/" not in host and len(host) > 1:
+                return f"ssh://{host}/{path}"
+            return url
     return ""
 
 
