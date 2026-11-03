@@ -3,7 +3,8 @@
 
 These repos are worked from two machines, and a clone left behind the remote is how work gets
 rebuilt that already exists upstream, or a later commit there fails to push. So once a push has
-succeeded, the same project's session on the peer is asked to run `/pull`. Delivery, addressing and
+moved the remote, the same project's session on the peer is asked to run `/pull`; a push git
+reports as up to date sends nothing. Delivery, addressing and
 receipts are `peer_relay.py`'s; this script only composes the request.
 
 Every skill that pushes calls this, which is why it lives here rather than under one of them: a
@@ -13,7 +14,8 @@ shown: a message from `/yolo` arrives there headed `Sender's own description: th
 after a push`.
 
 Takes the upstream sha recorded before the push (`none` on a first push) to list what was pushed.
-Prints one `peer-pull:` line per peer device, or one saying the other machine was unmeasured.
+Prints one `peer-pull:` line per peer device, one saying the other machine was unmeasured, or
+one saying the notice was not sent because the push moved nothing (the sha given is HEAD).
 """
 from __future__ import annotations
 
@@ -35,9 +37,10 @@ def compose(before: str) -> str:
     return (
         f"I just pushed to {slug}, branch {git('rev-parse', '--abbrev-ref', 'HEAD')}; the remote is now at {head}. "
         f"Commits in this push:\n{commits}\n\n"
-        "Your clone of this repo is behind by these commits. Please bring it up to date by invoking the "
-        "`pull` skill (/pull) — it fetches, moves aside only the local edits that collide with the "
-        "incoming files, fast-forwards, and restores them. No reply needed."
+        "Please invoke the `pull` skill (/pull) — it fetches, moves aside only the local edits that collide "
+        "with the incoming files, fast-forwards, and restores them. Run it even when your clone already has "
+        "these commits: its last step tells the dashboard this turn left nothing to come back to, and a "
+        "fetch or log checked by hand leaves your session's row showing as holding work. No reply needed."
     )
 
 
@@ -46,6 +49,11 @@ def main() -> int:
         print("usage: notify_peer_pull.py <upstream-sha-before-push | none> <skill-name>", file=sys.stderr)
         return 2
     sender = f"the /{sys.argv[2]} skill, after a push"
+    # A push git reports as up to date moved nothing, so the peer has nothing to pull, and a notice listing no commits
+    # would still send it a turn to spend checking that.
+    if sys.argv[1] == git("rev-parse", "HEAD"):
+        print("peer-pull: not sent — the push moved nothing, so there is nothing to pull")
+        return 0
     try:
         for target, receipt in send_to_project(current_project(), compose(sys.argv[1]), sender):
             print(f"peer-pull: {describe(target, receipt)}")

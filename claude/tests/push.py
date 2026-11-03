@@ -61,6 +61,8 @@ def main() -> int:
         check("the bookmark status is the last line", lines[-1].startswith("review bookmark:") if lines else False, True)
         check("the peer notice is reported", any(line.startswith("peer-pull:") for line in lines), True)
         check("a repo without workflows says nothing about CI", [line for line in lines if line.startswith("ci:")], [])
+        code, lines = run(repo)
+        check("a push that moves nothing asks no peer to pull", (code, [line for line in lines if line.startswith("peer-pull:")]), (0, ["peer-pull: not sent — the push moved nothing, so there is nothing to pull"]))
 
         origin, fresh = clone(scratch, "first", push_first=False)
         code, lines = run(fresh)
@@ -73,6 +75,7 @@ def main() -> int:
         check("a repo with workflows gets a CI line", (code, any(line.startswith("ci:") for line in lines)), (0, True))
 
         # A fork: gh defaults to `upstream` when that remote exists, so the CI lookup has to name the remote pushed to.
+        # Its origin is a local path, so the scp-to-`ssh://` rewrite in `_pushed_to` (push.py) runs in no case here.
         origin, fork = clone(scratch, "fork")
         subprocess.run(["git", "init", "-q", "--bare", os.path.join(scratch, "third-party.git")], check=True)
         sh(fork, "remote", "add", "upstream", os.path.join(scratch, "third-party.git"))

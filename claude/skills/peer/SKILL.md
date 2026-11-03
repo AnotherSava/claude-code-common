@@ -94,13 +94,15 @@ Cross-machine, your identity is a claim — the receiver sees the peer dashboard
 | `unreachable` | Nothing was written | Check the peer dashboard as for `unknown_device` |
 | `unknown` | The answer was lost; the frame may exist | **Never retry** — read the receiving transcript first |
 
+After a push, `notify_peer_pull.py` prints these receipts as `peer-pull:` lines. A push git reported as up to date sends nothing and prints `peer-pull: not sent — the push moved nothing, so there is nothing to pull` instead, which needs no follow-up: unlike `NOT SENT … unmeasured`, the peer has nothing to pull.
+
 `refused before anything was written` in `observed` means nothing was half-delivered and a retry cannot duplicate. A timeout is not a dead relay — retry once before diagnosing, and never test the transport with a real message, since it starts a turn over there.
 
 ## 4. Route work
 
 Where work goes is decided by `peer_messaging.md`. Two routes are mechanised; do not repeat them by hand:
 
-- Every skill that pushes asks the other machine's session on the same project to run `/pull` afterwards (`skills/shared/notify_peer_pull.py`) — `shared/push.py`, which `/yolo`, `/wrap-up` and `/release` push through, and `/pr-merge` after the merge push. A push made any other way leaves that clone behind with nothing saying so.
+- Every skill that pushes asks the other machine's session on the same project to run `/pull` afterwards (`skills/shared/notify_peer_pull.py`) — `shared/push.py`, which `/yolo`, `/wrap-up` and `/release` push through, and `/pr-merge` after the merge push. A push that moved nothing asks for nothing, since there is nothing to pull. A push made any other way leaves that clone behind with nothing saying so.
 - `/yolo` and `/wrap-up` ask the owning session on this machine to commit files this session wrote into another repo, through `shared/peer_repo_changes.py`.
 
 ## 5. Handle what arrives

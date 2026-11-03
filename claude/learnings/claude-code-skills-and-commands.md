@@ -103,7 +103,7 @@ healthy. The check that would catch it is the one in `CLAUDE.md`'s Git Workflow 
 `git log --oneline HEAD..@{upstream}` — run **in the dotfiles repo**, which a session working anywhere
 else has no reason to open.
 
-Every skill that pushes narrows the gap from the other side: once the push succeeds it asks the session
+Every skill that pushes narrows the gap from the other side: once a push moves the remote it asks the session
 working on the same repo on the other machine to run `/pull` (`skills/shared/notify_peer_pull.py`). A
 release or a PR merge leaves that clone as far behind as a commit does — `/release` put `chore: bump
 version to 1.15.0` on `tauri-dashboard`'s main on 2026-10-01 with no message sent, and the gap surfaced
