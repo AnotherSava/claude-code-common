@@ -32,6 +32,7 @@ from __future__ import annotations
 
 import ast
 import os
+import subprocess
 import sys
 
 HERE = os.path.dirname(os.path.realpath(__file__))
@@ -40,9 +41,6 @@ REPO = os.path.dirname(os.path.dirname(HERE))
 # Raise this only when no caller can hand the repo an older interpreter — which today means when
 # macOS stops shipping 3.9 as /usr/bin/python3, not when this machine upgrades.
 FLOOR = (3, 9)
-
-# Directories carrying code nobody here maintains, or no code at all.
-SKIPPED = {".git", ".venv", "node_modules", "__pycache__", "tmp", "venv"}
 
 FUTURE_IMPORT = "from __future__ import annotations"
 
@@ -54,14 +52,16 @@ def fail(message: str) -> None:
 
 
 def sources() -> list[str]:
-    """Every .py file under the repo, repo-relative, forward slashes."""
-    found: list[str] = []
-    for directory, subdirectories, names in os.walk(REPO):
-        subdirectories[:] = [name for name in subdirectories if name not in SKIPPED]
-        for name in names:
-            if name.endswith(".py"):
-                found.append(os.path.relpath(os.path.join(directory, name), REPO).replace("\\", "/"))
-    return sorted(found)
+    """Every .py file a commit here can hold, repo-relative, forward slashes.
+
+    Tracked files and untracked ones git does not ignore, as `git ls-files` lists them. A walk of the disk
+    also reaches what the repo ignores, and on 2026-11-03 Claude Code wrote claude.ai's synced skills under
+    the ignored claude/skills/synced/, whose third-party scripts failed this gate though no commit could carry
+    them. A file deleted from disk but still tracked is skipped, since there is nothing left to load.
+    """
+    listed = subprocess.run(["git", "-C", REPO, "ls-files", "-z", "--cached", "--others", "--exclude-standard"], capture_output=True, text=True, check=True).stdout
+    paths = {path for path in listed.split("\0") if path.endswith(".py")}
+    return sorted(path for path in paths if os.path.isfile(os.path.join(REPO, path)))
 
 
 def annotation_unions(tree: ast.AST) -> bool:
