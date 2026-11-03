@@ -10,7 +10,7 @@ description: >-
   or wrap up the current section of work.
   DO NOT TRIGGER when: the user wants to push work as-is to test it (use /yolo), to park a
   single idea (/memo), or to persist durable knowledge only (/reflect).
-allowed-tools: Bash(python ~/.claude/skills/wrap-up/scripts/session_scan.py:*), Bash(bash ~/.claude/skills/wrap-up/scripts/ship_wrappers.sh), Bash(bash ~/.claude/skills/shared/project_memory.sh), Bash(bash ~/.claude/skills/wrap-up/scripts/release_candidates.sh), Bash(python ~/.claude/skills/memo/memos.py:*), Bash(git rev-parse:*), Bash(git status:*), Bash(git log:*), Bash(python ~/.claude/skills/shared/peer_relay.py:*), Bash(python3 ~/.claude/skills/shared/peer_relay.py:*), Bash(git fetch:*), Bash(git rev-list:*), Bash(git diff:*), Bash(git show:*), Bash(gh issue list:*), Bash(gh run list:*), Bash(gh run watch:*), Bash(gh run view:*), Bash(git apply:*), Bash(python3 ~/.claude/skills/shared/commit.py:*), Bash(python ~/.claude/skills/shared/commit.py:*), Bash(python3 ~/.claude/skills/shared/push.py:*), Bash(python ~/.claude/skills/shared/push.py:*), Bash(python3 ~/.claude/skills/shared/gate_pushed_tree.py:*), Bash(python ~/.claude/skills/shared/gate_pushed_tree.py:*), Bash(python3 ~/.claude/skills/shared/change_scope.py:*), Bash(python ~/.claude/skills/shared/change_scope.py:*), Bash(python3 ~/.claude/skills/shared/peer_repo_changes.py:*), Bash(python ~/.claude/skills/shared/peer_repo_changes.py:*), Bash(python3 ~/.claude/skills/shared/format_files.py:*), Bash(python ~/.claude/skills/shared/format_files.py:*), Bash(python3 ~/.claude/scripts/review_scope.py:*), Bash(python ~/.claude/scripts/review_scope.py:*), Bash(bash ~/.claude/scripts/audit-skill-tracking.sh), Workflow, Bash(bash scripts/deploy.sh), Bash(bash scripts/publish.sh), ListAgents, ToolSearch, SendMessage, Read, Edit, Write, Glob, Grep, Skill
+allowed-tools: Bash(python ~/.claude/skills/wrap-up/scripts/session_scan.py:*), Bash(bash ~/.claude/skills/wrap-up/scripts/ship_wrappers.sh), Bash(bash ~/.claude/skills/shared/project_memory.sh), Bash(bash ~/.claude/skills/wrap-up/scripts/release_candidates.sh), Bash(python ~/.claude/skills/memo/memos.py:*), Bash(git rev-parse:*), Bash(git status:*), Bash(git log:*), Bash(python ~/.claude/skills/shared/peer_relay.py:*), Bash(python3 ~/.claude/skills/shared/peer_relay.py:*), Bash(git fetch:*), Bash(git rev-list:*), Bash(git diff:*), Bash(git show:*), Bash(gh issue list:*), Bash(gh run list:*), Bash(gh run watch:*), Bash(gh run view:*), Bash(git apply:*), Bash(python3 ~/.claude/skills/shared/commit.py:*), Bash(python ~/.claude/skills/shared/commit.py:*), Bash(python3 ~/.claude/skills/shared/push.py:*), Bash(python ~/.claude/skills/shared/push.py:*), Bash(python3 ~/.claude/skills/shared/gate_pushed_tree.py:*), Bash(python ~/.claude/skills/shared/gate_pushed_tree.py:*), Bash(python3 ~/.claude/skills/shared/change_scope.py:*), Bash(python ~/.claude/skills/shared/change_scope.py:*), Bash(python3 ~/.claude/skills/shared/peer_repo_changes.py:*), Bash(python ~/.claude/skills/shared/peer_repo_changes.py:*), Bash(python3 ~/.claude/scripts/review_scope.py:*), Bash(python ~/.claude/scripts/review_scope.py:*), Bash(bash ~/.claude/scripts/audit-skill-tracking.sh), Workflow, Bash(bash scripts/deploy.sh), Bash(bash scripts/publish.sh), ListAgents, ToolSearch, SendMessage, Read, Edit, Write, Glob, Grep, Skill
 ---
 
 # Wrap Up
@@ -55,7 +55,7 @@ Read the `=== session ===` header of **Session digest** before trusting a word o
   written transcript for this directory was used instead. That is probably this session and
   might be a different one. Say so before presenting anything drawn from it.
 - `resolved-via: UNRESOLVED` means there is no transcript to review. Say that plainly, skip
-  steps 3 to 5, and leave the summary's open-items section saying so. Do **not** reconstruct the session from your own context and present the result as
+  steps 3 to 5, and open the summary with one line saying no transcript was reviewed. Do **not** reconstruct the session from your own context and present the result as
   a transcript review: the whole point of reading the file is that your context may have lost
   what the file kept, so a review built from memory is the one thing this skill must not fake.
 - `window: whole transcript` is the normal case: the file already began at a `/clear`, so the
@@ -82,7 +82,7 @@ Then launch the saved `review-auto` workflow in fix mode, building its args as
 fixing, and its default cap is only a guard against a fixer and reviewers that never settle. It reviews everything since the last recorded review —
 the working tree and every commit `/yolo` pushed since — and runs in the background, so do steps 3 to 5 while it
 works and collect its result before step 6. Skip it only when there is nothing since the bookmark at all
-(`review_scope.py status` reports 0 commits past it and the tree is clean); say so in the summary.
+(`review_scope.py status` reports 0 commits past it and the tree is clean).
 
 ### 3. Read the whole conversation
 
@@ -151,7 +151,7 @@ That last one needs no bookkeeping: a previous run of this skill is itself in th
 along with the user's dispositions, so anything settled there reads as settled. Treat those
 decisions as final and never re-raise them.
 
-If nothing survives the filter, the summary's open-items section says so in one line. Do not manufacture
+If nothing survives the filter, the summary leaves the four category headings out, as step 7 says. Do not manufacture
 findings to justify the review; a skill that always finds something is one the user learns to
 skim.
 
@@ -182,24 +182,32 @@ Nothing here asks the user anything; each sub-step's question, if it has one, be
 - **Open issues.** `gh issue list --state open --limit 30`; an issue the change set bears on is a summary line asking
   whether to address it. Unrelated issues are listed after the push, one line each.
 - **The commit plan.** Group the change set as `~/.claude/skills/shared/commit-grouping.md` describes,
-  `review_scope.py layout` included, and draft each message to a file under the repo's gitignored `tmp/`. Format each
-  commit's file list with `python3 ~/.claude/skills/shared/format_files.py`.
+  `review_scope.py layout` included, and draft each message to a file under the repo's gitignored `tmp/`.
 - **The gate.** `python3 ~/.claude/skills/shared/gate_pushed_tree.py --caller wrap-up --record`. A failure is not a
   summary line: report it and stop, since there is nothing to approve over code that fails its own checks.
 
 ### 7. Present one summary
 
-One message, in this order, under these headings. The headings carry no numbers: the items under them are numbered in
-one continuous sequence so any of them can be overridden by number, and a numbered heading above numbered items reads
-as two clashing lists.
+One message, in this order, under these headings. The headings carry no numbers. Each section numbers its own items
+from 1 behind its letter, so an override such as `memo C2` names one item and a section never continues another's
+count. The Review table numbers its rows plainly and Commits numbers nothing, since no override acts on either.
 
-- **Review** — the triage table as the workflow returned it, and whether the bookmark was recorded.
-- **Open items** — the findings from step 5, grouped under the four category headings, the strongest first inside
-  each group.
-- **To save** — what `/reflect` drafted, each with its destination.
-- **To decide** — clean-up proposals, untracked skills, related issues, finished plans to archive, a diverged branch.
-- **Commits** — the plan, each commit with its message and file list, and which reviewed commit ends at the reviewed
-  tree where `layout` named one. Then the push.
+- **Review** — the triage table as the workflow returned it. The bookmark is not mentioned here: its one line is the
+  last line of Commits.
+- **Questions never answered** (`Q`), **Concerns passed over** (`C`), **Memo-worthy asides** (`M`) and **Promises
+  not kept** (`P`) — the findings from step 5, each category its own heading, the strongest first inside each.
+- **To save** (`S`) — what `/reflect` drafted, each with its destination.
+- **Repo checks** (`R`) — clean-up proposals, untracked skills, related issues, finished plans to archive, a diverged
+  branch.
+- **Commits** — the plan, each commit as its message alone, with no file list, and which reviewed commit ends at the
+  reviewed tree where `layout` named one. Add a note under a commit only where the user needs it to decide, such as a
+  file going whole into a group that fits part of it. Then the push. The last line is the review bookmark: where
+  `review_scope.py status` puts it now, where it will sit after the push (on the commit that ends at the reviewed
+  tree, or unmoved when no commit does), and how many planned commits fall past it for the next review.
+
+Leave out a heading with nothing under it, the heading included: no "Nothing.", "None." or sentence explaining
+why it is empty. A review skipped because nothing changed since the bookmark leaves Review out too. When every
+heading is left out, the closing prompt is the whole message.
 
 For each open item give a short bold title, the quoted words
 with their `[N] HH:MM` reference from the digest, one line on why it is still open, and a
@@ -257,12 +265,12 @@ user is agreeing to.
 skill owns how the message is sent; do not restate either here.
 
 ```
-**Concerns passed over**
+### Concerns passed over
 
-3. **The publish path was never re-tested after the rename**
-   [14] 16:02 "I have not re-run publish since renaming the container, so this is unverified."
-   Still open: nothing in the session ran it afterwards, and the rename is in the pending diff.
-   Recommend: answer now (one command, and the commit depends on it).
+C3. **The publish path was never re-tested after the rename**
+    [14] 16:02 "I have not re-run publish since renaming the container, so this is unverified."
+    Still open: nothing in the session ran it afterwards, and the rename is in the pending diff.
+    Recommend: answer now (one command, and the commit depends on it).
 ```
 
 Every other line carries its recommendation too: save or skip, keep or local, address or not, archive or leave.
@@ -270,10 +278,13 @@ Every other line carries its recommendation too: save or skip, keep or local, ad
 Close with the one prompt:
 
 ```
-Reply `go` to take every recommendation and commit and push, or override by number:
-`answer 2`, `memo 3 5`, `ping 4`, `drop 1`, `skip 7`, `hold` (everything but the push).
+Reply `go` to take every recommendation and commit and push, or override by item:
+`answer Q2`, `memo C3 M1`, `ping P1`, `drop C1`, `skip S1`, `hold` (everything but the push).
 Anything you do not name keeps its recommendation.
 ```
+
+The skill-outputs skill finds a summary by how this prompt opens, so rewording that opening means adding the new
+wording to `WRAP_UP_PROMPTS` in `claude/skills/skill-outputs/scripts/collect.py`.
 
 Then stop and wait. This is the skill's only gate: nothing is applied, saved, committed or pushed before the answer.
 

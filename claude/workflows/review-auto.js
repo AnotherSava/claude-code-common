@@ -427,7 +427,7 @@ return {
   stop_reason: stopReason,
   bookmark,
   polish: { detail: polished.detail, notes: polished.notes },
-  note: 'Present the triage table to the user as a triage, not as "all fixed". Say whether the bookmark was recorded, and why not when it was not. Rare and theoretical items are reported with their ratings; another round is not offered by default. An unverified finding is neither confirmed nor disproved, and a lens in silent_lenses was never reviewed: say so rather than counting either as clean. Rows with disposition polish are clean-up edits, kept or reverted as their outcome says; polish.notes holds what the clean-up passes would have asked about.',
+  note: 'Present the triage table to the user as a triage, not as "all fixed". Say whether the bookmark was recorded, and why not when it was not, unless the calling skill says where the bookmark is reported; then follow it. Rare and theoretical items are reported with their ratings; another round is not offered by default. An unverified finding is neither confirmed nor disproved, and a lens in silent_lenses was never reviewed: say so rather than counting either as clean. Rows with disposition polish are clean-up edits, kept or reverted as their outcome says; polish.notes holds what the clean-up passes would have asked about.',
   silent_lenses: silentLenses,
   triage: table.map(r => ({
     id: r.id,
