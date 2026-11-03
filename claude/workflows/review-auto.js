@@ -329,8 +329,9 @@ function runCommand(command, label, phase) {
 
 async function snapshot(label, phase = 'Polish') {
   const done = await runCommand(`${SCOPE_SCRIPT} snapshot --repo "${BOOKMARK.repo}"`, label, phase)
-  const tree = done?.exit_status === 0 ? done.output.trim() : ''
-  return TREE_ID.test(tree) ? tree : null
+  // A reporting agent may wrap the command's output in its own prose, so the id is the one line that is a tree id.
+  const ids = done?.exit_status === 0 ? done.output.split('\n').map(l => l.trim()).filter(l => TREE_ID.test(l)) : []
+  return ids.length === 1 ? ids[0] : null
 }
 
 // The passes work over the skill's own scope, the whole working tree and unpushed commits, never over args.scope: a
