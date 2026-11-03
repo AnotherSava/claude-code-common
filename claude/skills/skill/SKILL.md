@@ -72,6 +72,8 @@ The `description` field serves double duty: it appears in the skill list shown t
 2. A **TRIGGER when:** clause lists the conditions for auto-invocation (if applicable)
 3. Optionally, a **DO NOT TRIGGER when:** clause prevents false positives
 
+**Name a skill for its scope.** A generic name over a narrow procedure hides its generic part: the `DO NOT TRIGGER` clause that keeps the narrow procedure out of the general case also keeps out the knowledge both need. When a skill carries both, split it — the generic one keeps the generic name. Measured 2026-11-03: `screenshot` held the docs-filing process and, inside it, the only route to DocShot; a debugging capture matched its exclusion and fell back to a `screencapture` that cannot work.
+
 ### allowed-tools
 
 Whitelist the minimum set of tools the skill needs. Use glob patterns for Bash:
