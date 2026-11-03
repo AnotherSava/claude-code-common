@@ -159,8 +159,10 @@ The classifier reads the `autoMode` block from `~/.claude/settings.json`, from m
 placed there to scope an environment to one project has no effect. Context about a single project goes in
 that project's CLAUDE.md, which the classifier also reads.
 
-The "Teach auto mode about your environment?" dialog runs `/auto-mode-setup`. It scans only the current
-project and its recent sessions, then writes the draft to the global `~/.claude/settings.json`. It writes
+The "Teach auto mode about your environment?" dialog runs `/auto-mode-setup`. It always scans the current
+project, the commands from its recent sessions, and your own `autoMode` and `permissions.allow` settings. It
+offers two more scans, both opt-in: the first word of each shell-history command, and the remotes of the repos
+under your home directory. Then it writes the draft to the global `~/.claude/settings.json`. It writes
 `environment` without `"$defaults"` and spells out the built-in entries itself. On 2026-11-02 this left a
 global block naming one repo as the only trusted repo and source control, which was wrong for every other
 repo. Choose **Don't show again**, or turn it off with `"skillOverrides": { "auto-mode-setup": "off" }`.
