@@ -5,6 +5,7 @@ Its costly failures are a push that goes out over a failing gate, and a report t
 the bookmark's state, or a CI line where CI exists. The pushed-to URL cases call the parser directly on a sample of
 git's porcelain output. Every other case runs against a real clone of a bare origin, sealed from this machine's git
 config, with a stub gate and the dashboard pointed at a port nothing listens on, so no peer is ever messaged.
+The fork case stubs `gh` on PATH, which Windows cannot run, so there it is reported NOT COVERED.
 """
 
 from __future__ import annotations
@@ -15,7 +16,7 @@ import subprocess
 import sys
 import tempfile
 
-from git_scratch import check, commit, failures, seal, sh, write
+from git_scratch import check, commit, report, seal, sh, uncovered, write
 
 ROOT = os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 SCRIPT = os.path.join(ROOT, "claude", "skills", "shared", "push.py")
@@ -85,33 +86,32 @@ def main() -> int:
         check("a repo with workflows gets a CI line", (code, any(line.startswith("ci:") for line in lines)), (0, True))
 
         # A fork: gh defaults to `upstream` when that remote exists, so the CI lookup has to name the remote pushed to.
-        origin, fork = clone(scratch, "fork")
-        subprocess.run(["git", "init", "-q", "--bare", os.path.join(scratch, "third-party.git")], check=True)
-        sh(fork, "remote", "add", "upstream", os.path.join(scratch, "third-party.git"))
-        commit(fork, ".github/workflows/build.yml", "on: push\n")
-        stubs, argv = os.path.join(scratch, "bin"), os.path.join(scratch, "gh-argv")
-        write(stubs, "gh", f'#!/usr/bin/env bash\nprintf "%s\\n" "$@" > "{argv}"\necho "[]"\n')
-        os.chmod(os.path.join(stubs, "gh"), 0o755)
-        saved_path = os.environ["PATH"]
-        os.environ["PATH"] = stubs + os.pathsep + saved_path
-        try:
-            code, lines = run(fork)
-        finally:
-            os.environ["PATH"] = saved_path
-        with open(argv) as f:
-            args = f.read().split("\n")
-        named = args[args.index("--repo") + 1] if "--repo" in args else None
-        check("in a fork the CI lookup names the remote the push went to", (code, named), (0, origin))
-        check("and so does the re-query it prints", any(f"--repo {origin}" in line for line in lines if line.startswith("ci:")), True)
+        # Windows' CreateProcess resolves a bare `gh` to gh.exe only, so the extension-less stub cannot run there.
+        if os.name == "nt":
+            uncovered.append("the fork's gh argv: a PATH stub for `gh` cannot run on Windows")
+        else:
+            origin, fork = clone(scratch, "fork")
+            subprocess.run(["git", "init", "-q", "--bare", os.path.join(scratch, "third-party.git")], check=True)
+            sh(fork, "remote", "add", "upstream", os.path.join(scratch, "third-party.git"))
+            commit(fork, ".github/workflows/build.yml", "on: push\n")
+            stubs, argv = os.path.join(scratch, "bin"), os.path.join(scratch, "gh-argv")
+            write(stubs, "gh", f'#!/usr/bin/env bash\nprintf "%s\\n" "$@" > "{argv}"\necho "[]"\n')
+            os.chmod(os.path.join(stubs, "gh"), 0o755)
+            saved_path = os.environ["PATH"]
+            os.environ["PATH"] = stubs + os.pathsep + saved_path
+            try:
+                code, lines = run(fork)
+            finally:
+                os.environ["PATH"] = saved_path
+            with open(argv) as f:
+                args = f.read().split("\n")
+            named = args[args.index("--repo") + 1] if "--repo" in args else None
+            check("in a fork the CI lookup names the remote the push went to", (code, named), (0, origin))
+            check("and so does the re-query it prints", any(f"--repo {origin}" in line for line in lines if line.startswith("ci:")), True)
     finally:
         shutil.rmtree(scratch, ignore_errors=True)
 
-    if failures:
-        print("\n".join(failures))
-        print(f"push tests: {len(failures)} failure(s)")
-        return 1
-    print("push tests: all cases behave")
-    return 0
+    return report("push tests")
 
 
 if __name__ == "__main__":

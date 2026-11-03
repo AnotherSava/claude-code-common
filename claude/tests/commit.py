@@ -14,7 +14,7 @@ import subprocess
 import sys
 import tempfile
 
-from git_scratch import check, failures, seal, sh, write
+from git_scratch import check, report, seal, sh, write
 
 ROOT = os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 SCRIPT = os.path.join(ROOT, "claude", "skills", "shared", "commit.py")
@@ -147,12 +147,7 @@ def main() -> int:
     finally:
         shutil.rmtree(scratch, ignore_errors=True)
 
-    if failures:
-        print("\n".join(failures))
-        print(f"commit tests: {len(failures)} failure(s)")
-        return 1
-    print("commit tests: all cases behave")
-    return 0
+    return report("commit tests")
 
 
 if __name__ == "__main__":

@@ -15,7 +15,7 @@ import subprocess
 import sys
 import tempfile
 
-from git_scratch import check, failures, seal, sh, write
+from git_scratch import check, report, seal, sh, write
 
 ROOT = os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 SCRIPT = os.path.join(ROOT, "claude", "skills", "shared", "gate_pushed_tree.py")
@@ -144,10 +144,7 @@ def main() -> int:
     finally:
         shutil.rmtree(scratch, ignore_errors=True)
 
-    for line in failures:
-        print(line)
-    print(f"gate-pushed-tree tests: {f'{len(failures)} failure(s)' if failures else 'all cases behave'}")
-    return 1 if failures else 0
+    return report("gate-pushed-tree tests")
 
 
 if __name__ == "__main__":

@@ -17,7 +17,7 @@ import subprocess
 import sys
 import tempfile
 
-from git_scratch import check, commit, failures, seal, sh, write
+from git_scratch import check, commit, report, seal, sh, write
 
 ROOT = os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 sys.path.insert(0, os.path.join(ROOT, "claude", "scripts"))
@@ -306,10 +306,7 @@ def main() -> int:
     finally:
         shutil.rmtree(scratch, ignore_errors=True)
 
-    for line in failures:
-        print(line)
-    print(f"review-scope tests: {f'{len(failures)} failure(s)' if failures else 'all cases behave'}")
-    return 1 if failures else 0
+    return report("review-scope tests")
 
 
 if __name__ == "__main__":
