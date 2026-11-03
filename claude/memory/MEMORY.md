@@ -141,6 +141,7 @@
 - [5h resets_at jitters +/-1min](usage_five_hour_resets_at_jitter.md) — never use it as a reset signal; detect a reset by a percentage drop
 - [Peer register, not support](feedback_peer_register_not_support.md) {always} — write to another dev as a peer, not support-to-user; four concrete swaps
 - [Use the tool you built](feedback_use_the_tool_you_built.md) {always} — make the new instrument the ask, not a fallback; undo hand-done work so the tested path runs it instead
+- [A resolution is not a fix](feedback_a_resolution_is_not_a_fix.md) {always} — "next time I should X" reaches no later session; change the message, skill or gate it will read at that decision
 - [Sort keys live in metadata, not the name](feedback_sort_key_not_in_identifier.md) {always} — an ordering baked into a filename costs a mass rename to change or extend; use a field
 - [Keep your half of the task](feedback_keep_your_half.md) {always} — hand back only what needs a human; reading the log and saying what it shows stays mine
 - [Do the prerequisite](feedback_do_the_prerequisite.md) {always} — an outcome implies the one step it cannot be reached without; do it and say so, don't ask the order

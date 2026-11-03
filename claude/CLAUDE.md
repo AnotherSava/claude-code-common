@@ -297,6 +297,7 @@ Cross-project preferences and feedback. Memory files live in `~/.claude/memory/`
 - [Read-only review, then delete](~/.claude/memory/feedback_read_only_review_loop.md) — collect findings with no edits; answer them by removing something, not by adding a gate
 - [Peer register, not support](~/.claude/memory/feedback_peer_register_not_support.md) — write to another dev as a peer, not support-to-user; four concrete swaps
 - [Use the tool you built](~/.claude/memory/feedback_use_the_tool_you_built.md) — make the new instrument the ask, not a fallback; undo hand-done work so the tested path runs it instead
+- [A resolution is not a fix](~/.claude/memory/feedback_a_resolution_is_not_a_fix.md) — "next time I should X" reaches no later session; change the message, skill or gate it will read at that decision
 - [Sort keys live in metadata, not the name](~/.claude/memory/feedback_sort_key_not_in_identifier.md) — an ordering baked into a filename costs a mass rename to change or extend; use a field
 - [Keep your half of the task](~/.claude/memory/feedback_keep_your_half.md) — hand back only what needs a human; reading the log and saying what it shows stays mine
 - [Do the prerequisite](~/.claude/memory/feedback_do_the_prerequisite.md) — an outcome implies the one step it cannot be reached without; do it and say so, don't ask the order
