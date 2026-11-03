@@ -15,6 +15,19 @@ A fork with issues disabled returns the message *"the 'OWNER/REPO' repository ha
 
 Discovered building the `github-status` skill's open-issue count: `InverseCSG` (fork of `yijiangh/InverseCSG`) showed the upstream's issue count until the query was pinned to `AnotherSava/InverseCSG`.
 
+`gh run list` and `gh run watch` resolve the same way: after a push to a fork's origin, a bare `gh run list --commit <sha>` asks upstream for a commit only origin has, and answers with a 401 or an empty list. Measured 2026-11-03 in the agterm fork.
+
+`--repo` takes a full remote URL as well as `OWNER/REPO`, but not every URL form. Measured 2026-11-03:
+
+| `--repo` value | Result |
+|---|---|
+| `git@github.com:Owner/repo.git` | works |
+| `ssh://github.com/Owner/repo.git` | works |
+| `https://github.com/Owner/repo.git` | works |
+| `github.com:Owner/repo.git` | HTTP 404: gh asks for `/repos/github.com:Owner/...` |
+
+The last form is what git's own `git push --porcelain` prints on its `To` line for an scp-style remote, since git strips the user part. So a URL read from that line has to be rewritten to the `ssh://` form before it goes to `--repo`; `shared/push.py` does this in `_pushed_to`.
+
 ## Pushing a workflow file needs the `workflow` scope
 
 `gh auth login` grants `repo`, `read:org`, `gist` — **not** `workflow`. Since gh installs itself
