@@ -1,6 +1,6 @@
 # gh CLI
 
-## `gh issue list` / `gh pr list` resolve a fork to its upstream parent
+## `gh issue list` / `gh pr list` / `gh run list` resolve a fork to its upstream parent
 
 Run inside a fork that has an `upstream` remote, `gh issue list` (and `pr list`, `issue view`, etc.) auto-resolves to the **parent** repo, not your fork — so it reports the upstream's issues. This is silent and easy to miss.
 
