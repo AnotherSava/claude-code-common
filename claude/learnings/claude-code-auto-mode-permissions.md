@@ -150,3 +150,25 @@ running the command can. Two triggers, measured 2026-09-26 in Git Bash on Window
 
 When the user has to run the removal, the `!` prefix runs Git Bash, not PowerShell, so hand it over in bash
 form: `rm -rf <literal path>`.
+
+## Where `autoMode` is read, and what the setup dialog writes
+
+The classifier reads the `autoMode` block from `~/.claude/settings.json`, from managed settings, and from
+`--settings` or the Agent SDK. It ignores `autoMode` in a repo's `.claude/settings.json` and
+`.claude/settings.local.json`, because a checked-in repo could otherwise grant itself allow rules. A block
+placed there to scope an environment to one project has no effect. Context about a single project goes in
+that project's CLAUDE.md, which the classifier also reads.
+
+The "Teach auto mode about your environment?" dialog runs `/auto-mode-setup`. It scans only the current
+project and its recent sessions, then writes the draft to the global `~/.claude/settings.json`. It writes
+`environment` without `"$defaults"` and spells out the built-in entries itself. On 2026-11-02 this left a
+global block naming one repo as the only trusted repo and source control, which was wrong for every other
+repo. Choose **Don't show again**, or turn it off with `"skillOverrides": { "auto-mode-setup": "off" }`.
+
+Without any entry, the built-in Trusted repo slot already covers the repo the session started in and its
+remotes. So an entry is worth adding only for a destination outside that repo, and only after a block has
+named it. The classifier sees your messages and the commands the agent runs, but not their output, so it
+can't learn repo ownership or visibility from `gh repo view`. Entries live in the public dotfiles repo, so
+keep them to facts that are already public. Leave out tailnet hosts, IPs and internal domains.
+
+Reference: the Claude Code docs page "Configure auto mode" (`code.claude.com/docs/en/auto-mode-config`).
