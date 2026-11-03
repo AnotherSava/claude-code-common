@@ -414,6 +414,37 @@ Interface), which applies live — `setToolbarMode` runs `persistAndApply()` —
 is not reachable from the control API or from a plain `defaults write`, since the
 value lives in agterm's own settings struct and a running app rewrites it.
 
+## `session info`, the sidebar line under a session's row
+
+Measured against 0.40.0 on 2026-11-03, while having a dashboard show each session's running dev
+server. Unlike `session context` it **does** render in the sidebar, as a line under the row, for
+every session rather than only the active one. Runtime-only (gone after a relaunch), 512 UTF-8
+bytes, one line, read back as `info` (with `infoMarkdown` and `infoHideAfter`) on the `tree --json`
+node.
+
+- **The `--` rule is the same as `context`'s**: options, then `--`, then the text.
+- **`--hide-after SECONDS` makes the line expire unless rewritten**, so a writer that dies leaves
+  nothing claiming a stale fact. Rewrite on a tick shorter than the expiry.
+- **An unknown `--target` answers `{"ok":false,"error":"no such session: <id>"}`**, which is
+  knowledge that the session closed, distinct from a failure to reach agterm.
+- **The line starts under the status glyph, not under the name, and there is no indent option.**
+  Leading whitespace is kept, but it renders at different widths: at 2× scale four ASCII spaces,
+  and a run of no-break spaces, both moved the text 26 px, short of the 44 px to the name; two em spaces
+  moved it 46 px; **three figure spaces (U+2007) moved it exactly 44 px**, onto the name's first
+  pixel.
+
+### Overlays a chord opens
+
+- **`session overlay open` refuses while the session already holds an overlay**, shown or hidden
+  (`overlay hidden` for the second), so a chord that opens a page must toggle on a second press:
+  check the `tree --json` node's `htmlOverlays`, and call `session overlay toggle` when it is
+  non-empty.
+- **A `--url` page runs no JavaScript unless `--js` is passed**, which a dev server's app needs.
+- **`agtermctl notify` adds an unread badge to the session, summed onto its workspace**, one per
+  call, so a chord reporting a refusal that way grows a badge on every press.
+  `session hud open --hide-after N` shows the same message in a panel over the session that
+  closes by itself and leaves no badge.
+
 ## Workspaces belong to a window, and a closed tab leaves a dated record
 
 `session new` places a session with either `--workspace <id|prefix|active>` or `--workspace-name <name>`,
