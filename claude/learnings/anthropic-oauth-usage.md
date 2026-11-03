@@ -92,6 +92,37 @@ back does not recover it. Capture it rather than reading it: on Windows wrap the
 (`$env:USERPROFILE\.claude\.credentials.json`) — and delete the transcript once the value is stored, since it
 holds the token in plaintext.
 
+**On a Mac, mint it inside a Linux container and record the session with `script`** — verified 2026-11-01.
+Any image with the Claude CLI in it will do (a project's own `claude -p` sidecar is the obvious one):
+
+```sh
+LOG="$(mktemp /tmp/tok.XXXXXX)"; trap 'rm -f "$LOG"' EXIT
+script -q "$LOG" docker exec -it <container> sh -c 'stty cols 400; claude setup-token'
+TOK="$(grep -ao 'sk-ant-oat01-[A-Za-z0-9_-]*' "$LOG" | awk '{ print length, $0 }' | sort -rn | head -1 | cut -d' ' -f2)"
+# check ${#TOK} is 108, then pipe "$TOK" into the store; never echo it
+```
+
+The recording holds the token in plaintext. Run as a script, the trap deletes it whichever step fails; pasted
+into an interactive shell, an `EXIT` trap fires only when that shell exits (and replaces any it already had), so
+there run `rm -f "$LOG"` by hand once the token is stored. `script` passes the child's output through as it
+records, so the token is still drawn on the terminal: run it in a plain terminal, never through Claude Code's `!`
+(which puts the output in the session transcript), and clear the screen afterwards. The same goes for any line
+that prints the grep's match: a bare `grep -ao … "$LOG"` puts the token on stdout, so keep the match in a
+variable as above. Three things broke the hand-run version, so put it in a script that reads the recording and
+writes the secret store itself, ending with `STORED` or `NOT STORED`:
+
+- **The flow waits for a pasted code.** The sign-in page shows a code to paste back at `Paste code here if
+  prompted >`; ending the run before that leaves no token, only the authorize URL in the recording.
+- **The terminal wraps the token.** At normal width it prints across two lines with an indent, so a copy picks
+  up a newline and a space and a grep matches only the first half. `stty cols 400` inside the container keeps it
+  on one line; still check the length (108 characters) before storing it.
+- **The clipboard is not a transfer channel.** Copying the store command to paste it overwrites the token on
+  the clipboard, and `pbpaste | <store>` then stores the command text. The doppler skill's clipboard route and
+  the hand-over-on-the-clipboard rule in `memory/feedback_route_output_not_paste.md` collide here when the
+  pipe has to be handed to the user instead of run by Claude. A long command pasted into a terminal
+  also wraps and splits, and `doppler`'s update prompt (`Install Doppler CLI … (Y/n)`) reads a piped value as
+  its answer unless `--no-check-version` is passed. Each of these stored nothing or the wrong thing silently.
+
 Do not lift the interactive credential onto a server. Its access token expires the same day, and copying its
 *refresh* token puts a full-scope credential on a shared machine — refresh tokens typically rotate on use, so
 the server refreshing can invalidate the copy the laptop is using.

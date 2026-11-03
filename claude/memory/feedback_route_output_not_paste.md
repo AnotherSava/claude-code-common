@@ -28,7 +28,9 @@ run to the clipboard?" Showing it stays — the fence is what they read — but 
   (`cat /dev/clipboard`, `pbpaste`) in the same call, and say in the reply that it is on the
   clipboard. Copy it last, right before the handover, for the reason the **Why** gives. `/dev/clipboard` is measured byte-exact both ways; `Get-Clipboard` appends a CRLF and
   transliterates non-ASCII, so its read-back never matches (`learnings/windows-clipboard-git-bash.md`).
-  Not for a command carrying a secret, which never goes through `!` at all.
+  Not for a command carrying a secret, which never goes through `!` at all, and not for a command that
+  reads a secret from the clipboard (`pbpaste | doppler …`): copying it overwrites the secret, and the
+  store then saves the command text (`learnings/anthropic-oauth-usage.md`).
 - Default for the command: a script that tees its own output, stderr included, to `<repo>/tmp/<name>.log`, using
   the header the finish-line bullet names, handed over as just `bash <absolute-script-path>`; then Read that log.
   A hand-over carrying `2>&1 | tee <path>` itself is wide enough to wrap, and the paste splits after `| tee`
