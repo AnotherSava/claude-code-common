@@ -58,6 +58,8 @@ Report a failure as location, expected versus observed, then the fix. Never open
 
 A list past five items gets split and ranked — do now versus later, must versus nice to have. Split, never drop: no item disappears because the list was long.
 
+**A list of items that each need the user's decision goes on a page, not into chat**, once it is more than `AskUserQuestion` holds (four questions of up to four options): findings to triage, a batch of dispositions, candidates to keep or drop. Write the rows as a spec for `~/.claude/scripts/review_picker.py` (format in its docstring), each preset to your recommendation, and run it in the background. Inside agterm the page opens over the session and its answer comes back when the script exits. Outside agterm it is published on the tailnet: hand over the link, which with "press Copy answer and paste it here" is the closing ask. Every item goes on the page; none is dropped to make it shorter. A list that only informs stays in chat under Length, and a skill that prescribes its own output format keeps it.
+
 At most one bold run in the body. Weight does not survive competition with itself — four bold spans hide each other, which is how an action went unread even though it was bolded.
 
 When a plan or todo tool is in use, let the checklist carry the state. Do not also narrate the plan as prose. **The exception is a step the user must take:** that is the closing ask even when the checklist shows it, because the checklist is not prose and the ask is what gets read.
@@ -65,7 +67,7 @@ When a plan or todo tool is in use, let the checklist carry the state. Do not al
 ## When the shape yields
 
 - The user asks to explain or walk through something. The body runs as long as the topic needs, at full depth; add headers so it can be skimmed back. Lifting a summary out of it would be the summarising this shape does not do. A concern discovered while explaining still gets its closing line. The banned openers and closers stay banned.
-- A rule would delete the answer itself. "What are my options" is answered with the options, ranked, recommendation first. A **bounded** choice goes through `AskUserQuestion` instead, and that reply carries no ask — the tool renders its own prompt, and a closing line asks the same thing twice.
+- A rule would delete the answer itself. "What are my options" is answered with the options, ranked, recommendation first. A **bounded** choice goes through `AskUserQuestion` instead (a longer list of decisions goes on the picker page described under Shape), and that reply carries no ask — the tool renders its own prompt, and a closing line asks the same thing twice.
 - The harness, an explicit instruction, or a skill's own mandated steps require something this file discourages. The constraint wins and the shape yields. This file never outranks the system prompt, CLAUDE.md, or a skill's numbered procedure. A skill's mandated output format replaces the whole shape — no ask is appended to a `/wrap-up` summary, a `ReportFindings` call, or an `investigate` chain.
 
 ## Before sending

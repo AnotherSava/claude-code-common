@@ -393,3 +393,41 @@ prompts is a thin sample for a density complaint.
 - The entry belongs in CLAUDE.md and not the output style, because a phrase ban must also reach Task
   subagents, which an output style does not.
 
+
+## 2026-11-03 — Fifth pass: decision lists go on the picker page
+
+**Source:** a memo from the same day, the step that closed the work making `/wrap-up`'s summary an interactive page.
+It generalised `claude/scripts/review_picker.py` from `/review-manual`'s findings to any rows each preset to a
+recommendation, and asked for a reply-shape rule so the same page is used mid-task, where no skill fires.
+
+**Mechanism:** the output style's Shape section, because it governs every reply and needs no description match to
+load. A skill was considered and rejected for that reason. The memory `feedback_wide_tables_as_html` already sent a
+*wide* table to a page; it is not `{always}`, so nothing loads it mid-task, and its trigger is width, not "the user
+has to decide each item".
+
+**Adopted:**
+
+- A list of items that each need the user's decision goes on a page through `review_picker.py` once it is more
+  than `AskUserQuestion` holds (four questions of up to four options), every row preset to the recommendation,
+  none dropped to make it shorter. A list that only informs stays in chat; a skill's own format wins.
+- The bounded-choice bullet under "When the shape yields" points at it, so the two thresholds read as one scale.
+
+**Rewritten:** the memo's "long structured data the user has to act on" became "items that each need the user's
+decision", with `AskUserQuestion`'s capacity as the lower bound. "Long" had no unit the model can count; the tool's
+limit is one.
+
+**Rejected:** a separate skill for this, for the reason under Mechanism.
+
+**What would re-open it:** a page shown where a one-word chat answer would have served, which would mean the lower
+bound is too low; or a long decision list still printed in chat mid-task, which would mean the rule is not firing
+and needs a stronger home.
+
+**Tested:** not tested. The A/B harness disables tools and measures prose, and this rule's effect is a tool call
+(writing the spec, running the picker), which `references/ab-harness.md` names as outside what it can see. The
+page itself was checked separately: the picker's tests, plus a headless-Chrome run of a rendered page confirming
+that a note switches its row to `note_choice`, that overrides are marked and tallied, and that the copied answer
+carries every choice, note and flag. Outcome pending: judged by living with it.
+
+**Do not re-litigate:**
+
+- The rule's home is the output style. A skill cannot fire on output that arises mid-task.
