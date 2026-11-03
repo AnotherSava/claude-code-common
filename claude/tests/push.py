@@ -19,6 +19,9 @@ from git_scratch import check, commit, failures, seal, sh, write
 
 ROOT = os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 SCRIPT = os.path.join(ROOT, "claude", "skills", "shared", "push.py")
+sys.path.insert(0, os.path.dirname(SCRIPT))
+
+from push import _pushed_to  # noqa: E402 — needs the sys.path line above
 
 STUB_GATE = """#!/usr/bin/env bash
 case "${GATE_MODE:-pass}" in fail) exit 3 ;; esac
@@ -44,6 +47,13 @@ def clone(scratch: str, name: str, push_first: bool = True) -> tuple[str, str]:
 
 
 def main() -> int:
+    # Git prints an scp-style remote without its user, a form `gh --repo` answers with 404, so it must become ssh://.
+    for to, want in (("github.com:Owner/repo.git", "ssh://github.com/Owner/repo.git"),
+                     ("https://github.com/Owner/repo.git", "https://github.com/Owner/repo.git"),
+                     ("/tmp/scratch/fork.git", "/tmp/scratch/fork.git"),
+                     ("C:/work/fork.git", "C:/work/fork.git")):
+        check(f"the pushed-to URL {to} reaches gh as {want}", _pushed_to(f"To {to}\n=\trefs/heads/main:refs/heads/main\t[up to date]\nDone\n"), want)
+
     scratch = tempfile.mkdtemp(prefix="push-test-")
     try:
         seal(scratch, "[push]\n\tdefault = current\n")
@@ -75,7 +85,6 @@ def main() -> int:
         check("a repo with workflows gets a CI line", (code, any(line.startswith("ci:") for line in lines)), (0, True))
 
         # A fork: gh defaults to `upstream` when that remote exists, so the CI lookup has to name the remote pushed to.
-        # Its origin is a local path, so the scp-to-`ssh://` rewrite in `_pushed_to` (push.py) runs in no case here.
         origin, fork = clone(scratch, "fork")
         subprocess.run(["git", "init", "-q", "--bare", os.path.join(scratch, "third-party.git")], check=True)
         sh(fork, "remote", "add", "upstream", os.path.join(scratch, "third-party.git"))
