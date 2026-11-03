@@ -1,8 +1,9 @@
 ---
 name: review-manual
 description: >-
-  Run a read-only review of the current change through the saved `review-auto` workflow, show its findings as a table
-  the user ticks, then fix exactly what they ticked, following their per-row feedback.
+  Run a read-only review of the current change through the saved `review-auto` workflow, show its findings as rows
+  each preset to the session's recommendation, then fix exactly the rows the user leaves on fix, following their
+  per-row notes.
   TRIGGER when: the user runs /review-manual, or asks for a read-only review where they choose what gets fixed.
   DO NOT TRIGGER when: the user wants the review to fix what it finds on its own — that is `review-auto` in its
   default fix mode.
@@ -12,7 +13,7 @@ description: >-
 
 The read-only review loop: the workflow reviews and verifies without editing anything, the user picks what to fix,
 and this session fixes it. The user's choice and the feedback typed against a row are the instruction; the
-workflow's own triage is only the pre-ticked recommendation.
+workflow's own triage is only the preset recommendation.
 
 ## Context
 
@@ -26,27 +27,26 @@ workflow's own triage is only the pre-ticked recommendation.
 2. **Run** `Workflow({name: "review-auto", args})` and wait for its completion notification.
 3. **Present the triage** as the workflow's returned `note` says.
 4. **Write the picker's rows** to `tmp/review-findings.json` when **Scratch file ignored** is `IGNORED`; otherwise
-   tell the user the file would be committable and ask where it should go. The file is
-   `{"title", "rows": [{"id", "finding", "rating", "view", "fix", "wording"}]}`, one row per triage row, ranked by
-   your concern: `id` is the triage id, `rating` its frequency and cost, `view` your recommendation and its reason in
-   one line, `fix` true where you recommend acting on it, and `wording` true where the fix would change only wording
-   or documentation, which the picker draws in lighter grey.
+   tell the user the file would be committable and ask where it should go. The file holds one `choices` block, in the
+   format the docstring of `~/.claude/scripts/review_picker.py` defines, with `note_choice` `fix` and the column keys
+   `finding`, `rating` and `view`, one row per triage row, ranked by your concern. Each row carries `choices`
+   `["fix", "leave"]` and these fields: `id` is the triage id, `rating` its frequency and cost, `view` your
+   recommendation and its reason in one line, `choice` `fix` where you recommend acting on it, and `dim` true where
+   the fix would change only wording or documentation, which the picker draws in lighter grey.
 5. **Run the picker in the background** — `python3 ~/.claude/scripts/review_picker.py tmp/review-findings.json`
    (`python` on Windows), with `run_in_background` — and wait for it to exit. Inside agterm it blocks until the user answers.
-   - Exit 0 prints `{"outcome": "submitted", "fix": [ids], "feedback": {id: text}}`. An empty `fix` is an answer:
-     fix nothing.
-   - Exit 4 (not inside agterm) prints `{"outcome": "published", "url": ...}` at once: hand over that URL as a link
-     and ask the user to tick, press **Copy answer**, and paste the result here. The pasted
-     `{"fix": [ids], "feedback": {id: text}}` is the answer exactly as exit 0's would be.
-   - Exit 2 (closed without Apply) or 3 (not inside agterm, and the page could not be published): show the same rows
-     as a table in chat and ask which to fix and how.
+   The docstring defines each exit code and what it prints; act on them as follows.
+   - Exit 0: the printed answer is the user's. Every row set to `leave` is an answer: fix nothing.
+   - Exit 4: hand over the printed URL as a link and ask the user to choose, press **Copy answer**, and paste the
+     result here. The pasted answer is the user's exactly as exit 0's would be.
+   - Exit 2 or 3: show the same rows as a table in chat and ask which to fix and how.
    - Exit 1: report its stderr and fall back to the chat table.
-6. **Fix exactly the chosen ids**, following each one's feedback where it has some. Add or update tests wherever
+6. **Fix exactly the rows set to `fix`**, following each one's note where it has some. Add or update tests wherever
    behaviour changed, then run the gate from step 1 and judge it by its exit status.
 7. **When the tree changed**, say so and stop. The fixes were made after the review; the next `/wrap-up` or `/yolo`
    commits the reviewed tree first and the fixes as follow-up commits, as `~/.claude/skills/shared/commit-grouping.md`
    describes, including when that split does not apply.
-8. **When nothing was ticked, the tree is unchanged and the workflow's `bookmark` says it was recorded, commit
+8. **When nothing was set to `fix`, the tree is unchanged and the workflow's `bookmark` says it was recorded, commit
    exactly the reviewed tree**, so the bookmark moves now and whatever a later close-out adds — its reflection,
    clean-up and docs fixes — goes into later commits that the next review picks up. An unrecorded bookmark has
    nothing to move: report why it was not recorded and leave committing to `/wrap-up` or `/yolo`.
@@ -62,6 +62,6 @@ workflow's own triage is only the pre-ticked recommendation.
 
 ## Out of scope
 
-- Do NOT fix a finding the user left unticked, however clearly it looks right.
+- Do NOT fix a finding the user left on `leave`, however clearly it looks right.
 - Do NOT run `review-auto` in fix mode, or an inline review workflow in its place.
 - Do NOT commit a tree the review did not cover, amend a commit, or push; the push is `/wrap-up`'s or `/yolo`'s.

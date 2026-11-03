@@ -10,7 +10,7 @@ description: >-
   or wrap up the current section of work.
   DO NOT TRIGGER when: the user wants to push work as-is to test it (use /yolo), to park a
   single idea (/memo), or to persist durable knowledge only (/reflect).
-allowed-tools: Bash(python ~/.claude/skills/wrap-up/scripts/session_scan.py:*), Bash(bash ~/.claude/skills/wrap-up/scripts/ship_wrappers.sh), Bash(bash ~/.claude/skills/shared/project_memory.sh), Bash(bash ~/.claude/skills/wrap-up/scripts/release_candidates.sh), Bash(python ~/.claude/skills/memo/memos.py:*), Bash(git rev-parse:*), Bash(git status:*), Bash(git log:*), Bash(python ~/.claude/skills/shared/peer_relay.py:*), Bash(python3 ~/.claude/skills/shared/peer_relay.py:*), Bash(git fetch:*), Bash(git rev-list:*), Bash(git diff:*), Bash(git show:*), Bash(gh issue list:*), Bash(gh run list:*), Bash(gh run watch:*), Bash(gh run view:*), Bash(git apply:*), Bash(python3 ~/.claude/skills/shared/commit.py:*), Bash(python ~/.claude/skills/shared/commit.py:*), Bash(python3 ~/.claude/skills/shared/push.py:*), Bash(python ~/.claude/skills/shared/push.py:*), Bash(python3 ~/.claude/skills/shared/gate_pushed_tree.py:*), Bash(python ~/.claude/skills/shared/gate_pushed_tree.py:*), Bash(python3 ~/.claude/skills/shared/change_scope.py:*), Bash(python ~/.claude/skills/shared/change_scope.py:*), Bash(python3 ~/.claude/skills/shared/peer_repo_changes.py:*), Bash(python ~/.claude/skills/shared/peer_repo_changes.py:*), Bash(python3 ~/.claude/scripts/review_scope.py:*), Bash(python ~/.claude/scripts/review_scope.py:*), Bash(bash ~/.claude/scripts/audit-skill-tracking.sh), Workflow, Bash(bash scripts/deploy.sh), Bash(bash scripts/publish.sh), ListAgents, ToolSearch, SendMessage, Read, Edit, Write, Glob, Grep, Skill
+allowed-tools: Bash(python ~/.claude/skills/wrap-up/scripts/session_scan.py:*), Bash(bash ~/.claude/skills/wrap-up/scripts/ship_wrappers.sh), Bash(bash ~/.claude/skills/shared/project_memory.sh), Bash(bash ~/.claude/skills/wrap-up/scripts/release_candidates.sh), Bash(python ~/.claude/skills/memo/memos.py:*), Bash(git rev-parse:*), Bash(git status:*), Bash(git log:*), Bash(python ~/.claude/skills/shared/peer_relay.py:*), Bash(python3 ~/.claude/skills/shared/peer_relay.py:*), Bash(git fetch:*), Bash(git rev-list:*), Bash(git diff:*), Bash(git show:*), Bash(gh issue list:*), Bash(gh run list:*), Bash(gh run watch:*), Bash(gh run view:*), Bash(git apply:*), Bash(python3 ~/.claude/skills/shared/commit.py:*), Bash(python ~/.claude/skills/shared/commit.py:*), Bash(python3 ~/.claude/skills/shared/push.py:*), Bash(python ~/.claude/skills/shared/push.py:*), Bash(python3 ~/.claude/skills/shared/gate_pushed_tree.py:*), Bash(python ~/.claude/skills/shared/gate_pushed_tree.py:*), Bash(python3 ~/.claude/skills/shared/change_scope.py:*), Bash(python ~/.claude/skills/shared/change_scope.py:*), Bash(python3 ~/.claude/skills/shared/peer_repo_changes.py:*), Bash(python ~/.claude/skills/shared/peer_repo_changes.py:*), Bash(python3 ~/.claude/scripts/review_scope.py:*), Bash(python ~/.claude/scripts/review_scope.py:*), Bash(python3 ~/.claude/scripts/review_picker.py:*), Bash(python ~/.claude/scripts/review_picker.py:*), Bash(bash ~/.claude/scripts/audit-skill-tracking.sh), Workflow, Bash(bash scripts/deploy.sh), Bash(bash scripts/publish.sh), ListAgents, ToolSearch, SendMessage, Read, Edit, Write, Glob, Grep, Skill
 ---
 
 # Wrap Up
@@ -188,9 +188,10 @@ Nothing here asks the user anything; each sub-step's question, if it has one, be
 
 ### 7. Present one summary
 
-One message, in this order, under these headings. The headings carry no numbers. Each section numbers its own items
-from 1 behind its letter, so an override such as `memo C2` names one item and a section never continues another's
-count. The Review table numbers its rows plainly and Commits numbers nothing, since no override acts on either.
+The summary is a page the user answers, shown by `~/.claude/scripts/review_picker.py` as **The page** describes. The
+chat form this step lays out is its content rules and its fallback. Either way it holds, in this order, under these
+headings. The headings carry no numbers. Each section numbers its own items from 1 behind its letter, so an override
+such as `memo C2` names one item and a section never continues another's count. The Review table numbers its rows plainly and Commits numbers nothing, since no override acts on either.
 
 - **Review** — the triage table as the workflow returned it. The bookmark is not mentioned here: its one line is the
   last line of Commits.
@@ -298,8 +299,42 @@ The skill-outputs skill finds a summary by how this prompt opens, so rewording t
 wording to `WRAP_UP_PROMPTS` in `claude/skills/skill-outputs/scripts/collect.py`. The all-empty summary is found by its
 `Nothing to commit.` opening instead, so rewording that line means changing `WRAP_UP_EMPTY_OPENING` there.
 
+#### The page
+
+Every summary with a prompt goes out as the page first. Write it with the Write tool to `tmp/wrap-up-summary.json`
+under **Repo root**, in the format the docstring of `review_picker.py` defines; the skill-outputs skill finds a page
+summary by that Write, so renaming the file means changing `WRAP_UP_SPEC_FILE` in its `collect.py`. One block per
+heading above, in the same order and left out on the same terms:
+
+- **Review** — a `table` block built from the workflow's `triage` list, which holds objects: `columns` the field
+  names shown, each row one cell per column looked up by that column's name, a missing or null value written as `""`
+  (review-auto's polish rows carry no `reached_by`, `frequency` or `cost`, and a shorter row shifts its cells under the
+  wrong headers).
+- **Q**, **C**, **M**, **P** — a `choices` block each, headed by the category's name. Column keys `title`, `quote` (the
+  quoted words with their `[N] HH:MM` reference), `open` (why it is still open) and `view` (the reason for the
+  recommendation, one line); `choices` `["answer", "memo", "ping", "drop"]`, `choice` the recommendation.
+- **S** — a `choices` block, column keys `title` and `destination`, `choices` `["save", "skip"]`.
+- **R** — a `choices` block, column keys `title` and `view`, each row's `choices` its own pair (`keep`/`local`,
+  `address`/`leave`, `archive`/`leave`, `apply`/`skip`).
+- **Commits** — a `text` block: each message, its note where it has one, the push, and the bookmark line last.
+
+Ids are the item labels (`Q1`, `C3`), so a note or an override names the same item the chat form would. Add one flag,
+`{"id": "push", "label": "Push after committing", "value": true}`; turning it off is `hold`. Title the page
+`Wrap-up: <repo name>`.
+
+Then run `python3 ~/.claude/scripts/review_picker.py tmp/wrap-up-summary.json` (`python` on Windows) from **Repo
+root** with `run_in_background`, and wait for it to exit. The docstring defines each exit code and what it prints;
+act on them as follows:
+
+- **Exit 0**: each row's choice in the printed answer is its disposition and its note is how to carry it out;
+  `flags.push` false is `hold`. That answer is the gate's answer.
+- **Exit 4**: hand over the printed URL as a link, saying the user can press **Copy answer** and paste the result,
+  and print the closing prompt under it for a reply typed in chat instead; either is the gate's answer.
+- **Exit 2**, **3** or **1** (its stderr reported): print the summary in its chat form, closing prompt included.
+
 Then stop and wait. This is the skill's only gate: nothing is applied, saved, committed or pushed before the answer.
-The all-empty summary is the one exception, and its paragraph in step 7 says what runs without the gate.
+The all-empty summary is the one exception, and its paragraph in step 7 says what runs without the gate; it prints in
+chat and shows no page.
 
 ### 8. Apply, commit and push
 
@@ -352,7 +387,7 @@ blocking privacy finding stops here and goes to the user with the finding, since
 covered content that must not be published. Any other refusal is yours to fix and retry. Then
 `python3 ~/.claude/scripts/review_scope.py advance`.
 
-**Push**, unless the answer was `hold`: `python3 ~/.claude/skills/shared/push.py --caller wrap-up`. Report its lines,
+**Push**, unless the answer was `hold` or the page's push flag was off: `python3 ~/.claude/skills/shared/push.py --caller wrap-up`. Report its lines,
 then watch CI and hand off files written in other repos as the "After the push" section of `shared/sync-and-push.md`
 describes, and send the pings held for the push. If the push failed, send none of the pings and say which are held.
 

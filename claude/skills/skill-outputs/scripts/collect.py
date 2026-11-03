@@ -11,6 +11,8 @@ the summary's Review heading (its first heading where it has none), so the toggl
 format each summary was written in.
 """
 
+from __future__ import annotations
+
 import argparse
 import glob
 import json
@@ -22,22 +24,71 @@ from datetime import datetime
 HERE = os.path.dirname(os.path.realpath(__file__))
 sys.path.insert(0, os.path.join(HERE, "..", "..", "shared"))
 
-from transcripts import PROJECTS, parse_iso, project_dir_name, records, text_of, timestamp  # noqa: E402 — needs the sys.path line above
+from transcripts import PROJECTS, content_blocks, parse_iso, project_dir_name, records, text_of, timestamp  # noqa: E402 — needs the sys.path line above
 
 WRAP_UP_COMMAND = "<command-name>/wrap-up</command-name>"
 # How the closing prompt of /wrap-up's step 7 opens, in every wording it has had: `go` from commit 063e8e2 on,
 # `recommended` before it. It is the one part every summary with something to approve carries, since each section
-# above it is left out when it has nothing in it. A new wording in claude/skills/wrap-up/SKILL.md is added here, and the old ones kept, so
-# summaries written before the change are still found.
+# above it is left out when it has nothing in it. A new wording in claude/skills/wrap-up/SKILL.md is added here, and
+# the old ones kept, so summaries written before the change are still found.
 WRAP_UP_PROMPTS = ("Reply `go`", "Reply `recommended`")
 # How the one line of an all-empty run opens (step 7 of the same SKILL.md). That run prints no prompt, so it has
 # no WRAP_UP_PROMPTS marker; it is kept as the record of the run, and the line is matched by its opening alone.
 WRAP_UP_EMPTY_OPENING = "Nothing to commit."
+# Where step 7 writes a summary shown as a page, through review_picker.py; that summary never reaches chat as text, so
+# it is found by the Write call that created the file, and its JSON is turned back into markdown for the page below.
+WRAP_UP_SPEC_FILE = "wrap-up-summary.json"
 DEFAULT_OUT = os.path.join(HERE, "..", "..", "..", "..", "tmp", "skill-outputs-wrap-up.html")
 
 
 def _is_wrap_up_summary(text: str) -> bool:
     return any(prompt in text for prompt in WRAP_UP_PROMPTS) or text.lstrip().startswith(WRAP_UP_EMPTY_OPENING)
+
+
+def _cell(value: object) -> str:
+    return str(value).replace("|", "\\|").replace("\n", " ")
+
+
+def _spec_markdown(spec: dict) -> str:
+    """A page summary as the markdown its chat form would have been, so both split into the same section toggles.
+
+    Each row shows its recommended choice in bold among the others; the answer the user gave on the page is not in the
+    spec, and the summary is what this page compares. The format is the one `_render` in claude/scripts/review_picker.py
+    renders, so a block kind or column field added there is added here too; until it is, the block shows as raw JSON.
+    """
+    parts = []
+    for block in spec.get("blocks") or []:
+        lines = [f"## {block['heading']}"] if block.get("heading") else []
+        if block.get("kind") == "table":
+            columns = block.get("columns") or [""] * len((block.get("rows") or [[]])[0])
+            lines += ["| " + " | ".join(map(_cell, columns)) + " |", "|" + "---|" * len(columns)]
+            lines += ["| " + " | ".join(map(_cell, row)) + " |" for row in block.get("rows") or []]
+        elif block.get("kind") == "text":
+            lines += ["```", block.get("text", ""), "```"]
+        elif block.get("kind") == "choices":
+            keys = [column["key"] for column in block.get("columns") or []]
+            labels = [column.get("label", column["key"]) for column in block.get("columns") or []]
+            lines += ["| # | " + " | ".join(map(_cell, labels)) + " | Choice |", "|" + "---|" * (len(keys) + 2)]
+            for row in block.get("rows") or []:
+                choices = " · ".join(f"**{c}**" if c == row.get("choice") else str(c) for c in row.get("choices") or [])
+                lines.append(f"| {_cell(row.get('id', ''))} | " + " | ".join(_cell(row.get(key, "")) for key in keys) + f" | {choices} |")
+        else:
+            lines += [f"Block kind {block.get('kind')!r} is not rendered by collect.py:", "```json", json.dumps(block, indent=2), "```"]
+        parts.append("\n".join(lines))
+    flags = ", ".join(f"{flag.get('label', flag.get('id'))}: {'on' if flag.get('value') else 'off'}" for flag in spec.get("flags") or [])
+    return "\n\n".join(parts + ([flags] if flags else []))
+
+
+def _page_summary(record: dict) -> str | None:
+    """The markdown of a page summary this record wrote, or None when it wrote none."""
+    for block in content_blocks(record):
+        payload = block.get("input") or {}
+        if block.get("type") == "tool_use" and block.get("name") == "Write" and str(payload.get("file_path", "")).endswith(WRAP_UP_SPEC_FILE):
+            try:
+                return _spec_markdown(json.loads(payload.get("content", "")))
+            except (ValueError, TypeError, KeyError, AttributeError):
+                return None
+    return None
 
 
 def _project_name(transcript: str) -> str:
@@ -72,9 +123,12 @@ def _collect(since: datetime) -> list[dict[str, str]]:
             for later, later_stamp in rows[i + 1:]:
                 if later["type"] == "user" and WRAP_UP_COMMAND in text_of(later):
                     break
-                if later["type"] == "assistant" and _is_wrap_up_summary(text_of(later)):
+                if later["type"] != "assistant":
+                    continue
+                md = _page_summary(later) or (text_of(later) if _is_wrap_up_summary(text_of(later)) else None)
+                if md:
                     stamp = later_stamp.astimezone()
-                    entries.append({"project": _project_name(transcript), "when": _when(stamp), "sort": stamp.isoformat(), "session": os.path.basename(transcript)[:8], "md": text_of(later)})
+                    entries.append({"project": _project_name(transcript), "when": _when(stamp), "sort": stamp.isoformat(), "session": os.path.basename(transcript)[:8], "md": md})
                     break
     return sorted(entries, key=lambda e: e["sort"], reverse=True)
 
