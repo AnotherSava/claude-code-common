@@ -21,9 +21,9 @@ The first two are token accounting and the docs cover them well. The third is th
 Wall-clock comes from the session transcript, `~/.claude/projects/<slug>/*.jsonl`, where every row carries a timestamp and assistant rows carry a `usage` block. The gap before an assistant row is model latency; the gap before a tool result is tool time. `claude/scripts/profile-skill-run.py` does that arithmetic:
 
 ```bash
-python3 ~/.claude/scripts/profile-skill-run.py commit                  # this project, newest run
-python3 ~/.claude/scripts/profile-skill-run.py commit --project tripit
-python3 ~/.claude/scripts/profile-skill-run.py commit --timeline       # every turn
+python3 ~/.claude/scripts/profile-skill-run.py wrap-up                 # this project, newest run
+python3 ~/.claude/scripts/profile-skill-run.py wrap-up --project tripit
+python3 ~/.claude/scripts/profile-skill-run.py wrap-up --timeline      # every turn
 ```
 
 It reports total seconds, the model/tool split, turn count, context re-read per turn, a segment per nested sub-skill, and the five longest tool waits — that last line is what distinguishes a slow command from a skill that chose to sleep. The window runs from the invocation to the next instruction the user typed, skipping approvals like `y`, so a session that carries on afterwards does not inflate the total.

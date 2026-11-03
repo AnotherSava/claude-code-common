@@ -5,9 +5,9 @@ Reads `~/.claude/projects/<slug>/*.jsonl`, finds an invocation of the named skil
 and reports where its seconds went: model time against tool time, a phase per
 nested sub-skill, and optionally the turn-by-turn timeline.
 
-    profile-skill-run.py commit                     # this project, newest run
-    profile-skill-run.py commit --project tripit    # another project
-    profile-skill-run.py commit --timeline          # every turn
+    profile-skill-run.py wrap-up                    # this project, newest run
+    profile-skill-run.py wrap-up --project tripit   # another project
+    profile-skill-run.py wrap-up --timeline         # every turn
 """
 
 from __future__ import annotations
