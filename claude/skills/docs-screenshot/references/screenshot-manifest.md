@@ -145,7 +145,7 @@ asked, not whether.
 
 ## Keeping it current
 
-The manifest is written by the skills that read it — `screenshot-relevance` and `screenshot` — not only read by them:
+The manifest is written by the skills that read it — `screenshot-relevance` and `docs-screenshot` — not only read by them:
 
 - A screenshot with no entry, or an entry with no `policy`, is **undecided**: ask the user which policy
   it should have and write their answer into `policy`. When the question cannot be asked, write the

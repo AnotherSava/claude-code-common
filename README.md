@@ -211,25 +211,39 @@ Checks that a project's documentation screenshots still show the product, carry 
 - Records each shot in a `docs/screenshots/screenshots.json` manifest — what the frame shows, how to reproduce it, and whether replacement is `auto`, `confirm` or `never`
 - Checks every published screenshot for an edge on every run, whoever took it, and reports a bare one as `NO EDGE` (`hairline.py --check`, which writes nothing)
 - Names the shots that do not exist: sweeps pages for sections doing a picture's work in prose, proposes the two or three strongest, and captures none of them without an explicit yes. A private repo skips this pass unless its `CLAUDE.md` asks for it, and the screenshots it already has keep every staleness check
-- Hands every capture its policy permits, and every frame it has to border, to [`/screenshot`](#screenshot); a capture that would raise a window or move the pointer comes back to the caller as pending, since a backgrounded fork cannot ask first
+- Hands every capture its policy permits, and every frame it has to border, to [`/docs-screenshot`](#docs-screenshot); a capture that would raise a window or move the pointer comes back to the caller as pending, since a backgrounded fork cannot ask first
 - Counts the images a fork's upstream owns and checks none of them
 
 ---
 
-### Screenshot
+### Docs Screenshot
 
 Takes, frames and files a documentation screenshot, then shows it on a contact sheet and asks for a verdict.
 
 **Invoked by:** asking to take, re-shoot or replace a screenshot in a project's docs, by any turn that changes an image file, or by [`/screenshot-relevance`](#screenshot-relevance) when a frame's policy permits a capture.
 
 **Features:**
-- Asks immediately before a capture that raises a window, moves the pointer or launches the app; a headless render needs no ask
+- Asks once before a capture that takes the machine (what counts is defined by the `screenshot` skill), covering everything from staging to the shutter; a headless render needs no ask
 - Keeps the outgoing file in `tmp/screenshot-originals-<date>/` before anything overwrites it, and sets the entry's `verifiedAt` to `at-capture`
-- Captures through a committed `docs/screenshots/capture/<id>.sh` (or `<id>.ps1` on Windows, which calls the skill's shared `window-shot.ps1` and `windows-capture.ps1`) so the second capture is free and the diff shows how the image was made; a shot you supply yourself is filed the same way
+- Captures through a committed `docs/screenshots/capture/<id>.sh` (or `<id>.ps1` on Windows, which calls the shared `window-shot.ps1` and `windows-capture.ps1` of the `screenshot` skill) so the second capture is free and the diff shows how the image was made; a shot you supply yourself is filed the same way
 - Stages the content a frame needs by replaying a committed fixture through an input the product already takes, never a demo mode or seed data inside it
 - Gives a screenshot the edge its own capture lacks: a hairline traced inside a shaped frame's silhouette or grown outside an opaque one (`hairline.py`), or for a Windows capture the frame DWM draws, rebuilt from its measured model (`winframe.py`)
 - Writes a contact sheet with `contact-sheet.py`, which derives it from the manifest, the images, their raws and git so that only the verdict notes are written by hand — one self-contained HTML page carrying every screenshot, replacements as before/after pairs, each frame numbered and one click apart, with two nav checkboxes: *Show previous version*, ticked by default, for the committed file a frame replaces, and *Show before framing*, unticked, for each framed file's capture before its edge was added — and publishes it on the tailnet, handing over a link that opens on either machine; under `confirm` the sheet *is* the proposal, written before anything is captured
-- Holds the machinery every project's capture scripts call by path, under `claude/skills/screenshot/scripts/`; moving it is a convention version, since nothing else reports a caller left on the old path
+- Takes the picture itself through the [`/screenshot`](#screenshot) skill's shutter and framing tools, which the project's capture scripts call by path
+
+---
+
+### Screenshot
+
+Takes a picture of a window, a region or a menu on this machine, for any purpose, a throwaway debugging capture included.
+
+**Invoked by:** any screen capture about to be taken, or a capture that failed or came back blank.
+
+**Features:**
+- Captures on macOS through DocShot, which holds the Screen Recording grant the terminal lacks (see [Screenshot capture helper](#screenshot-capture-helper-macos)), and on Windows through `window-shot.ps1`
+- Asks once before a capture that takes the machine, covering every action from the first one that touches the screen through the shutter
+- Probes the macOS grant with DocShot's `--check` rather than reading a blank capture as "nothing on screen"
+- Holds the machinery every project's capture scripts call by path, under `claude/skills/screenshot/scripts/` — the shutter on each platform and the framing tools; moving it is a convention version, since nothing else reports a caller left on the old path
 
 ---
 
@@ -485,7 +499,7 @@ Parks an off-task idea in the project's memo backlog so it isn't lost — withou
 
 ### Wrap Up
 
-Closes out a section of work with one approval. It reviews the change through the [`review-auto` workflow](#saved-workflows), re-reads the current session's transcript from disk for the business left unfinished — questions Claude asked that were never answered, concerns raised and passed over, ideas that should have been memo'd, follow-ups promised but never delivered — drafts what `/reflect` would save, and groups the commits. Then it stops once, on a single summary, and one answer applies the dispositions, saves, commits and pushes. Afterwards the committed change is offered to whichever of the project's own `deploy` and `publish` paths exist, a release is offered when features or fixes went in since the last one, and the section ends at a `/clear`.
+Closes out a section of work with one approval. It reviews the change through the [`review-auto` workflow](#saved-workflows), re-reads the current session's transcript from disk for the business left unfinished — questions Claude asked that were never answered, concerns raised and passed over, ideas that should have been memo'd, follow-ups promised but never delivered — drafts what `/reflect` would save, and groups the commits. Then it stops once, on a single summary (or, when there is nothing to commit, push or decide, prints no prompt and goes on), and one answer applies the dispositions, saves, commits and pushes. Afterwards the committed change is offered to whichever of the project's own `deploy` and `publish` paths exist, a release is offered when features or fixes went in since the last one, and the section ends at a `/clear`.
 
 **Command:** `/wrap-up`
 
@@ -1173,7 +1187,7 @@ The same `env` block sets `CLAUDE_CODE_DISABLE_MOUSE_CLICKS=1`, which keeps a dr
 
 ### Screenshot capture helper (macOS)
 
-The `screenshot` skill takes screenshots through a small helper rather than through the agent's own binary. macOS grants Screen Recording to a *binary*, and the agent's is version-named, so granting it there would both go stale on every update and hand whole-display access to every session forever. A purpose-built bundle at a fixed path is granted once and scoped to the one job. Build it once per machine:
+The `screenshot` skill takes every screenshot through a small helper rather than through the agent's own binary. macOS grants Screen Recording to a *binary*, and the agent's is version-named, so granting it there would both go stale on every update and hand whole-display access to every session forever. A purpose-built bundle at a fixed path is granted once and scoped to the one job. Build it once per machine:
 
 ```bash
 bash claude/skills/screenshot/scripts/build-docshot.sh

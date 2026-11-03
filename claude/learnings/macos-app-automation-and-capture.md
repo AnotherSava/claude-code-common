@@ -48,6 +48,10 @@ changes the signature and resets the grant** — build once, and keep any
 no-permission post-processing in a *separate* plain binary so improving that
 never costs the grant.
 
+On these machines that helper is DocShot, and the `screenshot` skill builds and
+drives it. Any capture goes through it, a throwaway one included: `screencapture`
+run from the terminal fails with `could not create image from display`.
+
 ### Traps, each of which reads as something else
 
 **TCC attributes to the responsible process, not the executed binary.** Running
@@ -119,8 +123,8 @@ A dark screenshot on a dark page has no visible boundary. macOS gives a
 *decorated* window a light ~`(189,189,189)` hairline and transparent rounded
 corners for free; an **undecorated** window has neither, and a region crop never
 does. Bordering one needs no permission, so it is post-processing on the saved
-PNG, and `hairline.py` in the screenshot skill does it — that skill's framing step
-says which frame gets which treatment. A square crop or an opaque undecorated
+PNG, and `hairline.py` in the screenshot skill does it — the docs-screenshot skill's
+framing step says which frame gets which treatment. A square crop or an opaque undecorated
 window gets a ring in a new margin outside it; a window whose alpha already has
 its shape gets an inward ring eroded from that alpha, never a drawn arc. Rounded
 corners are added only with `--radius`, and only for a subject whose corners are

@@ -24,6 +24,7 @@ claude/skills/*
 !claude/skills/cleanup/
 !claude/skills/deploy/
 !claude/skills/docs-relevance/
+!claude/skills/docs-screenshot/
 !claude/skills/docs-style/
 !claude/skills/document-data-flow/
 !claude/skills/doppler/

@@ -44,5 +44,5 @@ What the skill that launched the fork does with its result. `/wrap-up` is that s
 - **A rejected or amended change goes back to the same fork.** `SendMessage` to it by name resumes it with what it
   read and checked; re-invoke only when the change set itself has moved on.
 - **Run `screenshot-relevance` after the `docs-relevance` patch is applied**, since both can touch the same page. A
-  capture it reports as pending takes the machine: ask the user right before running it, as the `screenshot` skill
-  says.
+  capture it reports as pending takes the machine: ask the user right before running it, as the `docs-screenshot`
+  skill says.

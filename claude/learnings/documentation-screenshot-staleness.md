@@ -3,7 +3,7 @@
 A screenshot in `docs/` is documentation that decays invisibly: the prose beside it stays
 true while the pixels stop being, and nothing renders differently when it happens. This is
 the measured basis for the `screenshot-relevance` skill — that skill and the
-`screenshot` skill it hands captures to own the procedure; this file records which signals were tested, which were rejected, and why
+`docs-screenshot` skill it hands captures to own the procedure; this file records which signals were tested, which were rejected, and why
 capture is not automated.
 
 Measured across five repos that carry `docs/screenshots/`: agterm, bga-assistant,

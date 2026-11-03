@@ -11,8 +11,8 @@ screenshot is now its own `screenshot` skill, so that it loads whenever a pictur
 only inside a `docs-relevance` run, and the machinery went with it:
 
 - `~/.claude/skills/docs-relevance/scripts/` is now `~/.claude/skills/screenshot/scripts/`, file names
-  unchanged.
-- `contact-sheet.html` and `screenshot-manifest.md` are now under `~/.claude/skills/screenshot/references/`.
+  unchanged, except `contact-sheet.py`, which is now `~/.claude/skills/docs-screenshot/scripts/contact-sheet.py`.
+- `contact-sheet.html` and `screenshot-manifest.md` are now under `~/.claude/skills/docs-screenshot/references/`.
 - `window_list.swift` is gone. DocShot's `--list` lists windows inside the bundle that holds the Screen
   Recording grant; `swift window_list.swift` depended on the calling terminal holding that grant, and a
   rebuilt ad-hoc-signed terminal can show the switch on while every window title comes back blank.
@@ -35,8 +35,9 @@ work edits committed capture code the other machine may also have changed.
    PowerShell `Join-Path $env:USERPROFILE '.claude\skills\docs-relevance\scripts\…'`, a shell
    `~/.claude/skills/docs-relevance/scripts/…` in a commit gate.
 2. **Repoint each path.** Change `skills/docs-relevance/scripts` to `skills/screenshot/scripts`, and
-   `skills/docs-relevance/references` to `skills/screenshot/references`, in whichever separator the file
-   uses. A prose mention of the skill as the owner of the shared tools — a comment, a manifest `steps`
+   `skills/docs-relevance/references` to `skills/docs-screenshot/references`, in whichever separator the file
+   uses. A path ending in `contact-sheet.py` changes to `skills/docs-screenshot/scripts/contact-sheet.py`
+   instead, since that one script moved with the references. A prose mention of the skill as the owner of the shared tools — a comment, a manifest `steps`
    note saying a frame was drawn by "the docs-relevance skill's `winframe.py`" — names the `screenshot`
    skill instead. A mention of `docs-relevance` as the screenshot staleness check, or as the skill a
    CLAUDE.md screenshot opt-out binds ("its step 4", "skips its screenshot step"), names

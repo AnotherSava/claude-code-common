@@ -8,7 +8,7 @@ metadata:
 Any time a reply reports on images or screenshots — what changed, what is stale, what was captured,
 cropped, keyed or bordered, or what a comparison shows — **build the HTML contact sheet and hand over
 its tailnet URL**, published with `~/.claude/skills/shared/tailnet_publish.py` so it opens on either
-machine. **Invoke the `screenshot` skill to build it**: its last step says how, for a repo with a
+machine. **Invoke the `docs-screenshot` skill to build it**: its last step says how, for a repo with a
 `screenshots.json` and for any other picture. This holds whether or not the work came from a
 `/screenshot-relevance` run; the trigger is *reporting about pictures*, not which skill is loaded.
 
