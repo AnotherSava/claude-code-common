@@ -15,7 +15,8 @@
 #
 # Stops whatever holds the port, runs DEV_PRESTART_CMD if one is configured, then relaunches DEV_CMD
 # detached so the server outlives this command and the Claude session. Logs go to
-# <DEV_DIR>/dev-server.log (errors: .err.log).
+# <DEV_DIR>/dev-server.log (errors: .err.log). Run from an agterm session, a successful start is also
+# reported to the tauri-dashboard (TAURI_DASHBOARD_URL), best-effort and silent.
 #
 # Both ports come from the ports registry, asked on every run and recorded there: the one the server binds
 # (`<repo>-dev-server`) and the one the tailnet URL is served on (`<repo>-dev-tailnet`). They cannot be the
@@ -160,6 +161,21 @@ for _ in $(seq 1 40); do
         # Repeated here because the pre-start output is dozens of lines back by now, and a server that came
         # up perfectly reads as a clean run. Restated where the eye already lands.
         [ "$PRESTART_RC" -ne 0 ] && echo "  !! pre-start step FAILED earlier (exit $PRESTART_RC) — this server is running on unsynced state"
+        # Tell the tauri-dashboard which terminal session this server was started from, so that session
+        # shows it running and can open it; the dashboard forgets it once the port stops answering. Only
+        # an agterm session has an address to give, and the dashboard may not be running, so this is
+        # best-effort and silent: a server that came up is the result, and its line is extra.
+        if [ -n "${AGTERM_SESSION_ID:-}" ]; then
+            "$PY" - "$SKILLS/shared" "$DEV_PORT" "$REPO_DIR" "$AGTERM_SESSION_ID" <<'EOF' >/dev/null 2>&1 || true
+import json, sys, urllib.request
+shared, port, repo_dir, session = sys.argv[1:5]
+sys.path.insert(0, shared)
+from peer_relay import dashboard_url
+body = json.dumps({"port": int(port), "dir": repo_dir, "session": session}).encode()
+req = urllib.request.Request(dashboard_url() + "/api/dev-server", data=body, headers={"Content-Type": "application/json"})
+urllib.request.urlopen(req, timeout=2).read()
+EOF
+        fi
         # 5. Last line, and only on success: the address is the point of the whole command, and a port number
         #    alone is not it — someone still has to assemble the URL before they can look at the thing.
         #    Printed by the script rather than left to whoever reports the run, so it cannot be omitted. It

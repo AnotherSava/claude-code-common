@@ -95,7 +95,9 @@ def main() -> int:
     with open(registry, "w", encoding="utf-8") as handle:
         json.dump({"claims": []}, handle)
 
-    env = dict(os.environ, CLAUDE_PORTS_REGISTRY=registry)
+    # A dead dashboard port: run from an agterm session, the script would otherwise register this scratch
+    # server under the user's real session in the live dashboard.
+    env = dict(os.environ, CLAUDE_PORTS_REGISTRY=registry, TAURI_DASHBOARD_URL="http://127.0.0.1:9")
     proc = subprocess.Popen([bash, SCRIPT], cwd=project, env=env, stdin=subprocess.DEVNULL,
                             stdout=subprocess.PIPE, stderr=subprocess.STDOUT)
     chunks = []

@@ -45,7 +45,7 @@ class PeerUnmeasured(Exception):
 
 
 def dashboard_url() -> str:
-    """The local dashboard's base URL. Public because `session_clean.py` posts to the same one."""
+    """The local dashboard's base URL. Public because other helpers post to the same dashboard (`session_clean.py`, `deploy-dev-server.sh`)."""
     return os.environ.get("TAURI_DASHBOARD_URL", DEFAULT_DASHBOARD).rstrip("/")
 
 
