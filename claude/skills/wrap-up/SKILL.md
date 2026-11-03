@@ -295,7 +295,8 @@ Anything you do not name keeps its recommendation.
 ```
 
 The skill-outputs skill finds a summary by how this prompt opens, so rewording that opening means adding the new
-wording to `WRAP_UP_PROMPTS` in `claude/skills/skill-outputs/scripts/collect.py`.
+wording to `WRAP_UP_PROMPTS` in `claude/skills/skill-outputs/scripts/collect.py`. The all-empty summary is found by its
+`Nothing to commit.` opening instead, so rewording that line means changing `WRAP_UP_EMPTY_OPENING` there.
 
 Then stop and wait. This is the skill's only gate: nothing is applied, saved, committed or pushed before the answer.
 The all-empty summary is the one exception, and its paragraph in step 7 says what runs without the gate.

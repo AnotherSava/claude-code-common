@@ -26,8 +26,8 @@ from transcripts import PROJECTS, parse_iso, project_dir_name, records, text_of,
 
 WRAP_UP_COMMAND = "<command-name>/wrap-up</command-name>"
 # How the closing prompt of /wrap-up's step 7 opens, in every wording it has had: `go` from commit 063e8e2 on,
-# `recommended` before it. It is the one part every summary carries, since each section above it is left out when
-# it has nothing in it. A new wording in claude/skills/wrap-up/SKILL.md is added here, and the old ones kept, so
+# `recommended` before it. It is the one part every summary with something to approve carries, since each section
+# above it is left out when it has nothing in it. A new wording in claude/skills/wrap-up/SKILL.md is added here, and the old ones kept, so
 # summaries written before the change are still found.
 WRAP_UP_PROMPTS = ("Reply `go`", "Reply `recommended`")
 # How the one line of an all-empty run opens (step 7 of the same SKILL.md). That run prints no prompt, so it has
