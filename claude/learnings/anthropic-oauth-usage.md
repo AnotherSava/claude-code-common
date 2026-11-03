@@ -41,15 +41,20 @@ Undocumented beta endpoint that returns rolling 5-hour and 7-day rate-limit util
 
 ### macOS keeps this in the Keychain, not in a file
 
-`~/.claude/.credentials.json` is the Linux location. On macOS there is no such file — the same JSON lives in
+`~/.claude/.credentials.json` is where Linux and Windows keep it. On macOS there is no such file — the same JSON lives in
 the login Keychain under service **`Claude Code-credentials`**:
 
 ```sh
-security find-generic-password -s "Claude Code-credentials" -w
+security find-generic-password -s "Claude Code-credentials" -a "$USER" -w
 ```
 
 Verified against CLI 2.1.238, August 2026. Anything that reads the file path directly silently finds nothing
-on a Mac.
+on a Mac. The schema is the same as the file's, and so is the single-use refresh-token race with Claude Code (see "Refreshing the OAuth token directly").
+
+Before writing the entry back, from any language, read "Reading the Keychain from an unsigned Tauri app" in
+[tauri-macos-native.md](tauri-macos-native.md): it says how to write this entry without exposing the refresh
+token. The same section covers the SecurityAgent prompt and the partition list for native code
+that reads it.
 
 ### Two different credentials wear the same prefix
 
@@ -154,23 +159,6 @@ Authenticate **in place** rather than transporting a token:
   around the first `401` lands on `"status":401,` instead of the explanation.
 
 Per-call speed, model choice and the prompt-size cliff are in `~/.claude/learnings/claude-cli-headless-inference.md`.
-
-## Credentials on macOS (Keychain, not a file)
-
-On macOS Claude Code stores OAuth credentials in the **system Keychain** — no `~/.claude/.credentials.json` is created. The Keychain entry holds the same `{"claudeAiOauth": {...}}` JSON blob as the file would on other OSes.
-
-Access from the CLI:
-
-    security find-generic-password -s "Claude Code-credentials" -a "$USER" -w
-
-Write back (atomic via API):
-
-    security add-generic-password -s "Claude Code-credentials" \
-        -a "$USER" -w '<json blob>' -U
-
-A read from an unsigned/non-Apple binary triggers a SecurityAgent permission prompt; reads via `/usr/bin/security` itself do not, because Apple's signed binary is on the entry's partition list by default. Tools reading these credentials from native code should either shell out to `security` or arrange to be on the partition list via a signed Developer ID identity.
-
-Schema is the same as the file version (accessToken / refreshToken / expiresAt). The single-use-refresh-token race with Claude Code still applies.
 
 ## Refreshing the OAuth token directly
 
