@@ -56,6 +56,7 @@ claude/skills/publish-chrome-extension/config/
 !claude/skills/screenshot-relevance/
 !claude/skills/shared/
 !claude/skills/skill/
+!claude/skills/skill-outputs/
 !claude/skills/transcrypt/
 !claude/skills/tune-output/
 !claude/skills/wrap-up/
