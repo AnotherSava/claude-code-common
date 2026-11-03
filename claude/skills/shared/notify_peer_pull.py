@@ -4,8 +4,8 @@
 These repos are worked from two machines, and a clone left behind the remote is how work gets
 rebuilt that already exists upstream, or a later commit there fails to push. So once a push has
 moved the remote, the same project's session on the peer is asked to run `/pull`; a push git
-reports as up to date sends nothing. Delivery, addressing and
-receipts are `peer_relay.py`'s; this script only composes the request.
+reports as up to date sends nothing. Delivery, addressing and receipts are `peer_relay.py`'s; this
+script only composes the request.
 
 Every skill that pushes calls this, which is why it lives here rather than under one of them: a
 release or a PR merge leaves the peer exactly as far behind as a commit does. The skill names itself
