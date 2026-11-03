@@ -30,11 +30,14 @@ WRAP_UP_COMMAND = "<command-name>/wrap-up</command-name>"
 # it has nothing in it. A new wording in claude/skills/wrap-up/SKILL.md is added here, and the old ones kept, so
 # summaries written before the change are still found.
 WRAP_UP_PROMPTS = ("Reply `go`", "Reply `recommended`")
+# How the one line of an all-empty run opens (step 7 of the same SKILL.md). That run prints no prompt, so it has
+# no WRAP_UP_PROMPTS marker; it is kept as the record of the run, and the line is matched by its opening alone.
+WRAP_UP_EMPTY_OPENING = "Nothing to commit."
 DEFAULT_OUT = os.path.join(HERE, "..", "..", "..", "..", "tmp", "skill-outputs-wrap-up.html")
 
 
 def _is_wrap_up_summary(text: str) -> bool:
-    return any(prompt in text for prompt in WRAP_UP_PROMPTS)
+    return any(prompt in text for prompt in WRAP_UP_PROMPTS) or text.lstrip().startswith(WRAP_UP_EMPTY_OPENING)
 
 
 def _project_name(transcript: str) -> str:

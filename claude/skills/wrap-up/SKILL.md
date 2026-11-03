@@ -4,8 +4,8 @@ description: >-
   Close out a section of work with one approval. Runs review-auto over everything since the
   last recorded review, reviews the session's transcript for unanswered questions, passed-over
   concerns, memo-worthy ideas and unkept promises, drafts what /reflect would save, groups the
-  commits, then stops once on a single summary; one answer applies the dispositions, saves,
-  commits and pushes. Then offers deploy, publish and release, and hands over to /clear.
+  commits, then stops once on a single summary, or prints one line and goes on when there is
+  nothing to approve; one answer applies the dispositions, saves, commits and pushes. Then offers deploy, publish and release, and hands over to /clear.
   TRIGGER when: the user runs /wrap-up, or says they are ready to finalize, close out,
   or wrap up the current section of work.
   DO NOT TRIGGER when: the user wants to push work as-is to test it (use /yolo), to park a
@@ -206,15 +206,19 @@ count. The Review table numbers its rows plainly and Commits numbers nothing, si
   tree, or unmoved when no commit does), and how many planned commits fall past it for the next review.
 
 Leave out a heading with nothing under it, the heading included: no "Nothing.", "None." or sentence explaining
-why it is empty. A review skipped because nothing changed since the bookmark leaves Review out too. When every
-heading is left out, Commits included — a clean tree with nothing unpushed and no open item, the bookmark line alone
-not counting as content, nor a Review table whose rows are all fixed, refuted or dropped, since no override acts on
-one — the gate has nothing to approve: print no prompt, say in one line that there is nothing to
-commit, naming the review bookmark when this run moves it, and run step 8 without waiting. With no dispositions, saves or commits it comes down to
-`review_scope.py advance` and the push step, and both still matter here: a review recorded over commits `/yolo`
-already pushed moves the bookmark only through them, and the push step's "After the push" handoff is what routes
-files this session wrote in other repos. Steps 9 and 10 follow as after any push. A `go` prompt over an empty plan
-asks the user to approve nothing, and reads as if something were pending.
+why it is empty. A review skipped because nothing changed since the bookmark leaves Review out too.
+
+The all-empty summary is the case where Commits is left out too — a clean tree with nothing unpushed and no open item,
+the bookmark line alone not counting as content. A Review table whose rows are all fixed, refuted or dropped does not
+make it a summary with something to approve: none of those rows takes a disposition, so the gate has nothing to
+decide. The table is still printed, since its ratings are the only place a rare or theoretical finding reaches the
+user. The all-empty summary prints no prompt. Its first line is one line that opens `Nothing to commit.`, naming the
+review bookmark when this run moves it; the Review table, when there is one, goes below that line. Then run step 8
+without waiting. With no dispositions, saves or commits it comes down to `review_scope.py advance` and the push step,
+and both still matter here: a review recorded over commits `/yolo` already pushed moves the bookmark only through
+them, and the push step's "After the push" handoff is what routes files this session wrote in other repos. Steps 9
+and 10 follow as after any push. A `go` prompt over an empty plan asks the user to approve nothing, and reads as if
+something were pending. A summary with a row still to decide always carries the `go` prompt; this one never does.
 
 For each open item give a short bold title, the quoted words
 with their `[N] HH:MM` reference from the digest, one line on why it is still open, and a
@@ -294,13 +298,12 @@ The skill-outputs skill finds a summary by how this prompt opens, so rewording t
 wording to `WRAP_UP_PROMPTS` in `claude/skills/skill-outputs/scripts/collect.py`.
 
 Then stop and wait. This is the skill's only gate: nothing is applied, saved, committed or pushed before the answer.
-The all-empty summary prints no prompt and so has no gate; what step 8 does without one there is move and push the
-review bookmark and run the push step's "After the push" handoff, which can ask another repo's session to commit
-files this session wrote there.
+The all-empty summary is the one exception, and its paragraph in step 7 says what runs without the gate.
 
 ### 8. Apply, commit and push
 
-Apply in this order. The gate's answer covers everything below; the only questions left are the ones a step
+Apply in this order. After a prompt, the gate's answer covers everything below; on the all-empty path, step 7's
+all-empty summary paragraph says which parts apply. The only questions left are the ones a step
 names itself, each because it opens a window, drives a capture, settles a ping that did not go out, or covers
 what the gate could not see.
 
@@ -339,7 +342,7 @@ what the gate could not see.
 where a global memory changed.
 
 **Decisions.** Apply the rest: apply the clean-up proposals approved, run an approved pending capture (asking right
-before it, as the `screenshot` skill says), un-ignore or record untracked skills, archive the finished plans approved,
+before it, as the `docs-screenshot` skill says), un-ignore or record untracked skills, archive the finished plans approved,
 close the memos the change set delivers (one `memos.py done` call, per `commit-grouping.md`).
 
 **Commits.** Re-run `review_scope.py layout` if anything above changed the tree, regroup only what changed, and
@@ -468,8 +471,8 @@ on it.
 
 ## Important
 
-- The gate in step 7 is the skill, and it is the only approval of the work; a run whose summary
-  is all empty has no work to approve and prints no gate. Committing before
+- The gate in step 7 is the skill, and it is the only approval of the work, except on the
+  all-empty summary step 7 defines. Committing before
   the user has answered defeats the reason for looking at all; after it, ask only the questions
   step 8 names, never to re-approve what the gate already settled.
 - Present a finding only after checking it is still live. An item the user has to dismiss
