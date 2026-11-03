@@ -2,9 +2,9 @@
 """Cases for `claude/skills/shared/push.py`, the push every skill pushing the default branch makes.
 
 Its costly failures are a push that goes out over a failing gate, and a report that leaves out what follows a push:
-the bookmark's state, or a CI line where CI exists. Each case runs against a real clone of a bare origin, sealed
-from this machine's git config, with a stub gate and the dashboard pointed at a port nothing listens on, so no peer
-is ever messaged.
+the bookmark's state, or a CI line where CI exists. The pushed-to URL cases call the parser directly on a sample of
+git's porcelain output. Every other case runs against a real clone of a bare origin, sealed from this machine's git
+config, with a stub gate and the dashboard pointed at a port nothing listens on, so no peer is ever messaged.
 """
 
 from __future__ import annotations
