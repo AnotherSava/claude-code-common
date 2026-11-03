@@ -24,13 +24,12 @@ and the handoff would have dropped the one file whose absence fails that repo's 
 from __future__ import annotations
 
 import glob
-import json
 import os
-import re
 import subprocess
 import sys
 
 from peer_relay import PeerUnmeasured, local_session
+from transcripts import PROJECTS, content_blocks, project_dir_name, records
 
 WRITE_TOOLS = ("Edit", "Write", "NotebookEdit", "MultiEdit")
 PATH_KEYS = ("file_path", "notebook_path")
@@ -43,14 +42,12 @@ SHOW_UNDECIDED = 10
 
 def _resolve_transcript() -> tuple[str | None, str]:
     """Locate this session's transcript, reporting how it was found."""
-    projects = os.path.join(os.path.expanduser("~"), ".claude", "projects")
     session_id = os.environ.get("CLAUDE_CODE_SESSION_ID")
     if session_id:
-        matches = glob.glob(os.path.join(projects, "*", f"{session_id}.jsonl"))
+        matches = glob.glob(os.path.join(PROJECTS, "*", f"{session_id}.jsonl"))
         if matches:
             return max(matches, key=os.path.getmtime), "session-id"
-    mangled = re.sub(r"[^a-zA-Z0-9]", "-", os.getcwd())
-    candidates = glob.glob(os.path.join(projects, mangled, "*.jsonl"))
+    candidates = glob.glob(os.path.join(PROJECTS, project_dir_name(os.getcwd()), "*.jsonl"))
     if not candidates:
         return None, "UNRESOLVED"
     return max(candidates, key=os.path.getmtime), "newest-in-cwd-dir"
@@ -59,30 +56,19 @@ def _resolve_transcript() -> tuple[str | None, str]:
 def _written_paths(transcript: str) -> list[str]:
     """Every file path this session passed to a file-writing tool, in first-seen order."""
     seen: dict[str, None] = {}
-    with open(transcript, encoding="utf-8", errors="replace") as handle:
-        for line in handle:
-            line = line.strip()
-            if not line:
+    for record in records(transcript):
+        if record is None:
+            continue
+        for block in content_blocks(record):
+            if block.get("type") != "tool_use" or block.get("name") not in WRITE_TOOLS:
                 continue
-            try:
-                record = json.loads(line)
-            except json.JSONDecodeError:
+            tool_input = block.get("input")
+            if not isinstance(tool_input, dict):
                 continue
-            content = (record.get("message") or {}).get("content")
-            if not isinstance(content, list):
-                continue
-            for block in content:
-                if not isinstance(block, dict) or block.get("type") != "tool_use":
-                    continue
-                if block.get("name") not in WRITE_TOOLS:
-                    continue
-                tool_input = block.get("input")
-                if not isinstance(tool_input, dict):
-                    continue
-                for key in PATH_KEYS:
-                    value = tool_input.get(key)
-                    if isinstance(value, str) and value.strip():
-                        seen.setdefault(os.path.realpath(value), None)
+            for key in PATH_KEYS:
+                value = tool_input.get(key)
+                if isinstance(value, str) and value.strip():
+                    seen.setdefault(os.path.realpath(value), None)
     return list(seen)
 
 

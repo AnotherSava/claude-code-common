@@ -13,18 +13,20 @@ nested sub-skill, and optionally the turn-by-turn timeline.
 from __future__ import annotations
 
 import argparse
-import datetime
 import glob
 import json
 import os
 import sys
 
-PROJECTS = os.path.expanduser("~/.claude/projects")
+# realpath, because ~/.claude/scripts is a symlink into the dotfiles repo and the path below climbs out of it.
+sys.path.insert(0, os.path.join(os.path.dirname(os.path.realpath(__file__)), "..", "skills", "shared"))
+
+from transcripts import PROJECTS, project_dir_name, records, timestamp  # noqa: E402 — needs the sys.path line above
 
 
 def slug_for(path: str) -> str:
-    """Claude Code's project directory name: the absolute path with separators as dashes."""
-    return os.path.abspath(path).replace("/", "-").replace(".", "-")
+    """Claude Code's project directory name for a path."""
+    return project_dir_name(os.path.abspath(path))
 
 
 def resolve_project(name: str | None) -> str:
@@ -45,22 +47,8 @@ def resolve_project(name: str | None) -> str:
     return matches[0]
 
 
-def stamp(row: dict) -> datetime.datetime | None:
-    raw = row.get("timestamp")
-    return datetime.datetime.fromisoformat(raw.replace("Z", "+00:00")) if raw else None
-
-
 def load(path: str) -> list[dict]:
-    rows = []
-    with open(path) as handle:
-        for line in handle:
-            line = line.strip()
-            if line:
-                try:
-                    rows.append(json.loads(line))
-                except json.JSONDecodeError:
-                    pass
-    return rows
+    return [row for row in records(path) if row is not None]
 
 
 def find_invocation(rows: list[dict], skill: str) -> int | None:
@@ -114,7 +102,7 @@ def find_end(rows: list[dict], start: int) -> int:
 
 
 def profile(rows: list[dict], start: int, end: int, timeline: bool) -> None:
-    begin = stamp(rows[start])
+    begin = timestamp(rows[start])
     previous = begin
     model_seconds = tool_seconds = 0.0
     turns = 0
@@ -125,7 +113,7 @@ def profile(rows: list[dict], start: int, end: int, timeline: bool) -> None:
     cache_read = cache_write = output = 0
 
     for i in range(start + 1, end):
-        now = stamp(rows[i])
+        now = timestamp(rows[i])
         if now is None:
             continue
         delta = (now - previous).total_seconds()
@@ -197,7 +185,7 @@ def main() -> None:
         if start is not None:
             end = find_end(rows, start)
             bound = "end of transcript" if end == len(rows) else "the next typed instruction"
-            print(f"{os.path.basename(path)}  /{args.skill} at {stamp(rows[start])}, measured to {bound}")
+            print(f"{os.path.basename(path)}  /{args.skill} at {timestamp(rows[start])}, measured to {bound}")
             profile(rows, start, end, args.timeline)
             return
 

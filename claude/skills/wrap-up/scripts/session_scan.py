@@ -18,13 +18,16 @@ from __future__ import annotations
 
 import argparse
 import glob
-import json
 import os
 import re
 import sys
 import traceback
 from datetime import datetime
 from typing import Any
+
+sys.path.insert(0, os.path.join(os.path.dirname(os.path.abspath(__file__)), "..", "..", "shared"))
+
+from transcripts import PROJECTS, content_blocks, project_dir_name, records, timestamp  # noqa: E402 — needs the sys.path line above
 
 SYSTEM_REMINDER_RE = re.compile(r"<system-reminder>.*?</system-reminder>", re.DOTALL)
 COMMAND_NAME_RE = re.compile(r"<command-name>([^<]*)</command-name>")
@@ -64,25 +67,10 @@ def _elide_middle(text: str, limit: int) -> tuple[str, bool]:
     return f"{text[:head]}\n[... {removed} characters elided ...]\n{text[-tail:]}", True
 
 
-def _local_time(stamp: str) -> datetime | None:
-    """Parse a transcript's UTC ISO timestamp into local time."""
-    if not stamp:
-        return None
-    try:
-        parsed = datetime.fromisoformat(stamp.replace("Z", "+00:00"))
-    except ValueError:
-        return None
-    return parsed.astimezone() if parsed.tzinfo else parsed
-
-
-def _blocks_of(record: dict[str, Any]) -> list[dict[str, Any]]:
-    """Normalize a record's message content into a list of content blocks."""
-    content = (record.get("message") or {}).get("content")
-    if isinstance(content, str):
-        return [{"type": "text", "text": content}]
-    if isinstance(content, list):
-        return [b for b in content if isinstance(b, dict)]
-    return []
+def _local_time(record: dict[str, Any]) -> datetime | None:
+    """A record's UTC timestamp in local time."""
+    parsed = timestamp(record)
+    return parsed.astimezone() if parsed and parsed.tzinfo else parsed
 
 
 def _summarize_tool(name: str, tool_input: dict[str, Any]) -> str:
@@ -97,9 +85,8 @@ def _summarize_tool(name: str, tool_input: dict[str, Any]) -> str:
 def _resolve_transcript(session_id: str | None) -> tuple[str | None, str, list[str]]:
     """Locate the transcript file, reporting how it was found and what was assumed."""
     notes: list[str] = []
-    projects = os.path.join(os.path.expanduser("~"), ".claude", "projects")
     if session_id:
-        matches = glob.glob(os.path.join(projects, "*", f"{session_id}.jsonl"))
+        matches = glob.glob(os.path.join(PROJECTS, "*", f"{session_id}.jsonl"))
         if len(matches) == 1:
             return matches[0], "session-id", notes
         if len(matches) > 1:
@@ -108,8 +95,8 @@ def _resolve_transcript(session_id: str | None) -> tuple[str | None, str, list[s
         notes.append(f"no transcript named {session_id}.jsonl under ~/.claude/projects")
     else:
         notes.append("CLAUDE_CODE_SESSION_ID was not set in the environment")
-    mangled = re.sub(r"[^a-zA-Z0-9]", "-", os.getcwd())
-    candidates = glob.glob(os.path.join(projects, mangled, "*.jsonl"))
+    mangled = project_dir_name(os.getcwd())
+    candidates = glob.glob(os.path.join(PROJECTS, mangled, "*.jsonl"))
     if not candidates:
         notes.append(f"no transcripts under the directory for this cwd ({mangled})")
         return None, "UNRESOLVED", notes
@@ -132,57 +119,51 @@ def _read_items(path: str) -> tuple[list[dict[str, Any]], dict[str, Any]]:
     items: list[dict[str, Any]] = []
     decision_ids: set[str] = set()
     stats = {"records": 0, "unparsed": 0, "sidechain": 0}
-    with open(path, encoding="utf-8", errors="replace") as handle:
-        for line in handle:
-            line = line.strip()
-            if not line:
+    for record in records(path):
+        if record is None:
+            stats["unparsed"] += 1
+            continue
+        stats["records"] += 1
+        stamp = _local_time(record)
+        if record.get("isSidechain"):
+            stats["sidechain"] += 1
+            continue
+        kind = record.get("type")
+        if kind not in ("user", "assistant"):
+            continue
+        for block in content_blocks(record):
+            block_type = block.get("type")
+            if kind == "assistant":
+                if block_type == "text":
+                    text = (block.get("text") or "").strip()
+                    if text:
+                        items.append({"kind": "assistant", "ts": stamp, "text": text})
+                elif block_type == "tool_use":
+                    name = block.get("name") or "?"
+                    if name in DECISION_TOOLS:
+                        decision_ids.add(block.get("id") or "")
+                        continue  # rendered from its result, which holds both the question and the answer
+                    items.append({"kind": "tool", "ts": stamp, "text": _summarize_tool(name, block.get("input") or {})})
                 continue
-            try:
-                record = json.loads(line)
-            except ValueError:
-                stats["unparsed"] += 1
+            if block_type == "tool_result":
+                if block.get("tool_use_id") in decision_ids:
+                    answer = _result_text(block).strip()
+                    if answer:
+                        items.append({"kind": "decision", "ts": stamp, "text": answer})
+                continue  # every other tool_result is tool output, not the user talking
+            if block_type != "text":
                 continue
-            stats["records"] += 1
-            stamp = _local_time(record.get("timestamp") or "")
-            if record.get("isSidechain"):
-                stats["sidechain"] += 1
+            raw = block.get("text") or ""
+            named = COMMAND_NAME_RE.search(raw)
+            if named:
+                args = COMMAND_ARGS_RE.search(raw)
+                items.append({"kind": "command", "ts": stamp, "text": named.group(1).strip().lstrip("/"), "args": _collapse(args.group(1), 120) if args else ""})
                 continue
-            kind = record.get("type")
-            if kind not in ("user", "assistant"):
-                continue
-            for block in _blocks_of(record):
-                block_type = block.get("type")
-                if kind == "assistant":
-                    if block_type == "text":
-                        text = (block.get("text") or "").strip()
-                        if text:
-                            items.append({"kind": "assistant", "ts": stamp, "text": text})
-                    elif block_type == "tool_use":
-                        name = block.get("name") or "?"
-                        if name in DECISION_TOOLS:
-                            decision_ids.add(block.get("id") or "")
-                            continue  # rendered from its result, which holds both the question and the answer
-                        items.append({"kind": "tool", "ts": stamp, "text": _summarize_tool(name, block.get("input") or {})})
-                    continue
-                if block_type == "tool_result":
-                    if block.get("tool_use_id") in decision_ids:
-                        answer = _result_text(block).strip()
-                        if answer:
-                            items.append({"kind": "decision", "ts": stamp, "text": answer})
-                    continue  # every other tool_result is tool output, not the user talking
-                if block_type != "text":
-                    continue
-                raw = block.get("text") or ""
-                named = COMMAND_NAME_RE.search(raw)
-                if named:
-                    args = COMMAND_ARGS_RE.search(raw)
-                    items.append({"kind": "command", "ts": stamp, "text": named.group(1).strip().lstrip("/"), "args": _collapse(args.group(1), 120) if args else ""})
-                    continue
-                if any(marker in raw for marker in INJECTED_MARKERS) or record.get("isMeta"):
-                    continue  # command output, or skill and system text injected as if from the user
-                text = SYSTEM_REMINDER_RE.sub("", raw).strip()
-                if text:
-                    items.append({"kind": "user", "ts": stamp, "text": text})
+            if any(marker in raw for marker in INJECTED_MARKERS) or record.get("isMeta"):
+                continue  # command output, or skill and system text injected as if from the user
+            text = SYSTEM_REMINDER_RE.sub("", raw).strip()
+            if text:
+                items.append({"kind": "user", "ts": stamp, "text": text})
     return items, stats
 
 
