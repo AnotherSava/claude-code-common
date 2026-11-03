@@ -56,13 +56,22 @@ def _spec_markdown(spec: dict) -> str:
     spec, and the summary is what this page compares. The format is the one `_render` in claude/scripts/review_picker.py
     renders, so a block kind or column field added there is added here too; until it is, the block shows as raw JSON.
     """
-    parts = []
+    state = spec.get("status")
+    parts = [f"{state.get('label', '')} **{state.get('text', '')}**  \n{state.get('detail', '')}".strip()] if isinstance(state, dict) else []
     for block in spec.get("blocks") or []:
         lines = [f"## {block['heading']}"] if block.get("heading") else []
         if block.get("kind") == "table":
             columns = block.get("columns") or [""] * len((block.get("rows") or [[]])[0])
             lines += ["| " + " | ".join(map(_cell, columns)) + " |", "|" + "---|" * len(columns)]
             lines += ["| " + " | ".join(map(_cell, row)) + " |" for row in block.get("rows") or []]
+        elif block.get("kind") == "triage":
+            keys = ["id", "disposition", "outcome", "finding", "lens", "frequency", "cost"]
+            lines += ["| " + " | ".join(keys) + " |", "|" + "---|" * len(keys)]
+            lines += ["| " + " | ".join(_cell("" if row.get(k) is None else row[k]) for k in keys) + " |" for row in block.get("rows") or []]
+        elif block.get("kind") == "list":
+            lines += [f"- ── {item['rule']} ──" if "rule" in item else f"- `{item.get('text', '')}`" + (f" {item['note']}" if item.get("note") else "") for item in block.get("items") or []]
+        elif block.get("kind") == "prose":
+            lines += [block.get("text", "")]
         elif block.get("kind") == "text":
             lines += ["```", block.get("text", ""), "```"]
         elif block.get("kind") == "choices":

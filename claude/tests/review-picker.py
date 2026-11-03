@@ -52,12 +52,17 @@ def main() -> int:
     with tempfile.TemporaryDirectory() as scratch:
         rows = os.path.join(scratch, "review-findings.json")
         with open(rows, "w", encoding="utf-8") as handle:
-            json.dump({"title": "Review", "flags": [{"id": "push", "label": "Push", "value": True}], "blocks": [
+            json.dump({"title": "Review", "status": {"text": "moves <past>", "ok": False, "detail": "2 wait"}, "flags": [{"id": "push", "label": "Push", "value": True}], "blocks": [
                 {"kind": "table", "heading": "Triage", "columns": ["#", "Verdict"], "rows": [["1", "<b>fixed</b>"]]},
+                {"kind": "triage", "heading": "Review", "rows": [
+                    {"id": "r2-1", "finding": "rows dropped", "lens": "correctness", "file": "a/b.py", "frequency": "plausible", "cost": "recoverable", "disposition": "fix", "outcome": "applied"},
+                    {"id": "polish-edit-5", "finding": "reworded", "lens": "docs-relevance", "file": "c.md", "disposition": "polish", "outcome": None, "why": None}]},
                 {"kind": "choices", "heading": "Findings", "note_choice": "fix", "columns": [{"key": "finding", "label": "Finding"}], "rows": [
                     {"id": "r1-1", "finding": "<script>alert(1)</script>", "choices": ["fix", "leave"], "choice": "fix"},
                     {"id": "r1-2", "finding": "plain", "choices": ["fix", "leave"], "choice": "leave", "dim": True}]},
-                {"kind": "text", "heading": "Commits", "text": "feat: <x>\n\nbody"}]}, handle)
+                {"kind": "text", "heading": "Commits", "text": "feat: <x>\n\nbody"},
+                {"kind": "list", "heading": "Plan", "items": [{"text": "feat(a): <one>", "note": "whole file"}, {"rule": "review <bookmark>"}, {"text": "fix(b): two"}]},
+                {"kind": "prose", "text": "Push to <origin>.\n\nBookmark moves."}]}, handle)
         bin_dir = os.path.join(scratch, "bin")
         os.mkdir(bin_dir)
         base = {key: value for key, value in os.environ.items() if key != "AGTERM_SESSION_ID"}
@@ -68,8 +73,15 @@ def main() -> int:
         page = open(done.stdout.strip(), encoding="utf-8").read()
         check("a finding's markup is escaped", ("<script>alert(1)" in page, "&lt;script&gt;alert(1)" in page), (False, True))
         check("read-only blocks are escaped too", ("<b>fixed</b>" in page, "feat: &lt;x&gt;" in page), (False, True))
+        check("a rule item is a green labelled entry, escaped", '<li class="rule"><span>review &lt;bookmark&gt;</span></li>' in page, True)
+        check("the status sits in the title row, red when not ok, escaped", ('<span class="bad">moves &lt;past&gt;</span><div>2 wait</div></div></header>' in page), True)
+        check("a list block shows each item in monospace, a note only where given", (page.count("<li><code>"), "<code>feat(a): &lt;one&gt;</code>" in page, page.count('<span class="note">')), (2, True, 1))
+        check("a prose block is escaped paragraphs, outside the preformatted block", (page.count('<p class="prose">'), "Push to &lt;origin&gt;." in page), (2, True))
         check("each row preselects its recommendation and nothing else", (page.count('value="fix" checked>'), page.count('value="leave" checked>'), page.count(" checked>")), (1, 1, 3))
         check("only the dim row is greyed", page.count('class="item dim"'), 1)
+        check("rows are numbered by position, with the full id and file on hover", (">2</b>" in page, 'title="polish-edit-5 · c.md"' in page), (True, True))
+        check("only an applied outcome turns the disposition green", page.count('class="disp applied"'), 1)
+        check("an absent or null triage field prints nothing", ("None" in page, "<span class=\"meta\"></span>" not in page.split("polish-edit-5")[-1]), (False, False))
         check("a note selects the block's note_choice", page.count('data-note-choice="fix"'), 2)
 
         check("outside agterm the page copies its answer instead of submitting", ("Copy answer" in page, "overlay.submit" in page, "overlay.close" in page), (True, False, False))

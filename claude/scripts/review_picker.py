@@ -21,14 +21,25 @@ Input is a JSON file:
         "columns": [{"key": "finding", "label": "Finding"}, ...],
         "note_choice": "fix",
         "rows": [{"id": "r1-8", "finding": "...", "choices": ["fix", "leave"], "choice": "fix", "dim": false}, ...]},
-       {"kind": "table", "heading": "Review", "columns": ["#", "Finding", ...], "rows": [["1", "..."], ...]},
-       {"kind": "text", "heading": "Commits", "text": "..."}],
+       {"kind": "triage", "heading": "Review", "rows": [<review-auto's triage objects, as the workflow returns them>]},
+       {"kind": "table", "heading": "...", "columns": ["#", "Finding", ...], "rows": [["1", "..."], ...]},
+       {"kind": "list", "heading": "Commits", "items": [{"text": "feat(x): ...", "note": "..."}, ...]},
+       {"kind": "text", "text": "..."},
+       {"kind": "prose", "text": "..."}],
+     "status": {"label": "Review bookmark:", "text": "moves past everything reviewed", "ok": true, "detail": "3 follow-up ..."},
      "flags": [{"id": "push", "label": "Push after committing", "value": true}]}
+    `status` is optional: one line at the right of the title row, an optional `label`, then `text` in green when `ok`
+    is true and red when it is false, then an optional `detail` on a line of its own.
+    A `list` block shows each item's `text` in monospace and its optional `note` after it in body text; an item that is
+    `{"rule": "<label>"}` instead is a green entry, dot and label, marking a place between its neighbours. A `text` block
+    is preformatted; a `prose` block is a plain paragraph, its blank lines splitting it into paragraphs.
     `heading`, `columns`, `note_choice`, `dim` and `flags` are optional. `choice` is the recommendation and must be one
     of the row's `choices`; `note_choice`, when set, is selected on a row as soon as a note is written on it; `dim`
     draws the row in lighter grey; ids are unique across the page. A `choices` block's columns are `{"key", "label"}`
     objects, each `key` naming a row field and `label` defaulting to it; a `table` block's columns are plain strings
-    and its rows are lists of cells, one per column.
+    and its rows are lists of cells, one per column. A `triage` block reads each object's `id`, `finding`,
+    `disposition`, `outcome`, `lens`, `frequency`, `cost` and `file`, any of them absent or null; it numbers the
+    rows from 1, puts each id and file in the hover, and shows a disposition whose outcome is `applied` in green.
 
 Prints one JSON line and exits:
     0  {"outcome": "submitted", "choices": {"r1-8": "fix", ...}, "notes": {"r1-8": "..."}, "flags": {"push": true}}
@@ -61,6 +72,9 @@ def _validate(spec: dict) -> None:
     blocks = spec.get("blocks")
     if not isinstance(blocks, list) or not blocks:
         raise ValueError("blocks must be a non-empty list")
+    status = spec.get("status")
+    if status is not None and not (isinstance(status, dict) and isinstance(status.get("text"), str) and isinstance(status.get("ok"), bool)):
+        raise ValueError("status must be an object with a text and a boolean ok")
     seen: set[str] = set()
     for index, block in enumerate(blocks):
         kind = block.get("kind") if isinstance(block, dict) else None
@@ -72,9 +86,15 @@ def _validate(spec: dict) -> None:
                 raise ValueError(f"block {index}: a table's rows are lists of cells, one per column")
             if columns is not None and not (isinstance(columns, list) and all(isinstance(column, str) for column in columns)):
                 raise ValueError(f"block {index}: a table's columns are a list of strings")
-        elif kind == "text":
+        elif kind == "triage":
+            if not isinstance(block.get("rows"), list) or not all(isinstance(row, dict) and "id" in row for row in block["rows"]):
+                raise ValueError(f"block {index}: a triage block's rows are review-auto's triage objects, each with an id")
+        elif kind == "list":
+            if not isinstance(block.get("items"), list) or not all(isinstance(item, dict) and (isinstance(item.get("text"), str) or isinstance(item.get("rule"), str)) for item in block["items"]):
+                raise ValueError(f"block {index}: a list's items are objects with a text or a rule")
+        elif kind in ("text", "prose"):
             if not isinstance(block.get("text"), str):
-                raise ValueError(f"block {index}: a text block needs text")
+                raise ValueError(f"block {index}: a {kind} block needs text")
         elif kind == "choices":
             rows = block.get("rows")
             if not isinstance(rows, list) or not rows:
@@ -95,7 +115,7 @@ def _validate(spec: dict) -> None:
             if note_choice is not None and not all(note_choice in row["choices"] for row in rows):
                 raise ValueError(f"block {index}: note_choice {note_choice!r} is not a choice on every row")
         else:
-            raise ValueError(f"block {index}: kind must be choices, table or text, not {kind!r}")
+            raise ValueError(f"block {index}: kind must be choices, triage, table, list, text or prose, not {kind!r}")
 
 
 # The spec format has a second reader: `_spec_markdown` in skills/skill-outputs/scripts/collect.py renders the same
@@ -124,6 +144,27 @@ def _choices_block(block: dict) -> str:
     return f'<table><thead><tr><th>#</th>{head}<th></th><th></th></tr></thead><tbody>\n' + "\n".join(rows) + "\n</tbody></table>"
 
 
+def _triage_block(block: dict) -> str:
+    # Rows show their position, which /wrap-up reads back as the n-th triage row (claude/skills/wrap-up/SKILL.md,
+    # "The page"); review-auto's own id, such as `r1-6` or `polish-edit-5`, is in the hover with the file.
+    text = lambda row, key: "" if row.get(key) is None else str(row[key])
+    # One grid for the whole block, so the number, lens and disposition tracks are each as wide as their widest entry
+    # and line up across rows. Each row is a subgrid whose second line takes any extra height a long finding brings,
+    # so the rating line stays right under the lens and disposition.
+    rows = []
+    for position, row in enumerate(block["rows"], start=1):
+        rid, file = text(row, "id"), text(row, "file")
+        rating = " · ".join(text(row, key) for key in ("frequency", "cost") if text(row, key))
+        hover = _e(rid + (" · " + file if file else ""))
+        rows.append(
+            f'<div class="trow"><b class="num" title="{hover}">{position}</b>'
+            f'<span class="lens" title="{hover}">{_e(text(row, "lens"))}</span>'
+            f'<span title="{hover}"><span class="disp{" applied" if text(row, "outcome") == "applied" else ""}">{_e(text(row, "disposition"))}</span></span>'
+            f'<div class="finding">{_e(text(row, "finding"))}</div><span class="meta">{_e(rating)}</span></div>'
+        )
+    return '<div class="triage">\n' + "\n".join(rows) + "\n</div>"
+
+
 def _table_block(block: dict) -> str:
     head = "".join(f"<th>{_e(column)}</th>" for column in block.get("columns") or [])
     body = "\n".join("<tr>" + "".join(f"<td>{_e(cell)}</td>" for cell in row) + "</tr>" for row in block["rows"])
@@ -137,7 +178,12 @@ def _render(spec: dict, in_agterm: bool) -> str:
     dropped, since closing a browser tab needs no button and reports nothing.
     """
     title = str(spec.get("title") or "Decisions")
-    render = {"choices": _choices_block, "table": _table_block, "text": lambda block: f'<pre>{_e(block["text"])}</pre>'}
+    state = spec.get("status")
+    status = (f'<div class="status">' + (f'{_e(state["label"])} ' if state.get("label") else "") + f'<span class="{"ok" if state["ok"] else "bad"}">{_e(state["text"])}</span>'
+              + (f'<div>{_e(state["detail"])}</div>' if state.get("detail") else "") + "</div>") if state else ""
+    render = {"choices": _choices_block, "triage": _triage_block, "table": _table_block, "text": lambda block: f'<pre>{_e(block["text"])}</pre>',
+              "list": lambda block: '<ul class="list">' + "".join(f'<li class="rule"><span>{_e(item["rule"])}</span></li>' if "rule" in item else f'<li><code>{_e(item["text"])}</code>' + (f' <span class="note">{_e(item["note"])}</span>' if item.get("note") else "") + "</li>" for item in block["items"]) + "</ul>",
+              "prose": lambda block: "".join(f'<p class="prose">{_e(part.strip())}</p>' for part in block["text"].split("\n\n") if part.strip())}
     sections = "\n".join(
         (f"<h2>{_e(block['heading'])}</h2>\n" if block.get("heading") else "") + render[block["kind"]](block)
         for block in spec["blocks"]
@@ -157,8 +203,13 @@ def _render(spec: dict, in_agterm: bool) -> str:
     return f"""<!doctype html>
 <html><head><meta charset="utf-8"><title>{_e(title)}</title>
 <style>
+  html {{ overscroll-behavior-y: none; }}
   body {{ font: 13px/1.45 -apple-system, system-ui, sans-serif; margin: 16px 20px; color: var(--agterm-foreground, #222); background: var(--agterm-background, #fff); }}
-  h1 {{ font-size: 15px; font-weight: 600; margin: 0 0 12px; }}
+  header {{ display: flex; flex-wrap: wrap; justify-content: space-between; align-items: baseline; gap: 4px 24px; margin: 0 0 12px; }}
+  h1 {{ font-size: 15px; font-weight: 600; margin: 0; }}
+  .status {{ text-align: right; }}
+  .status .ok {{ color: #2f9e5b; font-weight: 600; }}
+  .status .bad {{ color: #d9534f; font-weight: 600; }}
   h2 {{ font-size: 13px; font-weight: 600; margin: 20px 0 6px; }}
   table {{ border-collapse: collapse; width: 100%; }}
   th, td {{ text-align: left; vertical-align: top; padding: 6px 8px; border-bottom: 1px solid color-mix(in srgb, var(--agterm-foreground, #222) 15%, transparent); }}
@@ -172,6 +223,23 @@ def _render(spec: dict, in_agterm: bool) -> str:
   .pill span {{ display: inline-block; padding: 1px 9px; margin: 0 2px 2px 0; border-radius: 999px; border: 1px solid color-mix(in srgb, var(--agterm-foreground, #222) 25%, transparent); opacity: 0.75; }}
   .pill.rec span {{ border-style: dashed; }}
   .pill input:checked + span {{ background: var(--agterm-color-4, #2563eb); border: 1px solid transparent; color: #fff; opacity: 1; }}
+  .triage {{ display: grid; grid-template-columns: max-content max-content max-content minmax(0, 1fr); column-gap: 10px; align-items: baseline; }}
+  .triage .finding {{ grid-column: 4; padding-left: 14px; }}
+  .triage .trow {{ grid-column: 1 / -1; display: grid; grid-template-columns: subgrid; grid-template-rows: auto 1fr; align-items: baseline; border-top: 1px solid color-mix(in srgb, var(--agterm-foreground, #222) 15%, transparent); padding: 6px 0; }}
+  .triage .trow:last-child {{ border-bottom: 1px solid color-mix(in srgb, var(--agterm-foreground, #222) 15%, transparent); }}
+  .triage .num {{ grid-row: 1 / 3; }}
+  .triage .finding {{ grid-row: 1 / 3; align-self: start; }}
+  .triage .lens {{ font-size: 12px; opacity: 0.75; white-space: nowrap; }}
+  .disp {{ display: block; text-align: center; font-size: 12px; padding: 0 8px; border-radius: 999px; border: 1px solid color-mix(in srgb, var(--agterm-foreground, #222) 30%, transparent); }}
+  .disp.applied {{ background: #1e7a46; border-color: #1e7a46; color: #fff; }}
+  .triage .meta {{ grid-column: 2 / 4; grid-row: 2; align-self: start; font-size: 12px; opacity: 0.6; white-space: nowrap; }}
+  ul.list {{ margin: 0; padding-left: 18px; }}
+  ul.list li {{ margin: 3px 0; }}
+  ul.list code {{ font: 12px/1.45 ui-monospace, monospace; }}
+  ul.list li.rule {{ color: #2f9e5b; font-size: 12px; font-weight: 600; }}
+  ul.list li.rule span::before {{ content: "\\2190\\00a0"; }}
+  ul.list .note {{ opacity: 0.65; font-size: 12px; }}
+  p.prose {{ margin: 8px 0 0; white-space: pre-line; }}
   pre {{ font: 12px/1.45 ui-monospace, monospace; white-space: pre-wrap; margin: 0; padding: 8px 10px; border-radius: 6px; background: color-mix(in srgb, var(--agterm-foreground, #222) 6%, transparent); }}
   .bar {{ position: sticky; bottom: 0; display: flex; gap: 8px; align-items: center; padding: 12px 0 4px; background: var(--agterm-background, #fff); }}
   .flag {{ margin-left: 8px; cursor: pointer; }}
@@ -186,7 +254,7 @@ def _render(spec: dict, in_agterm: bool) -> str:
   textarea {{ font: inherit; width: 100%; box-sizing: border-box; padding: 4px 6px; border-radius: 4px; color: inherit; background: transparent; border: 1px solid color-mix(in srgb, var(--agterm-foreground, #222) 30%, transparent); }}
 </style></head>
 <body>
-<h1>{_e(title)}</h1>
+<header><h1>{_e(title)}</h1>{status}</header>
 {sections}
 <div class="bar">
   <button type="button" class="apply" id="apply">{"Apply" if in_agterm else "Copy answer"}</button>

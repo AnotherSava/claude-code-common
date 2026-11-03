@@ -202,9 +202,11 @@ such as `memo C2` names one item and a section never continues another's count. 
   branch.
 - **Commits** — the plan, each commit as its message alone, with no file list, and which reviewed commit ends at the
   reviewed tree where `layout` named one. Add a note under a commit only where the user needs it to decide, such as a
-  file going whole into a group that fits part of it. Then the push. The last line is the review bookmark: where
-  `review_scope.py status` puts it now, where it will sit after the push (on the commit that ends at the reviewed
-  tree, or unmoved when no commit does), and how many planned commits fall past it for the next review.
+  file going whole into a group that fits part of it. Then the push, but only when it goes anywhere other than
+  `origin/main`, the usual target, which goes unsaid. The last line is the review bookmark, and it answers
+  one question: does it move past what this review covered? Say yes or no first, then the follow-up commits that
+  stay past it for the next review, by count: "Review bookmark: moves past everything reviewed", then "3 follow-up
+  commits wait for the next review", no closing period. When no commit ends at the reviewed tree it stays where it is, and the line says why.
 
 Leave out a heading with nothing under it, the heading included: no "Nothing.", "None." or sentence explaining
 why it is empty. A review skipped because nothing changed since the bookmark leaves Review out too.
@@ -306,17 +308,21 @@ under **Repo root**, in the format the docstring of `review_picker.py` defines; 
 summary by that Write, so renaming the file means changing `WRAP_UP_SPEC_FILE` in its `collect.py`. One block per
 heading above, in the same order and left out on the same terms:
 
-- **Review** — a `table` block built from the workflow's `triage` list, which holds objects: `columns` the field
-  names shown, each row one cell per column looked up by that column's name, a missing or null value written as `""`
-  (review-auto's polish rows carry no `reached_by`, `frequency` or `cost`, and a shorter row shifts its cells under the
-  wrong headers).
+- **Review** — a `triage` block with no heading, the page title standing in for it, whose `rows` are the workflow's
+  `triage` list, passed as it came. The page numbers the
+  rows from 1, as the chat form does, so a reply naming Review row 3 means the third triage object, whatever its id.
 - **Q**, **C**, **M**, **P** — a `choices` block each, headed by the category's name. Column keys `title`, `quote` (the
   quoted words with their `[N] HH:MM` reference), `open` (why it is still open) and `view` (the reason for the
   recommendation, one line); `choices` `["answer", "memo", "ping", "drop"]`, `choice` the recommendation.
 - **S** — a `choices` block, column keys `title` and `destination`, `choices` `["save", "skip"]`.
 - **R** — a `choices` block, column keys `title` and `view`, each row's `choices` its own pair (`keep`/`local`,
   `address`/`leave`, `archive`/`leave`, `apply`/`skip`).
-- **Commits** — a `text` block: each message, its note where it has one, the push, and the bookmark line last.
+- **Commits** — a `list` block, one item per commit: `text` its subject, `note` the note it has where it has one,
+  and a `{"rule": "review bookmark"}` item right after the commit the bookmark will sit on.
+  Then a `prose` block, with no heading, holding the push line where there is one. The bookmark line goes in the
+  spec's `status` instead, shown at the right of the title row: `label` "Review bookmark:", `text` the yes-or-no
+  part ("moves past everything reviewed", or "stays at <commit>"), `ok` true only when it moves past everything
+  reviewed, `detail` the rest.
 
 Ids are the item labels (`Q1`, `C3`), so a note or an override names the same item the chat form would. Add one flag,
 `{"id": "push", "label": "Push after committing", "value": true}`; turning it off is `hold`. Title the page
