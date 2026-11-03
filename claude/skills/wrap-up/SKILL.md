@@ -207,7 +207,14 @@ count. The Review table numbers its rows plainly and Commits numbers nothing, si
 
 Leave out a heading with nothing under it, the heading included: no "Nothing.", "None." or sentence explaining
 why it is empty. A review skipped because nothing changed since the bookmark leaves Review out too. When every
-heading is left out, the closing prompt is the whole message.
+heading is left out, Commits included — a clean tree with nothing unpushed and no open item, the bookmark line alone
+not counting as content, nor a Review table whose rows are all fixed, refuted or dropped, since no override acts on
+one — the gate has nothing to approve: print no prompt, say in one line that there is nothing to
+commit, naming the review bookmark when this run moves it, and run step 8 without waiting. With no dispositions, saves or commits it comes down to
+`review_scope.py advance` and the push step, and both still matter here: a review recorded over commits `/yolo`
+already pushed moves the bookmark only through them, and the push step's "After the push" handoff is what routes
+files this session wrote in other repos. Steps 9 and 10 follow as after any push. A `go` prompt over an empty plan
+asks the user to approve nothing, and reads as if something were pending.
 
 For each open item give a short bold title, the quoted words
 with their `[N] HH:MM` reference from the digest, one line on why it is still open, and a
@@ -287,6 +294,9 @@ The skill-outputs skill finds a summary by how this prompt opens, so rewording t
 wording to `WRAP_UP_PROMPTS` in `claude/skills/skill-outputs/scripts/collect.py`.
 
 Then stop and wait. This is the skill's only gate: nothing is applied, saved, committed or pushed before the answer.
+The all-empty summary prints no prompt and so has no gate; what step 8 does without one there is move and push the
+review bookmark and run the push step's "After the push" handoff, which can ask another repo's session to commit
+files this session wrote there.
 
 ### 8. Apply, commit and push
 
@@ -458,7 +468,8 @@ on it.
 
 ## Important
 
-- The gate in step 7 is the skill, and it is the only approval of the work. Committing before
+- The gate in step 7 is the skill, and it is the only approval of the work; a run whose summary
+  is all empty has no work to approve and prints no gate. Committing before
   the user has answered defeats the reason for looking at all; after it, ask only the questions
   step 8 names, never to re-approve what the gate already settled.
 - Present a finding only after checking it is still live. An item the user has to dismiss
