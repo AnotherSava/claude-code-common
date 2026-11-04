@@ -223,7 +223,8 @@ comparing what comes back against the file, which is the only check at the layer
 `~/.claude/skills/shared/tailnet_publish.py` is the ready-made implementation of all of the above: one detached server
 on 127.0.0.1:8788 serving every registered file by key, a `--set-path` per file under its repo-relative path
 (`<repo>/<path inside it>`) so no two files share an address, byte-comparison verification after each publish, a
-restart of the server when a publish finds it gone, and a refusal to repoint a path or port something else mapped.
+restart of the server when a publish finds it gone, a refusal to repoint a path or port something else mapped, and a
+small script in every HTML page it serves that reloads the page once the file changes on disk.
 Its `publish-port <front> --target <origin>` command is the HTTPS-port form above, with the two numbers kept apart;
 the single-number `publish-port <port>` is for a loopback-only origin and is refused over a wildcard-bound one.
 

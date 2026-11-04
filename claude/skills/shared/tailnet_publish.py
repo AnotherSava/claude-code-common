@@ -40,6 +40,11 @@ local process can bind N on `0.0.0.0`. The ports registry hands out both numbers
 on N is refused, because the mapping would stop that server rebinding its own port at the next restart
 while `lsof` showed the port free. Measured on macOS, tailscale 1.102.1, 2026-10-05.
 
+An HTML file is served with a small script inserted before its last `</body>` (appended when it has
+none) that polls `<url>?__version` (the file's mtime and size) once a second and reloads the page when
+it differs from the version the page was served at, so an open tab or agterm overlay follows the
+agent's edits whichever tool wrote them. A request carrying the RAW_HEADER gets the bytes alone.
+
 Every publish verifies by fetching the URL — for a file, comparing the bytes — because the serve config
 lives in tailscaled and survives a reboot while the loopback file server does not; a dead server leaves
 every local check passing while the URL answers 502. A path or port already mapped to something this
@@ -78,8 +83,17 @@ import port_probe  # noqa: E402
 PUBLISH_PORT = 8788
 # Bumped whenever the server's routing or registry format changes, so a detached server started by an
 # older copy of this module is recognised as stale and replaced rather than trusted.
-PROTOCOL = "2"
+PROTOCOL = "4"
 MARKER = "X-Tailnet-Publish"
+RAW_HEADER = "X-Tailnet-Publish-Raw"
+VERSION_QUERY = "__version"
+# Starts from the version the page was served at, so an edit made before the first visible poll still
+# reloads it. Skipped while the page is hidden, and a failed poll (the file mid-replace, the machine asleep)
+# leaves the page alone: only a version that answered and differs reloads it.
+LIVE_RELOAD = ('\n<script>(() => {{ const seen = "{version}"; setInterval(async () => {{ if (document.hidden) return;'
+               ' try {{ const r = await fetch(location.pathname + "?' + VERSION_QUERY + '", {{ cache: "no-store" }});'
+               ' if (r.ok && (await r.text()) !== seen) location.reload();'
+               ' }} catch (e) {{}} }}, 1000); }})();</script>\n')
 STATE_DIR = Path.home() / ".claude" / "tailnet-publish"
 REGISTRY = STATE_DIR / "registry.json"
 LOCK = STATE_DIR / "registry.lock"
@@ -385,6 +399,19 @@ def _host_allowed(host: str | None) -> bool:
     return name in ("127.0.0.1", "localhost") or name.endswith(".ts.net")
 
 
+def _version(file: str) -> str:
+    """What the `?__version` route answers and LIVE_RELOAD compares against: the file's mtime and size."""
+    stat = Path(file).stat()
+    return f"{stat.st_mtime_ns}-{stat.st_size}"
+
+
+def _with_live_reload(data: bytes, version: str) -> bytes:
+    """The page with LIVE_RELOAD, seeded with `version`, before its last `</body>`, or appended when it has none."""
+    script = LIVE_RELOAD.format(version=version).encode()
+    at = data.lower().rfind(b"</body>")
+    return data + script if at < 0 else data[:at] + script + data[at:]
+
+
 class Handler(BaseHTTPRequestHandler):
     server_version = "tailnet-publish/" + PROTOCOL
     protocol_version = "HTTP/1.1"
@@ -410,7 +437,8 @@ class Handler(BaseHTTPRequestHandler):
         if not _host_allowed(self.headers.get("Host")):
             self._text(HTTPStatus.MISDIRECTED_REQUEST, "unknown host\n", body)
             return
-        path = urllib.parse.unquote(urllib.parse.urlsplit(self.path).path)
+        url = urllib.parse.urlsplit(self.path)
+        path = urllib.parse.unquote(url.path)
         if path == "/__ping":
             self._head(HTTPStatus.NO_CONTENT, 0)
             return
@@ -419,11 +447,19 @@ class Handler(BaseHTTPRequestHandler):
             self._text(HTTPStatus.NOT_FOUND, "not published\n", body)
             return
         try:
+            # Stat before reading, so an edit between the two leaves the page seeded with the older version
+            # and its first poll reloads it onto the newer bytes.
+            version = _version(file)
+            if url.query == VERSION_QUERY:
+                self._text(HTTPStatus.OK, version, body)
+                return
             data = Path(file).read_bytes()
         except OSError:
             self._text(HTTPStatus.NOT_FOUND, "the published file no longer exists\n", body)
             return
         ctype = mimetypes.guess_type(file)[0] or "application/octet-stream"
+        if ctype == "text/html" and not self.headers.get(RAW_HEADER):
+            data = _with_live_reload(data, version)
         if ctype.startswith("text/") or ctype in ("application/json", "image/svg+xml"):
             ctype += "; charset=utf-8"
         self._head(HTTPStatus.OK, len(data), ctype)
@@ -464,7 +500,7 @@ def _run_server() -> int:
 
 def _fetch_matches(url: str, file: Path) -> bool:
     try:
-        with urllib.request.urlopen(url, timeout=20) as response:
+        with urllib.request.urlopen(urllib.request.Request(url, headers={RAW_HEADER: "1"}), timeout=20) as response:
             return response.status == 200 and response.read() == file.read_bytes()
     except (urllib.error.URLError, OSError, ValueError):
         return False
