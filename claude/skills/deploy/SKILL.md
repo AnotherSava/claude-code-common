@@ -2,7 +2,7 @@
 name: deploy
 description: Configure and run the LOCAL deploy — install the app on this machine or start its dev server — verifying it succeeds
 disable-model-invocation: false
-allowed-tools: Bash(bash ~/.claude/skills/deploy/scripts/deploy.sh), Bash(bash ~/.claude/skills/deploy/scripts/deploy-tauri.sh), Bash(bash ~/.claude/skills/deploy/scripts/deploy-intellij-plugin.sh), Bash(bash ~/.claude/skills/deploy/scripts/deploy-dev-server.sh), Bash(bash ~/.claude/skills/deploy/scripts/detect-intellij-target.sh:*), Bash(bash scripts/deploy.sh), Bash(deploy), Bash(echo *), AskUserQuestion, Read(config/deploy.env), Write(config/deploy.env), Write(scripts/deploy.sh), Read(scripts/deploy.sh), Edit(.gitignore), Read(.gitignore), Edit(~/.bashrc), Read(~/.bashrc), Edit(~/.zshrc), Read(~/.zshrc)
+allowed-tools: Bash(bash ~/.claude/skills/deploy/scripts/deploy.sh), Bash(bash ~/.claude/skills/deploy/scripts/deploy-tauri.sh), Bash(bash ~/.claude/skills/deploy/scripts/deploy-intellij-plugin.sh), Bash(bash ~/.claude/skills/deploy/scripts/deploy-dev-server.sh), Bash(bash ~/.claude/skills/deploy/scripts/detect-intellij-target.sh:*), Bash(bash scripts/deploy.sh), Bash(deploy), Bash(echo *), AskUserQuestion, Read(config/deploy.env), Write(config/deploy.env), Write(scripts/deploy.sh), Read(scripts/deploy.sh), Write(scripts/sync-db-from-prod.sh), Read(scripts/sync-db-from-prod.sh), Edit(.gitignore), Read(.gitignore), Edit(~/.bashrc), Read(~/.bashrc), Edit(~/.zshrc), Read(~/.zshrc)
 ---
 
 **Scope — `deploy` is local only.** It makes the current code runnable *on this machine*: it
@@ -33,10 +33,13 @@ See `~/.claude/learnings/shell-environment.md` for the expected bash functions a
 - run_repo_script helper in shell rc: !`cat ~/.bashrc ~/.zshrc ~/.bash_profile ~/.zprofile 2>/dev/null | grep -c "run_repo_script()" || echo 0`
 - Shell rc target: !`case "$(uname -s)" in Darwin) echo "~/.zshrc" ;; MINGW*|MSYS*|CYGWIN*) echo "~/.bashrc" ;; *) [ -n "$ZSH_VERSION" ] || [ "${SHELL##*/}" = "zsh" ] && echo "~/.zshrc" || echo "~/.bashrc" ;; esac`
 - Wrapper script exists: !`test -f scripts/deploy.sh && echo yes || echo no`
+- Wrapper has --db: !`grep -q -- '--db' scripts/deploy.sh 2>/dev/null && echo yes || echo no`
 - Wrapper target: !`grep -oE 'deploy(-[a-z-]+)?\.sh' scripts/deploy.sh 2>/dev/null | tail -1 || echo none`
 - Static web entry (index.html): !`(ls index.html web/index.html public/index.html src/index.html dist/index.html 2>/dev/null | grep -q .) && echo yes || echo no`
 - Static web dir (dir holding index.html; empty if none): !`for d in . web public src dist; do [ -f "$d/index.html" ] && { echo "$d"; break; }; done; true`
 - Project start script (a committed scripts/dev.sh the project already provides): !`test -f scripts/dev.sh && echo yes || echo no`
+- Production deployment (config/publish.env with SSH_HOST): !`grep -q '^SSH_HOST=' config/publish.env 2>/dev/null && echo yes || echo no`
+- Prod sync script (scripts/sync-db-from-prod.sh): !`test -f scripts/sync-db-from-prod.sh && echo yes || echo no`
 - Dev-server configured: !`grep -c '^DEPLOY_TYPE=dev-server' config/deploy.env 2>/dev/null || echo 0`
 - Dev-server dir (package.json with a 'dev' script; empty if none): !`for d in . web app apps/web client frontend site www server; do [ -f "$d/package.json" ] && node -e "p=require('./'+process.argv[1]+'/package.json');process.exit(p.scripts&&p.scripts.dev?0:1)" "$d" 2>/dev/null && { echo "$d"; break; }; done; true`
 - Dev-server start command guess: !`for d in . web app apps/web client frontend site www server; do [ -f "$d/package.json" ] || continue; node -e "p=require('./'+process.argv[1]+'/package.json');process.exit(p.scripts&&p.scripts.dev?0:1)" "$d" 2>/dev/null || continue; if [ -f "$d/pnpm-lock.yaml" ]; then echo "pnpm dev"; elif [ -f "$d/yarn.lock" ]; then echo "yarn dev"; elif [ -f "$d/bun.lockb" ]; then echo "bun run dev"; else echo "npm run dev"; fi; break; done; true`
@@ -108,10 +111,12 @@ For a local web server, `deploy` stops whatever holds the port and relaunches th
   - else (static site, no `dev` script) → `python -m http.server "$PORT" --directory <DEV_DIR>` — the script exports `PORT` with the registry's number before launching, so a command that reads it needs no literal. A server that ignores `PORT` and takes the port as an argument has to be given one; record it `--pinned` with that as the reason, since the project cannot resolve it at launch.
 - `DEV_TAILNET=` — **only written as `DEV_TAILNET=no`, for a project whose origin is pinned to localhost** (an API key restricted to `http://localhost:<port>`, an OAuth redirect URI, a CORS allowlist — the same reasons that pin a port in the registry). The tailnet name would fail that check, so the script prints the `localhost` URL and publishes nothing. Leave it out otherwise. A dev server that checks the `Host` header (Vite's `server.allowedHosts`) needs the node's MagicDNS name allowed instead; that is a project config change, not this key. Next's dev server refuses its `/_next` assets rather than the request, so the page arrives and never hydrates, with no refused request to read in the log; `~/.claude/learnings/nextjs16-prisma7-scaffold.md` carries the `allowedDevOrigins` pattern that answers it.
 - `DEV_PRESTART_CMD=` — **optional, and only written when the user asks for one.** A command run from the
-  repo root between stopping the old server and launching the new one: seeding the local database from
-  production, fetching a fixture, rendering a generated file. Leave the key out entirely when there is no
-  such step; an empty value and an absent one behave identically, but an absent one does not invite an
-  editor to fill it in.
+  repo root between stopping the old server and launching the new one: fetching a fixture, rendering a
+  generated file. Leave the key out entirely when there is no such step; an empty value and an absent one
+  behave identically, but an absent one does not invite an editor to fill it in. Copying production data
+  into the local database is **not** a pre-start step: it runs on every deploy, so a plain `deploy` would
+  reach production. That job is the wrapper's `--db` flag, which the **Production data sync** paragraph of
+  §2a sets up.
 
   **The command belongs to the project, not here.** Write it as a committed script in the repo
   (`scripts/<verb>.sh`) and point this key at it, so the knowledge of *how* a project seeds its database —
@@ -123,6 +128,30 @@ For a local web server, `deploy` stops whatever holds the port and relaunches th
   while the server is up. A failure does **not** stop the launch, because `deploy` is what leaves the app
   runnable and a pre-start step is usually the part needing something beyond this machine; it is reported
   at the point of failure and again beside the URL.
+
+**Production data sync (`--db`).** When **Production deployment** is yes and **Wrapper has --db** is no,
+ask whether the wrapper should get a `--db` flag that replaces the local dev database with production's
+before restarting. Say in the question that it destroys whatever exists only in the local database, and
+that a plain `deploy` stays offline either way. On no, skip it. On yes, call this **USE_DB_SYNC**. If
+**Prod sync script** is no, the project needs a committed `scripts/sync-db-from-prod.sh` (or an existing
+script under another name, if it already has one) that:
+- reads the box's address from `config/publish.env` (`SSH_HOST`) rather than repeating it;
+- copies one way only, production to local, and never writes to production;
+- starts and migrates the dev database itself, so the wrapper needs no other step;
+- replaces the local data in one transaction, or through the app's own importer, and fails loudly on a
+  mismatch, for example by comparing row counts per table.
+
+The scheduler repo (`scripts/seed-dev-from-prod.sh`: `pg_dump --data-only` over SSH, truncate and load in
+one transaction) and the trips repo (`scripts/sync-db-from-prod.sh`: restores prod's backup artifact
+through the app's importer) are the reference implementations. Read whichever matches the stack before
+writing a third. The stack's specifics stay in that script, never in the wrapper or `config/deploy.env`.
+
+Once the project has that script, also offer an in-app **reset to production data** control: a button the
+running dev server shows that runs the same script, so an experiment can be thrown away without a restart.
+It is project code, so offer it and build it only on a yes. It must answer 404 and draw no button outside
+development, refuse a cross-site request, reload the page on success, and show the script's failure line
+beside the button on failure. The trips repo is the reference: `web/src/app/api/debug/sync/route.ts` and
+`web/src/components/debug-sync.tsx`.
 
 `config/deploy.env` holds no secrets, so it is safe to commit (and committing it gives every contributor the same `! deploy`). The dev server writes `dev-server.log` / `dev-server.err.log` into `DEV_DIR` — ensure those are gitignored: if `<DEV_DIR>/dev-server*.log` (or a broader `dev-server*.log`) isn't already covered by `.gitignore`, add it. After writing the config, go to **step 3**.
 
@@ -149,8 +178,20 @@ For a local web server, `deploy` stops whatever holds the port and relaunches th
 
 First decide whether the wrapper needs the Doppler secret-rendering block: it does when `TARGET=deploy-tauri.sh` **and** secrets are managed via Doppler (**Secret config template present** is yes, or **Deploy env has DOPPLER_PROJECT** ≥ 1). Call this **USE_DOPPLER**.
 
-1. Write `scripts/deploy.sh` if **Wrapper script exists** is no, **or** **Wrapper target** does not equal `TARGET` from step 1, **or** USE_DOPPLER is true while **Wrapper renders secrets via Doppler** is no (a Doppler-managed project whose wrapper predates this — regenerate it).
+1. Write `scripts/deploy.sh` if **Wrapper script exists** is no, **or** **Wrapper target** does not equal `TARGET` from step 1, **or** USE_DOPPLER is true while **Wrapper renders secrets via Doppler** is no (a Doppler-managed project whose wrapper predates this — regenerate it), **or** USE_DB_SYNC is true.
 
+   - **USE_DB_SYNC is true** (dev-server only) — the pass-through wrapper with the `--db` flag, substituting the project's sync script:
+     ```bash
+     #!/bin/bash
+     # Per-machine deploy wrapper (gitignored). `deploy --db` replaces the local dev
+     # database with production's before restarting; a plain `deploy` stays offline.
+     if [ "${1:-}" = "--db" ]; then
+         shift
+         bash "$(dirname "$0")/<sync-script>.sh" || echo "  !! PROD SYNC FAILED — restarting the server on the existing local data"
+     fi
+     bash ~/.claude/skills/deploy/scripts/deploy-dev-server.sh "$@"
+     ```
+     A failed sync still restarts the server, for the reason the pre-start step does: `deploy` is what leaves the app runnable.
    - **USE_DOPPLER is false** — the trivial pass-through wrapper:
      ```bash
      #!/bin/bash
