@@ -27,6 +27,10 @@ const COSTS = [...SEVERE, 'recoverable', 'cosmetic']
 // the class `triage` below routes to a fix rather than to a log line.
 const DUPLICATION = 'one computation or step-sequence exists in more than one place, so what it costs is the next divergence between the copies rather than anything the rated scenario does'
 
+// What wrong_output covers, held once for the reviewer prompt and both schemas, matching the boundary in
+// claude/memory/feedback_realism_before_hardening.md: the label has no qualifier, and every SEVERE cost gets a fix.
+const WRONG_OUTPUT = 'wrong_output means core output is lost, duplicated or corrupted, not any output that is off'
+
 const HANDS_OFF = 'Never deploy, start, restart or stop any app, and never open a window. Run no command that launches one.'
 const READ_ONLY = 'You are read-only: do not edit, create or delete any file in the repo. Scratch files go only in a fresh temp directory, which you remove afterwards.'
 
@@ -43,7 +47,7 @@ const FINDINGS = {
           failure_scenario: { type: 'string', description: 'concrete inputs or state, and the wrong outcome they produce' },
           reached_by: { type: 'string', description: 'the concrete writer, caller or user action that puts the code in this state, with evidence: a call site, a log line, a stored record. "none found" when you have none.' },
           frequency: { type: 'string', enum: FREQUENCIES },
-          cost_unhandled: { type: 'string', enum: COSTS },
+          cost_unhandled: { type: 'string', enum: COSTS, description: WRONG_OUTPUT },
         },
         required: ['file', 'summary', 'failure_scenario', 'reached_by', 'frequency', 'cost_unhandled'],
       },
@@ -59,7 +63,7 @@ const VERDICT = {
     reached: { type: 'boolean', description: 'you found evidence that something actually puts the code in this state' },
     reached_by: { type: 'string', description: 'that evidence, or why there is none' },
     frequency: { type: 'string', enum: FREQUENCIES },
-    cost_unhandled: { type: 'string', enum: COSTS },
+    cost_unhandled: { type: 'string', enum: COSTS, description: WRONG_OUTPUT },
     duplicates_logic: { type: 'boolean', description: `the finding is that ${DUPLICATION}` },
     reasoning: { type: 'string' },
   },
@@ -163,7 +167,7 @@ function reviewPrompt(lens, round, earlier, scope) {
   const later = round > 1
     ? `\n\nRound ${round}. Earlier rounds already triaged the findings below, and the scope now also includes the code their applied fixes added. Do not re-report any of them in any wording, including the dropped and refuted ones; a finding is new only if it lies in code a fix added or is absent from this list:\n${settled.map(line).join('\n')}${unverified.length ? `\nThese were never verified, so report them again if they still hold:\n${unverified.map(r => `- ${r.file}: ${r.summary}`).join('\n')}` : ''}`
     : ''
-  return `${CONTEXT}\n\nScope: ${scope}\n\nLens (${lens.key}): ${lens.prompt}${later}\n\n${READ_ONLY} ${HANDS_OFF}\n\nReport only concrete defects. For each one say who reaches it: the writer, caller or user action that puts the code in that state, with evidence (a call site, a log line, a stored record). A case you can construct but cannot show anyone reaching gets reached_by "none found" and frequency "theoretical" — report it that way rather than leaving it out, so the triage can see it. Rate frequency (common, plausible, rare, theoretical) and the cost of leaving it unhandled (data_loss, crash, wrong_output, identity_leak, recoverable, cosmetic). No style nits.`
+  return `${CONTEXT}\n\nScope: ${scope}\n\nLens (${lens.key}): ${lens.prompt}${later}\n\n${READ_ONLY} ${HANDS_OFF}\n\nReport only concrete defects. For each one say who reaches it: the writer, caller or user action that puts the code in that state, with evidence (a call site, a log line, a stored record). A case you can construct but cannot show anyone reaching gets reached_by "none found" and frequency "theoretical" — report it that way rather than leaving it out, so the triage can see it. Rate frequency (common, plausible, rare, theoretical) and the cost of leaving it unhandled (data_loss, crash, wrong_output, identity_leak, recoverable, cosmetic); ${WRONG_OUTPUT}. No style nits.`
 }
 
 function verifyPrompt(finding, lens, scope) {

@@ -9,7 +9,7 @@ metadata:
 writer, a user report, a documented path? What does it cost when unhandled? A scenario that is rare
 **and** harmless or cheap for the user to handle by hand is still reported, with its rating, and
 gets at most a log warning or a sentence in the docs, never code. Code is for data loss, crashes,
-lost or duplicated core output, and leaks of the user's own identity.
+lost, duplicated or corrupted core output (review-auto's `wrong_output`), and leaks of the user's own identity.
 
 **Why:** seen 2026-09-26/27 in achievement-overlay. Eight fix-and-review rounds each ended with a
 fresh "found and not fixed" list, the user said "y" to each next round, and the fixes added about
