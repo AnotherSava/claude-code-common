@@ -19,9 +19,10 @@ where a second relayed message joins a turn already in flight and real work foll
 had already finished cleanly.
 
 The receiving side is `POST /api/session-clean`, and it weighs this against two facts it holds
-itself — that a relayed message began the turn, and what the row was before it. So report what
-this run did and nothing about the circumstances; `docs/pages/development/classification.md` in
-the dashboard repo carries the rule.
+itself — that the turn belongs to a relayed exchange (begun by a relayed message, or by the
+user's answer to a question that exchange asked), and what the row was before that exchange
+began. So report what this run did and nothing about the circumstances;
+`docs/pages/development/classification.md` in the dashboard repo carries the rule.
 
 This is a stopgap with a known retirement. Claude Code's `UserPromptSubmit` schema already
 declares a `source` field whose `system` value marks machine-injected turns; two un-wired
