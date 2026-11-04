@@ -166,6 +166,9 @@ run "review-auto workflow" node claude/tests/review-auto.mjs
 # The table /review-manual shows so the user picks what gets fixed. Its exit status is the whole answer: a closed page
 # read as "fix nothing" would drop every finding the user meant to keep.
 run "review picker" python3 claude/tests/review-picker.py
+# Where /wrap-up's transcript review starts: a window clipped in the wrong place re-raises settled items or misses
+# new ones, and nothing else reads it.
+run "session scan" python3 claude/tests/session-scan.py
 
 # The review bookmark and the hook that widens every review to the commits pushed since the last one. Its one costly
 # failure is moving past code no review saw, which then never gets reviewed; most cases try to make it do exactly that.

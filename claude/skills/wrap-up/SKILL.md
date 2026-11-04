@@ -5,7 +5,7 @@ description: >-
   last recorded review, reviews the session's transcript for unanswered questions, passed-over
   concerns, memo-worthy ideas and unkept promises, drafts what /reflect would save, groups the
   commits, then stops once on a single summary, or prints one line and goes on when there is
-  nothing to approve; one answer applies the dispositions, saves, commits and pushes. Then offers deploy, publish and release, and hands over to /clear.
+  nothing to approve; one answer applies the dispositions, saves, commits and pushes. Then offers deploy, publish and release.
   TRIGGER when: the user runs /wrap-up, or says they are ready to finalize, close out,
   or wrap up the current section of work.
   DO NOT TRIGGER when: the user wants to push work as-is to test it (use /yolo), to park a
@@ -19,7 +19,8 @@ Close out a section of work: review the change, review everything said in this s
 unfinished, then put all of it in front of the user **once** — the review's triage, the open items, what reflection
 would save, the commit plan. One answer settles everything; after it the skill applies, commits and pushes, asking
 again only where step 8 names a question of its own, then offers to run and ship what was committed, offers a
-release when it holds features or fixes, and hands over to `/clear`.
+release when it holds features or fixes. The next run starts its transcript review after this one, so no `/clear`
+is needed between them.
 
 The commit and the push go through the shared steps every committing skill uses — `shared/commit.py`,
 `shared/push.py`, `shared/commit-grouping.md` — never through another top-level skill, so nothing here has to guess
@@ -58,11 +59,15 @@ Read the `=== session ===` header of **Session digest** before trusting a word o
   steps 3 to 5, and open the summary with one line saying no transcript was reviewed. Do **not** reconstruct the session from your own context and present the result as
   a transcript review: the whole point of reading the file is that your context may have lost
   what the file kept, so a review built from memory is the one thing this skill must not fake.
-- `window: whole transcript` is the normal case: the file already began at a `/clear`, so the
-  digest is one section of work. `window: clipped to the last /clear` means the file also held
-  earlier work and the digest starts at the boundary instead, which is still one section.
-- `opened-with-clear: no` means no `/clear` appears anywhere in the file, so the window may span
-  more than one section of work (a resumed or continued session). Mention it, then review it all.
+- `window: whole transcript` means the file began at a `/clear` and holds no earlier finished `/wrap-up`,
+  so the digest is one section of work. `window: clipped to the last /wrap-up` means an earlier
+  run in this session that reached step 8 bounds it (one interrupted or diverted before step 8 settled nothing and
+  bounds nothing): the digest opens with that run, whose settled items step 5 drops,
+  and continues with the work since. `window: clipped to the last /clear` means the file held
+  earlier work before a `/clear`. Each is one section.
+- `opened-with-clear: no` with `window: whole transcript` means neither a `/clear` nor an earlier finished
+  `/wrap-up` bounds the file, so the window may span more than one section of work (a resumed or
+  continued session). Mention it, then review it all.
 - A `reductions:` line other than `none` means long messages were shortened to fit the budget.
   No message was dropped, but a quotation may have an elision in the middle.
 
@@ -219,8 +224,8 @@ user. The all-empty summary prints no prompt. Its first line is one line that op
 review bookmark when this run moves it; the Review table, when there is one, goes below that line. Then run step 8
 without waiting. With no dispositions, saves or commits it comes down to `review_scope.py advance` and the push step,
 and both still matter here: a review recorded over commits `/yolo` already pushed moves the bookmark only through
-them, and the push step's "After the push" handoff is what routes files this session wrote in other repos. Steps 9
-and 10 follow as after any push. A `go` prompt over an empty plan asks the user to approve nothing, and reads as if
+them, and the push step's "After the push" handoff is what routes files this session wrote in other repos. Step 9
+follows as after any push. A `go` prompt over an empty plan asks the user to approve nothing, and reads as if
 something were pending. A summary with a row still to decide always carries the `go` prompt; this one never does.
 
 For each open item give a short bold title, the quoted words
@@ -358,8 +363,8 @@ what the gate could not see.
 - **memo** writes one file per item:
   `python ~/.claude/skills/memo/memos.py add --title "<short title>" "<the detail>"`, adding
   `--platform macos|windows` only when the detail itself names the box the work needs.
-  Write each one to stand on its own, naming the thing and the concrete next step. The session
-  it came from is about to be cleared, so a memo that only gestures at the conversation
+  Write each one to stand on its own, naming the thing and the concrete next step. It is read
+  without the session it came from, so a memo that only gestures at the conversation
   ("fix the thing we discussed") will be unreadable in three weeks. Title it as a sentence that
   names the thing and the change — it is the only line that shows up in every later listing —
   and put the evidence, the reproduction and the reasoning in the body, which has no length limit.
@@ -391,26 +396,29 @@ close the memos the change set delivers (one `memos.py done` call, per `commit-g
 commit each group with `python3 ~/.claude/skills/shared/commit.py -F <message-file> [--reviewed] <paths…>`. A
 blocking privacy finding stops here and goes to the user with the finding, since nothing approved at the gate
 covered content that must not be published. Any other refusal is yours to fix and retry. Then
-`python3 ~/.claude/scripts/review_scope.py advance`.
+`python3 ~/.claude/scripts/review_scope.py advance`. The session scan reads a `commit.py`, `push.py` or
+`review_scope.py advance` call as the sign this run finished and bounds the next run's window, so renaming one of
+them means changing `STEP_8_RE` in `scripts/session_scan.py` too.
 
 **Push**, unless the answer was `hold` or the page's push flag was off: `python3 ~/.claude/skills/shared/push.py --caller wrap-up`. Report its lines,
 then watch CI and hand off files written in other repos as the "After the push" section of `shared/sync-and-push.md`
 describes, and send the pings held for the push. If the push failed, send none of the pings and say which are held.
 
 Report in one short block: one line per disposition, the saves, the commits, and the push step's lines, its status
-line last.
+line last. That list is the whole report: a step that had nothing to do gets no line in it, so no "no CI", "no other
+repos", "nothing to deploy, publish or release".
 
 
 ### 9. Offer to run it here, ship it, and release it
 
 A section of work closed without these leaves the committed change unrun on this machine and its users
 on the previous version, and nothing later in the flow mentions it: the push step stops at the
-push, and the context that knew a publish was pending is about to be cleared.
+push.
 
 **Ship wrappers** says which of the two per-machine wrappers this repo has. A verb reported `absent` is
 not configured here, and configuring it is `/deploy`'s and `/publish`'s own job, not this skill's — say
 nothing about that verb at all. Where both are absent and the release check below finds nothing, this
-step produces no output.
+step produces no output, in its own turn or as a line in a later summary of the run.
 
 Offer the two separately and in this order, ahead of the release offer, and run each through the repo's wrapper —
 `bash scripts/deploy.sh` and `bash scripts/publish.sh`. Not the `/deploy` or `/publish` skill: those own
@@ -461,7 +469,7 @@ treat its own gates as the authority on whether it can proceed. A "yes" to deplo
 A clean tree with nothing to commit leaves step 8 no commits to make, and its push sends only commits made earlier and
 not yet pushed — an earlier `hold`, `/adopt` or `/review-manual` leaves some — if there are any. That still
 gets the offers: the work may have been pushed earlier in the session, and this step is the last thing that
-will mention it before the context is cleared. What the offer cannot know is whether the target is already
+will mention it. What the offer cannot know is whether the target is already
 serving that commit, so it may propose a publish that changes nothing — reading the deployed revision is
 the script's business, not a precondition to guess at here.
 
@@ -476,19 +484,6 @@ command with a redirect or a `tee` of your own.
 **Do not fold any of these offers into step 7's gate.** All of them are asked after the push: the
 machine-takeover ask is valid only immediately before the thing it drives, and a publish or release agreed to
 at the gate is agreed to before the user has decided whether to push the work it would ship.
-
-### 10. Hand over to `/clear`
-
-Once the push is confirmed, close with a single line telling the user to run `/clear`, and say
-what it buys: the next transcript begins at that point, which is what keeps a future `/wrap-up`
-scoped to exactly one section of work.
-
-This skill cannot run it. Clearing the context is a built-in CLI command, not a skill or a
-tool, so the user has to type it. Recommend it, do not claim to have done it, and do not
-recommend it at all after a `hold` or a failed push, since clearing on top of unpushed
-work throws away the context needed to finish it. A run in step 9 that failed and left something
-to fix withholds it for the same reason: the session holding the output is the one that can act
-on it.
 
 ## Out of scope
 
@@ -509,7 +504,6 @@ on it.
   script said; its preconditions are its own to enforce. Reading **deploy type** to decide whether
   the machine-takeover ask needs a window warning is not that — it is this skill's own obligation,
   and it fails to the asking side.
-- Do NOT claim to have cleared the context.
 
 ## Important
 

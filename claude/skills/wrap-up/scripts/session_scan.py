@@ -7,8 +7,9 @@ keeping every word either side actually said costs little and loses nothing a wr
 review needs. That is the point: no keyword heuristic decides which questions or
 concerns survive into the digest, because the reader does all of the judging.
 
-The window is one section of work: it begins at the last /clear in the file, which is
-normally the first record anyway, because clearing mints a fresh transcript.
+The window is one section of work: it begins at the last earlier /wrap-up that reached its commit
+step, or at the last /clear when that comes later or there is no such /wrap-up, so a session that
+keeps going after a wrap-up needs no /clear to keep the next one to the new work.
 
 Always exits 0. The wrap-up skill runs this as a preprocessed context command, where a
 non-zero exit is fatal, so every failure is reported inside the output instead.
@@ -41,6 +42,16 @@ TOOL_ARG_KEYS = ("command", "file_path", "notebook_path", "path", "pattern", "sk
 # kind worth rescuing from the discarded tool traffic: an AskUserQuestion answer is the
 # user speaking, and skipping it drops direction that was never repeated in a message.
 DECISION_TOOLS = ("AskUserQuestion", "ExitPlanMode")
+
+# The shell calls /wrap-up's step 8 makes once the user has answered its summary. These are the commands
+# claude/skills/wrap-up/SKILL.md step 8 names; change both together.
+STEP_8_RE = re.compile(r"shared/(?:commit|push)\.py|review_scope\.py advance")
+
+# The skills beside this one. Only a skill whose SKILL.md makes a STEP_8_RE call can own the commit that follows it, so
+# only such a command ends the search for an earlier /wrap-up's step 8: a built-in (/login, /mcp, /model), a plugin
+# skill or a skill such as /memo typed while a run is answered leaves the commit with that run. A project-local skill
+# that commits through shared/commit.py is not in this folder and so does not end the search either.
+SKILLS_DIR = os.path.join(os.path.dirname(os.path.abspath(__file__)), "..", "..")
 
 TOOL_ARG_CHARS = 54
 MAX_TOOLS_SHOWN = 8
@@ -143,7 +154,9 @@ def _read_items(path: str) -> tuple[list[dict[str, Any]], dict[str, Any]]:
                     if name in DECISION_TOOLS:
                         decision_ids.add(block.get("id") or "")
                         continue  # rendered from its result, which holds both the question and the answer
-                    items.append({"kind": "tool", "ts": stamp, "text": _summarize_tool(name, block.get("input") or {})})
+                    tool_input = block.get("input") or {}
+                    command = tool_input.get("command") if name == "Bash" else None
+                    items.append({"kind": "tool", "ts": stamp, "text": _summarize_tool(name, tool_input), "step_8": isinstance(command, str) and bool(STEP_8_RE.search(command))})
                 continue
             if block_type == "tool_result":
                 if block.get("tool_use_id") in decision_ids:
@@ -167,22 +180,45 @@ def _read_items(path: str) -> tuple[list[dict[str, Any]], dict[str, Any]]:
     return items, stats
 
 
-def _clip_to_last_clear(items: list[dict[str, Any]]) -> tuple[list[dict[str, Any]], int]:
-    """Start the window at the last /clear, which is where the current section began.
+def _can_make_step_8(name: str) -> bool:
+    """Whether the command name is a skill of this folder whose instructions make a STEP_8_RE call."""
+    try:
+        with open(os.path.join(SKILLS_DIR, name, "SKILL.md"), encoding="utf-8") as handle:
+            return bool(STEP_8_RE.search(handle.read()))
+    except (OSError, ValueError):
+        return False
 
-    Clearing normally starts a fresh transcript, so on almost every run this drops nothing.
-    It is an observation about how sessions behave rather than a guarantee, though, and a
-    resumed or continued session can carry earlier work in the same file. Reviewing that
-    would widen the window past the one section being wrapped up, so bound it here instead
-    of trusting the file to begin in the right place.
+
+def _reached_step_8(items: list[dict[str, Any]], index: int) -> bool:
+    """Whether the /wrap-up command at index made a STEP_8_RE call before a later command ended the search (see SKILLS_DIR)."""
+    for later in items[index + 1:]:
+        if later["kind"] == "command" and (later["text"] == "clear" or _can_make_step_8(later["text"])):
+            return False
+        if later.get("step_8"):
+            return True
+    return False
+
+
+def _clip_window(items: list[dict[str, Any]]) -> tuple[list[dict[str, Any]], int, str]:
+    """Start the window where the current section began: the later of the last /clear and the last finished /wrap-up.
+
+    A finished /wrap-up is one _reached_step_8 accepts. The run calling this has not reached step 8, so its own command
+    record is never a boundary, and neither is a run the user interrupted or diverted into more work, which settled
+    nothing and so must not hide what came before it. The window keeps the finished run's own exchange, since
+    /wrap-up treats what it settled as final and needs it in view to do so. A wrap-up started by asking in words
+    rather than typing /wrap-up leaves no command record and is not a boundary.
+    Returns the window, how many items it dropped, and which command bounded it.
     """
-    last = -1
+    last_clear, last_wrap_up = -1, -1
     for index, item in enumerate(items):
         if item["kind"] == "command" and item["text"] == "clear":
-            last = index
-    if last <= 0:
-        return items, 0
-    return items[last:], last
+            last_clear = index
+        elif item["kind"] == "command" and item["text"] == "wrap-up" and _reached_step_8(items, index):
+            last_wrap_up = index
+    start = max(last_clear, last_wrap_up)
+    if start <= 0:
+        return items, 0, ""
+    return items[start:], start, "/wrap-up" if start == last_wrap_up else "/clear"
 
 
 def _render(items: list[dict[str, Any]], per_message_chars: int, tool_detail: bool) -> tuple[str, int]:
@@ -290,7 +326,7 @@ def main() -> int:
         return 0
 
     items, stats = _read_items(path)
-    items, dropped = _clip_to_last_clear(items)
+    items, dropped, bound = _clip_window(items)
     body, elided = _render(items, options.per_message_chars, tool_detail=True)
     reductions: list[str] = []
     if len(body) > options.max_chars:
@@ -306,7 +342,7 @@ def main() -> int:
 
     stamps = [item["ts"] for item in items if item.get("ts")]
     opened_with_clear = bool(items) and items[0]["kind"] == "command" and items[0]["text"] == "clear"
-    window = f"clipped to the last /clear, dropping {dropped} earlier items" if dropped else "whole transcript"
+    window = f"clipped to the last {bound}, dropping {dropped} earlier items" if dropped else "whole transcript"
     print("=== session ===")  # emitted only once every fallible step above has succeeded
     print(f"file: {path}")
     print(f"resolved-via: {how}")
