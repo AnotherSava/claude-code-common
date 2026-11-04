@@ -46,7 +46,8 @@ def scan(home: str, session: str, records: list[dict]) -> tuple[str, str]:
     with open(os.path.join(folder, f"{session}.jsonl"), "w", encoding="utf-8") as handle:
         for index, record in enumerate(records):
             handle.write(json.dumps({**record, "timestamp": f"2026-11-03T10:{index:02d}:00Z"}) + "\n")
-    out = subprocess.run([sys.executable, SCAN, "--session-id", session], capture_output=True, text=True, env={**os.environ, "HOME": home}, timeout=30).stdout
+    # Python's expanduser reads USERPROFILE on Windows and HOME elsewhere, so the scratch home needs both.
+    out = subprocess.run([sys.executable, SCAN, "--session-id", session], capture_output=True, text=True, env={**os.environ, "HOME": home, "USERPROFILE": home}, timeout=30).stdout
     window = next((line for line in out.splitlines() if line.startswith("window:")), "")
     return window, out.split("=== conversation ===", 1)[-1]
 
