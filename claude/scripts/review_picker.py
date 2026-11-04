@@ -230,6 +230,7 @@ def _render(spec: dict, in_agterm: bool) -> str:
   .pill input {{ display: none; }}
   .pill span {{ display: inline-block; padding: 1px 9px; margin: 0 2px 2px 0; border-radius: 999px; border: 1px solid color-mix(in srgb, var(--agterm-foreground, #222) 25%, transparent); opacity: 0.75; }}
   .pill.rec span {{ border-style: dashed; }}
+  .pill input:not(:checked):not(:disabled) + span:hover {{ background: color-mix(in srgb, var(--agterm-color-4, #2563eb) 18%, transparent); color: var(--agterm-color-4, #2563eb); opacity: 1; }}
   .pill input:checked + span {{ background: var(--agterm-color-4, #2563eb); border: 1px solid transparent; color: #fff; opacity: 1; }}
   .triage {{ display: grid; grid-template-columns: max-content max-content max-content minmax(0, 1fr); column-gap: 10px; align-items: baseline; }}
   .triage .trow {{ grid-column: 1 / -1; display: grid; grid-template-columns: subgrid; grid-template-rows: auto 1fr; align-items: baseline; border-top: 1px solid var(--rule); padding: 6px 0; }}

@@ -1,6 +1,6 @@
 ---
 name: no-underline-links
-description: Text-control affordances — strip RESTING underlines; distinguish by shape (link=hover-underline, toggle=chevron, action=+, all icon/pill not underline); links keep HOVER-underline for WCAG 1.4.1
+description: Text-control affordances — strip RESTING underlines; distinguish by shape (link=hover-underline, toggle=chevron, action=+, option=soft-fill hover); links keep HOVER-underline for WCAG 1.4.1
 metadata:
   type: feedback
 ---
@@ -13,6 +13,10 @@ Tiers:
 - **Link** (navigate / reveal reference) — accent colour + weight, `text-decoration: none` **at rest** (a resting underline reads as cluttered/dated — the user's aesthetic, surfaced tuning the Vancouver Print Lab quote email). **Keep the underline on HOVER**, though: a bare accent word in running text is distinguished by colour *alone*, which fails **WCAG 1.4.1** (colour-vision deficiency, ~1 in 12) and is easy to mistake for emphasis. Hover-underline costs nothing at rest and restores the affordance on probe. (Zero-underline look: keep a *persistent* underline only on links inside dense prose; leave standalone links bare — but never colour-only in body text. A link carrying a leading link-glyph is exempt: the icon, not colour, signals it.)
 - **Disclosure toggle** (expand / collapse in place) — trailing chevron that rotates when open; hover = soft-fill pill (`--accent-soft`), **never underline**.
 - **Action** (create / add / trigger) — leading `+` (or a relevant icon); hover = soft-fill pill, **never underline**.
+- **Option group** (segmented toggle, choice pills) — the selected option is filled; an unselected one gets a slight
+  hover highlight, `background: var(--accent-soft); color: var(--accent)`, so the option about to be picked stands out
+  before the click. The selected and disabled options get no hover. Selector, from printlab's segmented controls:
+  `button:not(.on):not(:disabled):hover`.
 - **Primary action** — filled accent button.
 - **Quiet variant** (low-priority control) — drop the accent: `--ink-2` text + `--ink-3` icon, grey `--paper-3` hover pill.
 
