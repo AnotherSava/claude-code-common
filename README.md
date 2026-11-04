@@ -825,6 +825,20 @@ Works with [Notion](https://www.notion.so/) through whichever of its two APIs ca
 
 ---
 
+### Transcript History
+
+Searches and reads a project's past Claude Code conversations on both machines, including sessions Claude Code's retention has already deleted from `~/.claude/projects`. The archive and its query script live in the private `transcripts` repo, which must be checked out beside this repo; without that checkout the skill stops and says so.
+
+**Command:** `/transcript-history`
+
+**Features:**
+- Lists a project's sessions, searches them for terms, and prints one session, with or without the tools each reply used
+- Defaults to the current repo's project, with `--project` for another one and `--machine local` to skip the other machine
+- Reports a machine it could not reach as `NOT COVERED`, so a negative result never reads as a search of both
+- Read-only: never writes to the archive, which holds the only copy of some sessions
+
+---
+
 ## Hooks
 
 ### External Hook Paths
