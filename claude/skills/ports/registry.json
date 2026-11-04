@@ -106,6 +106,23 @@
       "notes": "Local end of an ssh -L tunnel to tripit's production database, for one-off scripts run from this machine against production"
     },
     {
+      "port": 3904,
+      "use_case": "narod-dev-server",
+      "owner": "greenmur",
+      "scope": "machine",
+      "status": "assigned",
+      "notes": "narod's local dev server, started through its tracked scripts/dev.sh (exec dev-port python -X utf8 serve.py); config/deploy.env sets DEV_CMD=sh scripts/dev.sh"
+    },
+    {
+      "port": 3905,
+      "use_case": "narod-dev-tailnet",
+      "owner": "greenmur",
+      "scope": "machine",
+      "status": "assigned",
+      "notes": "Tailnet front port for narod's dev server on 3904. Allocated by deploy-dev-server.sh; the origin cannot share its own number.",
+      "front_for": 3904
+    },
+    {
       "port": 3939,
       "use_case": "what-is-next-dev-server",
       "owner": "what-is-next",
@@ -220,7 +237,7 @@
       "scope": "machine",
       "status": "assigned",
       "notes": "The IntelliJ Remote Robot server in the documentation-screenshot sandbox. Started by `./gradlew runIdeForScreenshots`; `docs/screenshots/capture/capture.py` connects to the same number to stage state and paint components over HTTP. Two hardcoded copies in two languages must agree on it: `build.gradle.kts` and `capture.py`.",
-      "pinned": "Nothing resolves it at launch: the Gradle task `runIdeForScreenshots` passes it to the sandbox IDE as a `-Drobot-server.port` JVM argument, and the repo tracks no Node-capable file for a registry resolver to run from."
+      "pinned": "Nothing resolves it at launch: the Gradle task `runIdeForScreenshots` passes it to the sandbox IDE as a `-Drobot-server.port` JVM argument, so no environment PORT reaches the server for dev-port to set."
     },
     {
       "port": 8731,
