@@ -1,5 +1,5 @@
 // Resolve a project's port from the ports registry and run its server with PORT set, so the number
-// exists in exactly one place. A library: the project's own `scripts/dev.mjs` imports `run` from it.
+// exists in exactly one place.
 //
 // A port written into a dev script is a copy that nothing reconciles, and the copy is what the process
 // reads. Resolving it here instead makes the absence of a literal the proof that the port came from the
@@ -10,10 +10,13 @@
 // survives both. Node is already a dependency of every project that has a dev script, and it can find
 // the home directory and the right interpreter itself.
 //
-// Called by a committed `scripts/dev.mjs` in each project, which supplies the use case and the command:
+// Run as a command, through the `dev-port` launcher in ../bin that the dotfiles install puts on PATH:
 //
-//     import { run } from '<this file>'
-//     await run({ useCase: 'scheduler-dev-server', owner: 'scheduler', command: process.argv.slice(2) })
+//     "dev": "dev-port next dev"
+//
+// The use case comes from `ports.py dev-use-case`, which deploy-dev-server.sh asks too, so `npm run dev` by
+// hand and `deploy` ask the registry for the same claim. A repo that still carries a `scripts/dev.mjs`
+// imports `run` from here with the two names spelled out instead.
 //
 // Next reads PORT from the environment, and classifies an env-supplied port as source `env` rather than
 // `default`, which keeps its retry-on-collision path off — so the server binds the allocated number or
@@ -27,9 +30,10 @@
 // itself, and should refuse to start without it rather than falling back to a default.
 
 import { spawnSync } from 'node:child_process'
-import { lstatSync, statSync } from 'node:fs'
+import { lstatSync, realpathSync, statSync } from 'node:fs'
 import { homedir } from 'node:os'
 import { join } from 'node:path'
+import { fileURLToPath } from 'node:url'
 
 const PORTS_PY = join(homedir(), '.claude', 'skills', 'ports', 'scripts', 'ports.py')
 
@@ -53,8 +57,10 @@ function registryScript() {
   return { state: 'present' }
 }
 
-/** The port the registry holds for `useCase`, assigning one on the first call. */
-function resolvePort({ useCase, owner, notes }) {
+const PYTHON = process.platform === 'win32' ? 'python' : 'python3'
+
+/** Exit with the right instruction unless the registry script can be run. */
+function requireRegistry() {
   // One `existsSync` cannot carry this message: it answers false for a path that is missing and for a
   // symlink resolving to nothing alike, and this path runs through `~/.claude/`, a tree symlinked out of the
   // dotfiles checkout — so moving that checkout produces the second state and the first one's wording sends
@@ -71,15 +77,19 @@ function resolvePort({ useCase, owner, notes }) {
        + `re-creates the link, or read the port out of the registry by hand and run the server with `
        + `PORT=<n> set.`)
   }
-  const python = process.platform === 'win32' ? 'python' : 'python3'
-  const result = spawnSync(python, [
+}
+
+/** The port the registry holds for `useCase`, assigning one on the first call. */
+function resolvePort({ useCase, owner, notes }) {
+  requireRegistry()
+  const result = spawnSync(PYTHON, [
     PORTS_PY, 'allocate',
     '--use-case', useCase,
     '--owner', owner,
-    '--notes', notes || `Resolved at launch by ${owner}'s scripts/dev.mjs; the number is not in this repo.`,
+    '--notes', notes || `Resolved at launch by ${owner}'s dev script; the number is not in that repo.`,
   ], { encoding: 'utf-8', stdio: ['ignore', 'pipe', 'inherit'] })
 
-  if (result.error) fail(`could not run ${python}: ${result.error.message}`)
+  if (result.error) fail(`could not run ${PYTHON}: ${result.error.message}`)
   if (result.status !== 0) fail(`${PORTS_PY} allocate exited ${result.status} for '${useCase}' — reason above.`)
   const port = (result.stdout || '').trim()
   if (!/^\d{2,5}$/.test(port)) fail(`allocate printed ${JSON.stringify(port)} rather than a port number.`)
@@ -94,9 +104,27 @@ function windowsCommandLine(argv) {
   }).join(' ')
 }
 
+/** What ports.py records a dev server launched from `start` under: its use case, or with `--owner` its owner. */
+function devClaim(start, ...flags) {
+  const result = spawnSync(PYTHON, [PORTS_PY, 'dev-use-case', '--from', start, ...flags], { encoding: 'utf-8', stdio: ['ignore', 'pipe', 'inherit'] })
+  if (result.error) fail(`could not run ${PYTHON}: ${result.error.message}`)
+  const answer = (result.stdout || '').trim()
+  if (result.status !== 0 || !answer) fail(`${PORTS_PY} dev-use-case exited ${result.status} for ${start} — reason above.`)
+  return answer
+}
+
+/** Run `command` on the port the registry holds for the project the working directory belongs to. */
+export async function runHere(command) {
+  if (!command || command.length === 0) fail('no command given — usage: dev-port <command> [args...]')
+  requireRegistry()
+  const useCase = devClaim(process.cwd())
+  await run({ useCase, owner: devClaim(process.cwd(), '--owner'), command,
+              notes: `Resolved at launch by dev-port for ${useCase}; the number is not in that repo.` })
+}
+
 /** Resolve the port, then exec `command` with PORT set. Exits with the command's own status. */
 export async function run({ useCase, owner, notes, command }) {
-  if (!command || command.length === 0) fail('no command given — usage: dev.mjs <command> [args...]')
+  if (!command || command.length === 0) fail('no command given — usage: dev-port <command> [args...]')
   const port = resolvePort({ useCase, owner, notes })
   console.error(`dev-port: ${useCase} -> ${port}`)
   // Windows needs a shell at all: npm-installed binaries are `.cmd` shims there, which CreateProcess will
@@ -112,4 +140,10 @@ export async function run({ useCase, owner, notes, command }) {
     : spawnSync(command[0], command.slice(1), options)
   if (child.error) fail(`could not run ${command.join(' ')}: ${child.error.message}`)
   process.exit(child.status === null ? 1 : child.status)
+}
+
+// Run as a command rather than imported. Both sides are real paths: Node resolves a symlinked main module to
+// its target, and `~/.claude/` is a tree of symlinks.
+if (process.argv[1] && realpathSync(process.argv[1]) === realpathSync(fileURLToPath(import.meta.url))) {
+  await runHere(process.argv.slice(2))
 }

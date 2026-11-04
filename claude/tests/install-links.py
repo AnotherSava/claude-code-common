@@ -46,6 +46,10 @@ UNIX_HEADING = "### Linux / macOS"
 NEW_ITEM_RE = re.compile(r'^New-Item -ItemType SymbolicLink -Path "([^"]+)" -Target "([^"]+)"$')
 LN_RE = re.compile(r'^ln -s "([^"]+)" (\S+)$')
 GIT_CONFIG_RE = re.compile(r'^git config --global (\S+) "?([^"]+?)"?$')
+# A PATH entry, idempotent in both forms so a re-run install block adds nothing twice.
+WIN_PATH_RE = re.compile(r'^\$p = \[Environment\]::GetEnvironmentVariable\("Path", "User"\); if \(";\$p;" -notlike "\*;([^;*"]+);\*"\) '
+                         r'\{ \[Environment\]::SetEnvironmentVariable\("Path", "\1;\$p", "User"\) \}$')
+UNIX_PATH_RE = re.compile(r"""^grep -qxF 'export PATH="([^":]+):\$PATH"' ~/\.zshrc \|\| echo 'export PATH="\1:\$PATH"' >> ~/\.zshrc$""")
 # Lines that carry no link and are still expected: each block creates the directory the links go
 # into. Listed rather than pattern-matched, so a new one is a stop rather than a silent skip.
 IGNORED = ("mkdir -p ~/.claude",
@@ -110,10 +114,11 @@ def repo_path(raw: str) -> str:
     raise Unreadable(f"{raw!r} is not written relative to the checkout, so which file it links to is unknown")
 
 
-def parse_block(lines: list[str], where: str) -> tuple[dict[str, str], dict[str, str]]:
-    """-> ({link: repo path}, {git setting: its value}) for one install block."""
+def parse_block(lines: list[str], where: str) -> tuple[dict[str, str], dict[str, str], set[str]]:
+    """-> ({link: repo path}, {git setting: its value}, {PATH entry}) for one install block."""
     links: dict[str, str] = {}
     settings: dict[str, str] = {}
+    path_dirs: set[str] = set()
     for line in lines:
         text = line.strip()
         if not text or text in IGNORED:
@@ -121,7 +126,10 @@ def parse_block(lines: list[str], where: str) -> tuple[dict[str, str], dict[str,
         new_item = NEW_ITEM_RE.match(text)
         link = LN_RE.match(text)
         setting = GIT_CONFIG_RE.match(text)
-        if new_item:
+        path_entry = WIN_PATH_RE.match(text) or UNIX_PATH_RE.match(text)
+        if path_entry:
+            path_dirs.add(home_path(path_entry.group(1)))
+        elif new_item:
             links[home_path(new_item.group(1))] = repo_path(new_item.group(2))
         elif link:
             links[home_path(link.group(2))] = repo_path(link.group(1))
@@ -131,7 +139,7 @@ def parse_block(lines: list[str], where: str) -> tuple[dict[str, str], dict[str,
             raise Unreadable(f"the {where} install block holds a line this check cannot classify: {text!r}")
     if not links:
         raise Unreadable(f"the {where} install block creates no links at all, which cannot be right")
-    return links, settings
+    return links, settings, path_dirs
 
 
 def load_check_install() -> ModuleType:
@@ -159,8 +167,8 @@ def compare(label: str, left: dict[str, str], right: dict[str, str], left_name: 
 def main() -> int:
     try:
         readme = read_text(README)
-        windows_links, windows_settings = parse_block(block_after(readme, WINDOWS_HEADING), "Windows")
-        unix_links, unix_settings = parse_block(block_after(readme, UNIX_HEADING), "Linux / macOS")
+        windows_links, windows_settings, windows_path = parse_block(block_after(readme, WINDOWS_HEADING), "Windows")
+        unix_links, unix_settings, unix_path = parse_block(block_after(readme, UNIX_HEADING), "Linux / macOS")
         module = load_check_install()
     except (Unreadable, OSError, UnicodeDecodeError) as exc:
         # Not a failure count: nothing was compared, and a run that could not read its inputs must
@@ -172,6 +180,10 @@ def main() -> int:
     compare("the two install blocks", windows_settings, unix_settings, "the Windows block", "the Linux / macOS block")
     compare("README against check-install.py", windows_links, dict(module.LINKS),
             "the install blocks", "the LINKS list")
+
+    as_map = lambda dirs: {entry: "on PATH" for entry in dirs}
+    compare("PATH entries", as_map(windows_path), as_map(unix_path), "the Windows block", "the Linux / macOS block")
+    compare("PATH entries", as_map(windows_path), as_map(module.PATH_DIRS), "the install blocks", "the PATH_DIRS list")
 
     # A git setting names a path rather than a repo file, so it is read through the links the blocks
     # just created: `core.hooksPath = ~/.git-hooks` is correct only while that link goes to git/hooks.
@@ -194,7 +206,8 @@ def main() -> int:
             print(f"  {failure}")
         print()
         return 1
-    print(f"install links: {len(windows_links)} link(s) and {len(windows_settings)} git setting(s) agree "
+    print(f"install links: {len(windows_links)} link(s), {len(windows_settings)} git setting(s) and "
+          f"{len(windows_path)} PATH entr{'y' if len(windows_path) == 1 else 'ies'} agree "
           f"across both install blocks and check-install.py")
     return 0
 

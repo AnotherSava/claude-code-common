@@ -76,4 +76,6 @@ def check(root: str) -> list[str]:
         # of a question nobody got to ask.
         raise RuntimeError("git would not list the global config, so whether core.hooksPath, "
                            "core.excludesFile and core.attributesFile point into this repo is unknown")
-    return [f"{label} — {why}" for label, ok, why in INSTALL.check_all() if not ok]
+    # check_links() rather than check_all(): the PATH entries serve a project's dev script, not a commit gate,
+    # so a machine lacking one is told at session start and is not stopped from committing anywhere.
+    return [f"{label} — {why}" for label, ok, why in INSTALL.check_links() if not ok]

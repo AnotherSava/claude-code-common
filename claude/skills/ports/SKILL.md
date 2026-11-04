@@ -162,12 +162,15 @@ commit without wiring anything, and one that has not is unchecked rather than cl
 The port is resolved when the server starts, so no file in the project carries the number. Two callers ask
 the registry for the same use case and arrive at the same answer:
 
-- `deploy-dev-server.sh` resolves `<repo>-dev-server`, exports `PORT`, kills whatever holds that port, and
+- `deploy-dev-server.sh` resolves the use case `ports.py dev-use-case --from <repo>` prints, exports `PORT`, kills whatever holds that port, and
   health-checks it. Nothing in `config/deploy.env` names a port any more.
-- The project's own `scripts/dev.mjs` resolves it for a hand-run `npm run dev`, which is the entry point a
+- The `dev-port` command resolves it for a hand-run `npm run dev`, which is the entry point a
   launcher-only design leaves broken: a bare `next dev` with no flag and no `PORT` starts on 3000 and
-  drifts upward on a collision. That shim is a committed per-repo file loading `scripts/dev-port.mjs` from
-  this skill, so a fix here reaches every project. Version 015's folder holds the template.
+  drifts upward on a collision. The dev script reads `"dev": "dev-port next dev"`; the command lives in this
+  skill's `bin/`, which the dotfiles install puts on `PATH`, and asks `ports.py dev-use-case` for the use
+  case just as `deploy-dev-server.sh` does, so the project carries no file for it. A repo below convention
+  018 may still carry a `scripts/dev.mjs` shim that imports `scripts/dev-port.mjs` with the two names
+  spelled out; version 018 replaces it.
 
 Next reads `PORT` and classifies an env-supplied port as source `env` rather than `default`, which keeps its
 retry path off — so the server binds the registry's number or exits, rather than drifting. Vite reads no
@@ -175,7 +178,8 @@ retry path off — so the server binds the registry's number or exits, rather th
 variable itself and refuse to serve without it, which version 015's step 3 spells out.
 
 A Tauri dev run needs the same number in a second place — `build.devUrl`, in a `tauri.conf.json` that is
-static — so that project's `scripts/dev.mjs` writes a per-run override file and passes `tauri dev -c <file>`.
+static — so that project keeps a `scripts/dev.mjs` of its own, which writes a per-run override file and passes
+`tauri dev -c <file>`. That is project logic rather than a copy of the shim, and version 018 leaves it.
 Leaving the field empty selects the CLI's own dev server on 1430, which serves the last build with no error;
 `~/.claude/learnings/tauri-dev-server-port.md` has the measurements.
 
@@ -189,9 +193,10 @@ A dev server reached over the tailnet needs **two** numbers: the port it binds, 
 — the mapping takes the wildcard and tailnet addresses and leaves only loopback free, so the server starts
 once and then cannot rebind its own port, while every process listing shows that port free.
 
-`deploy-dev-server.sh` does this for a `dev-server` deploy already: it allocates `<repo>-dev-tailnet` on every
-run and publishes `publish-port <front> --target <DEV_PORT>`. For a server started any other way, allocate a
-front port the same way rather than passing one number to `publish-port`, which refuses a same-number publish
+`deploy-dev-server.sh` does this for a `dev-server` deploy already: on every run it allocates the use case
+`ports.py dev-use-case --from <repo> --role tailnet` prints, and publishes `publish-port <front> --target
+<DEV_PORT>`. For a server started any other way, allocate the front port under the use case that same
+command prints rather than passing one number to `publish-port`, which refuses a same-number publish
 over a wildcard-bound origin and tells you so.
 
 A project whose origin is pinned to `localhost` — a URL-restricted API key, an OAuth redirect, a CORS

@@ -68,6 +68,13 @@ GIT_SETTINGS: list[tuple[str, str]] = [
     ("core.attributesFile", "git/gitattributes"),
 ]
 
+# Directories the install blocks put on PATH, each holding commands a project's scripts call by bare name —
+# `dev-port` from a package.json dev script, which npm runs through cmd.exe on Windows, where only PATH
+# reaches a command. Checked against this process's own PATH, which a shell started before the install lacks.
+PATH_DIRS: list[str] = [
+    "~/.claude/skills/ports/bin",
+]
+
 REPO = os.path.dirname(os.path.dirname(os.path.dirname(os.path.realpath(__file__))))
 
 
@@ -133,12 +140,28 @@ def git_globals() -> dict[str, str] | None:
     return out
 
 
+def check_path() -> list[tuple[str, bool, str]]:
+    """(label, ok, why) for each PATH_DIRS entry, read off this process's own PATH."""
+    results: list[tuple[str, bool, str]] = []
+    entries = [entry for entry in os.environ.get("PATH", "").split(os.pathsep) if entry]
+    for wanted in PATH_DIRS:
+        target = os.path.expanduser(wanted)
+        on_path = any(os.path.isdir(entry) and os.path.isdir(target) and os.path.samefile(entry, target) for entry in entries)
+        results.append((f"PATH {wanted}", on_path, "" if on_path else "not on PATH — commands in it are not found by name"))
+    return results
+
+
 def check_all() -> list[tuple[str, bool, str]]:
     """(label, ok, why) for every check, in display order.
 
     Both modes render from this one list, so a hook message and a by-hand report
     can never disagree about how many things are wrong.
     """
+    return check_links() + check_path()
+
+
+def check_links() -> list[tuple[str, bool, str]]:
+    """(label, ok, why) for every link and git setting — what a commit gate reads through."""
     results: list[tuple[str, bool, str]] = []
     for link, rel in LINKS:
         ok, why = points_at(os.path.expanduser(link), os.path.join(REPO, rel))

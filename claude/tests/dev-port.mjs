@@ -28,6 +28,7 @@ import { fileURLToPath } from 'node:url'
 
 const ROOT = join(dirname(fileURLToPath(import.meta.url)), '..', '..')
 const MODULE = join(ROOT, 'claude', 'skills', 'ports', 'scripts', 'dev-port.mjs')
+const LAUNCHER_DIR = join(ROOT, 'claude', 'skills', 'ports', 'bin')
 const WINDOWS = process.platform === 'win32'
 
 // The platform each branch needs. On Windows the native value already selects the shell branch, and the
@@ -98,9 +99,9 @@ function execute(platform, extraArgs, extraEnv) {
 const delivered = (out) => [...out.matchAll(/^arg=\[(.*)\]$/gm)].map((m) => m[1])
 const reportedPort = (out) => (out.match(/^PORT=(\d*)$/m) || [])[1]
 
-function allocatedPort() {
+function allocatedPort(useCase = 'dev-port-selftest') {
   const claims = JSON.parse(readFileSync(registry, 'utf8')).claims || []
-  return claims.find((claim) => claim.use_case === 'dev-port-selftest')?.port
+  return claims.find((claim) => claim.use_case === useCase)?.port
 }
 
 // The command's own path holds a space, so a branch that re-splits it leaves Node unable to find the script
@@ -170,8 +171,50 @@ function registryStateCases() {
   passed.push('the dangling-symlink state')
 }
 
+// The command form, through the launcher the install puts on PATH, as `npm run dev` would reach it: started
+// from a subdirectory of a project, it must find the project root and ask for `<folder>-dev-server` — the
+// claim deploy-dev-server.sh asks for — under the owner `ports.py repo-name` gives.
+function commandCases() {
+  const project = join(scratch, 'cmdproj')
+  const web = join(project, 'web')
+  mkdirSync(join(project, 'config'), { recursive: true })
+  mkdirSync(web)
+  writeFileSync(join(project, 'config', 'deploy.env'), 'DEPLOY_TYPE=dev-server\n')
+  const launcherEnv = { ...env, PATH: `${LAUNCHER_DIR}${WINDOWS ? ';' : ':'}${env.PATH}` }
+  const result = spawnSync('dev-port', [process.execPath, echo, 'dev'],
+                           { cwd: web, encoding: 'utf-8', env: launcherEnv, shell: WINDOWS })
+  const out = (result.stdout || '').replace(/\r/g, '')
+  check('the dev-port command: exits 0', result.status, 0)
+  check('the dev-port command: asks for <project folder>-dev-server from a subdirectory',
+        reportedPort(out), String(allocatedPort('cmdproj-dev-server') ?? 'no claim written'))
+  check('the dev-port command: delivers the command\'s arguments', delivered(out), ['dev'])
+  const claim = (JSON.parse(readFileSync(registry, 'utf8')).claims || []).find((c) => c.use_case === 'cmdproj-dev-server')
+  check('the dev-port command: records an owner', typeof claim?.owner === 'string' && claim.owner.length > 0, true)
+  passed.push('the dev-port command')
+
+  // deploy-dev-server.sh hands ports.py bash's logical path, and Node's working directory is the physical one,
+  // so a project entered through a symlink named differently from its target must still get the claim above.
+  try {
+    const link = join(scratch, 'cmdlink')
+    symlinkSync(project, link)
+    const viaLink = spawnSync(process.platform === 'win32' ? 'python' : 'python3',
+                              [join(ROOT, 'claude', 'skills', 'ports', 'scripts', 'ports.py'), 'dev-use-case', '--from', join(link, 'web')],
+                              { encoding: 'utf-8', env })
+    check('a project reached through a symlink claims under its target\'s name', (viaLink.stdout || '').trim(), 'cmdproj-dev-server')
+    passed.push('the symlinked project')
+  } catch (error) {
+    uncovered.push(`the symlinked project: this host refused to create the link (${error.code})`)
+  }
+
+  const empty = spawnSync('dev-port', [], { cwd: web, encoding: 'utf-8', env: launcherEnv, shell: WINDOWS })
+  check('the dev-port command with no command refuses, naming the usage',
+        [empty.status, /usage: dev-port/.test(empty.stderr || '')], [1, true])
+  passed.push('the empty dev-port command')
+}
+
 try {
   registryStateCases()
+  commandCases()
   shellBranchCases()
 
   // Forcing the argv branch on Windows makes `resolvePort` ask for `python3`, and a `.cmd` stand-in cannot

@@ -60,7 +60,7 @@
       "owner": "printlab",
       "scope": "machine",
       "status": "assigned",
-      "notes": "The Next dev server, started by web/package.json's `dev` script, which runs `doppler run -- node ../scripts/dev.mjs next dev` and asks this registry for the number at launch. Add the new port to one outside allowlist before reassigning this claim: the Google Maps Embed API key that renders the About-page map restricts referrers to `http://localhost:3000/*`, and on any other port the map degrades to its `Open in Google Maps` link with no error — the same output the page gives when the key is missing. Not pinned, since that allowlist can move with the port."
+      "notes": "The Next dev server, started by web/package.json's `dev` script, which asks this registry for the number at launch. Add the new port to one outside allowlist before reassigning this claim: the Google Maps Embed API key that renders the About-page map restricts referrers to `http://localhost:3000/*`, and on any other port the map degrades to its `Open in Google Maps` link with no error — the same output the page gives when the key is missing. Not pinned, since that allowlist can move with the port."
     },
     {
       "port": 3000,
@@ -111,7 +111,7 @@
       "owner": "what-is-next",
       "scope": "machine",
       "status": "assigned",
-      "notes": "The Next dev server, started by web/package.json's `dev` script, which runs `doppler run -- node ../scripts/dev.mjs next dev` and asks this registry for the number at launch, exporting it as PORT; deploy-dev-server.sh exports the same number for its own path. Wildcard-bound. Needs a separate tailnet front port: a serve mapping on 3939 stops this server rebinding after a restart."
+      "notes": "The Next dev server, started by web/package.json's `dev` script, which asks this registry for the number at launch, exporting it as PORT; deploy-dev-server.sh exports the same number for its own path. Wildcard-bound. Needs a separate tailnet front port: a serve mapping on 3939 stops this server rebinding after a restart."
     },
     {
       "port": 3940,
@@ -119,7 +119,7 @@
       "owner": "scheduler",
       "scope": "machine",
       "status": "assigned",
-      "notes": "The Next dev server, started by web/package.json's `dev` script, which runs `doppler run -- node ../scripts/dev.mjs next dev` and asks this registry for the number at launch, exporting it as PORT; scripts/dev.sh and deploy-dev-server.sh both reach it through that script. Wildcard-bound. Needs a separate tailnet front port: a serve mapping on 3940 would stop this server rebinding after a restart."
+      "notes": "The Next dev server, started by web/package.json's `dev` script, which asks this registry for the number at launch, exporting it as PORT; scripts/dev.sh and deploy-dev-server.sh both reach it through that script. Wildcard-bound. Needs a separate tailnet front port: a serve mapping on 3940 would stop this server rebinding after a restart."
     },
     {
       "port": 3941,

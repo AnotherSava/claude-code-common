@@ -1,0 +1,4 @@
+#!/bin/sh
+# `dev-port <command> [args...]`: run a dev server on the port the ports registry holds for this project.
+# The dotfiles install puts this directory on PATH; the logic is in ../scripts/dev-port.mjs.
+exec node "$(dirname "$0")/../scripts/dev-port.mjs" "$@"
