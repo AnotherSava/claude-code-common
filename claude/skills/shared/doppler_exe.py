@@ -8,9 +8,10 @@ import shutil
 import sys
 
 
-def doppler(failure: str) -> str:
-    """The doppler path, or exit with `failure` naming what could not be done without it."""
+def doppler(failure: str, code: int = 1) -> str:
+    """The doppler path, or exit with `code` after printing `failure`, which names what could not be done without it."""
     path = shutil.which("doppler")
     if not path:
-        sys.exit(f"{failure}: doppler is not on PATH")
+        sys.stderr.write(f"{failure}: doppler is not on PATH\n")
+        sys.exit(code)
     return path

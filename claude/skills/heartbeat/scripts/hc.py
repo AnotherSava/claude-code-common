@@ -48,12 +48,13 @@ def api_key() -> str:
     key = os.environ.get(KEY_NAME, "").strip()
     if key:
         return key
-    exe = doppler(f"could not read {KEY_NAME}, which is unset in the environment")
+    exe = doppler(f"could not read {KEY_NAME}, which is unset in the environment", code=2)
     try:
         proc = subprocess.run([exe, "secrets", "get", KEY_NAME, "--project", KEY_PROJECT,
                                "--config", KEY_CONFIG, "--plain"], capture_output=True, text=True, timeout=30)
     except subprocess.TimeoutExpired:
-        sys.exit(f"could not read {KEY_NAME}: doppler timed out")
+        sys.stderr.write(f"could not read {KEY_NAME}: doppler timed out\n")
+        sys.exit(2)
     if proc.returncode != 0:
         sys.stderr.write(f"could not read {KEY_NAME} from doppler {KEY_PROJECT}/{KEY_CONFIG}.\n"
                          f"{proc.stderr.strip()}\n"
