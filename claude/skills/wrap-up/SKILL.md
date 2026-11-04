@@ -5,7 +5,7 @@ description: >-
   last recorded review, reviews the session's transcript for unanswered questions, passed-over
   concerns, memo-worthy ideas and unkept promises, drafts what /reflect would save, groups the
   commits, then stops once on a single summary, or prints one line and goes on when there is
-  nothing to approve; one answer applies the dispositions, saves, commits and pushes. Then offers deploy, publish and release.
+  nothing to approve; one answer applies the dispositions, saves, commits and pushes. Then offers deploy, publish and release, and hands over to /clear.
   TRIGGER when: the user runs /wrap-up, or says they are ready to finalize, close out,
   or wrap up the current section of work.
   DO NOT TRIGGER when: the user wants to push work as-is to test it (use /yolo), to park a
@@ -19,8 +19,8 @@ Close out a section of work: review the change, review everything said in this s
 unfinished, then put all of it in front of the user **once** — the review's triage, the open items, what reflection
 would save, the commit plan. One answer settles everything; after it the skill applies, commits and pushes, asking
 again only where step 8 names a question of its own, then offers to run and ship what was committed, offers a
-release when it holds features or fixes. The next run starts its transcript review after this one, so no `/clear`
-is needed between them.
+release when it holds features or fixes, and hands over to `/clear` as the sign that the section is finished. The
+next run starts its transcript review after this one whether or not the user clears.
 
 The commit and the push go through the shared steps every committing skill uses — `shared/commit.py`,
 `shared/push.py`, `shared/commit-grouping.md` — never through another top-level skill, so nothing here has to guess
@@ -485,6 +485,19 @@ command with a redirect or a `tee` of your own.
 machine-takeover ask is valid only immediately before the thing it drives, and a publish or release agreed to
 at the gate is agreed to before the user has decided whether to push the work it would ship.
 
+### 10. Hand over to `/clear`
+
+Once the push is confirmed, close with a single line telling the user to run `/clear`: it marks this section of
+work as finished and frees the context for the next one. It no longer bounds the next `/wrap-up`, whose transcript
+review starts after this run either way, so do not say it does.
+
+This skill cannot run it. Clearing the context is a built-in CLI command, not a skill or a
+tool, so the user has to type it. Recommend it, do not claim to have done it, and do not
+recommend it at all after a `hold` or a failed push, since clearing on top of unpushed
+work throws away the context needed to finish it. A run in step 9 that failed and left something
+to fix withholds it for the same reason: the session holding the output is the one that can act
+on it.
+
 ## Out of scope
 
 - Do NOT act on an item the user marked memo or drop.
@@ -500,6 +513,7 @@ at the gate is agreed to before the user has decided whether to push the work it
   that publishes from CI is supposed to have no publish wrapper at all.
 - Do NOT offer a publish or a release after a `hold`, and do NOT treat the
   gate in step 7 as consent for any of the runs in step 9.
+- Do NOT claim to have cleared the context.
 - Do NOT predict in step 9 what `deploy`, `publish` or `/release` will refuse. Offer, run, and report what the
   script said; its preconditions are its own to enforce. Reading **deploy type** to decide whether
   the machine-takeover ask needs a window warning is not that — it is this skill's own obligation,
