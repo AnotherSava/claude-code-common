@@ -8,7 +8,8 @@ so Apply on an untouched page is "do what you recommended". A row's ✎ button o
 this"; the note comes back keyed by the row's id. Read-only blocks (a table, preformatted text) sit between the
 sections where the decision needs them, and page-level flags are checkboxes beside Apply.
 
-Shown as a blocking agterm HTML overlay over the calling session, which is what returns the answer: the page's
+Shown as a blocking agterm HTML overlay over the calling session, which is what returns the answer. The session has
+one overlay slot, so whatever page it holds there, a hidden one included, is closed and discarded first. The page's
 Apply calls `session.overlay.submit` with the answer, and `agtermctl ... --block` prints that value. Outside agterm
 (agwinterm on Windows, a plain terminal) nothing can carry an answer back from the page, so the same page is published
 on the tailnet instead, its Apply becomes "Copy answer", and the user pastes the copied JSON into the chat. The script
@@ -342,6 +343,9 @@ def main() -> int:
         print(json.dumps({"outcome": "published", "url": url}))
         return 4
 
+    # agterm refuses an open while the session's overlay slot is taken, a hidden page included (`overlay hidden`),
+    # so whatever the session holds is closed first. Its answer is ignored: an empty slot answers `no overlay`.
+    subprocess.run(["agtermctl", "session", "overlay", "close", "--target", session], capture_output=True, text=True)
     shown = subprocess.run(["agtermctl", "session", "overlay", "open", "--html", out, "--js", "--block", "--target", session],
                            capture_output=True, text=True)
     if shown.returncode == 2:
