@@ -28,8 +28,8 @@ Before the push, the run asks nothing unless one of these happens. Each stops it
 puts the specific question to the user:
 
 - **A blocking privacy finding** from `commit.py`, of any class the docstring of
-  `~/.claude/scripts/scan-commit-confidentiality.py` lists as blocking. Show the finding and ask whether it is a leak (remove it) or a
-  false positive (add its `allow=` value to `.claude/confidentiality-allow` with a comment saying why).
+  `~/.claude/scripts/scan-commit-confidentiality.py` lists as blocking. Show the finding with the instruction the scanner prints under
+  it, which says how to clear it, and put the choice that instruction offers to the user.
 - **A failing gate.** Show its output.
 - **A branch that has diverged from its upstream.** A rebase is the user's call.
 - **A path another session may still be writing** (`shared/commit-grouping.md`, the busy-peer check).

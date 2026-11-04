@@ -172,8 +172,7 @@ if [ -n "${new_commits// /}" ] && [ -f "$(git rev-parse --show-toplevel)/.claude
             echo ""
             if [ "$scan_status" -eq 1 ]; then
                 echo "Push blocked: a pushed commit adds content that must not be published."
-                echo "Remove it with /reset and re-commit, or, for a false positive, add its allow= value to"
-                echo ".claude/confidentiality-allow with a comment saying why."
+                echo "The scanner's advice above says how to clear it; rewording a pushed commit means /reset and re-commit."
             else
                 echo "Push blocked: the privacy scan could not run, so nothing says this push is clean."
             fi
