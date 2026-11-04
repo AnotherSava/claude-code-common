@@ -186,6 +186,7 @@
 - [Private references](refs-private.secret.md) {always} — encrypted (transcrypt); coordinates for ad-hoc third-party credentials Claude uses — read it when a task needs one (decrypted locally; opaque without the key)
 - [Grep must survive markdown emphasis](feedback_grep_markdown_emphasis.md) {always} — `grep "Node 22"` misses `Node **22 LTS**`; sweep with a separator-tolerant pattern and search concepts, not just the phrase
 - [Check a destination is not published](feedback_check_destination_visibility.md) {always} — check `gh repo view --json isPrivate` AND `git check-ignore` before moving anything to a shared repo; then redact live-data figures from what goes in
+- [Reword before allowlisting](feedback_reword_before_allowlisting.md) — a blocking privacy-scan finding: reword the text first; the allow-list entry is the last resort
 - [Rotate, don't abandon](feedback_rotate_dont_abandon.md) {always} — a leaked credential makes one value worthless, not the access; propose replacing it, say what survives, verify the old one is dead
 - [Fork rather than carry patches](feedback_fork_over_carried_patches.md) {always} — once a local patch to a third-party clone outlives its session, fork and branch it; a pull or reinstall drops it silently
 - [PR goes up with its issue](feedback_pr_with_the_issue.md) — a fix already written goes up as a PR right after its issue; don't wait for the maintainer's reply
