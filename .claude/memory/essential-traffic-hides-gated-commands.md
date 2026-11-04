@@ -11,4 +11,4 @@ The consequence to recognise rather than re-diagnose: the flag puts the CLI in `
 
 `DISABLE_TELEMETRY` and `DO_NOT_TRACK` are not a middle ground: the enablement predicate is true for any of the three, so every telemetry-off mode hides the same commands.
 
-Also suppressed by the flag: `/bug`, `/feedback`, claude.ai plugin archive downloads, DesignSync, Projects, Remote Control, live-preview tunnels, update lookups. Unaffected: session API calls, auth, configured MCP servers, WebSearch/WebFetch, gateway model discovery.
+Also suppressed by the flag: `/bug`, `/feedback`, `/design`, `/design-login` (so a Claude Design canvas needs a session started with the flag cleared, see `learnings/claude-design-handoff.md`), the Artifact tool, claude.ai plugin archive downloads, DesignSync, Projects, Remote Control, live-preview tunnels, update lookups. Unaffected: session API calls, auth, configured MCP servers, WebSearch/WebFetch, gateway model discovery.

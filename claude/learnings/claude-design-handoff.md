@@ -70,3 +70,30 @@ Besides the gzip-tarball handoff above, Claude Design now exposes an **MCP serve
 - **Rendering to *see* the design:** `render_preview(project_id, path)` returns a short-lived `serve_url` (`*.claudeusercontent.com`, project-scoped token, ~1 h TTL) — a standalone render with no editor chrome. Open it in **your own browser tooling** (chrome-devtools MCP / claude-in-chrome) to screenshot each view; the `.dc.html` is a templated `x-dc` component app, so drive its client-side routing (`document.querySelector('.wn-nav')…click()` or the framework's nav handlers) to reach each screen, then full-page screenshot. **Never put `serve_url` in user-facing text** (it carries a token); give the user only the durable `open_url` (`claude.ai/design/...`).
 - The reference `.dc.html` uses **fake data** (picsum images, seeded gradients, hardcoded arrays). Treat it as the *visual* target only — wire the real app's data into that design; don't copy the mock data.
 - **The `.dc.html` is a LIVING doc — re-read it on every design request, don't trust a cached copy.** The user keeps editing the mock in Claude Design between your requests, so a `read_file` from an earlier turn goes stale silently. When they re-issue an implement request or say "check the design", re-`read_file` and pass `if_none_match` = the etag from your last full read: an unchanged file returns a tiny `{unchanged:true, etag}` (cheap), a changed one returns the new body + a new etag. Real case: one file changed **3× across a single session** — framed hero → poster-hover actions → Video/Audio/Subtitles spec rows → frameless (no card) — and each time, building from the previously-read copy would have shipped the wrong version. A user asking to "remove the frame (check design)" often means *they already changed the design*; confirm by re-reading before implementing.
+
+## The MCP route stopped working; the Design Artifact type replaced it (measured 2026-11-03, Claude Code 2.1.296)
+
+**A user-added `claude_design` MCP server 403s even after a successful `/design-login`.** The login stores a
+separate `designOauth` entry (scopes `user:design:read user:design:write`) in the macOS keychain item
+`Claude Code-credentials`, next to `claudeAiOauth`, whose scopes carry no `user:design:*`. The CLI's own design tool
+(`X-Anthropic-Client: claude-cli-design-tool`) reads `designOauth`; the generic MCP transport for a server you add
+yourself sends the claude.ai login instead, so the server answers `FIRST_PARTY_AUTH_REJECTED` (HTTP 403) every time.
+The error text tells you to run `/design-login`, which does not help. Tracked upstream as anthropics/claude-code#92215,
+with the dead `claude mcp login` OAuth flow in #77620. Remove the server (`claude mcp remove claude_design -s user`)
+rather than leaving a failure at every startup.
+
+**`/design-login`, `/design` and the design tools are gated off by `CLAUDE_CODE_DISABLE_NONESSENTIAL_TRAFFIC`.**
+In the 2.1.296 binary the command is `{name:"design-login", isEnabled:()=>FF()}`, and `FF()` returns false when the
+traffic mode is `essential-traffic`, so the command reads as unknown. `DO_NOT_TRACK` and `DISABLE_TELEMETRY` do the
+same. A single session started with the flag cleared reaches them:
+
+```bash
+claude --settings '{"env":{"CLAUDE_CODE_DISABLE_NONESSENTIAL_TRAFFIC":""}}'
+```
+
+**In such a session, designs are made with the Artifact tool, not the MCP.** `Artifact` with `action: "quickstart"`,
+`intent: "design"` names the Design type; publishing with its `type_url` creates a canvas, and the canvas is filled
+with `project/canvas.json` plus one `project/<name>.dc.html` per artboard, published with `root` set to the folder
+holding `project/`. The `DesignSync` tool that also appears is for syncing a local component library into a
+design-system project only, never for making a design. The tool description says standalone claude.ai/design closes
+on 2026-12-14, Claude Design now living inside Claude.
