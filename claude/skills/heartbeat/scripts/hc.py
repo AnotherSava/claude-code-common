@@ -29,6 +29,9 @@ import sys
 import urllib.error
 import urllib.request
 
+sys.path.insert(0, os.path.join(os.path.dirname(os.path.abspath(__file__)), "..", "..", "shared"))
+from doppler_exe import doppler  # noqa: E402 — needs the sys.path line above
+
 API_ROOT = "https://healthchecks.io/api/v3"
 KEY_NAME = "HEALTHCHECKS_API_KEY"
 KEY_PROJECT = "tools"
@@ -45,11 +48,10 @@ def api_key() -> str:
     key = os.environ.get(KEY_NAME, "").strip()
     if key:
         return key
+    exe = doppler(f"could not read {KEY_NAME}, which is unset in the environment")
     try:
-        proc = subprocess.run(["doppler", "secrets", "get", KEY_NAME, "--project", KEY_PROJECT,
+        proc = subprocess.run([exe, "secrets", "get", KEY_NAME, "--project", KEY_PROJECT,
                                "--config", KEY_CONFIG, "--plain"], capture_output=True, text=True, timeout=30)
-    except FileNotFoundError:
-        sys.exit(f"could not read {KEY_NAME}: doppler is not on PATH, and the variable is unset")
     except subprocess.TimeoutExpired:
         sys.exit(f"could not read {KEY_NAME}: doppler timed out")
     if proc.returncode != 0:
@@ -162,7 +164,7 @@ def cmd_store_url(args: argparse.Namespace) -> int:
     ping_url = check.get("ping_url")
     if not ping_url:
         sys.exit("the API returned no ping_url — a READ-ONLY key omits it; use a read-write key")
-    proc = subprocess.run(["doppler", "secrets", "set", args.key, "--project", args.doppler_project,
+    proc = subprocess.run([doppler(f"could not store {args.key}"), "secrets", "set", args.key, "--project", args.doppler_project,
                            "--config", args.doppler_config, "--silent"],
                           input=ping_url, capture_output=True, text=True, timeout=60)
     if proc.returncode != 0:

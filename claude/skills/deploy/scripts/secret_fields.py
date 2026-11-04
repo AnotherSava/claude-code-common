@@ -22,9 +22,12 @@ import subprocess
 import sys
 import tempfile
 
+sys.path.insert(0, os.path.join(os.path.dirname(os.path.abspath(__file__)), "..", "..", "shared"))
+from doppler_exe import doppler  # noqa: E402 — needs the sys.path line above
+
 
 def secret(name: str, project: str, config: str) -> str:
-    result = subprocess.run(["doppler", "secrets", "get", name, "-p", project, "-c", config, "--plain"],
+    result = subprocess.run([doppler("secret_fields"), "secrets", "get", name, "-p", project, "-c", config, "--plain"],
                             capture_output=True, text=True)
     if result.returncode != 0:
         sys.exit(f"secret_fields: doppler could not read {name} from {project}/{config}: {result.stderr.strip()}")
