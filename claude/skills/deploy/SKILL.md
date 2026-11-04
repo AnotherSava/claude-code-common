@@ -157,8 +157,10 @@ Once the project has that script, also offer an in-app **reset to production dat
 running dev server shows that runs the same script, so an experiment can be thrown away without a restart.
 It is project code, so offer it and build it only on a yes. It must answer 404 and draw no button outside
 development, refuse a cross-site request, reload the page on success, and show the script's failure line
-beside the button on failure. The trips repo is the reference: `web/src/app/api/debug/sync/route.ts` and
-`web/src/components/debug-sync.tsx`.
+beside the button on failure. Where the project is published behind a proxy, also have the edge answer the
+route 404 to anything off the tailnet, so the production check is not its only guard. The trips repo is the
+reference: `web/src/app/api/debug/sync/route.ts`, `web/src/components/debug-sync.tsx`, and the `/api/debug`
+entry of its `web/deploy/trips.caddy`.
 
 `config/deploy.env` holds no secrets, so it is safe to commit (and committing it gives every contributor the same `! deploy`). The dev server writes `dev-server.log` / `dev-server.err.log` into `DEV_DIR` — ensure those are gitignored: if `<DEV_DIR>/dev-server*.log` (or a broader `dev-server*.log`) isn't already covered by `.gitignore`, add it. After writing the config, go to **step 3**.
 
