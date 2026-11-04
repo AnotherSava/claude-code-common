@@ -87,6 +87,16 @@ waiting for one is a stall. Where a bare, unwrapped single command is still refu
 their own step — see "What to do with a real denial" below — rather than reaching for a permission rule
 whose effect on this command nobody has measured.
 
+## Appending to a shell rc file is refused as persistence
+
+Measured 2026-11-04: a command adding an `export PATH=…` line to `~/.zshrc` was denied as
+**Unauthorized Persistence**, even inside an approved task and with the change documented in the repo's
+install block, and the whole compound command it was part of was refused with it. Hand the user the exact
+idempotent line in a fenced block and let them run it; then verify from a new shell
+(`zsh -ic 'command -v <tool>'`) rather than from the session's own shell, which started before the edit.
+Earlier in the same session, replacing the file with a `cp` of an edited copy went through, so the
+classifier judges the command's shape, not the file it touches.
+
 ## A denial means the command did NOT run
 
 The check happens before execution. Nothing partial, nothing queued, no side effects.

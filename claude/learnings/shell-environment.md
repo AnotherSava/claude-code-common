@@ -45,7 +45,7 @@ claude() {
 
 ```bash
 run_repo_script() { local rel="$1"; shift; local d="$PWD"; while [ "$d" != "/" ] && [ ! -f "$d/$rel" ]; do d="$(dirname "$d")"; done; if [ -f "$d/$rel" ]; then ( cd "$d" && bash "$rel" "$@" ); else echo "No $rel in this directory or any parent"; fi; }
-deploy() { run_repo_script scripts/deploy.sh "$@"; }
+deploy() { bash ~/.claude/skills/deploy/scripts/run.sh "$@"; }
 build()  { run_repo_script scripts/build.sh "$@"; }
 # Ship a project live — the counterpart to `deploy`, which only runs/installs it here.
 # Kept separate so nothing publishes by accident.
@@ -55,7 +55,7 @@ publish() { run_repo_script scripts/publish.sh "$@"; }
 cb() { run_repo_script scripts/cb.sh "$@"; }
 ```
 
-Use `! deploy`, `! build`, `! publish` or `! cb` inside Claude Code, or run directly in any terminal. They all delegate to `run_repo_script`, which walks up from the current directory to the repo's `scripts/<name>.sh` and runs it from the directory that holds it — so they work from any subdirectory (the underlying scripts read `config/deploy.env` and other paths relative to that root). `run_repo_script` is generic: reuse it for any future repo shortcut. Each project carries whichever of `scripts/deploy.sh`, `scripts/build.sh`, `scripts/publish.sh` and `scripts/cb.sh` it actually needs, each a thin wrapper delegating to the global script in the corresponding skill directory — and a project that publishes from CI deliberately has no `publish.sh` at all. All of them are gitignored via the global excludes file, where one narrow rule covers every repo, so nothing leaks into a shared project's committed `.gitignore`.
+Use `! deploy`, `! build`, `! publish` or `! cb` inside Claude Code, or run directly in any terminal. `deploy` runs the deploy skill's `run.sh`, which walks up to the project's committed `config/deploy.env` and calls the target its `DEPLOY_TYPE` names, so a project needs no file of its own for it. The others delegate to `run_repo_script`, which walks up from the current directory to the repo's `scripts/<name>.sh` and runs it from the directory that holds it — so they work from any subdirectory. `run_repo_script` is generic: reuse it for any future repo shortcut. Each project carries whichever of `scripts/build.sh`, `scripts/publish.sh` and `scripts/cb.sh` it actually needs, each a thin wrapper delegating to the global script in the corresponding skill directory — and a project that publishes from CI deliberately has no `publish.sh` at all. All of them are gitignored via the global excludes file, where one narrow rule covers every repo, so nothing leaks into a shared project's committed `.gitignore`.
 
 `cb` is the odd one out: its script is not written once at setup but **regenerated every time Claude puts a
 value on the user's clipboard**, so `cb` always hands back the most recent one. It holds the command that

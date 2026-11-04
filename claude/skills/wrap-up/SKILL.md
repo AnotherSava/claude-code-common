@@ -10,7 +10,7 @@ description: >-
   or wrap up the current section of work.
   DO NOT TRIGGER when: the user wants to push work as-is to test it (use /yolo), to park a
   single idea (/memo), or to persist durable knowledge only (/reflect).
-allowed-tools: Bash(python ~/.claude/skills/wrap-up/scripts/session_scan.py:*), Bash(bash ~/.claude/skills/wrap-up/scripts/ship_wrappers.sh), Bash(bash ~/.claude/skills/shared/project_memory.sh), Bash(bash ~/.claude/skills/wrap-up/scripts/release_candidates.sh), Bash(python ~/.claude/skills/memo/memos.py:*), Bash(git rev-parse:*), Bash(git status:*), Bash(git log:*), Bash(python ~/.claude/skills/shared/peer_relay.py:*), Bash(python3 ~/.claude/skills/shared/peer_relay.py:*), Bash(git fetch:*), Bash(git rev-list:*), Bash(git diff:*), Bash(git show:*), Bash(gh issue list:*), Bash(gh run list:*), Bash(gh run watch:*), Bash(gh run view:*), Bash(git apply:*), Bash(python3 ~/.claude/skills/shared/commit.py:*), Bash(python ~/.claude/skills/shared/commit.py:*), Bash(python3 ~/.claude/skills/shared/push.py:*), Bash(python ~/.claude/skills/shared/push.py:*), Bash(python3 ~/.claude/skills/shared/gate_pushed_tree.py:*), Bash(python ~/.claude/skills/shared/gate_pushed_tree.py:*), Bash(python3 ~/.claude/skills/shared/change_scope.py:*), Bash(python ~/.claude/skills/shared/change_scope.py:*), Bash(python3 ~/.claude/skills/shared/peer_repo_changes.py:*), Bash(python ~/.claude/skills/shared/peer_repo_changes.py:*), Bash(python3 ~/.claude/scripts/review_scope.py:*), Bash(python ~/.claude/scripts/review_scope.py:*), Bash(python3 ~/.claude/scripts/review_picker.py:*), Bash(python ~/.claude/scripts/review_picker.py:*), Bash(bash ~/.claude/scripts/audit-skill-tracking.sh), Workflow, Bash(bash scripts/deploy.sh), Bash(bash scripts/publish.sh), ListAgents, ToolSearch, SendMessage, Read, Edit, Write, Glob, Grep, Skill
+allowed-tools: Bash(python ~/.claude/skills/wrap-up/scripts/session_scan.py:*), Bash(bash ~/.claude/skills/wrap-up/scripts/ship_wrappers.sh), Bash(bash ~/.claude/skills/shared/project_memory.sh), Bash(bash ~/.claude/skills/wrap-up/scripts/release_candidates.sh), Bash(python ~/.claude/skills/memo/memos.py:*), Bash(git rev-parse:*), Bash(git status:*), Bash(git log:*), Bash(python ~/.claude/skills/shared/peer_relay.py:*), Bash(python3 ~/.claude/skills/shared/peer_relay.py:*), Bash(git fetch:*), Bash(git rev-list:*), Bash(git diff:*), Bash(git show:*), Bash(gh issue list:*), Bash(gh run list:*), Bash(gh run watch:*), Bash(gh run view:*), Bash(git apply:*), Bash(python3 ~/.claude/skills/shared/commit.py:*), Bash(python ~/.claude/skills/shared/commit.py:*), Bash(python3 ~/.claude/skills/shared/push.py:*), Bash(python ~/.claude/skills/shared/push.py:*), Bash(python3 ~/.claude/skills/shared/gate_pushed_tree.py:*), Bash(python ~/.claude/skills/shared/gate_pushed_tree.py:*), Bash(python3 ~/.claude/skills/shared/change_scope.py:*), Bash(python ~/.claude/skills/shared/change_scope.py:*), Bash(python3 ~/.claude/skills/shared/peer_repo_changes.py:*), Bash(python ~/.claude/skills/shared/peer_repo_changes.py:*), Bash(python3 ~/.claude/scripts/review_scope.py:*), Bash(python ~/.claude/scripts/review_scope.py:*), Bash(python3 ~/.claude/scripts/review_picker.py:*), Bash(python ~/.claude/scripts/review_picker.py:*), Bash(bash ~/.claude/scripts/audit-skill-tracking.sh), Workflow, Bash(bash ~/.claude/skills/deploy/scripts/run.sh:*), Bash(bash scripts/publish.sh), ListAgents, ToolSearch, SendMessage, Read, Edit, Write, Glob, Grep, Skill
 ---
 
 # Wrap Up
@@ -415,13 +415,14 @@ A section of work closed without these leaves the committed change unrun on this
 on the previous version, and nothing later in the flow mentions it: the push step stops at the
 push.
 
-**Ship wrappers** says which of the two per-machine wrappers this repo has. A verb reported `absent` is
+**Ship wrappers** says which of the two verbs this repo has configured. A verb reported `absent` is
 not configured here, and configuring it is `/deploy`'s and `/publish`'s own job, not this skill's — say
 nothing about that verb at all. Where both are absent and the release check below finds nothing, this
 step produces no output, in its own turn or as a line in a later summary of the run.
 
-Offer the two separately and in this order, ahead of the release offer, and run each through the repo's wrapper —
-`bash scripts/deploy.sh` and `bash scripts/publish.sh`. Not the `/deploy` or `/publish` skill: those own
+Offer the two separately and in this order, ahead of the release offer, and run each through the script the
+shell function runs — `bash ~/.claude/skills/deploy/scripts/run.sh` and `bash scripts/publish.sh`, each with
+its output redirected to a file. Not the `/deploy` or `/publish` skill: those own
 first-time configuration, and the script is the path for a project already configured
 (`~/.claude/memory/feedback_deploy_script_not_skill.md`).
 
@@ -429,11 +430,9 @@ first-time configuration, and the script is the path for a project already confi
 type** other than `dev-server` as relaunching an app with a window, so the offer *is* the ask `CLAUDE.md`'s
 **Taking Over the Machine** section requires: name the app that gets raised and roughly how long it takes,
 and keep the ask immediately before the run. A `dev-server` binds a port and raises nothing, so it needs no
-such warning. Exempt that one value rather than listing the window-raising ones: `dev-server` is the only
-value `/deploy` ever writes, and every other project type is detected structurally — Tauri from
-`src-tauri/tauri.conf.json` — leaving the key absent. So listing the window-raising types would name values
-nothing produces, and skip the ask on every project that has one. Report what the run printed, a failure
-included.
+such warning. Exempt that one value rather than listing the window-raising ones: a repo below convention 017
+may name no type at all, and an unknown or absent value must still get the ask. Report what the run printed, a
+failure included.
 
 **publish — ship it outward.** Offer it whenever `publish: present`, with one exception: a push the user
 held back with `hold` in step 7. Withhold it there and say why — a project carrying `ALLOW_DIRTY_PUBLISH=1` would ship

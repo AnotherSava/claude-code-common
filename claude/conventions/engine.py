@@ -6,6 +6,7 @@
     python engine.py adopt <repo-root> <n>     write the record
     python engine.py decline <repo-root> <n> <reason>   decline an optional version, in a fork
     python engine.py fork <repo-root>          the upstream owner when this repo is a fork, else nothing
+    python engine.py behind <repo-root> <n>    exit 1 when this repo has not adopted version n, 0 when it has
 
 One module owns both halves because every other surface asks one of them a question — the
 `/adopt` skill, the session-start notice, `memos.py`, the cross-machine status report — and a
@@ -38,8 +39,8 @@ retiring a version rather than as a routine — a number in a commit message or 
 than that change points at a different migration.
 
 Exit codes, shared with the checker: 0 ok · 1 a rule was violated or a walk found work · 2 the
-tool refuses and a human has to fix something. Nothing in this file returns 1: being behind is
-the normal answer to `status`, not a failure of it.
+tool refuses and a human has to fix something. Only `behind` returns 1, since a shell caller reads
+its answer from the status; being behind is the normal answer to `status`, not a failure of it.
 
 No YAML and no third-party imports: PyYAML is not in the standard library, and the session-start
 hook imports this module under `python -S`.
@@ -668,6 +669,23 @@ def cmd_adopt(root: str, raw: str, decline: str | None = None) -> int:
     return 0
 
 
+def cmd_behind(root: str, raw: str) -> int:
+    """`behind` for a shell caller: 0 go ahead, 1 not adopted (the record's number printed), 2 unreadable."""
+    version = raw.lstrip("v")
+    if not version.isdigit():
+        print(f"{raw!r} is not a version number")
+        return 2
+    try:
+        answer = behind(root, int(version))
+    except (VersionError, RecordError) as exc:
+        print(exc)
+        return 2
+    if answer is None:
+        return 0
+    print(answer[0])
+    return 1
+
+
 def main() -> int:
     args = sys.argv[1:]
     command, rest = (args[0] if args else ""), args[1:]
@@ -691,7 +709,11 @@ def main() -> int:
         # The pre-push hook asks this to exempt upstream's commits, and must get /adopt's answer.
         print(fork_of(os.path.abspath(rest[0])) or "")
         return 0
-    return _usage("{versions|status|adopt|decline|fork}")
+    if command == "behind":
+        if len(rest) != 2:
+            return _usage("behind <repo-root> <version>")
+        return cmd_behind(os.path.abspath(rest[0]), rest[1])
+    return _usage("{versions|status|adopt|decline|fork|behind}")
 
 
 if __name__ == "__main__":

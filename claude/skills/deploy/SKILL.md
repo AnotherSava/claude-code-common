@@ -2,7 +2,7 @@
 name: deploy
 description: Configure and run the LOCAL deploy — install the app on this machine or start its dev server — verifying it succeeds
 disable-model-invocation: false
-allowed-tools: Bash(bash ~/.claude/skills/deploy/scripts/deploy.sh), Bash(bash ~/.claude/skills/deploy/scripts/deploy-tauri.sh), Bash(bash ~/.claude/skills/deploy/scripts/deploy-intellij-plugin.sh), Bash(bash ~/.claude/skills/deploy/scripts/deploy-dev-server.sh), Bash(bash ~/.claude/skills/deploy/scripts/detect-intellij-target.sh:*), Bash(bash scripts/deploy.sh), Bash(deploy), Bash(echo *), AskUserQuestion, Read(config/deploy.env), Write(config/deploy.env), Write(scripts/deploy.sh), Read(scripts/deploy.sh), Write(scripts/sync-db-from-prod.sh), Read(scripts/sync-db-from-prod.sh), Edit(.gitignore), Read(.gitignore), Edit(~/.bashrc), Read(~/.bashrc), Edit(~/.zshrc), Read(~/.zshrc)
+allowed-tools: Bash(bash ~/.claude/skills/deploy/scripts/run.sh:*), Bash(bash ~/.claude/skills/deploy/scripts/detect-intellij-target.sh:*), Bash(deploy), Bash(echo *), AskUserQuestion, Read(config/deploy.env), Write(config/deploy.env), Read(config/deploy.local.env), Write(config/deploy.local.env), Read(scripts/deploy.sh), Write(scripts/sync-db-from-prod.sh), Read(scripts/sync-db-from-prod.sh), Edit(.gitignore), Read(.gitignore), Edit(~/.bashrc), Read(~/.bashrc), Edit(~/.zshrc), Read(~/.zshrc)
 ---
 
 **Scope — `deploy` is local only.** It makes the current code runnable *on this machine*: it
@@ -16,7 +16,7 @@ server. It never ships anywhere public. Shipping outward is a different verb:
 | Ship it outward, to where its users are | the `publish` skill, or the project's own CI |
 
 A project having both a local `deploy` and a publish path is normal and not a conflict — they are
-separate verbs with separate wrappers, so nothing outward-facing can happen from the command you run
+separate verbs with separate scripts, so nothing outward-facing can happen from the command you run
 dozens of times a day.
 
 Which of the two publishes is a real decision, not a preference. CI builds a clean checkout with one
@@ -28,57 +28,71 @@ on anything not committed and pushed.
 
 See `~/.claude/learnings/shell-environment.md` for the expected bash functions and verification checklist.
 
+**Where the settings live.** `config/deploy.env` is committed and holds what the project decides, the same on
+every clone. `config/deploy.local.env` is ignored and holds only what differs between machines; its keys override
+the committed file's. The `deploy` shell function runs `~/.claude/skills/deploy/scripts/run.sh`, which reads
+`DEPLOY_TYPE` and calls the target script — there is no per-repo wrapper. Every key a target reads is listed in
+that target script's header.
+
 ## Context
 - Deploy function in shell rc: !`cat ~/.bashrc ~/.zshrc ~/.bash_profile ~/.zprofile 2>/dev/null | grep -c "deploy()" || echo 0`
-- run_repo_script helper in shell rc: !`cat ~/.bashrc ~/.zshrc ~/.bash_profile ~/.zprofile 2>/dev/null | grep -c "run_repo_script()" || echo 0`
+- Deploy function calls run.sh: !`cat ~/.bashrc ~/.zshrc ~/.bash_profile ~/.zprofile 2>/dev/null | grep -c "skills/deploy/scripts/run.sh" || echo 0`
 - Shell rc target: !`case "$(uname -s)" in Darwin) echo "~/.zshrc" ;; MINGW*|MSYS*|CYGWIN*) echo "~/.bashrc" ;; *) [ -n "$ZSH_VERSION" ] || [ "${SHELL##*/}" = "zsh" ] && echo "~/.zshrc" || echo "~/.bashrc" ;; esac`
-- Wrapper script exists: !`test -f scripts/deploy.sh && echo yes || echo no`
-- Wrapper has --db: !`grep -q -- '--db' scripts/deploy.sh 2>/dev/null && { grep -q DEV_PRESTART_ONCE scripts/deploy.sh && echo yes || echo outdated; } || echo no`
-- Wrapper target: !`grep -oE 'deploy(-[a-z-]+)?\.sh' scripts/deploy.sh 2>/dev/null | tail -1 || echo none`
+- Legacy wrapper exists (scripts/deploy.sh): !`test -f scripts/deploy.sh && echo yes || echo no`
+- Convention record: !`grep -v '^#' .claude/conventions 2>/dev/null | head -1 || echo none`
+- Deploy settings ignored by git: !`git check-ignore -q config/deploy.env && echo yes || echo no`
 - Static web entry (index.html): !`(ls index.html web/index.html public/index.html src/index.html dist/index.html 2>/dev/null | grep -q .) && echo yes || echo no`
 - Static web dir (dir holding index.html; empty if none): !`for d in . web public src dist; do [ -f "$d/index.html" ] && { echo "$d"; break; }; done; true`
 - Project start script (a committed scripts/dev.sh the project already provides): !`test -f scripts/dev.sh && echo yes || echo no`
 - Production deployment (config/publish.env with SSH_HOST): !`grep -q '^SSH_HOST=' config/publish.env 2>/dev/null && echo yes || echo no`
 - Prod sync script (scripts/sync-db-from-prod.sh): !`test -f scripts/sync-db-from-prod.sh && echo yes || echo no`
-- Dev-server configured: !`grep -c '^DEPLOY_TYPE=dev-server' config/deploy.env 2>/dev/null || echo 0`
+- Configured DEPLOY_TYPE: !`grep -m1 '^DEPLOY_TYPE=' config/deploy.env 2>/dev/null || echo none`
 - Dev-server dir (package.json with a 'dev' script; empty if none): !`for d in . web app apps/web client frontend site www server; do [ -f "$d/package.json" ] && node -e "p=require('./'+process.argv[1]+'/package.json');process.exit(p.scripts&&p.scripts.dev?0:1)" "$d" 2>/dev/null && { echo "$d"; break; }; done; true`
 - Dev-server start command guess: !`for d in . web app apps/web client frontend site www server; do [ -f "$d/package.json" ] || continue; node -e "p=require('./'+process.argv[1]+'/package.json');process.exit(p.scripts&&p.scripts.dev?0:1)" "$d" 2>/dev/null || continue; if [ -f "$d/pnpm-lock.yaml" ]; then echo "pnpm dev"; elif [ -f "$d/yarn.lock" ]; then echo "yarn dev"; elif [ -f "$d/bun.lockb" ]; then echo "bun run dev"; else echo "npm run dev"; fi; break; done; true`
 - Dev-server port guess (from the dev script; empty if none found): !`for d in . web app apps/web client frontend site www server; do [ -f "$d/package.json" ] || continue; node -e "p=require('./'+process.argv[1]+'/package.json');s=(p.scripts&&p.scripts.dev)||'';m=s.match(/(?:-p|--port[= ])\s*(\d{2,5})/);if(m)console.log(m[1]);process.exit(s?0:1)" "$d" 2>/dev/null && break; done; true`
-- Repo folder name: !`basename "$(pwd)"`
-- Production branch: !`git symbolic-ref --short HEAD 2>/dev/null || echo main`
 - Deploy env: !`cat config/deploy.env 2>/dev/null || echo MISSING`
+- Deploy local env: !`cat config/deploy.local.env 2>/dev/null || echo MISSING`
 - Deploy env has CONFIG_DEST: !`grep -c '^CONFIG_DEST=' config/deploy.env 2>/dev/null || echo 0`
 - Tauri project: !`test -f src-tauri/tauri.conf.json && echo yes || echo no`
 - Tauri identifier: !`sed -n 's/.*"identifier"[[:space:]]*:[[:space:]]*"\([^"]*\)".*/\1/p' src-tauri/tauri.conf.json 2>/dev/null | head -1 || echo none`
 - Secret config template present (config/local.template.json): !`test -f config/local.template.json && echo yes || echo no`
 - Deploy env has DOPPLER_PROJECT: !`grep -c '^DOPPLER_PROJECT=' config/deploy.env 2>/dev/null || echo 0`
-- Doppler CLI available: !`command -v doppler >/dev/null 2>&1 && echo yes || echo no`
-- Wrapper renders secrets via Doppler: !`grep -q 'doppler secrets substitute' scripts/deploy.sh 2>/dev/null && echo yes || echo no`
 - .NET project: !`ls src/*.csproj 2>/dev/null | grep -q . && echo yes || echo no`
 - IntelliJ plugin project: !`(test -f build.gradle.kts || test -f build.gradle) && grep -lE 'org\.jetbrains\.intellij(\.platform)?' build.gradle.kts build.gradle 2>/dev/null | grep -q . && echo yes || echo no`
-- IntelliJ target type: !`bash ~/.claude/skills/deploy/scripts/detect-intellij-target.sh type 2>/dev/null || echo unknown`
 - IntelliJ plugins-dir guess: !`bash ~/.claude/skills/deploy/scripts/detect-intellij-target.sh plugins-dir 2>/dev/null || echo`
 - IntelliJ IDE exe guess: !`bash ~/.claude/skills/deploy/scripts/detect-intellij-target.sh ide-exe 2>/dev/null || echo`
 - IntelliJ IDE process guess: !`bash ~/.claude/skills/deploy/scripts/detect-intellij-target.sh ide-process 2>/dev/null || echo`
-- Deploy env has IDE_PROCESS: !`grep -c '^IDE_PROCESS=' config/deploy.env 2>/dev/null || echo 0`
-- Deploy env has IDE_EXE: !`grep -c '^IDE_EXE=' config/deploy.env 2>/dev/null || echo 0`
+- Deploy local env has IDE_PROCESS: !`grep -c '^IDE_PROCESS=' config/deploy.local.env 2>/dev/null || echo 0`
+- Deploy local env has IDE_EXE: !`grep -c '^IDE_EXE=' config/deploy.local.env 2>/dev/null || echo 0`
 
 ## 1. Detect project type
 
-Pick the matching underlying deploy script based on the **Context** flags. Already-configured markers win first (a prior run picked the type):
+If **Legacy wrapper exists** is yes and **Convention record** is below 17 (or none), this repo has not adopted
+convention 017: its settings may be split across machines and its wrapper may hold steps of its own. Do not
+configure it here. Tell the user to run `/adopt` in this repo, which merges both machines' settings into the
+committed file, and stop.
 
-- **Dev-server configured** ≥ 1 (`config/deploy.env` marks `DEPLOY_TYPE=dev-server`) → `TARGET=deploy-dev-server.sh`
-- else **Tauri project** is yes → `TARGET=deploy-tauri.sh`
-- else **IntelliJ plugin project** is yes → `TARGET=deploy-intellij-plugin.sh`
-- else **.NET project** is yes → `TARGET=deploy.sh`
-- else **Dev-server dir** is non-empty (a `package.json` with a `dev` script — Next.js, Remix, SvelteKit, Vite, a plain Node server) → `TARGET=deploy-dev-server.sh` (§2a)
-- else **Static web entry (index.html)** is yes (a static site with no `dev` script — plain HTML/JS served from a directory) → `TARGET=deploy-dev-server.sh` (§2a), configured as a static file server
+Pick `DEPLOY_TYPE` — and the target script it names — from the **Context** flags. An already-configured
+**Configured DEPLOY_TYPE** wins first (a prior run picked it):
+
+- `dev-server` → `deploy-dev-server.sh` (§2a)
+- `tauri` → `deploy-tauri.sh`
+- `intellij-plugin` → `deploy-intellij-plugin.sh`
+- `dotnet` → `deploy.sh`
+
+Otherwise detect it:
+
+- **Tauri project** is yes → `tauri`
+- else **IntelliJ plugin project** is yes → `intellij-plugin`
+- else **.NET project** is yes → `dotnet`
+- else **Dev-server dir** is non-empty (a `package.json` with a `dev` script — Next.js, Remix, SvelteKit, Vite, a plain Node server) → `dev-server` (§2a)
+- else **Static web entry (index.html)** is yes (a static site with no `dev` script — plain HTML/JS served from a directory) → `dev-server` (§2a), configured as a static file server
 - else → **STOP**. Tell the user:
   > The `deploy` skill recognizes Tauri (`src-tauri/tauri.conf.json`), IntelliJ plugins (`build.gradle[.kts]` using `org.jetbrains.intellij[.platform]`), .NET (`src/*.csproj`), and local web servers (a `package.json` with a `dev` script, or a static `index.html`). None was found in the current directory. If this is a different stack, add a new underlying script in `~/.claude/skills/deploy/scripts/` and extend the skill.
   >
   > If you meant to ship this somewhere public, that isn't `deploy`: a site goes live through the project's CI pipeline, and a versioned artifact through the `release` skill.
 
-  Do not create `config/deploy.env` or the wrapper. Exit.
+  Do not create `config/deploy.env`. Exit.
 
 A project that also ships to a public host is not a conflict — `deploy` configures the local
 side only, and CI handles shipping. Never ask the user to choose between the two. If
@@ -87,24 +101,26 @@ do not guess.
 
 ## 2. Check prerequisites
 
-1. If **Deploy function in shell rc** is 0, append the `deploy` wrapper to the file in **Shell rc target** (i.e. `~/.zshrc` on macOS, `~/.bashrc` on Windows Git Bash / Linux-bash). It delegates to the shared `run_repo_script` helper, which walks up from the current directory to the repo's `scripts/deploy.sh` and runs it from the directory that holds it — so `deploy` works from any subdirectory (the underlying scripts read `config/deploy.env` relative to that root). If **run_repo_script helper in shell rc** is 0, append the helper too (the `build` skill installs the same one — add it only when missing, so it isn't duplicated):
+1. If **Deploy function calls run.sh** is 0, the `deploy` function in the file in **Shell rc target** (`~/.zshrc` on macOS, `~/.bashrc` on Windows Git Bash / Linux-bash) is missing or an older form. Replace an existing `deploy()` line, or append one when **Deploy function in shell rc** is 0:
    ```bash
-   run_repo_script() { local rel="$1"; shift; local d="$PWD"; while [ "$d" != "/" ] && [ ! -f "$d/$rel" ]; do d="$(dirname "$d")"; done; if [ -f "$d/$rel" ]; then ( cd "$d" && bash "$rel" "$@" ); else echo "No $rel in this directory or any parent"; fi; }
-   deploy() { run_repo_script scripts/deploy.sh "$@"; }
+   deploy() { bash ~/.claude/skills/deploy/scripts/run.sh "$@"; }
    ```
+   `run.sh` finds the project root itself by walking up to `config/deploy.env`, so `deploy` works from any subdirectory. Leave a `run_repo_script` helper in place: the `build` skill and others still call it.
 
-**If `TARGET` is `deploy-dev-server.sh`, configure via §2a and skip items 2–4. (Items 2–4 are for the local-install targets.)**
+Every key below goes into `config/deploy.env` unless it says `config/deploy.local.env`. Write `DEPLOY_TYPE=<the type from step 1>` first, always. Ask only for keys neither **Deploy env** nor **Deploy local env** already holds.
+
+**If the type is `dev-server`, configure via §2a and skip items 2–4. (Items 2–4 are for the local-install targets.)**
 
 ### 2a. Local web server configuration
 
 For a local web server, `deploy` stops whatever holds the port and relaunches the start command detached (so it outlives the Claude session), then waits for the port to come up. Write `config/deploy.env` with these keys (ask only for keys not already present; use the Context-derived defaults — confirm them with the user rather than asking blind):
 
-- `DEPLOY_TYPE=dev-server` — always write this; it's the marker that routes future runs straight to this target.
+- `DEPLOY_TYPE=dev-server` — always; `run.sh` dispatches on it.
 - `DEV_DIR=` — the directory `DEV_CMD` is **run from** (not necessarily the one being served), relative to repo root; logs are written here too. Decide it together with `DEV_CMD` below:
   - using the project's own `scripts/dev.sh` → `.`, since that path is repo-root-relative and the script decides for itself what to serve. Setting this to the web dir instead makes the command not found.
   - using a package-manager `dev` script → the **Dev-server dir** Context value (`.` for a root app, `web` for a monorepo subdir).
   - serving a static directory directly → the **Static web dir** value.
-- **No `DEV_PORT` key.** The port comes from the ports registry, which the script asks on every run under the use case `<repo>-dev-server`. Write nothing about it here, and delete the line from a `deploy.env` that still has one — it is read by nothing and is the second copy the registry exists to remove. Before configuring, record the project's port if the registry does not hold it yet: `python3 ~/.claude/skills/ports/scripts/ports.py allocate --use-case <repo>-dev-server --owner <github-repo-name> --notes "<what starts it>"`, where the use case's `<repo>` is the folder name the script reads and the owner is what `ports.py repo-name` prints, which the script passes too, adding `--port <n>` when the project's dev script already pins a number, so the record matches what it actually takes. The **Dev-server port guess** Context value is evidence for that `--port`, never the answer on its own. **If the port is fixed for an external reason** (an API key restricted to `http://localhost:<port>`, an OAuth redirect URI, a CORS allowlist), add `--pinned "<why this number and no other>"` — that is what stops the allocator moving it and what lets the v15 rule allow the literal the project cannot remove. Where the registry already holds the claim, the reason goes on with `ports.py amend --use-case <slug> --pinned "<why>"`; `allocate` refuses to write to a claim it found.
+- **No `DEV_PORT` key.** The port comes from the ports registry, which the script asks on every run under the use case `ports.py dev-use-case` derives. Write nothing about it here, and delete the line from a `deploy.env` that still has one — it is read by nothing and is the second copy the registry exists to remove. Before configuring, record the project's port if the registry does not hold it yet: `python3 ~/.claude/skills/ports/scripts/ports.py allocate --use-case <use-case> --owner <owner> --notes "<what starts it>"`, where `<use-case>` is what `ports.py dev-use-case --from <repo root>` prints and `<owner>` what the same command prints with `--owner` added — the script asks exactly those, so the record is the claim it reads; never spell either by hand. Add `--port <n>` when the project's dev script already pins a number, so the record matches what it actually takes. The **Dev-server port guess** Context value is evidence for that `--port`, never the answer on its own. **If the port is fixed for an external reason** (an API key restricted to `http://localhost:<port>`, an OAuth redirect URI, a CORS allowlist), add `--pinned "<why this number and no other>"` — that is what stops the allocator moving it and what lets the v15 rule allow the literal the project cannot remove. Where the registry already holds the claim, the reason goes on with `ports.py amend --use-case <slug> --pinned "<why>"`; `allocate` refuses to write to a claim it found.
 - `DEV_CMD=` — command that starts the server. Derive the default:
   - if **Project start script** is yes → `bash scripts/dev.sh` — prefer the project's own committed starter, which may do setup the skill can't know about (rendering a gitignored config, fetching a token). It runs in the foreground and this target detaches it, which is the right shape.
   - else if **Dev-server dir** is non-empty → **Dev-server start command guess** Context value (picks `pnpm`/`yarn`/`bun`/`npm` from the lockfile). Keep it as the package-manager script (e.g. `npm run dev`) even when that script itself wraps another tool (Doppler, env loaders) — the wrapping lives in `package.json`, not here.
@@ -115,8 +131,8 @@ For a local web server, `deploy` stops whatever holds the port and relaunches th
   generated file. Leave the key out entirely when there is no such step; an empty value and an absent one
   behave identically, but an absent one does not invite an editor to fill it in. Copying production data
   into the local database is **not** a pre-start step: it runs on every deploy, so a plain `deploy` would
-  reach production. That job is the wrapper's `--db` flag, which the **Production data sync** paragraph of
-  §2a sets up.
+  reach production. That job is `DEV_DB_SYNC_CMD`, which the **Production data sync** paragraph of §2a
+  sets up.
 
   **The command belongs to the project, not here.** Write it as a committed script in the repo
   (`scripts/<verb>.sh`) and point this key at it, so the knowledge of *how* a project seeds its database —
@@ -128,19 +144,21 @@ For a local web server, `deploy` stops whatever holds the port and relaunches th
   while the server is up. A failure does **not** stop the launch, because `deploy` is what leaves the app
   runnable and a pre-start step is usually the part needing something beyond this machine; it is reported
   at the point of failure and again beside the URL.
+- `DEV_DB_SYNC_CMD=` — **optional.** The command `deploy --db` runs, replacing the local data with
+  production's; a plain `deploy` never runs it, so it never reaches production unasked. It runs in the same
+  gap as `DEV_PRESTART_CMD`, before it, and follows the same rules: a committed project script, a failure
+  that still restarts the server and is repeated beside the URL. The **Production data sync** paragraph
+  below says when to offer it.
 
-**Production data sync (`--db`).** When **Production deployment** is yes and **Wrapper has --db** is no,
-ask whether the wrapper should get a `--db` flag that replaces the local dev database with production's
-before restarting. Say in the question that it destroys whatever exists only in the local database, and
-that a plain `deploy` stays offline either way. On no, skip it. On yes, call this **USE_DB_SYNC**. When
-**Wrapper has --db** is outdated, the wrapper already has the flag but runs the sync itself, while the old
-server is still up and with its failure reported only above the server output: set **USE_DB_SYNC** without
-asking, keeping the sync script that wrapper names, so step 3 regenerates it. If
-**Prod sync script** is no, the project needs a committed `scripts/sync-db-from-prod.sh` (or an existing
-script under another name, if it already has one) that:
+**Production data sync (`--db`).** When **Production deployment** is yes and **Deploy env** names no
+`DEV_DB_SYNC_CMD`, ask whether `deploy --db` should replace the local dev database with production's before
+restarting. Say in the question that it destroys whatever exists only in the local database, and that a
+plain `deploy` stays offline either way. On no, skip it. On yes, write `DEV_DB_SYNC_CMD=bash
+scripts/<sync-script>.sh`. If **Prod sync script** is no, the project needs a committed
+`scripts/sync-db-from-prod.sh` (or an existing script under another name, if it already has one) that:
 - reads the box's address from `config/publish.env` (`SSH_HOST`) rather than repeating it;
 - copies one way only, production to local, and never writes to production;
-- starts and migrates the dev database itself, so the wrapper needs no other step;
+- starts and migrates the dev database itself, so `deploy` needs no other step;
 - replaces the local data in one transaction, or through the app's own importer, and fails loudly on a
   mismatch.
 
@@ -150,122 +168,47 @@ The scheduler repo's `scripts/seed-dev-from-prod.sh` (`pg_dump --data-only` over
 one transaction) implements it. For an app that restores through its own importer, the trips repo's
 `scripts/sync-db-from-prod.sh` shows the importer half: take the restore from it, and hold the rest to the
 requirement list above, whatever its starting and wiring look like at the time. Read whichever matches the
-stack before writing a third. The stack's specifics stay in that
-script, never in the wrapper or `config/deploy.env`.
+stack before writing a third. The stack's specifics stay in that script, never in `config/deploy.env`.
 
-Once the project has that script, also offer an in-app **reset to production data** control: a button the
-running dev server shows that runs the same script, so an experiment can be thrown away without a restart.
-It is project code, so offer it and build it only on a yes. It must answer 404 and draw no button outside
-development, refuse a cross-site request, reload the page on success, and show the script's failure line
-beside the button on failure. Where the project is published behind a proxy, also have the edge answer the
-route 404 to anything off the tailnet, so the production check is not its only guard. The trips repo is the
-reference: `web/src/app/api/debug/sync/route.ts`, `web/src/components/debug-sync.tsx`, and the `/api/debug`
-entry of its `web/deploy/trips.caddy`.
-
-`config/deploy.env` holds no secrets, so it is safe to commit (and committing it gives every contributor the same `! deploy`). The dev server writes `dev-server.log` / `dev-server.err.log` into `DEV_DIR` — ensure those are gitignored: if `<DEV_DIR>/dev-server*.log` (or a broader `dev-server*.log`) isn't already covered by `.gitignore`, add it. After writing the config, go to **step 3**.
+`config/deploy.env` holds no secrets and is committed, so every clone runs the same `deploy`. The dev server writes `dev-server.log` / `dev-server.err.log` into `DEV_DIR` — ensure those are gitignored: if `<DEV_DIR>/dev-server*.log` (or a broader `dev-server*.log`) isn't already covered by `.gitignore`, add it. After writing the config, go to **step 3**.
 
 **Local-install targets (Tauri / IntelliJ / .NET) — items 2–4:**
 
-2. If **Deploy env** is MISSING, ask the user for `INSTALL_DIR` with a stack-appropriate default and create `config/deploy.env` with `INSTALL_DIR=<their answer>`:
-   - **Tauri / .NET** default: `C:/Programs/<project-folder-name>` on Windows, `/Applications/<project-folder-name>` on macOS.
-   - **IntelliJ plugin** default: use the **IntelliJ plugins-dir guess** Context value verbatim (it already emits the cross-platform `%APP_CONFIG%/JetBrains/<dir>/plugins` form). If empty (JetBrains dir not found), fall back to `%APP_CONFIG%/JetBrains/IntelliJIdea<newest>/plugins` and ask the user to verify. `%APP_CONFIG%` resolves to `~/AppData/Roaming` on Windows and `~/Library/Application Support` on macOS at deploy time; the legacy `%APPDATA%` placeholder is also accepted as an alias.
+2. **Install location.**
+   - **Tauri / .NET** — write no `INSTALL_DIR` when the per-OS default fits: `/Applications` on macOS, `C:/Programs/<binary name>` on Windows (the Cargo package name, or the .NET assembly name). Ask only whether that default is right; if the user wants another location, write `INSTALL_DIR` to `config/deploy.local.env`, since any one path is right on one OS only.
+   - **IntelliJ plugin** — the plugins directory names the IDE version, which differs per machine, so write `INSTALL_DIR` to `config/deploy.local.env`. Use the **IntelliJ plugins-dir guess** Context value verbatim (it already emits the cross-platform `%APP_CONFIG%/JetBrains/<dir>/plugins` form). If empty (JetBrains dir not found), fall back to `%APP_CONFIG%/JetBrains/IntelliJIdea<newest>/plugins` and ask the user to verify. `%APP_CONFIG%` resolves to `~/AppData/Roaming` on Windows and `~/Library/Application Support` on macOS at deploy time; the legacy `%APPDATA%` placeholder is also accepted as an alias.
 
    Then apply the stack-specific follow-up questions:
-   - **Tauri** — also ask where to deploy the `config/local.json` override at runtime (default: `%APP_CONFIG%/<Tauri identifier>/config.json` — substitute the identifier read from `src-tauri/tauri.conf.json`; use forward slashes) and append `CONFIG_DEST=<their answer>` to `config/deploy.env`. This is the path the app actually reads (`app_data_dir()`), not the install dir.
+   - **Tauri** — if **Deploy env has CONFIG_DEST** is 0 and the project ships a config (`config/local.json` or `config/local.template.json`), ask where the app reads it (default: `%APP_CONFIG%/<Tauri identifier>/config.json` — substitute **Tauri identifier**; use forward slashes) and write `CONFIG_DEST=<their answer>`. This is the path the app actually reads (`app_data_dir()`), not the install dir. The deploy refuses to run when a config exists and `CONFIG_DEST` does not.
 
-     **Secrets via Doppler (optional).** If `config/local.json` carries secrets (API tokens, bot credentials, sync tokens), don't keep a plaintext copy on disk — render it from a Doppler-managed template at deploy time. The signal that this is wanted: **Secret config template present** is yes, or the user says the runtime config holds secrets. When so:
-     - The committed source is `config/local.template.json` with `{{tojson .SECRET_NAME}}` placeholders for each secret (and literal values for the secret-free settings); the real values live in a Doppler project/config.
-     - Ask for the Doppler project and config names (skip if **Deploy env has DOPPLER_PROJECT** ≥ 1 — already set) and append `DOPPLER_PROJECT=<name>` and `DOPPLER_CONFIG=<name>` to `config/deploy.env` (these are not secrets). An app with no Doppler home yet gets a **config** inside an existing project — `dev_<app>` in the `local` project for a workstation-only app — never a project of its own; invoke `/doppler` rather than inventing names here.
-     - Ensure the rendered output `config/local.json` is gitignored (it's the transient secret-bearing file). The step-3 wrapper renders the template into it before each deploy and wipes it on exit, so plaintext secrets never sit at rest.
+     **Secrets via Doppler (optional).** Two forms; pick by who owns the settings file. Either way, ask for the Doppler project and config (skip if **Deploy env has DOPPLER_PROJECT** ≥ 1) and write `DOPPLER_PROJECT=<name>` and `DOPPLER_CONFIG=<name>` — they are coordinates, not secrets. An app with no Doppler home yet gets a **config** inside an existing project — `dev_<app>` in the `local` project for a workstation-only app — never a project of its own; invoke `/doppler` rather than inventing names here.
+     - **The project owns the whole config** (it is `config/local.json`, copied over whatever the app had): keep `config/local.template.json` with `{{tojson .SECRET_NAME}}` placeholders and literal values for the rest. `deploy-tauri.sh` renders it into a temporary file, copies that to `CONFIG_DEST` and deletes it, so no plaintext copy sits in the repo. The signal: **Secret config template present** is yes, or `config/local.json` carries tokens.
+     - **The app owns its settings** (it writes them as the user works, so overwriting would lose them): write `SECRET_FILE=<the settings file, with %APP_CONFIG%>` and `SECRET_FIELDS=<dotted.path=SECRET_NAME ...>`, space-separated. The deploy writes those fields into the existing file while the app is stopped and leaves every other value as the app saved it.
 
-     Skip all of this when the project has no secrets — the trivial wrapper in step 3 is used instead.
-   - **IntelliJ plugin** — also ask (optional, skippable) for `IDE_PROCESS` (default = **IntelliJ IDE process guess** Context value) and `IDE_EXE` (default = **IntelliJ IDE exe guess** Context value; if empty — e.g. Toolbox-managed IDE, or running on macOS where the script doesn't auto-detect — offer to skip). On macOS, optionally ask for `IDE_BUNDLE_ID` (e.g. `com.jetbrains.intellij.ce`) — when set, the deploy uses `osascript … to quit` instead of `pkill`. Append `IDE_PROCESS=<value>` / `IDE_EXE=<value>` / `IDE_BUNDLE_ID=<value>` only for keys the user confirms. Skipping is fine — the deploy still works, it just won't stop/restart the IDE.
-3. If **Deploy env** is present, the project is **Tauri**, and **Deploy env has CONFIG_DEST** is 0, ask the user for `CONFIG_DEST` with the same default and append it to `config/deploy.env`
-4. If **Deploy env** is present, the project is an **IntelliJ plugin**, and **Deploy env has IDE_PROCESS** / **IDE_EXE** are 0, ask the user whether to add them (using the same Context-derived guesses as defaults) and append any values they supply.
+     Skip all of this when the project has no secrets.
+   - **IntelliJ plugin** — also ask (optional, skippable) for `IDE_PROCESS` (default = **IntelliJ IDE process guess** Context value) and `IDE_EXE` (default = **IntelliJ IDE exe guess** Context value; if empty — e.g. Toolbox-managed IDE, or running on macOS where the script doesn't auto-detect — offer to skip). On macOS, optionally ask for `IDE_BUNDLE_ID` (e.g. `com.jetbrains.intellij.ce`) — when set, the deploy uses `osascript … to quit` instead of `pkill`. Write each key the user confirms to `config/deploy.local.env`. Skipping is fine — the deploy still works, it just won't stop/restart the IDE.
+3. If **Deploy env** is present, the project is **Tauri**, ships a config, and **Deploy env has CONFIG_DEST** is 0, ask for `CONFIG_DEST` as above.
+4. If the project is an **IntelliJ plugin** and **Deploy local env has IDE_PROCESS** / **IDE_EXE** are 0, ask the user whether to add them (using the same Context-derived guesses as defaults) and write any values they supply to `config/deploy.local.env`.
 
-## 3. Set up quick deploy shortcut
+## 3. Make the settings committable
 
-First decide whether the wrapper needs the Doppler secret-rendering block: it does when `TARGET=deploy-tauri.sh` **and** secrets are managed via Doppler (**Secret config template present** is yes, or **Deploy env has DOPPLER_PROJECT** ≥ 1). Call this **USE_DOPPLER**.
-
-1. Write `scripts/deploy.sh` if **Wrapper script exists** is no, **or** **Wrapper target** does not equal `TARGET` from step 1, **or** USE_DOPPLER is true while **Wrapper renders secrets via Doppler** is no (a Doppler-managed project whose wrapper predates this — regenerate it), **or** USE_DB_SYNC is true.
-
-   - **USE_DB_SYNC is true** (dev-server only) — the pass-through wrapper with the `--db` flag, substituting the project's sync script:
-     ```bash
-     #!/bin/bash
-     # Per-machine deploy wrapper (gitignored). `deploy --db` replaces the local dev
-     # database with production's before restarting; a plain `deploy` stays offline.
-     if [ "${1:-}" = "--db" ]; then
-         shift
-         export DEV_PRESTART_ONCE="bash scripts/<sync-script>.sh"
-     fi
-     bash ~/.claude/skills/deploy/scripts/deploy-dev-server.sh "$@"
-     ```
-     The flag hands the sync to `deploy-dev-server.sh` as a one-run pre-start step, so it runs with the old server stopped and a failure is reported the way a `DEV_PRESTART_CMD` failure is.
-   - **USE_DOPPLER is false** — the trivial pass-through wrapper:
-     ```bash
-     #!/bin/bash
-     bash ~/.claude/skills/deploy/scripts/<TARGET> "$@"
-     ```
-     (substitute `<TARGET>` with the filename chosen in step 1 — e.g. `deploy-tauri.sh` or `deploy.sh`)
-   - **USE_DOPPLER is true** — render the secret template before deploying and wipe it after:
-     ```bash
-     #!/bin/bash
-     # Per-machine deploy wrapper (gitignored). When the Doppler secret template is
-     # present, renders secrets into the rendered config, runs the shared Tauri
-     # deploy, then removes the rendered file so no plaintext secrets sit in the
-     # working tree. Doppler coordinates live in config/deploy.env.
-     set -e
-
-     REPO_DIR="$(cd "$(dirname "$0")/.." && pwd)"
-     cd "$REPO_DIR"
-
-     TEMPLATE="config/local.template.json"
-     RENDERED="config/local.json"
-
-     if [ -f "$TEMPLATE" ]; then
-         DOPPLER_PROJECT=$(grep '^DOPPLER_PROJECT=' config/deploy.env | cut -d= -f2-)
-         DOPPLER_CONFIG=$(grep '^DOPPLER_CONFIG=' config/deploy.env | cut -d= -f2-)
-         # Wipe the rendered (secret-bearing) config on exit — success, failure, or interrupt.
-         trap 'rm -f "$RENDERED"' EXIT
-         doppler secrets substitute "$TEMPLATE" \
-             --project "$DOPPLER_PROJECT" --config "$DOPPLER_CONFIG" > "$RENDERED"
-     fi
-
-     bash ~/.claude/skills/deploy/scripts/deploy-tauri.sh "$@"
-     ```
-     The render is gated on the template existing, so the wrapper still works on a checkout that hasn't set up the template yet. The underlying `deploy-tauri.sh` then copies the rendered `config/local.json` to `CONFIG_DEST`.
-2. Keep the wrapper out of git via the **global** excludes file — never the project's `.gitignore`. The wrapper is a per-machine artifact only this skill generates, so it must not land in a repo other contributors share. Ensure the global excludes file contains the line `scripts/deploy.sh` (the mid-string slash anchors it to each repo's root, so it ignores only the wrapper — never a committed `scripts/` source dir):
-   ```bash
-   gi="$(git config --global core.excludesfile)"; gi="${gi/#\~/$HOME}"; gi="${gi:-$HOME/.gitignore}"
-   grep -qxF 'scripts/deploy.sh' "$gi" 2>/dev/null || {
-     grep -qF 'per-machine wrappers written by Claude Code' "$gi" 2>/dev/null \
-       || printf '\n# per-machine wrappers written by Claude Code deploy/build skills — never committed\n' >> "$gi"
-     printf 'scripts/deploy.sh\n' >> "$gi"
-   }
-   ```
-   This covers every repo at once — do not add the wrapper to a project's `.gitignore`. (Project-specific artifacts like the dev-server logs in §2a still go in the project `.gitignore`.)
+1. If **Deploy settings ignored by git** is yes, something hides `config/deploy.env`. Run `git check-ignore -v config/deploy.env` to name the file and line. A `config/deploy.env` line in the global excludes means this machine's dotfiles predate convention 017 — tell the user to pull the dotfiles repo. A line in the project's `.gitignore` gets removed. Do not commit the file yourself; it goes in with the rest of the user's work.
+2. Confirm `config/deploy.local.env`, when written, is ignored: `git check-ignore -q config/deploy.local.env` must exit 0. The global excludes carry it; if they do not, the dotfiles need pulling too.
 
 ## 4. Deploy
 
-If step 2 or 3 made changes, tell the user:
+If step 2 changed the shell rc, tell the user:
 > The `deploy` shortcut has been configured. **Restart Claude Code** for `! deploy` to work — the shell reads its rc file only at startup, so new functions aren't available until the next session.
->
-> For now, running the deploy directly:
 
-When `TARGET` starts, restarts or closes an app with a window — `deploy.sh` and `deploy-tauri.sh` both launch the installed app, and `deploy-intellij-plugin.sh` closes the IDE when `IDE_PROCESS` or `IDE_BUNDLE_ID` is set — ask right before running it, per CLAUDE.md's **Taking Over the Machine**: name the app that will start, restart or close, and run only on a yes. `deploy-dev-server.sh` starts no window and needs no ask.
+When the type starts, restarts or closes an app with a window — `dotnet` and `tauri` both launch the installed app, and `intellij-plugin` closes the IDE when `IDE_PROCESS` or `IDE_BUNDLE_ID` is set — ask right before running it, per CLAUDE.md's **Taking Over the Machine**: name the app that will start, restart or close, and run only on a yes. `dev-server` starts no window and needs no ask.
 
-Run the deploy now (bypassing the shell function, which needs a restart to load):
-- If **USE_DOPPLER** is true, run the wrapper so the Doppler render runs before the build:
-  ```
-  bash scripts/deploy.sh
-  ```
-- Otherwise run the chosen underlying script directly, using `TARGET` from step 1:
-  ```
-  bash ~/.claude/skills/deploy/scripts/<TARGET>
-  ```
+Run the deploy now, through the same entry point the shell function uses, with output redirected to a file rather than piped (a detached dev server can hold a pipe open):
+```
+bash ~/.claude/skills/deploy/scripts/run.sh > tmp/deploy.log 2>&1
+```
 
 Report the output to the user. If it fails, analyze the error and suggest a fix. On success, remind the user to restart Claude Code if they haven't already, then `! deploy` will work.
 
 **For a `dev-server` deploy, state the URL in the report — written out in full, exactly as the script's last line (`open: …`) prints it.** That is the tailnet address, which the script gets from `~/.claude/skills/shared/tailnet_publish.py publish-port` so the link opens on every machine the user has. **Its port is not the one the server listens on** — the script allocates a separate front port from the ports registry and fronts the dev server from there, because a `tailscale serve` mapping holds the wildcard address and one on the server's own port would stop it rebinding at the next restart. It prints the `http://localhost:<port>` form instead, with the reason, when publishing fails or `DEV_TAILNET=no`, and the report carries that reason along with the address. Not a port number in isolation, not implied by a config value, not buried inside `curl` output: an address someone can click. It costs one clause and it is the difference between the user looking at the thing and the user asking where it is. Then let them look — do not screenshot a page they can open themselves, at better fidelity than a screenshot, in less time than the round-trip takes.
 
-**A deploy overwrites the installed config — warn before running one.** When `config/local.json` exists, the deploy copies it over the installed `config.json`, so anything the *app itself* wrote there at runtime — an API key typed into an in-app settings dialog, an OAuth token — is destroyed, silently, if `local.json` carries an empty placeholder for that field. Nothing in the output says a value was lost. Before deploying an app that persists its own settings to the installed config, check `local.json` for empty credential fields and tell the user; the repo's `local.json` is the source of truth, so that is where their keys belong.
+**A deploy overwrites the installed config — warn before running one.** When `config/local.json` or `config/local.template.json` exists, the deploy copies it over the installed `config.json`, so anything the *app itself* wrote there at runtime — an API key typed into an in-app settings dialog, an OAuth token — is destroyed, silently, if `local.json` carries an empty placeholder for that field. Nothing in the output says a value was lost. Before deploying an app that persists its own settings to the installed config, check `local.json` for empty credential fields and tell the user; the repo's `local.json` is the source of truth, so that is where their keys belong. An app that owns its settings this way is the case `SECRET_FILE` and `SECRET_FIELDS` exist for.

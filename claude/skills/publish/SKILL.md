@@ -200,8 +200,8 @@ A new app is a `prd_<app>` config inside a project shared with other apps, not a
 `doppler projects` will not name it — `/doppler` has the current layout. Ask only
 for what genuinely cannot be inferred — above all `SSH_HOST`, which is never in the repo.
 
-`config/publish.env` is **committed, encrypted**, and is not per-machine — unlike `config/deploy.env`, which
-stays gitignored because it genuinely differs per machine. Do **not** add `config/publish.env` to the global
+`config/publish.env` is **committed, encrypted**, and is not per-machine, as `config/deploy.env` is committed too;
+only a project's per-machine deploy overrides stay ignored, in `config/deploy.local.env`. Do **not** add `config/publish.env` to the global
 excludes file: that rule was removed on 2026-08-28 deliberately, because two machines each keeping their own
 uncommitted copy is drift with no mechanism to detect it, and drift in this file is a publish that behaves
 differently depending on where it is run from. One committed copy, encrypted at rest in git, plaintext in the
@@ -246,8 +246,8 @@ header — confirm the line is there rather than adding a duplicate.
 ## 5. Shell integration
 
 `publish()` delegating through `run_repo_script` is already installed in the shell rc on this machine. Install it
-only if **`publish()` in shell rc** reads 0, alongside `run_repo_script` if that is also missing (the `deploy` and
-`build` skills install the identical helper — add if absent, never duplicate):
+only if **`publish()` in shell rc** reads 0, alongside `run_repo_script` if that is also missing (the `build` skill
+installs the identical helper — add if absent, never duplicate):
 
 ```bash
 publish() { run_repo_script scripts/publish.sh "$@"; }

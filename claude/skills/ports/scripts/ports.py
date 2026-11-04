@@ -17,6 +17,7 @@ So one record, committed in the dotfiles repo, keyed by use case:
     ports.py release --use-case <slug>
     ports.py check [--live] [--repo PATH]
     ports.py repo-name [--repo PATH]       # the name an owner spells for the repo at PATH
+    ports.py dev-use-case [--from DIR] [--role server|tailnet] [--owner]   # what a dev server's claim is keyed on
 
 `allocate` assigns and `amend` corrects, and they are the only writers. `allocate` is idempotent on
 the use case and never changes a claim it finds, so a launch script may call it on every run; what a
@@ -57,7 +58,8 @@ from typing import Dict, List, Optional, Tuple
 
 sys.path.insert(0, str(Path(__file__).resolve().parents[2] / "shared"))
 
-import file_lock  # noqa: E402  — sibling skill module, reachable only after the path insert above
+import deploy_config  # noqa: E402  — sibling skill module, reachable only after the path insert above
+import file_lock  # noqa: E402
 import port_probe  # noqa: E402
 
 # `$CLAUDE_PORTS_REGISTRY` points the tool at another registry, which is how the conventions gate and
@@ -454,36 +456,19 @@ def check_live(data: Dict) -> List[str]:
     return notices
 
 
-def _deploy_env_value(repo: Path, key: str) -> Optional[str]:
-    """One `KEY=value` from a repo's `config/deploy.env`, trailing comment and quotes removed.
-
-    The deploy script's own reader takes everything after the first `=`, so `DEV_PORT=3939  # pinned`
-    would make the port the string `3939  # pinned`. Read the same file the same way and the check
-    would pass on a value no `lsof` could use.
-    """
-    try:
-        with (repo / "config" / "deploy.env").open(encoding="utf-8") as handle:
-            for line in handle:
-                if not line.startswith(f"{key}="):
-                    continue
-                return line.split("=", 1)[1].split("#", 1)[0].strip().strip("\"'")
-    except OSError:
-        return None
-    return None
-
-
 def _deploy_env_literals(repo: Path) -> List[Tuple[str, int]]:
-    """Every port a repo's `config/deploy.env` still pins: -> [(key, port)].
+    """Every port a repo's deploy settings still pin: -> [(key, port)].
 
-    That file is per-machine and gitignored, so it is the one place a migration cannot be checked
-    into and the one place a stale override survives unnoticed. Two keys can carry a port: `DEV_PORT`,
-    which the deploy script no longer reads at all, and `DEV_CMD`, where a `-p 3939` left in the
-    command overrides the `PORT` the script exports — the duplicate one line lower, which dropping
+    Read through `deploy_config.get`, as the deploy scripts read them, so a `config/deploy.local.env`
+    override is checked wherever it is the value the server gets. A per-machine copy is where a stale
+    override survives unnoticed: the local file, or the whole settings file below convention 017. Two
+    keys can carry a port: `DEV_PORT`, which the deploy script no longer reads at all, and `DEV_CMD`,
+    where a `-p 3939` left in the command overrides the `PORT` the script exports — the duplicate one line lower, which dropping
     `DEV_PORT` alone leaves in place. Found by the what-is-next session on 2026-10-05, removing both.
     """
     found = []
     for key in ("DEV_PORT", "DEV_CMD"):
-        raw = _deploy_env_value(repo, key)
+        raw = deploy_config.get(str(repo), key)
         if raw is None:
             continue
         for pattern in LITERAL_PATTERNS:
@@ -569,9 +554,10 @@ def launch_path_literals(repo: Path) -> List[Tuple[Path, int, int, str]]:
     return found
 
 
-# What a launch-determining file mentions when the repo resolves a port at launch: the shared resolver the
-# per-repo `scripts/dev.mjs` shim imports, or the allocator called directly by a script of its own.
-RESOLVER_MARKERS = ("dev-port.mjs", "ports.py")
+# What a launch-determining file mentions when the repo resolves a port at launch: the `dev-port` command a
+# dev script runs, the shared module an older per-repo `scripts/dev.mjs` shim imports, or the allocator called
+# directly by a script of its own. Whole words, so `dev-portal` is not read as the command.
+RESOLVER_MARKERS = re.compile(r"\bdev-port\b|\bports\.py\b")
 
 # The allocator's own directory, whose files hold every marker above as implementation.
 ALLOCATOR_DIR = "claude/skills/ports/"
@@ -606,7 +592,7 @@ def _resolves_at_launch(repo: Path) -> bool:
     for path, text in _launch_path_texts(repo):
         if path.relative_to(repo).as_posix().startswith(ALLOCATOR_DIR):
             continue
-        if any(marker in text for marker in RESOLVER_MARKERS):
+        if RESOLVER_MARKERS.search(text):
             return True
     return False
 
@@ -657,6 +643,29 @@ def _repo_name(repo: Path) -> str:
     return Path(first[len("worktree "):].strip()).name if first.startswith("worktree ") else repo.name
 
 
+def dev_project_root(start: Path) -> Path:
+    """The project a dev server launched from `start` belongs to: the nearest directory up holding
+    config/deploy.env, else the git top level, else `start`.
+
+    Walked from the physical path, so a project reached through a symlink named differently from its target
+    gets one name whichever way it was entered: Node's working directory is always the physical one.
+    """
+    start = start.resolve()
+    for directory in (start, *start.parents):
+        if (directory / "config" / "deploy.env").is_file():
+            return directory
+    return _worktree_root(start)
+
+
+def dev_use_case(start: Path, role: str) -> str:
+    """The use case a project's dev server (`server`) or its tailnet front (`tailnet`) claims.
+
+    deploy-dev-server.sh and the `dev-port` command both ask this, through `ports.py dev-use-case`, so a
+    server started by `deploy` and one started by `npm run dev` hold the same claim.
+    """
+    return f"{dev_project_root(start).name}-dev-{role}"
+
+
 def check_repo(data: Dict, repo: Path) -> Tuple[List[str], List[str]]:
     """Does this repo get every port it owns from the registry: -> (problems, notices).
 
@@ -688,7 +697,7 @@ def check_repo(data: Dict, repo: Path) -> Tuple[List[str], List[str]]:
             continue
         if claim is None:
             problems.append(f"{relative}:{number} hardcodes port {port}, which no claim records: {line}. Either "
-                            f"resolve it at launch (`node scripts/dev.mjs <command>`) or record why it cannot move "
+                            f"resolve it at launch (`dev-port <command>`) or record why it cannot move "
                             f"— `ports.py allocate --use-case {name}-<what-listens> --owner {name} --port {port} "
                             f"--pinned '<why this number and no other>' --notes '<what listens>'`.")
         elif not claim.get("pinned"):
@@ -708,20 +717,22 @@ def check_repo(data: Dict, repo: Path) -> Tuple[List[str], List[str]]:
         problems.append(f"the registry assigns this repo port {ports} and no launch-determining file here asks for "
                         f"it, so "
                         f"nothing resolves it: the server takes its framework's default instead and drifts upward "
-                        f"on a collision. Copy `dev.mjs` from conventions/versions/015-ports-from-registry/ into "
-                        f"scripts/, point the dev script at it, and drop any port literal — or record the number "
+                        f"on a collision. Start the dev script through `dev-port <command>` and drop any port "
+                        f"literal — or record the number "
                         f"`--pinned` if it genuinely cannot be resolved at launch.")
 
-    # A notice rather than a problem: the file is gitignored and per-machine, so no commit here can fix
-    # it and the rule must not fail a repo for one machine's leftovers. Its absence says nothing either
-    # way, which is why only a present key is worth a word.
+    # A notice rather than a problem: the value may come from a per-machine file — the local overrides, or the
+    # whole settings file below convention 017 — which no commit can fix, and the rule must not fail a repo
+    # for one machine's leftovers. Its absence says nothing either way, which is why only a present key is worth
+    # a word.
     for key, port in _deploy_env_literals(repo):
         dead = ("The deploy script reads the registry now, so that line is a dead copy"
                 if key == "DEV_PORT" else
                 "A `-p` in DEV_CMD overrides the PORT the deploy script exports, so this is the copy that wins")
-        notices.append(f"{repo}/config/deploy.env still pins port {port} in {key}. {dead}; removing it keeps the "
-                       f"number in one place. That file is per-machine, so the other machine's copy needs the "
-                       f"same edit.")
+        notices.append(f"{repo}'s deploy settings still pin port {port} in {key} (config/deploy.env, or "
+                       f"config/deploy.local.env over it). {dead}; removing it keeps the number in one place. A "
+                       f"per-machine copy — the local file, or the whole file below convention 017 — needs the same "
+                       f"edit on the other machine.")
     return problems, notices
 
 
@@ -808,7 +819,15 @@ def main(argv: List[str]) -> int:
     p = sub.add_parser("repo-name", help="the name a claim's owner spells for a repo: its GitHub repository name")
     p.add_argument("--repo", default=".", help="any path inside the repo")
 
+    p = sub.add_parser("dev-use-case", help="the use case a project's dev server, or its tailnet front, claims")
+    p.add_argument("--from", dest="start", default=".", help="the directory the server is launched from")
+    p.add_argument("--role", choices=("server", "tailnet"), default="server")
+    p.add_argument("--owner", action="store_true", help="print the owner the claim is recorded under instead")
+
     args = parser.parse_args(argv)
+    if args.cmd == "dev-use-case":
+        print(_repo_name(dev_project_root(Path(args.start))) if args.owner else dev_use_case(Path(args.start), args.role))
+        return 0
     if args.cmd == "check":
         return check(args)
     if args.cmd == "repo-name":

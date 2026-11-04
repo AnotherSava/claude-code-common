@@ -527,7 +527,7 @@ body.
 ## Piping a script that leaves a server running hangs until the timeout kills it
 
 **Redirect to a file, never a pipe, when a script detaches a process that outlives it** —
-`bash scripts/deploy.sh > tmp/deploy.log 2>&1`, not `… | tail -40`. A launcher that lets its child
+`bash ~/.claude/skills/deploy/scripts/run.sh > tmp/deploy.log 2>&1`, not `… | tail -40`. A launcher that lets its child
 inherit the pipe hangs the reader until that child exits, which for a dev server is never. Why it
 happens and how to fix the launcher itself is `detached-process-holds-caller-pipe.md`; this section
 is the caller's side, for a launcher not yet fixed or not yet checked.

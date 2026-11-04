@@ -5,7 +5,10 @@ Thumbs.db
 .claude/settings.local.json
 .ralphex/
 .firecrawl/
-config/deploy.env
+
+# A project's deploy settings are committed in config/deploy.env (convention 017). This file is the one place a
+# machine overrides them, with what differs between machines, such as an IDE's plugin directory.
+config/deploy.local.env
 
 # Claude Code's scratch folder at a repo's root: previews, logs, tokens minted for a test. It exists because of how
 # the agent works rather than because of any project, so it is ignored here once instead of in every repo
@@ -24,10 +27,9 @@ config/deploy.env
 # what made it easy to commit by accident, and why encryption rather than plaintext: repo visibility
 # stops being a question anyone has to reason about. The global pre-commit hook refuses a staged
 # config/publish.env whose path is not marked `filter=crypt`, so an unprepared repo is told, not leaked.
-#
-# config/deploy.env above stays ignored: it was not part of that decision.
 
-# per-machine wrappers written by Claude Code deploy/build/cleanup/publish/doppler skills — never committed
+# per-machine wrappers written by Claude Code deploy/build/cleanup/publish/doppler skills — never committed.
+# A repo at convention 017 or above keeps no scripts/deploy.sh; the line stays for the repos below it.
 scripts/deploy.sh
 scripts/build.sh
 scripts/cleanup.sh

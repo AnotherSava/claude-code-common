@@ -5,7 +5,7 @@ metadata:
   type: project
 ---
 
-The `allowed-tools` line in `claude/skills/wrap-up/SKILL.md` lists `Bash(bash scripts/publish.sh)` and `Bash(bash scripts/deploy.sh)`, so inside `/wrap-up` those two commands run without a permission prompt.
+The `allowed-tools` line in `claude/skills/wrap-up/SKILL.md` lists `Bash(bash scripts/publish.sh)` and `Bash(bash ~/.claude/skills/deploy/scripts/run.sh:*)`, the deploy entry point, so inside `/wrap-up` those two commands run without a permission prompt.
 
 Measured 2026-10-09: `claude/settings.json` carries no deploy or publish rule in `allow`, `ask` or `deny`, and `permissions.defaultMode` is `auto` — so outside the skill that publish would prompt, and the harness gates nothing here. The skill's own instruction to ask for the verb by name before publishing is the only gate on an outward ship.
 

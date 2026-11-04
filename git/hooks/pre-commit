@@ -1,9 +1,9 @@
 #!/usr/bin/env bash
-# Global pre-commit guard (via core.hooksPath). Two independent checks, in order of cost.
+# Global pre-commit guard (via core.hooksPath). Independent checks, in order of cost.
 #
-# Both must be a NO-OP in repos they do not concern, because this hook runs for EVERY repo on the
+# Each must be a NO-OP in repos it does not concern, because this hook runs for EVERY repo on the
 # machine — a guard that fires where it does not apply is one that gets disabled, and disabling it
-# removes the case where it did apply. Neither loops over every staged name in the shell, which reads
+# removes the case where it did apply. None loops over every staged name in the shell, which reads
 # a pipe one byte at a time: that turned a 30,000-file commit from 0.3 s into 30 s. Each asks git for
 # only the paths it could act on, through pathspec magic. Check 2's `:(attr:filter=crypt)` still has
 # git evaluate attributes for every index entry, a cost that grows with entries times attribute rules:
@@ -12,7 +12,7 @@
 #
 # That magic is the hook's own, so the caller's pathspec mode must not reach it. `git
 # --literal-pathspecs`, which Magit passes by default, exports GIT_LITERAL_PATHSPECS to this hook, and
-# under it `:(attr:filter=crypt)` is a file name that matches nothing, so both checks would pass
+# under it `:(attr:filter=crypt)` is a file name that matches nothing, so the checks would pass
 # everything.
 unset GIT_LITERAL_PATHSPECS GIT_GLOB_PATHSPECS GIT_NOGLOB_PATHSPECS GIT_ICASE_PATHSPECS
 
@@ -66,6 +66,30 @@ while IFS= read -r -d '' path && IFS= read -r -d '' _ && IFS= read -r -d '' filt
     echo "  To commit anyway: git commit --no-verify (say why in the message)." >&2
     exit 1
 done < <(set -o pipefail; git diff --cached --name-only -z --diff-filter=ACMRT -- ':(glob)**/config/publish.env' | git check-attr -z --stdin filter || printf '\0\0\0\0\0\0')
+
+# ── 1b. a repo below convention 017 does not add its config/deploy.env ──────────────────────────
+#
+# Before 017 the global excludes hid config/deploy.env and every clone kept its own copy. 017 made the file
+# committed and the excludes stopped hiding it, so in a repo that has not adopted 017 one machine's copy shows as
+# untracked, and a commit of everything pending would carry it in before the migration has read both clones and
+# written the settings the project means. Only an added file is refused, since a tracked one was committed on
+# purpose, and the conventions engine decides the version, as it does for the deploy skill's run.sh.
+if [ -n "$(git diff --cached --name-only --diff-filter=A -- ':(glob)**/config/deploy.env')" ]; then
+    case "$(uname -s)" in MINGW*|MSYS*|CYGWIN*) py=python ;; *) py=python3 ;; esac
+    "$py" "$HOME/.claude/conventions/engine.py" behind "$(git rev-parse --show-toplevel)" 17 >/dev/null
+    case $? in
+        0) ;;
+        1)
+            echo "pre-commit: refusing to add config/deploy.env in a repo below convention 017." >&2
+            echo "  Here it is still one machine's copy. Run /adopt: 017 reads both clones' settings and commits" >&2
+            echo "  the one file the project means. To commit anyway: git commit --no-verify (say why in the message)." >&2
+            exit 1 ;;
+        *)
+            echo "pre-commit: config/deploy.env is staged and the conventions engine could not say whether this" >&2
+            echo "  repo has adopted 017, so it was not checked. Run: $py ~/.claude/conventions/engine.py status ." >&2
+            exit 1 ;;
+    esac
+fi
 
 # ── 2. a file marked filter=crypt must actually be ciphertext ────────────────────────────────────
 #

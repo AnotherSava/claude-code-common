@@ -1,51 +1,27 @@
 #!/bin/bash
 set -e
 
-case "$(uname -s)" in
-    Darwin) OS=mac ;;
-    MINGW*|MSYS*|CYGWIN*) OS=win ;;
-    *) OS=linux ;;
-esac
-
 START=${1:-1}
-# Resolve the repo root that holds config/deploy.env, so this works from any subdir — not only the repo root.
-source "$(dirname "${BASH_SOURCE[0]}")/../../shared/repo-root.sh"
-source "$(dirname "${BASH_SOURCE[0]}")/../../shared/app-process.sh"
-REPO_DIR="$(resolve_repo_dir config/deploy.env)"
-DEPLOY_ENV="$REPO_DIR/config/deploy.env"
+SKILLS="$(cd "$(dirname "${BASH_SOURCE[0]}")/../.." && pwd)"
+source "$SKILLS/shared/deploy-config.sh"
+source "$SKILLS/shared/app-process.sh"
+REPO_DIR="$DEPLOY_REPO_DIR"
+OS="$DEPLOY_OS"
 
-if [ -f "$DEPLOY_ENV" ]; then
-    INSTALL_DIR=$(grep '^INSTALL_DIR=' "$DEPLOY_ENV" | cut -d= -f2-)
-    IDE_PROCESS=$(grep '^IDE_PROCESS=' "$DEPLOY_ENV" | cut -d= -f2-)
-    IDE_EXE=$(grep '^IDE_EXE=' "$DEPLOY_ENV" | cut -d= -f2-)
-    IDE_BUNDLE_ID=$(grep '^IDE_BUNDLE_ID=' "$DEPLOY_ENV" | cut -d= -f2-)
-fi
+# INSTALL_DIR is the IDE's plugins directory, which names the IDE version, so it usually differs between
+# machines and lives in config/deploy.local.env. The IDE_* keys likewise.
+INSTALL_DIR="$(deploy_get INSTALL_DIR)"
+IDE_PROCESS="$(deploy_get IDE_PROCESS)"
+IDE_EXE="$(deploy_get IDE_EXE)"
+IDE_BUNDLE_ID="$(deploy_get IDE_BUNDLE_ID)"
 
 if [ -z "$INSTALL_DIR" ]; then
-    echo "ERROR: No INSTALL_DIR found in config/deploy.env"
-    echo "Create config/deploy.env with: INSTALL_DIR=%APP_CONFIG%/JetBrains/IntelliJIdea2026.1/plugins"
+    echo "ERROR: No INSTALL_DIR found in config/deploy.local.env or config/deploy.env"
+    echo "Set it in config/deploy.local.env, e.g.: INSTALL_DIR=%APP_CONFIG%/JetBrains/IntelliJIdea2026.1/plugins"
     exit 1
 fi
-
-# Per-OS user config dir for placeholder expansion below.
-case "$OS" in
-    win)   APP_CONFIG_DIR="$APPDATA" ;;
-    mac)   APP_CONFIG_DIR="$HOME/Library/Application Support" ;;
-    linux) APP_CONFIG_DIR="${XDG_CONFIG_HOME:-$HOME/.config}" ;;
-esac
-
-# Expand %APP_CONFIG% (canonical) and %APPDATA% (legacy alias kept for back-compat
-# with deploy.env files authored on Windows before the rename).
-expand_paths() {
-    local p="$1"
-    p="${p//%APP_CONFIG%/$APP_CONFIG_DIR}"
-    p="${p//\$\{APP_CONFIG\}/$APP_CONFIG_DIR}"
-    p="${p//%APPDATA%/$APP_CONFIG_DIR}"
-    p="${p//\$\{APPDATA\}/$APP_CONFIG_DIR}"
-    echo "$p"
-}
-INSTALL_DIR=$(expand_paths "$INSTALL_DIR")
-[ -n "$IDE_EXE" ] && IDE_EXE=$(expand_paths "$IDE_EXE")
+INSTALL_DIR="$(deploy_expand "$INSTALL_DIR")"
+[ -n "$IDE_EXE" ] && IDE_EXE="$(deploy_expand "$IDE_EXE")"
 
 BUILD_GRADLE="$REPO_DIR/build.gradle.kts"
 if [ ! -f "$BUILD_GRADLE" ] && [ ! -f "$REPO_DIR/build.gradle" ]; then

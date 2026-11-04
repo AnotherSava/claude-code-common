@@ -10,7 +10,7 @@ Flat `src/` layout for small single-feature apps — no nested folders. Solution
 project-name.slnx
 config/
   default.json              — default settings, copied to output as config.json
-  deploy.env                — local install path (gitignored)
+  deploy.env                — deploy settings, committed (DEPLOY_TYPE=dotnet)
 src/
   ProjectName.csproj
   Program.cs
@@ -336,13 +336,7 @@ Adopt it only against a measured-clean baseline, and prove it fails by reintrodu
 
 ## Deploy
 
-Global deploy script at `~/.claude/skills/deploy/scripts/deploy.sh`. Reads `config/deploy.env` for `INSTALL_DIR`. Script: stop process → clean publish dir → `dotnet publish` → clean install dir → copy → optionally launch → verify running.
-
-Each project has a `scripts/deploy.sh` (gitignored) that delegates to the global script. A bash function in `~/.bashrc` enables `deploy` (or `deploy 0` to skip launch) from any project:
-
-```bash
-deploy() { if [ -f scripts/deploy.sh ]; then bash scripts/deploy.sh "$@"; else echo "No scripts/deploy.sh in current directory"; fi; }
-```
+Global deploy script at `~/.claude/skills/deploy/scripts/deploy.sh`, reached through the deploy skill's `run.sh` when the committed `config/deploy.env` says `DEPLOY_TYPE=dotnet`. It installs to `C:/Programs/<assembly name>` unless `INSTALL_DIR` names another folder. Script: stop process → clean publish dir → `dotnet publish` → clean install dir → copy → optionally launch → verify running. The `deploy` shell function runs it from any subdirectory, and `deploy 0` skips the launch; `~/.claude/learnings/shell-environment.md` has the function.
 
 Deploy target is flat files only (`rm -f`, not `rm -rf`) — embed all resources to avoid subdirectories in output.
 
@@ -356,7 +350,6 @@ publish/
 docs/*
 !docs/plans/
 !docs/screenshots/
-config/deploy.env    # machine-specific install path (also in global gitignore)
 scripts/             # dev/test scripts
 ```
 

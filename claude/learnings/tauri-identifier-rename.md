@@ -30,7 +30,7 @@ Anything that hardcoded the old identifier needs the same update:
 
 - `src-tauri/tauri.conf.json` — the `identifier` field itself
 - Docs that quote the appdata path (README, `docs/index.md`, `docs/pages/development.md`, `CLAUDE.md`)
-- Per-machine deploy scripts / env files (e.g. `config/deploy.env` with `CONFIG_DEST=%APPDATA%/<identifier>/config.json`) — these are usually gitignored, so a fresh `git status` won't surface them
+- Deploy settings naming the appdata path (`CONFIG_DEST=%APP_CONFIG%/<identifier>/config.json` in `config/deploy.env`, or `SECRET_FILE`), and any per-machine `config/deploy.local.env` — that one is ignored, so a fresh `git status` won't surface it
 - Anything that derived a temp-dir prefix or log target from the crate name
 
 ## Related side effects

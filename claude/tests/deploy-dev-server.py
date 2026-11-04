@@ -13,15 +13,20 @@ handle inheritance on, and the server chain (`cmd.exe -> doppler -> node`) held 
 which was the pipe to `tail`. The run sat until the tool timeout killed it; a plain run through a
 tool that waits only for the process to exit returned in 13 s and hid it.
 
-What is asserted, with a stand-in server on a port from a scratch registry and the tailnet off:
+What is asserted, with a stand-in server on a port from a scratch registry and the tailnet off, entering
+through `run.sh` as the `deploy` function does:
 
   returns     the caller reading stdout reaches EOF soon after the script exits
   succeeds    the script exits 0 and prints the address it brought up
   detached    the server is still listening afterwards — closing the stream must not cost that
+  db sync     a second run with --db runs DEV_DB_SYNC_CMD after the first server has stopped, and a sync
+              that fails still restarts the server and is named again beside the address
 
 Usage:  python claude/tests/deploy-dev-server.py
 Exit:   0 all hold, 1 one does not or the run could not be set up
 """
+
+from __future__ import annotations
 
 import json
 import os
@@ -36,7 +41,7 @@ import time
 
 HERE = os.path.dirname(os.path.realpath(__file__))
 REPO = os.path.dirname(os.path.dirname(HERE))
-SCRIPT = os.path.join(REPO, "claude", "skills", "deploy", "scripts", "deploy-dev-server.sh")
+SCRIPT = os.path.join(REPO, "claude", "skills", "deploy", "scripts", "run.sh")
 PORT_PROBE = os.path.join(REPO, "claude", "skills", "shared", "port_probe.py")
 WINDOWS = sys.platform == "win32"
 PY = "python" if WINDOWS else "python3"
@@ -45,6 +50,17 @@ PY = "python" if WINDOWS else "python3"
 # is bounded at 40 s, so a healthy run is well inside this; a held stream never ends at all.
 EOF_GRACE = 15
 RUN_LIMIT = 90
+
+# The sync records whether the old server still answered when it ran, then fails, so one run shows both the
+# ordering — it replaces data the running server would hold open, so the server must be down — and the failure
+# being carried to the end of the output.
+SYNC = """import os, socket, sys
+with socket.socket() as probe:
+    probe.settimeout(1)
+    up = probe.connect_ex(("127.0.0.1", int(sys.argv[1]))) == 0
+open("sync-saw.txt", "w").write("up" if up else "down")
+sys.exit(3)
+"""
 
 SERVER = """import os, socket, time
 s = socket.socket()
@@ -78,6 +94,38 @@ def stop_server(port: int) -> None:
             subprocess.run(["kill", "-KILL", pid], capture_output=True)
 
 
+def claimed_port(registry: str) -> int | None:
+    """The port the run took, from the registry — readable whether or not the output ever arrived, which is
+    what lets a held stream still be cleaned up."""
+    with open(registry, encoding="utf-8") as handle:
+        claims = json.load(handle).get("claims", [])
+    return next((c.get("port") for c in claims if c.get("use_case") == "deploy-pipe-test-dev-server"), None)
+
+
+def deploy(bash: str, project: str, env: dict, args: list[str]) -> tuple[int | None, str]:
+    """Run `deploy` once and return its exit code and output, recording a failure if its stream is held."""
+    proc = subprocess.Popen([bash, SCRIPT, *args], cwd=project, env=env, stdin=subprocess.DEVNULL,
+                            stdout=subprocess.PIPE, stderr=subprocess.STDOUT)
+    chunks = []
+    reader = threading.Thread(target=lambda: chunks.append(proc.stdout.read()), daemon=True)
+    reader.start()
+    try:
+        code = proc.wait(timeout=RUN_LIMIT)
+    except subprocess.TimeoutExpired:
+        proc.kill()
+        fail(f"the script itself did not exit within {RUN_LIMIT} s")
+        code = None
+    reader.join(timeout=EOF_GRACE)
+    if reader.is_alive():
+        fail(f"the script exited {code}, and {EOF_GRACE} s later its caller was still waiting for end of output: "
+             "the detached server holds the caller's stream, so `deploy | tail` and any tool reading to EOF hang")
+        return None, ""
+    output = (chunks[0] if chunks else b"").decode("utf-8", "replace")
+    if code not in (0, None):
+        fail(f"the script exited {code}; output was:\n{output}")
+    return code, output
+
+
 def main() -> int:
     bash = shutil.which("bash")
     if not bash:
@@ -87,6 +135,11 @@ def main() -> int:
     scratch = tempfile.mkdtemp(prefix="deploy-dev-server-test.")
     project = os.path.join(scratch, "deploy-pipe-test")
     os.makedirs(os.path.join(project, "config"))
+    os.makedirs(os.path.join(project, ".claude"))
+    with open(os.path.join(project, ".claude", "conventions"), "w", encoding="utf-8") as handle:
+        handle.write("17\n")
+    with open(os.path.join(project, "sync.py"), "w", encoding="utf-8") as handle:
+        handle.write(SYNC)
     with open(os.path.join(project, "serve.py"), "w", encoding="utf-8") as handle:
         handle.write(SERVER)
     with open(os.path.join(project, "config", "deploy.env"), "w", encoding="utf-8") as handle:
@@ -98,48 +151,30 @@ def main() -> int:
     # A dead dashboard port: run from an agterm session, the script would otherwise register this scratch
     # server under the user's real session in the live dashboard.
     env = dict(os.environ, CLAUDE_PORTS_REGISTRY=registry, TAURI_DASHBOARD_URL="http://127.0.0.1:9")
-    proc = subprocess.Popen([bash, SCRIPT], cwd=project, env=env, stdin=subprocess.DEVNULL,
-                            stdout=subprocess.PIPE, stderr=subprocess.STDOUT)
-    chunks = []
-    reader = threading.Thread(target=lambda: chunks.append(proc.stdout.read()), daemon=True)
-    reader.start()
-
     port = None
     try:
-        try:
-            code = proc.wait(timeout=RUN_LIMIT)
-        except subprocess.TimeoutExpired:
-            proc.kill()
-            fail(f"the script itself did not exit within {RUN_LIMIT} s")
-            code = None
-        reader.join(timeout=EOF_GRACE)
-        held = reader.is_alive()
-
-        # The registry is the record of which port the run took, and it is readable whether or not the
-        # output ever arrived — which is what lets a held stream still be cleaned up.
-        with open(registry, encoding="utf-8") as handle:
-            claims = json.load(handle).get("claims", [])
-        port = next((c.get("port") for c in claims if c.get("use_case") == "deploy-pipe-test-dev-server"), None)
-
-        if held:
-            fail(f"the script exited {code}, and {EOF_GRACE} s later its caller was still waiting for end of output: "
-                 "the detached server holds the caller's stream, so `deploy | tail` and any tool reading to EOF hang")
-        elif code == 0:
-            output = (chunks[0] if chunks else b"").decode("utf-8", "replace")
-            if not re.search(r"open: http://localhost:\d+", output):
-                fail(f"exit 0 without the address line; output was:\n{output}")
-        elif code is not None:
-            output = (chunks[0] if chunks else b"").decode("utf-8", "replace")
-            fail(f"the script exited {code}; output was:\n{output}")
-
+        code, output = deploy(bash, project, env, [])
+        port = claimed_port(registry)
+        if code == 0 and not re.search(r"open: http://localhost:\d+", output):
+            fail(f"exit 0 without the address line; output was:\n{output}")
         if port is None:
             fail("the scratch registry holds no dev-server claim, so the run never asked for a port")
         elif code == 0 and not listening(port):
             fail(f"the script exited 0 and nothing listens on {port} afterwards: the server did not outlive it")
+
+        if code == 0 and port is not None:
+            with open(os.path.join(project, "config", "deploy.env"), "a", encoding="utf-8") as handle:
+                handle.write(f"DEV_DB_SYNC_CMD={PY} sync.py {port}\n")
+            code, output = deploy(bash, project, env, ["--db"])
+            saw = os.path.join(project, "sync-saw.txt")
+            seen = open(saw, encoding="utf-8").read() if os.path.exists(saw) else None
+            if seen != "down":
+                fail(f"--db: the sync saw the old server {seen or 'never ran'}; it must run after the server is stopped")
+            if code == 0 and not re.search(r"FAILED earlier: data sync \(exit 3\).*\n.*open: http://localhost:\d+", output):
+                fail(f"--db: the failed sync is not named again just above the address line; output was:\n{output}")
     finally:
         if port is not None:
             stop_server(port)
-        reader.join(timeout=10)
         time.sleep(1)
         shutil.rmtree(scratch, ignore_errors=True)
 
@@ -149,7 +184,7 @@ def main() -> int:
             print(f"  {failure}")
         print()
         return 1
-    print("deploy dev server: returns its caller's stream, exits 0 with the address, server still up")
+    print("deploy dev server: returns its caller's stream, exits 0 with the address, server still up, --db syncs with the server stopped")
     return 0
 
 

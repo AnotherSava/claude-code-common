@@ -343,7 +343,17 @@ def main() -> int:
         track("scripts/dev.mjs", "import { run } from '.../ports/scripts/dev-port.mjs'\n")
         check("and so does the same file staged", ports.check_repo(unpinned, scan), ([], []))
 
-        # ---- a port still pinned in the per-machine deploy.env ---------------------------------------
+        # The command form: a dev script started through `dev-port` resolves the port with no file of its own.
+        # The marker is a whole word, so a name that merely begins with it is still no resolver.
+        subprocess.run(["git", "-C", str(scan), "rm", "-q", "--cached", "--", "scripts/dev.mjs"], check=True)
+        (scan / "scripts" / "dev.mjs").unlink()
+        track("web/package.json", '{"scripts": {"dev": "doppler run -- dev-portal next dev"}}\n')
+        found, _ = ports.check_repo(unpinned, scan)
+        check("a name that only begins with dev-port is not a resolver", len(found), 1)
+        track("web/package.json", '{"scripts": {"dev": "doppler run -- dev-port next dev"}}\n')
+        check("a dev script run through the dev-port command resolves it", ports.check_repo(unpinned, scan), ([], []))
+
+        # ---- a port still pinned in deploy.env ---------------------------------------------------------
         # Both keys can carry one, and dropping DEV_PORT alone leaves the duplicate a line lower in
         # DEV_CMD, where it overrides the PORT the deploy script exports.
         (scan / "config").mkdir()

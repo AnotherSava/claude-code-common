@@ -113,15 +113,30 @@ CASES = (
     ),
     Case(
         "gitignore-scope-global",
-        # Lines sharing a body with a global entry that must still not be reported: `**/config/deploy.env`
+        # Lines sharing a body with a global entry that must still not be reported: `**/config/deploy.local.env`
         # floats where the global entry is anchored, `local.env` floats where the global `/local.env` is
-        # anchored, and `/config/deploy.env` follows a negation the global entry cannot outrank.
-        Tree({".gitignore": "/dist/\n**/config/deploy.env\nlocal.env\nconfig/*\n!config/*.env\n"
-                            "/config/deploy.env\n"}, committed=True),
+        # anchored, and `/config/deploy.local.env` follows a negation the global entry cannot outrank.
+        Tree({".gitignore": "/dist/\n**/config/deploy.local.env\nlocal.env\nconfig/*\n!config/*.env\n"
+                            "/config/deploy.local.env\n"}, committed=True),
         # Spelled with the leading slash the global entry lacks, which is still the same rule.
-        Tree({".gitignore": "/config/deploy.env\n"}, committed=True),
+        Tree({".gitignore": "/config/deploy.local.env\n"}, committed=True),
         Tree({".gitignore": ".idea/\n"}, repo=False),
         "it is outside a work tree, so git will not say which .gitignore files this repo commits",
+    ),
+    Case(
+        "deploy-config-committed",
+        Tree({"config/deploy.env": "DEPLOY_TYPE=dev-server\n"}, committed=True),
+        Tree({".gitignore": "/config/deploy.env\n", "config/deploy.env": "DEPLOY_TYPE=dev-server\n"}),
+        Tree({"config/deploy.env": "DEPLOY_TYPE=dev-server\n"}, repo=False),
+        "it is outside a work tree, so git will not say whether the settings are tracked",
+        also_violating=(
+            Tree({"config/deploy.env": "DEV_DIR=web\n"}, committed=True),
+            Tree({"config/deploy.env": "DEPLOY_TYPE=Tauri\n"}, committed=True),
+            Tree({"config/deploy.env": "DEPLOY_TYPE=tauri\n", "scripts/deploy.sh": "bash x\n"}, committed=True),
+            # The global excludes hide the local file, so this repo re-includes it to make it committable.
+            Tree({"config/deploy.env": "DEPLOY_TYPE=tauri\n", "config/deploy.local.env": "INSTALL_DIR=/x\n",
+                  ".gitignore": "!config/deploy.local.env\n"}, committed=True),
+        ),
     ),
     Case(
         "memory-file-shape",
@@ -370,7 +385,7 @@ def sandbox_git(base: str) -> dict[str, str | None]:
     with open(config, "w", encoding="utf-8", newline="\n") as handle:
         handle.write("[core]\n\texcludesfile = " + excludes.replace("\\", "/") + "\n")
     with open(excludes, "w", encoding="utf-8", newline="\n") as handle:
-        handle.write(".idea/\nThumbs.db\nconfig/deploy.env\n/local.env\n")
+        handle.write(".idea/\nThumbs.db\nconfig/deploy.local.env\n/local.env\n")
     before = {name: os.environ.get(name) for name in ("GIT_CONFIG_GLOBAL", "GIT_CONFIG_NOSYSTEM")}
     os.environ["GIT_CONFIG_GLOBAL"] = config
     os.environ["GIT_CONFIG_NOSYSTEM"] = "1"

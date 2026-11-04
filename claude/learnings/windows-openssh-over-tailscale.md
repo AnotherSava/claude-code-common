@@ -189,6 +189,19 @@ The consequences, of which the second is the expensive one:
   process returns 5 for every target, a live console included, so reading another console's title
   over SSH measures nothing; see [[windows-terminal-title]].
 
+## A winget tool and anything reading the credential store fail here
+
+Two failures that look like a broken tool and are the session. Measured 2026-11-04 with Doppler v3.76.0.
+
+- **A winget-installed command will not start.** `doppler --version` answered `The system cannot execute
+  the specified program.` The PATH entry is the 0-byte alias under `%LOCALAPPDATA%\Microsoft\WinGet\Links`,
+  which an sshd session cannot run; `windows-scheduled-tasks-nonadmin.md` has the same alias failing from a
+  scheduled task. Put the real directory, `…\WinGet\Packages\<id>\`, first on PATH for the one command.
+- **With the real binary, anything needing the Windows credential store still fails.** `doppler run` then
+  stopped at `Unable to retrieve value from system keyring` / `A specified logon session does not exist`:
+  an sshd logon carries no credential-manager session. Nothing that reads Doppler secrets can be tested
+  over SSH; it has to run in the user's own session, through its live Claude session or by hand.
+
 ## Nothing you start here outlives the connection
 
 Win32-OpenSSH puts the session in a job object with Kill-on-Job-Close, so every process an `ssh`

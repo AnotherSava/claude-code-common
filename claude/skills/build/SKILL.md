@@ -15,7 +15,7 @@ See `~/.claude/learnings/shell-environment.md` for the expected bash functions a
 
 ## 1. Check prerequisites
 
-1. If **Build function in shell rc** is 0, append the `build` wrapper to the file in **Shell rc target** (i.e. `~/.zshrc` on macOS, `~/.bashrc` on Windows Git Bash / Linux-bash). It delegates to the shared `run_repo_script` helper, which walks up from the current directory to the repo's `scripts/build.sh` and runs it from the directory that holds it — so `build` works from any subdirectory. If **run_repo_script helper in shell rc** is 0, append the helper too (the `deploy` skill installs the same one — add it only when missing, so it isn't duplicated):
+1. If **Build function in shell rc** is 0, append the `build` wrapper to the file in **Shell rc target** (i.e. `~/.zshrc` on macOS, `~/.bashrc` on Windows Git Bash / Linux-bash). It delegates to the shared `run_repo_script` helper, which walks up from the current directory to the repo's `scripts/build.sh` and runs it from the directory that holds it — so `build` works from any subdirectory. If **run_repo_script helper in shell rc** is 0, append the helper too (the `publish` skill installs the same one — add it only when missing, so it isn't duplicated):
    ```bash
    run_repo_script() { local rel="$1"; shift; local d="$PWD"; while [ "$d" != "/" ] && [ ! -f "$d/$rel" ]; do d="$(dirname "$d")"; done; if [ -f "$d/$rel" ]; then ( cd "$d" && bash "$rel" "$@" ); else echo "No $rel in this directory or any parent"; fi; }
    build() { run_repo_script scripts/build.sh "$@"; }

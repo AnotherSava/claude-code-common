@@ -75,7 +75,7 @@ def git(root: str, *args: str, stdin: str | None = None) -> subprocess.Completed
         raise GitRefused(f"git {' '.join(args[:2])} could not be run in {os.path.basename(root)} ({exc})") from exc
 
 
-def _answered(done: subprocess.CompletedProcess[str], what: str) -> None:
+def answered(done: subprocess.CompletedProcess[str], what: str) -> None:
     """Git either answered the question or it did not; 0 and 1 are the two answers it gives."""
     if done.returncode in (0, 1):
         return
@@ -94,7 +94,7 @@ def ignored(root: str, paths: tuple[str, ...] | list[str]) -> set[str]:
     if not paths:
         return set()
     done = git(root, "check-ignore", "-z", "--no-index", "--stdin", stdin="\0".join(paths) + "\0")
-    _answered(done, "check-ignore --no-index")
+    answered(done, "check-ignore --no-index")
     return {name for name in done.stdout.split("\0") if name}
 
 
@@ -147,7 +147,7 @@ def ignored_untracked(root: str, paths: tuple[str, ...] | list[str]) -> set[str]
         raise GitRefused(f"git answers for {top.stdout.strip()} rather than {root}, so the rules it applied "
                          f"are another repository's")
     done = git(root, "check-ignore", "-z", "--stdin", stdin="\0".join(paths) + "\0")
-    _answered(done, "check-ignore")
+    answered(done, "check-ignore")
     hidden = {name for name in done.stdout.split("\0") if name}
     if not hidden:
         return set()
@@ -178,7 +178,7 @@ def rules_for(root: str, paths: tuple[str, ...] | list[str]) -> dict[str, Rule]:
     if not paths:
         return {}
     done = git(root, "check-ignore", "-z", "-v", "--no-index", "--stdin", stdin="\0".join(paths) + "\0")
-    _answered(done, "check-ignore -v")
+    answered(done, "check-ignore -v")
     fields = done.stdout.split("\0")
     out: dict[str, Rule] = {}
     for index in range(0, len(fields) - 3, 4):

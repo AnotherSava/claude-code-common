@@ -1,99 +1,46 @@
 #!/bin/bash
 set -e
 
-case "$(uname -s)" in
-    Darwin) OS=mac ;;
-    MINGW*|MSYS*|CYGWIN*) OS=win ;;
-    *) OS=linux ;;
-esac
+SKILLS="$(cd "$(dirname "${BASH_SOURCE[0]}")/../.." && pwd)"
+source "$SKILLS/shared/deploy-config.sh"
+source "$SKILLS/shared/app-process.sh"
+source "$SKILLS/shared/tauri-project.sh"
+REPO_DIR="$DEPLOY_REPO_DIR"
+OS="$DEPLOY_OS"
 
-source "$(dirname "${BASH_SOURCE[0]}")/../../shared/app-process.sh"
+# BACKUP_FILES is a comma- or space-separated list of paths inside the app-data dir to copy to
+# <REPO_DIR>/.cleanup-backups/<timestamp>/ before the data wipe, for files the user would lose work over —
+# local prompt history, scratch databases. Read, like INSTALL_DIR, from the deploy settings, so a project that
+# deploys needs no second configuration to be cleaned up.
+BACKUP_FILES="$(deploy_get BACKUP_FILES)"
 
-REPO_DIR="$(pwd)"
-DEPLOY_ENV="$REPO_DIR/config/deploy.env"
-
-# INSTALL_DIR is read from the same deploy.env the deploy skill writes — so a
-# user who ran `deploy` once and then runs `cleanup` doesn't need to repeat
-# the per-machine config. If the file is missing or empty, fall back to the
-# OS-default and warn; the bundle may have been installed manually.
-if [ -f "$DEPLOY_ENV" ]; then
-    INSTALL_DIR=$(grep '^INSTALL_DIR=' "$DEPLOY_ENV" | cut -d= -f2-)
-    # BACKUP_FILES is a comma- or space-separated list of paths inside the
-    # app-data dir to copy to <REPO_DIR>/.cleanup-backups/<timestamp>/ before
-    # the data wipe. Set per-project in config/deploy.env for files the user
-    # would lose work over — e.g. local prompt-history / scratch DBs.
-    BACKUP_FILES=$(grep '^BACKUP_FILES=' "$DEPLOY_ENV" | cut -d= -f2-)
-fi
-if [ -z "$INSTALL_DIR" ]; then
-    case "$OS" in
-        win)   INSTALL_DIR="C:/Programs/$(basename "$REPO_DIR")" ;;
-        mac)   INSTALL_DIR="/Applications" ;;
-        linux) INSTALL_DIR="$HOME/.local/bin" ;;
-    esac
-    echo "WARNING: config/deploy.env missing or has no INSTALL_DIR; using fallback $INSTALL_DIR"
-fi
-
-case "$OS" in
-    win)   APP_CONFIG_DIR="$APPDATA" ;;
-    mac)   APP_CONFIG_DIR="$HOME/Library/Application Support" ;;
-    linux) APP_CONFIG_DIR="${XDG_CONFIG_HOME:-$HOME/.config}" ;;
-esac
-
-expand_paths() {
-    local p="$1"
-    p="${p//%APP_CONFIG%/$APP_CONFIG_DIR}"
-    p="${p//\$\{APP_CONFIG\}/$APP_CONFIG_DIR}"
-    p="${p//%APPDATA%/$APP_CONFIG_DIR}"
-    p="${p//\$\{APPDATA\}/$APP_CONFIG_DIR}"
-    echo "$p"
-}
-INSTALL_DIR=$(expand_paths "$INSTALL_DIR")
-
-TAURI_CONF="$REPO_DIR/src-tauri/tauri.conf.json"
-CARGO_TOML="$REPO_DIR/src-tauri/Cargo.toml"
-
-if [ ! -f "$TAURI_CONF" ]; then
-    echo "ERROR: src-tauri/tauri.conf.json not found (run from Tauri project root)"
-    exit 1
-fi
-if [ ! -f "$CARGO_TOML" ]; then
-    echo "ERROR: src-tauri/Cargo.toml not found (run from Tauri project root)"
-    exit 1
-fi
-
-PRODUCT_NAME=$(sed -n 's/.*"productName"[[:space:]]*:[[:space:]]*"\([^"]*\)".*/\1/p' "$TAURI_CONF" | head -1)
-IDENTIFIER=$(sed -n 's/.*"identifier"[[:space:]]*:[[:space:]]*"\([^"]*\)".*/\1/p' "$TAURI_CONF" | head -1)
-BIN_NAME=$(sed -n '/^\[package\]/,/^\[/{ s/^name[[:space:]]*=[[:space:]]*"\([^"]*\)".*/\1/p; }' "$CARGO_TOML" | head -1)
-
+tauri_read_project "$REPO_DIR" || exit 1
 if [ -z "$IDENTIFIER" ]; then
     echo "ERROR: could not extract \"identifier\" from src-tauri/tauri.conf.json"
     exit 1
 fi
-if [ -z "$BIN_NAME" ]; then
-    echo "ERROR: could not extract [package].name from src-tauri/Cargo.toml"
-    exit 1
-fi
 
+INSTALL_DIR="$(deploy_install_dir "$BIN_NAME")"
 PROC_NAME="$BIN_NAME"
 case "$OS" in
     win)
-        BUNDLE_NAME="$BIN_NAME.exe"
-        APP_DATA="$APP_CONFIG_DIR/$IDENTIFIER"
+        APP_DATA="$APPDATA/$IDENTIFIER"
         CACHES=("$LOCALAPPDATA/$IDENTIFIER")
         ;;
     mac)
-        BUNDLE_NAME="${PRODUCT_NAME:-$BIN_NAME}.app"
         APP_DATA="$HOME/Library/Application Support/$IDENTIFIER"
         CACHES=("$HOME/Library/Caches/$IDENTIFIER")
         ;;
     linux)
-        BUNDLE_NAME="$BIN_NAME"
         APP_DATA="${XDG_DATA_HOME:-$HOME/.local/share}/$IDENTIFIER"
         CACHES=("${XDG_CACHE_HOME:-$HOME/.cache}/$IDENTIFIER")
         ;;
 esac
 
-DEST="$INSTALL_DIR/$BUNDLE_NAME"
+# Deploy installs a macOS build as its .app bundle, or as the bare binary when the build made no bundle, and which
+# one it was is recorded nowhere, so both are removed. Elsewhere the two names are the same file.
+DESTS=("$INSTALL_DIR/$(tauri_installed_name bundle)")
+[ "$(tauri_installed_name binary)" != "$(tauri_installed_name bundle)" ] && DESTS+=("$INSTALL_DIR/$(tauri_installed_name binary)")
 
 # Caller can pass flags to opt out of specific scopes — defaults remove all
 # three so `cleanup` does the full "uninstall before clean install" pass in
@@ -113,10 +60,10 @@ for arg in "$@"; do
 Usage: cleanup [--keep-bundle] [--keep-data] [--keep-cache]
                [--bundle-only | --data-only]
 Removes the installed Tauri app and its on-disk state in preparation for a
-clean install. Reads INSTALL_DIR from config/deploy.env and the identifier /
+clean install. Reads INSTALL_DIR from the deploy settings and the identifier /
 binary name from src-tauri/{tauri.conf.json,Cargo.toml}.
 
-Optional config/deploy.env keys:
+Optional config/deploy.env (or config/deploy.local.env) keys:
   BACKUP_FILES   Comma- or space-separated list of paths inside the app-data
                  dir to copy to <repo>/.cleanup-backups/<timestamp>/ BEFORE
                  the data wipe. Use for files the user would lose work over
@@ -141,7 +88,7 @@ if [ "$KEEP_DATA" = "0" ] && [ -n "$BACKUP_FILES" ]; then
 fi
 
 echo "Targets:"
-[ "$KEEP_BUNDLE" = "0" ] && echo "  app:    $DEST"
+[ "$KEEP_BUNDLE" = "0" ] && for d in "${DESTS[@]}"; do echo "  app:    $d"; done
 [ "$KEEP_DATA" = "0" ]   && echo "  data:   $APP_DATA"
 [ "$KEEP_CACHE" = "0" ]  && for c in "${CACHES[@]}"; do echo "  cache:  $c"; done
 [ "${#BACKUP_LIST[@]}" -gt 0 ] && for f in "${BACKUP_LIST[@]}"; do echo "  backup: $APP_DATA/$f"; done
@@ -192,7 +139,9 @@ remove_path() {
 
 echo "=== Step 2: Removing installed bundle..."
 if [ "$KEEP_BUNDLE" = "0" ]; then
-    remove_path "app   " "$DEST"
+    for d in "${DESTS[@]}"; do
+        remove_path "app   " "$d"
+    done
 else
     echo "  app   : skipped (--keep-bundle)"
 fi

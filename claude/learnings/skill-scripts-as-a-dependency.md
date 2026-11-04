@@ -17,10 +17,11 @@ Nothing in that repo could have caught it. Its own `check-figures.py` reads the 
 frames and the manifest, never the libs that produce them, and CI cannot check the paths at
 all — a runner has no `~/.claude`.
 
-The exposure is wider than capture scripts. The `deploy` skill writes each repo a
-`scripts/deploy.sh` whose body is `bash ~/.claude/skills/deploy/scripts/<TARGET>`, and keeps
-that wrapper out of git through the global excludes file. Renaming `deploy` would break every
-repo's shortcut on every machine, with no tracked file anywhere to sweep.
+The exposure is wider than capture scripts. The `deploy` shell function in each machine's rc
+file calls `bash ~/.claude/skills/deploy/scripts/run.sh`, and a repo below convention 017 still
+keeps a per-machine `scripts/deploy.sh` naming its target there, out of git through the global
+excludes file. Renaming `deploy` would break the shortcut on every machine, with no tracked file
+anywhere to sweep.
 
 ## Asserting the dependency in the caller's gate
 

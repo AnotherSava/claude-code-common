@@ -1,32 +1,15 @@
 #!/bin/bash
 set -e
 
-case "$(uname -s)" in
-    Darwin) OS=mac ;;
-    MINGW*|MSYS*|CYGWIN*) OS=win ;;
-    *) OS=linux ;;
-esac
+START=${1:-1}
+SKILLS="$(cd "$(dirname "${BASH_SOURCE[0]}")/../.." && pwd)"
+source "$SKILLS/shared/deploy-config.sh"
+source "$SKILLS/shared/app-process.sh"
+REPO_DIR="$DEPLOY_REPO_DIR"
+OS="$DEPLOY_OS"
 
 if [ "$OS" != "win" ]; then
     echo "deploy.sh (.NET tray app) is Windows-only — current OS: $OS"
-    exit 1
-fi
-
-START=${1:-1}
-# Resolve the repo root that holds config/deploy.env, so this works from any subdir — not only the repo root.
-source "$(dirname "${BASH_SOURCE[0]}")/../../shared/repo-root.sh"
-source "$(dirname "${BASH_SOURCE[0]}")/../../shared/app-process.sh"
-REPO_DIR="$(resolve_repo_dir config/deploy.env)"
-DEPLOY_ENV="$REPO_DIR/config/deploy.env"
-
-# Read install dir from deploy.env
-if [ -f "$DEPLOY_ENV" ]; then
-    INSTALL_DIR=$(grep '^INSTALL_DIR=' "$DEPLOY_ENV" | cut -d= -f2-)
-fi
-
-if [ -z "$INSTALL_DIR" ]; then
-    echo "ERROR: No INSTALL_DIR found in config/deploy.env"
-    echo "Create config/deploy.env with: INSTALL_DIR=C:/Programs/your-app"
     exit 1
 fi
 
@@ -41,6 +24,9 @@ ASSEMBLY_NAME=$(sed -n 's/.*<AssemblyName>\([^<]*\)<.*/\1/p' "$CSPROJ")
 if [ -z "$ASSEMBLY_NAME" ]; then
     ASSEMBLY_NAME=$(basename "$CSPROJ" .csproj)
 fi
+
+# INSTALL_DIR from config/deploy.env or config/deploy.local.env; C:/Programs/<assembly name> when neither sets it.
+INSTALL_DIR="$(deploy_install_dir "$ASSEMBLY_NAME")"
 
 echo "Project: $ASSEMBLY_NAME"
 echo "Deploying to: $INSTALL_DIR"

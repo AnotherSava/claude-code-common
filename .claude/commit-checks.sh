@@ -105,6 +105,10 @@ run "dev-port.mjs" node claude/tests/dev-port.mjs
 # exits 0, so no other check notices, and a tool that waits only for the process to exit never shows it.
 run "deploy dev server" python3 claude/tests/deploy-dev-server.py
 
+# How every deploy target and the cleanup script read their settings, and which target `deploy` reaches. Both
+# run in every project on both machines, so a precedence or dispatch slip here mis-deploys all of them at once.
+run "deploy config" python3 claude/tests/deploy-config.py
+
 # The repo-root resolver those two share. One function now answers "which directory is this project" for every
 # deploy and publish target plus wrap-up's wrapper reporter, where two near-identical copies and an inline
 # git-top-level lookup stood before — so a defect in it reaches every one of them at once, and the anchor being
