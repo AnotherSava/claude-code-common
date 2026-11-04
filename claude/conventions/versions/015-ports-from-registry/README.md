@@ -179,9 +179,13 @@ Do this in the repo that is behind, not in the dotfiles repo.
    nothing. Staging the new `scripts/dev.mjs` first is not needed: the check reads what this repo would
    commit, which excludes a gitignored file and includes a merely untracked one.
 
-A project whose server is not started by a Node-capable script — a Gradle task, a Swift test harness, a
-shell script with no Node nearby — pins its port in step 2 with that as the reason, and skips step 3.
-Nothing here requires inventing a Node dependency a repo does not have.
+A project whose server is started by a plain command — `python serve.py`, a shell script — and reads
+`PORT` from the environment wraps that command in a tracked `scripts/dev.sh` running
+`exec dev-port <command>`, and points `DEV_CMD` at it; version 018's `dev-port` is a command on `PATH`, so
+the repo gains no Node dependency. Pinning such a port would record a number nothing outside the machine
+fixes. A project whose port is passed inside a build tool rather than through the environment — a Gradle
+task's JVM argument, a Swift test harness — pins its port in step 2 with that as the reason, and skips
+step 3.
 
 ## When it does not apply
 
