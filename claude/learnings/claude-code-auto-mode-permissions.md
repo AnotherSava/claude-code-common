@@ -97,6 +97,11 @@ idempotent line in a fenced block and let them run it; then verify from a new sh
 Earlier in the same session, replacing the file with a `cp` of an edited copy went through, so the
 classifier judges the command's shape, not the file it touches.
 
+The Windows twin is refused the same way: the same day, a `powershell -Command` running
+`[Environment]::SetEnvironmentVariable("Path", …, "User")` from the README's install block was denied as
+Unauthorized Persistence. Reading the variable back with `GetEnvironmentVariable("Path", "User")` is not
+refused, so the check that the user's own run worked stays with the agent.
+
 ## A denial means the command did NOT run
 
 The check happens before execution. Nothing partial, nothing queued, no side effects.
