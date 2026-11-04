@@ -33,7 +33,7 @@ See `~/.claude/learnings/shell-environment.md` for the expected bash functions a
 - run_repo_script helper in shell rc: !`cat ~/.bashrc ~/.zshrc ~/.bash_profile ~/.zprofile 2>/dev/null | grep -c "run_repo_script()" || echo 0`
 - Shell rc target: !`case "$(uname -s)" in Darwin) echo "~/.zshrc" ;; MINGW*|MSYS*|CYGWIN*) echo "~/.bashrc" ;; *) [ -n "$ZSH_VERSION" ] || [ "${SHELL##*/}" = "zsh" ] && echo "~/.zshrc" || echo "~/.bashrc" ;; esac`
 - Wrapper script exists: !`test -f scripts/deploy.sh && echo yes || echo no`
-- Wrapper has --db: !`grep -q -- '--db' scripts/deploy.sh 2>/dev/null && echo yes || echo no`
+- Wrapper has --db: !`grep -q -- '--db' scripts/deploy.sh 2>/dev/null && { grep -q DEV_PRESTART_ONCE scripts/deploy.sh && echo yes || echo outdated; } || echo no`
 - Wrapper target: !`grep -oE 'deploy(-[a-z-]+)?\.sh' scripts/deploy.sh 2>/dev/null | tail -1 || echo none`
 - Static web entry (index.html): !`(ls index.html web/index.html public/index.html src/index.html dist/index.html 2>/dev/null | grep -q .) && echo yes || echo no`
 - Static web dir (dir holding index.html; empty if none): !`for d in . web public src dist; do [ -f "$d/index.html" ] && { echo "$d"; break; }; done; true`
@@ -132,19 +132,26 @@ For a local web server, `deploy` stops whatever holds the port and relaunches th
 **Production data sync (`--db`).** When **Production deployment** is yes and **Wrapper has --db** is no,
 ask whether the wrapper should get a `--db` flag that replaces the local dev database with production's
 before restarting. Say in the question that it destroys whatever exists only in the local database, and
-that a plain `deploy` stays offline either way. On no, skip it. On yes, call this **USE_DB_SYNC**. If
+that a plain `deploy` stays offline either way. On no, skip it. On yes, call this **USE_DB_SYNC**. When
+**Wrapper has --db** is outdated, the wrapper already has the flag but runs the sync itself, while the old
+server is still up and with its failure reported only above the server output: set **USE_DB_SYNC** without
+asking, keeping the sync script that wrapper names, so step 3 regenerates it. If
 **Prod sync script** is no, the project needs a committed `scripts/sync-db-from-prod.sh` (or an existing
 script under another name, if it already has one) that:
 - reads the box's address from `config/publish.env` (`SSH_HOST`) rather than repeating it;
 - copies one way only, production to local, and never writes to production;
 - starts and migrates the dev database itself, so the wrapper needs no other step;
 - replaces the local data in one transaction, or through the app's own importer, and fails loudly on a
-  mismatch, for example by comparing row counts per table.
+  mismatch.
 
-The scheduler repo (`scripts/seed-dev-from-prod.sh`: `pg_dump --data-only` over SSH, truncate and load in
-one transaction) and the trips repo (`scripts/sync-db-from-prod.sh`: restores prod's backup artifact
-through the app's importer) are the reference implementations. Read whichever matches the stack before
-writing a third. The stack's specifics stay in that script, never in the wrapper or `config/deploy.env`.
+For a SQL database, `~/.claude/learnings/copy-prod-db-to-dev.md` is the procedure, including the traps a
+short script falls into (a streamed dump that commits half a database, a count read that compares nothing).
+The scheduler repo's `scripts/seed-dev-from-prod.sh` (`pg_dump --data-only` over SSH, truncate and load in
+one transaction) implements it. For an app that restores through its own importer, the trips repo's
+`scripts/sync-db-from-prod.sh` shows the importer half: take the restore from it, and hold the rest to the
+requirement list above, whatever its starting and wiring look like at the time. Read whichever matches the
+stack before writing a third. The stack's specifics stay in that
+script, never in the wrapper or `config/deploy.env`.
 
 Once the project has that script, also offer an in-app **reset to production data** control: a button the
 running dev server shows that runs the same script, so an experiment can be thrown away without a restart.
@@ -187,11 +194,11 @@ First decide whether the wrapper needs the Doppler secret-rendering block: it do
      # database with production's before restarting; a plain `deploy` stays offline.
      if [ "${1:-}" = "--db" ]; then
          shift
-         bash "$(dirname "$0")/<sync-script>.sh" || echo "  !! PROD SYNC FAILED — restarting the server on the existing local data"
+         export DEV_PRESTART_ONCE="bash scripts/<sync-script>.sh"
      fi
      bash ~/.claude/skills/deploy/scripts/deploy-dev-server.sh "$@"
      ```
-     A failed sync still restarts the server, for the reason the pre-start step does: `deploy` is what leaves the app runnable.
+     The flag hands the sync to `deploy-dev-server.sh` as a one-run pre-start step, so it runs with the old server stopped and a failure is reported the way a `DEV_PRESTART_CMD` failure is.
    - **USE_DOPPLER is false** — the trivial pass-through wrapper:
      ```bash
      #!/bin/bash

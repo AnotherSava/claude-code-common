@@ -13,7 +13,12 @@
 #   DEV_TAILNET=<no for a project whose origin is pinned to localhost (an API key, an OAuth redirect,
 #                a CORS allowlist); anything else publishes the server on the tailnet>
 #
-# Stops whatever holds the port, runs DEV_PRESTART_CMD if one is configured, then relaunches DEV_CMD
+# Reads from the environment, for one run only:
+#   DEV_PRESTART_ONCE=<a command run in the same gap, before DEV_PRESTART_CMD; the per-machine wrapper's
+#                      `--db` flag sets it to the project's prod-sync script, so a plain run never reaches
+#                      production>
+#
+# Stops whatever holds the port, runs the pre-start steps if any are set, then relaunches DEV_CMD
 # detached so the server outlives this command and the Claude session. Logs go to
 # <DEV_DIR>/dev-server.log (errors: .err.log). Run from an agterm session, a successful start is also
 # reported to the tauri-dashboard (TAURI_DASHBOARD_URL), best-effort and silent.
@@ -113,15 +118,21 @@ fi
 #    the pre-start step is usually the part that needs something beyond it — a VPN, a remote host, a
 #    credential. Losing the dev server because a laptop is offline is the worse outcome. So the failure is
 #    reported where it happens AND again beside the URL at the end, where it cannot be scrolled past.
+#
+#    DEV_PRESTART_ONCE runs first and through the same path, so a one-run step (the wrapper's `--db` sync)
+#    gets the same window and the same failure reporting as the configured one. PRESTART_RC keeps the first
+#    failure; a later step still runs, since the configured one does not depend on the sync.
 PRESTART_RC=0
-if [ -n "$DEV_PRESTART_CMD" ]; then
-    echo "Pre-start: $DEV_PRESTART_CMD"
-    ( cd "$REPO_DIR" && eval "$DEV_PRESTART_CMD" )
-    PRESTART_RC=$?
-    if [ "$PRESTART_RC" -ne 0 ]; then
-        echo "  !! PRE-START FAILED (exit $PRESTART_RC) — starting the server anyway, on whatever state it left behind"
+for step in "${DEV_PRESTART_ONCE:-}" "$DEV_PRESTART_CMD"; do
+    [ -n "$step" ] || continue
+    echo "Pre-start: $step"
+    ( cd "$REPO_DIR" && eval "$step" )
+    rc=$?
+    if [ "$rc" -ne 0 ]; then
+        echo "  !! PRE-START FAILED (exit $rc) — starting the server anyway, on whatever state it left behind"
+        [ "$PRESTART_RC" -eq 0 ] && PRESTART_RC=$rc
     fi
-fi
+done
 
 # 3. Launch detached so this command returns and the server outlives the session.
 #
