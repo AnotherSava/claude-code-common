@@ -856,6 +856,10 @@ Each of these made a test pass on one machine and prove nothing, or fail for a r
   input`). Every version drops the NUL, but `/bin/bash` 3.2 does it silently, so a test asserting the warning is
   gone cannot fail on the Mac. `tr -d '\000'` inside the substitution removes the warning without changing the
   compared string.
+- **`mktemp -t <name>` works only on BSD.** macOS treats `-t` as a prefix and appends its own random suffix; GNU
+  `mktemp` (Git Bash) reads the argument as a template, refuses one without `XXX` (`mktemp: too few X's in template`),
+  and exits 1, so a script under `set -e` stops there on Windows only. `mktemp "${TMPDIR:-/tmp}/name.XXXXXX"` works
+  on both. Measured 2026-11-04 with a seed script that had only ever run on the Mac.
 - **A non-interactive `ssh` session on the Mac has no Homebrew on `PATH`**, so `gpg` and anything else under
   `/opt/homebrew/bin` reads as missing. Prefix the remote command with `export PATH=/opt/homebrew/bin:$PATH;`.
 

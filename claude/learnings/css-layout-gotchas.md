@@ -486,3 +486,22 @@ themselves links, and prefer ones that navigate where the overlay does, so the t
 
 Text selection inside the row also goes, since the drag lands on the overlay. That is the standing cost of the
 pattern rather than a bug to fix, and worth saying out loud before adopting it.
+
+## Buttons of one class at different heights — an inline link, and a button inside a block `<form>`
+
+A row of small controls sharing the same padding and font size still drew at three heights, and two of them sat
+about 1 CSS px higher than the others. Two separate causes, measured 2026-11-04 on a calendar hover tray in Chrome:
+
+- **An inline `<a>` ignores its vertical padding for layout.** Padding on a non-replaced inline element paints but
+  does not grow the line box, and its border box is the font's content area plus padding, not the line height. A
+  `<button>` is inline-block and uses the full line height. Same classes, different heights: the link came out about
+  19px against the buttons' 22.5px.
+- **A `<button>` that is `inline-flex` inside a block `<form>` sits on a line box.** The form's height is that line
+  box's, strut included, so it comes out taller than the button. A flex parent that centres the form then centres
+  the taller box, and the button inside lands lower than a sibling that is a flex item itself. A `display: grid`
+  button in the same kind of form did not move, because a block-level child creates no line box.
+
+Fix both by giving every control in the set an explicit box: `display: inline-flex; align-items: center; height: …`
+(Tailwind `inline-flex h-6 items-center`) on links and buttons alike, and `display: flex` on any wrapping `<form>`,
+so the button is a flex item rather than inline content. Equal padding is not equal height while the elements'
+display types differ.
