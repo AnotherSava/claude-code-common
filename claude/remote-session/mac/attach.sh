@@ -102,6 +102,30 @@ drop_typed_input() {
     /usr/bin/python3 -c 'import sys, termios; termios.tcflush(sys.stdin.fileno(), termios.TCIFLUSH)' 2>/dev/null || true
 }
 
+# Tints this tab's agterm sidebar row so a remote session reads as one at a glance. The tab tints
+# itself because every route to it runs this script, pick-session.py and the dashboard's attach
+# alike; the ⇄ badge stays in the title for terminals with no row colours, agwinterm among them.
+# No colour, or neither part on, clears instead of skipping, so a restored tab loses an old tint.
+# A failure costs only the colour, so it is reported and the attach goes on.
+if [ -n "${AGTERM_SESSION_ID:-}" ]; then
+    tint_parts=
+    tint_part() {  # <key> <part> <value>
+        case $3 in
+            true) tint_parts=${tint_parts:+$tint_parts,}$2 ;;
+            false) ;;
+            *) echo "attach: $1 must be true or false, not '$3'" >&2 ;;
+        esac
+    }
+    tint_part REMOTE_TINT_ICON icon "${REMOTE_TINT_ICON:-false}"
+    tint_part REMOTE_TINT_NAME name "${REMOTE_TINT_NAME:-false}"
+    tint=${REMOTE_TINT_COLOUR:-clear}
+    [ -n "$tint_parts" ] || tint=clear
+    # agterm refuses a placement beside `clear`.
+    [ "$tint" = clear ] && tint_parts=
+    agtermctl session tint "$tint" ${tint_parts:+--on "$tint_parts"} --target "$AGTERM_SESSION_ID" ${AGTERM_SOCKET:+--socket "$AGTERM_SOCKET"} >/dev/null \
+        || echo "attach: could not tint this tab $tint" >&2
+fi
+
 stop=0
 trap 'stop=1' INT TERM
 
