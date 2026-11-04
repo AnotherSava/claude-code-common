@@ -60,5 +60,6 @@ claude/skills/publish-chrome-extension/config/
 !claude/skills/skill-outputs/
 !claude/skills/transcrypt/
 !claude/skills/tune-output/
+!claude/skills/upstream-sync/
 !claude/skills/wrap-up/
 !claude/skills/yolo/
