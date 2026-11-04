@@ -505,3 +505,10 @@ Fix both by giving every control in the set an explicit box: `display: inline-fl
 (Tailwind `inline-flex h-6 items-center`) on links and buttons alike, and `display: flex` on any wrapping `<form>`,
 so the button is a flex item rather than inline content. Equal padding is not equal height while the elements'
 display types differ.
+
+A stacked-label button (the `inline-grid` toggle or busy-state button `~/.claude/memory/feedback_no_underline_links.md`
+prescribes) stays `inline-grid`, because as `inline-flex` the stacked labels sit side by side and the button grows to
+the width of all of them. Give it the same explicit `height` and centre the cell vertically with `align-content: center` (Tailwind
+`inline-grid h-6 content-center`). An `inline-grid` button is inline-level like an `inline-flex` one, so the
+`display: flex` on its wrapping `<form>` applies to it too; only a block-level `display: grid` button escapes the
+line box.
