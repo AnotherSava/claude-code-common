@@ -68,7 +68,7 @@ Cross-machine, your identity is a claim — the receiver sees the peer dashboard
 
 ## 3. Read the receipt
 
-**`SendMessage`**: success means it reached the session's inbox. A session in a different permission mode holds it for its user's approval, and a `[Cross-session delivery notice]` says so.
+**`SendMessage`**: success means it reached the session's inbox. A session in a different permission mode holds it for its user's approval, and a `[Cross-session delivery notice]` says so. Report a successful send as sent, without the "not yet read" clause the tool appends: it is true only at the instant of sending, an idle session picks the message up within seconds, and only a held or refused delivery is worth a line to the user.
 
 **Relay**:
 
