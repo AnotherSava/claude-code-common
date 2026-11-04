@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Every Python file in this repo loads on the oldest interpreter a caller can hand it.
+"""Every Python file a commit here can hold loads on the oldest interpreter a caller can hand it.
 
 That floor is macOS's system Python, 3.9. Nothing is pinned to it — the same machine runs Homebrew
 3.14 interactively — but a non-interactive `ssh` session resolves `python3` to `/usr/bin/python3`,
