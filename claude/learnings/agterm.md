@@ -445,6 +445,15 @@ node.
   `session hud open --hide-after N` shows the same message in a panel over the session that
   closes by itself and leaves no badge.
 
+### A page in an overlay can signal an agent through its title
+
+Measured against 0.40.0 on 2026-11-03. A URL page has no bridge, so it cannot call the control API, but
+`tree --json` reports each page's live `document.title` as `htmlOverlays[].title`. A button running
+`document.title = "<marker>"` is therefore a signal an agent can wait on with read-only `window list` and
+`tree --json --window <id>` calls, with no write to the live socket and no server of its own. A reload
+puts the page's own `<title>` back, so the same read also confirms that the page reloaded. It needs a
+page opened with `--js`, which every link agterm opens has; in a browser the marker reaches nobody.
+
 ## Workspaces belong to a window, and a closed tab leaves a dated record
 
 `session new` places a session with either `--workspace <id|prefix|active>` or `--workspace-name <name>`,
