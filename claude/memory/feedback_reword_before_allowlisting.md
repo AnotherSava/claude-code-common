@@ -10,3 +10,5 @@ When the commit privacy scan (`scan-commit-confidentiality.py`, run by `shared/c
 **Why:** asked on 2026-11-04 whether to allow a host name in a reworded README sentence or reword it, the user answered "allow, but try to avoid when you can". Each allow entry is a permanent exemption, and the allow file grows as a list of things nobody re-reads.
 
 **How to apply:** when the scan blocks, check whether the sentence still says what it needs to without the term. If it does, reword it and recommend that. Otherwise, offer the allow entry with a comment saying why the term has to stay.
+
+The scanner's blocking report says the same at the moment it blocks, so the rule reaches every session that commits.

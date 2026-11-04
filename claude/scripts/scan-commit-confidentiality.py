@@ -478,7 +478,9 @@ def main() -> int:
     for label, name, line, text in kept:
         print("  {0:16s} {1}:{2}  allow={3}".format(label, name, line, fingerprint(name, text)))
     if kept:
-        print("\nA false positive is cleared by adding its allow= value to {0}, with a comment saying why.".format(ALLOW_FILE))
+        print("\nReword the flagged text first, where the sentence still says what it needs to without the term."
+              "\nOnly a term that has to stay is cleared by adding its allow= value to {0}, with a comment saying"
+              " why.".format(ALLOW_FILE))
     return 1 if kept else 0
 
 
