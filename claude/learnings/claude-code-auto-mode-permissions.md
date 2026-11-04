@@ -102,6 +102,16 @@ The Windows twin is refused the same way: the same day, a `powershell -Command` 
 Unauthorized Persistence. Reading the variable back with `GetEnvironmentVariable("Path", "User")` is not
 refused, so the check that the user's own run worked stays with the agent.
 
+An in-place `sed -i` rewriting one existing line of `~/.bashrc` (a shell function, no PATH) was refused the same
+way on Windows, then went through unchanged once the user answered "do yourself" to the question naming that
+edit. The classifier reads the conversation: an explicit go-ahead for the specific change is what clears it, so
+ask with the exact line rather than handing the work over by default.
+
+A user PATH change also never reaches the running session's environment, and anything the session launches
+inherits that stale environment — a dev server detached through `Start-Process` included, so a dev script calling
+a command from the new directory fails to start until Claude Code restarts. For a one-off run in the meantime,
+prefix the directory onto `PATH` for that command alone.
+
 ## A denial means the command did NOT run
 
 The check happens before execution. Nothing partial, nothing queued, no side effects.
