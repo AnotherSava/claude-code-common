@@ -8,7 +8,9 @@ nothing, and the loss surfaces on the other machine as a file that was never the
 failure `config/publish.env` was taken out of the global excludes to end.
 
 The verdict is taken from `git check-ignore`, never from the text of a `.gitignore`, so a pattern
-that reaches one of these paths by a route nobody predicted is still caught. The traps in doing
+that reaches one of these paths by a route nobody predicted is still caught. The one exemption
+reads the pattern `-v` blames: a whitespace-only pattern, which a CRLF `.gitignore` produces as a
+bare `\r` line, is not counted (see `learnings/git-line-endings.md`). The traps in doing
 that correctly — why `-v` is the wrong form to read a verdict from, why `--no-index` belongs here,
 why `-z` — are in `_git.py` beside the calls they govern.
 
@@ -73,6 +75,12 @@ def check(root: str) -> list[str]:
     lines: list[str] = []
     for path in sorted(hidden):
         rule = rules.get(path)
+        # In a CRLF working copy of `.gitignore` a blank line is a bare `\r`, and `check-ignore` blames
+        # it for every path asked about with a trailing slash — this rule's directory probes — while
+        # `git status` and `git add` still treat the directory as visible. A whitespace-only pattern
+        # therefore hides nothing. `learnings/git-line-endings.md` has the reproduction.
+        if rule and not rule.pattern.strip():
+            continue
         # A path git hid and then named no rule for is still hidden — the plain form settled that —
         # so it is reported as a violation rather than swallowed for want of a line to point at.
         where = f"{rule.source}:{rule.line_no} {rule.pattern}" if rule else "a rule git would not name"

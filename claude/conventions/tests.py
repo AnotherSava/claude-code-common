@@ -105,7 +105,9 @@ class Case(NamedTuple):
 CASES = (
     Case(
         "gitignore-unhides-committed",
-        Tree({".gitignore": "/dist/\n/tmp/\n", ".claude/settings.json": "{}\n",
+        # CRLF with a blank line, the working copy that makes `check-ignore` blame a bare `\r` for
+        # every directory probe while nothing is hidden.
+        Tree({".gitignore": b"/dist/\r\n\r\n/tmp/\r\n", ".claude/settings.json": "{}\n",
               ".claude/memos/one.md": "a memo\n", ".claude/memory/MEMORY.md": "# Memory index\n"}),
         Tree({".gitignore": ".claude/memos/\n", ".claude/memos/one.md": "a memo\n"}),
         Tree({".gitignore": "/dist/\n"}, repo=False),

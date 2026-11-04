@@ -173,6 +173,12 @@ A byte delta exactly equal to the line count is CRLF vs LF, not a content change
 git cat-file blob <sha> | openssl base64 -d | head -c 16 | xxd -p
 ```
 
+## A CRLF `.gitignore` makes `check-ignore` report trailing-slash paths as ignored
+
+In a CRLF working copy of `.gitignore`, a blank separator line between rules is a bare `\r`. `git check-ignore` then names that line, shown as `.gitignore:N:` with nothing visible after it, as the rule ignoring **any** path queried with a trailing slash. Whether the directory exists makes no difference. The same path without the slash is not ignored, and with an LF file neither form is. Git itself is not fooled: `git status --ignored` lists the directory as untracked and `git add -A` stages files inside it. The real rules still work with their trailing CR: in the same scratch repo `*.log` and `node_modules/` kept hiding what they name. Measured 2026-11-04 on git 2.39.1.windows.1, in a repo whose `* text=auto eol=lf` rule had been committed after the clone, so the working copy kept CRLF while the blob was LF, and reproduced in a scratch repo.
+
+So the cost is a false finding from anything that asks `check-ignore` about a directory, such as a conventions rule probing `.claude/memory/`. Nothing actually gets hidden. Converting the file to LF clears the false finding and changes no blob. Afterwards `git status` can keep showing the file as modified with an empty diff; `git add .gitignore` clears that, as the phantom-modified section describes.
+
 ## Python scripts that edit files write CRLF
 
 Write edited text back with `Path.write_bytes(text.encode("utf-8"))` or `open(path, "w", newline="\n")`, never plain `write_text` — on Windows, text mode translates every `\n` to `\r\n`. A read-replace-write edit script therefore turns an LF file into an all-CRLF one while changing nothing visible, and nothing warns until `git diff` does. One change set on 2026-09-25 converted 14 files this way; under `core.autocrlf=input` the commit is still LF, but every diff floods with the CRLF warning and the working copies stay converted.

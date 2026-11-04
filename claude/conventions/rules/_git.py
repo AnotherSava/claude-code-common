@@ -11,9 +11,11 @@ because its status answers "did any pattern apply" and a `!` rule applies as muc
 does (learnings/gitignore-anchoring-and-scope.md). Measured: with `config/*.env` followed by
 `!config/publish.env`, the `-v` form prints `.gitignore:2:!config/publish.env` and exits 0 while the
 path is plainly not ignored. So the *plain* form decides — it prints only the paths that are
-genuinely ignored — and `-v` is used afterwards, on paths already known to be ignored, purely to
-name the rule behind each one. The two are not interchangeable, and git refuses `-v` with `-q`
-outright: `fatal: cannot have both --quiet and --verbose`.
+genuinely ignored — and `-v` is used afterwards, on paths already known to be ignored, to name the
+rule behind each one. A caller may narrow the plain form's verdict by the named pattern, never widen
+it: gitignore-unhides-committed drops a match whose pattern is whitespace-only (a CRLF blank line),
+so keying or filtering `rules_for` by pattern changes that rule. The two are not interchangeable,
+and git refuses `-v` with `-q` outright: `fatal: cannot have both --quiet and --verbose`.
 
 **The `--no-index` flag is what reads the rules rather than the history.** By default
 `check-ignore` consults the index and reports a *tracked* path as not ignored, whatever the rules
@@ -172,8 +174,9 @@ def ignored_untracked(root: str, paths: tuple[str, ...] | list[str]) -> set[str]
 def rules_for(root: str, paths: tuple[str, ...] | list[str]) -> dict[str, Rule]:
     """The winning rule behind each path, for paths already known to be ignored.
 
-    Never used to decide whether a path is ignored — see the module docstring for the negation that
-    makes this form's exit status say the opposite of what it looks like.
+    Never used to decide that a path is ignored — see the module docstring for the negation that
+    makes this form's exit status say the opposite of what it looks like. gitignore-unhides-committed
+    reads the returned pattern to drop whitespace-only matches, so the pattern must stay verbatim.
     """
     if not paths:
         return {}
