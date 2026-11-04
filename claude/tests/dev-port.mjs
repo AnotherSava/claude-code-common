@@ -181,8 +181,11 @@ function commandCases() {
   mkdirSync(web)
   writeFileSync(join(project, 'config', 'deploy.env'), 'DEPLOY_TYPE=dev-server\n')
   const launcherEnv = { ...env, PATH: `${LAUNCHER_DIR}${WINDOWS ? ';' : ':'}${env.PATH}` }
-  const result = spawnSync('dev-port', [process.execPath, echo, 'dev'],
-                           { cwd: web, encoding: 'utf-8', env: launcherEnv, shell: WINDOWS })
+  // On Windows the launcher is a .cmd, which only a shell runs, and Node concatenates an args array under
+  // `shell: true` without quoting it, so a scratch path with a space splits; the line is built quoted instead.
+  const result = WINDOWS
+    ? spawnSync(`dev-port "${process.execPath}" "${echo}" dev`, { cwd: web, encoding: 'utf-8', env: launcherEnv, shell: true })
+    : spawnSync('dev-port', [process.execPath, echo, 'dev'], { cwd: web, encoding: 'utf-8', env: launcherEnv })
   const out = (result.stdout || '').replace(/\r/g, '')
   check('the dev-port command: exits 0', result.status, 0)
   check('the dev-port command: asks for <project folder>-dev-server from a subdirectory',
