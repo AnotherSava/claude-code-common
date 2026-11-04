@@ -96,6 +96,16 @@ before and after relaunching the terminal. The same probe through the purpose-bu
 helper above answered granted at the same moment, which is the argument for routing
 capture through the helper rather than through whatever terminal is running.
 
+**A window that is not key draws its traffic lights grey**, and a frame shot that way
+loses the colour anything downstream may test for. A check that identifies a macOS frame
+by those lights' hues then refuses it as unidentified, though the frame looks fine. Measured
+2026-11-04 on agterm 0.40.0: after one DocShot capture, taken with the always-on-top dashboard
+widget hidden and shown again around it, agterm stayed the frontmost app but its window was no
+longer key. Every later capture came out grey until the user clicked inside the window. Which of
+the two caused it was not isolated. Sample the red light's pixel in the capture and refuse the
+frame when it is not red. Asking the user for one click before
+each run is cheaper than trying to restore key status from a script.
+
 **Parking the pointer: never on a screen corner.** A capture that moves the pointer
 clear of a hover tooltip (`CGWarpMouseCursorPosition`, which posts no event and needs
 no Accessibility grant) must stay inset from the corners, since any of them can be a
