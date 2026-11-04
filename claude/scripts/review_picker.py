@@ -144,23 +144,31 @@ def _choices_block(block: dict) -> str:
     return f'<table><thead><tr><th>#</th>{head}<th></th><th></th></tr></thead><tbody>\n' + "\n".join(rows) + "\n</tbody></table>"
 
 
-def _triage_block(block: dict) -> str:
-    # Rows show their position, which /wrap-up reads back as the n-th triage row (claude/skills/wrap-up/SKILL.md,
-    # "The page"); review-auto's own id, such as `r1-6` or `polish-edit-5`, is in the hover with the file.
+def triage_rows(block: dict) -> list[dict[str, str]]:
+    """A triage block's rows as the fields every rendering of it shows, each a string, absent or null ones empty.
+
+    Rows are named by their position, which /wrap-up reads back as the n-th triage row (claude/skills/wrap-up/SKILL.md,
+    "The page"); review-auto's own id, such as `r1-6` or `polish-edit-5`, is secondary. The skill-outputs comparison
+    page (claude/skills/skill-outputs/scripts/collect.py) renders the same rows from here, so both name a row alike.
+    """
     text = lambda row, key: "" if row.get(key) is None else str(row[key])
+    return [{"position": str(position), "id": text(row, "id"), "file": text(row, "file"), "lens": text(row, "lens"), "disposition": text(row, "disposition"),
+             "outcome": text(row, "outcome"), "finding": text(row, "finding"), "rating": " · ".join(text(row, key) for key in ("frequency", "cost") if text(row, key))}
+            for position, row in enumerate(block["rows"], start=1)]
+
+
+def _triage_block(block: dict) -> str:
     # One grid for the whole block, so the number, lens and disposition tracks are each as wide as their widest entry
     # and line up across rows. Each row is a subgrid whose second line takes any extra height a long finding brings,
     # so the rating line stays right under the lens and disposition.
     rows = []
-    for position, row in enumerate(block["rows"], start=1):
-        rid, file = text(row, "id"), text(row, "file")
-        rating = " · ".join(text(row, key) for key in ("frequency", "cost") if text(row, key))
-        hover = _e(rid + (" · " + file if file else ""))
+    for row in triage_rows(block):
+        hover = _e(row["id"] + (" · " + row["file"] if row["file"] else ""))
         rows.append(
-            f'<div class="trow"><b class="num" title="{hover}">{position}</b>'
-            f'<span class="lens" title="{hover}">{_e(text(row, "lens"))}</span>'
-            f'<span title="{hover}"><span class="disp{" applied" if text(row, "outcome") == "applied" else ""}">{_e(text(row, "disposition"))}</span></span>'
-            f'<div class="finding">{_e(text(row, "finding"))}</div><span class="meta">{_e(rating)}</span></div>'
+            f'<div class="trow"><b class="num" title="{hover}">{row["position"]}</b>'
+            f'<span class="lens" title="{hover}">{_e(row["lens"])}</span>'
+            f'<span title="{hover}"><span class="disp{" applied" if row["outcome"] == "applied" else ""}">{_e(row["disposition"])}</span></span>'
+            f'<div class="finding">{_e(row["finding"])}</div><span class="meta">{_e(row["rating"])}</span></div>'
         )
     return '<div class="triage">\n' + "\n".join(rows) + "\n</div>"
 
@@ -204,15 +212,15 @@ def _render(spec: dict, in_agterm: bool) -> str:
 <html><head><meta charset="utf-8"><title>{_e(title)}</title>
 <style>
   html {{ overscroll-behavior-y: none; }}
-  body {{ font: 13px/1.45 -apple-system, system-ui, sans-serif; margin: 16px 20px; color: var(--agterm-foreground, #222); background: var(--agterm-background, #fff); }}
+  body {{ --rule: color-mix(in srgb, var(--agterm-foreground, #222) 15%, transparent); --ok: #2f9e5b; font: 13px/1.45 -apple-system, system-ui, sans-serif; margin: 16px 20px; color: var(--agterm-foreground, #222); background: var(--agterm-background, #fff); }}
   header {{ display: flex; flex-wrap: wrap; justify-content: space-between; align-items: baseline; gap: 4px 24px; margin: 0 0 12px; }}
   h1 {{ font-size: 15px; font-weight: 600; margin: 0; }}
   .status {{ text-align: right; }}
-  .status .ok {{ color: #2f9e5b; font-weight: 600; }}
+  .status .ok {{ color: var(--ok); font-weight: 600; }}
   .status .bad {{ color: #d9534f; font-weight: 600; }}
   h2 {{ font-size: 13px; font-weight: 600; margin: 20px 0 6px; }}
   table {{ border-collapse: collapse; width: 100%; }}
-  th, td {{ text-align: left; vertical-align: top; padding: 6px 8px; border-bottom: 1px solid color-mix(in srgb, var(--agterm-foreground, #222) 15%, transparent); }}
+  th, td {{ text-align: left; vertical-align: top; padding: 6px 8px; border-bottom: 1px solid var(--rule); }}
   th {{ font-weight: 600; font-size: 12px; opacity: 0.7; }}
   tr.item.dim {{ color: color-mix(in srgb, var(--agterm-foreground, #222) 55%, transparent); }}
   tr.item.changed td.id {{ box-shadow: inset 3px 0 var(--agterm-color-4, #2563eb); }}
@@ -224,11 +232,10 @@ def _render(spec: dict, in_agterm: bool) -> str:
   .pill.rec span {{ border-style: dashed; }}
   .pill input:checked + span {{ background: var(--agterm-color-4, #2563eb); border: 1px solid transparent; color: #fff; opacity: 1; }}
   .triage {{ display: grid; grid-template-columns: max-content max-content max-content minmax(0, 1fr); column-gap: 10px; align-items: baseline; }}
-  .triage .finding {{ grid-column: 4; padding-left: 14px; }}
-  .triage .trow {{ grid-column: 1 / -1; display: grid; grid-template-columns: subgrid; grid-template-rows: auto 1fr; align-items: baseline; border-top: 1px solid color-mix(in srgb, var(--agterm-foreground, #222) 15%, transparent); padding: 6px 0; }}
-  .triage .trow:last-child {{ border-bottom: 1px solid color-mix(in srgb, var(--agterm-foreground, #222) 15%, transparent); }}
+  .triage .trow {{ grid-column: 1 / -1; display: grid; grid-template-columns: subgrid; grid-template-rows: auto 1fr; align-items: baseline; border-top: 1px solid var(--rule); padding: 6px 0; }}
+  .triage .trow:last-child {{ border-bottom: 1px solid var(--rule); }}
   .triage .num {{ grid-row: 1 / 3; }}
-  .triage .finding {{ grid-row: 1 / 3; align-self: start; }}
+  .triage .finding {{ grid-column: 4; grid-row: 1 / 3; align-self: start; padding-left: 14px; }}
   .triage .lens {{ font-size: 12px; opacity: 0.75; white-space: nowrap; }}
   .disp {{ display: block; text-align: center; font-size: 12px; padding: 0 8px; border-radius: 999px; border: 1px solid color-mix(in srgb, var(--agterm-foreground, #222) 30%, transparent); }}
   .disp.applied {{ background: #1e7a46; border-color: #1e7a46; color: #fff; }}
@@ -236,7 +243,7 @@ def _render(spec: dict, in_agterm: bool) -> str:
   ul.list {{ margin: 0; padding-left: 18px; }}
   ul.list li {{ margin: 3px 0; }}
   ul.list code {{ font: 12px/1.45 ui-monospace, monospace; }}
-  ul.list li.rule {{ color: #2f9e5b; font-size: 12px; font-weight: 600; }}
+  ul.list li.rule {{ color: var(--ok); font-size: 12px; font-weight: 600; }}
   ul.list li.rule span::before {{ content: "\\2190\\00a0"; }}
   ul.list .note {{ opacity: 0.65; font-size: 12px; }}
   p.prose {{ margin: 8px 0 0; white-space: pre-line; }}

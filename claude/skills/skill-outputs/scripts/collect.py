@@ -23,8 +23,10 @@ from datetime import datetime
 # realpath, because ~/.claude/skills is a symlink into the dotfiles repo and the paths below climb out of it.
 HERE = os.path.dirname(os.path.realpath(__file__))
 sys.path.insert(0, os.path.join(HERE, "..", "..", "shared"))
+sys.path.insert(0, os.path.join(HERE, "..", "..", "..", "scripts"))
 
-from transcripts import PROJECTS, content_blocks, parse_iso, project_dir_name, records, text_of, timestamp  # noqa: E402 — needs the sys.path line above
+from review_picker import triage_rows  # noqa: E402 — needs the sys.path lines above
+from transcripts import PROJECTS, content_blocks, parse_iso, project_dir_name, records, text_of, timestamp  # noqa: E402 — needs the sys.path lines above
 
 WRAP_UP_COMMAND = "<command-name>/wrap-up</command-name>"
 # How the closing prompt of /wrap-up's step 7 opens, in every wording it has had: `go` from commit 063e8e2 on,
@@ -65,9 +67,9 @@ def _spec_markdown(spec: dict) -> str:
             lines += ["| " + " | ".join(map(_cell, columns)) + " |", "|" + "---|" * len(columns)]
             lines += ["| " + " | ".join(map(_cell, row)) + " |" for row in block.get("rows") or []]
         elif block.get("kind") == "triage":
-            keys = ["id", "disposition", "outcome", "finding", "lens", "frequency", "cost"]
-            lines += ["| " + " | ".join(keys) + " |", "|" + "---|" * len(keys)]
-            lines += ["| " + " | ".join(_cell("" if row.get(k) is None else row[k]) for k in keys) + " |" for row in block.get("rows") or []]
+            keys = ["position", "disposition", "outcome", "finding", "lens", "rating", "id"]
+            lines += ["| # | " + " | ".join(keys[1:]) + " |", "|" + "---|" * len(keys)]
+            lines += ["| " + " | ".join(_cell(row[k]) for k in keys) + " |" for row in triage_rows({"rows": block.get("rows") or []})]
         elif block.get("kind") == "list":
             lines += [f"- ── {item['rule']} ──" if "rule" in item else f"- `{item.get('text', '')}`" + (f" {item['note']}" if item.get("note") else "") for item in block.get("items") or []]
         elif block.get("kind") == "prose":
