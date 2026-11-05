@@ -147,7 +147,7 @@ mine"*); the fix is PR #461, a ppid-walk that silences a hook when it counts mor
 up the chain. With Claude Code's agent view enabled, carriers include its background daemon,
 `claude daemon run --origin transient`, which no user launches, so the documented `env -u` prevention
 has no application point and the daemon outlives the pane you would restart. This dotfiles repo's
-`settings.json` sets `"disableAgentView": true`, which disables background sessions and the daemon behind them; the advice below holds
+`settings.json` sets `"disableAgentView": true` (what it turns off: [claude-code-agent-view-settings.md](claude-code-agent-view-settings.md)); the advice below holds
 regardless.
 
 The counter-intuitive part: **when a release containing #461 appears, the action here is to decline the

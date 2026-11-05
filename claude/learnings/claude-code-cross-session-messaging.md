@@ -351,7 +351,7 @@ rewrites a bare `/k` into a drive path (`K:/`), so write it `cmd //k`.
 
 A session given a pty but no *visible* terminal still writes `kind: "interactive"`. With Claude Code's
 agent view enabled, `claude --bg` publishes an inbox too but under a different `kind`, which any reader
-filtering on `interactive` will drop; this dotfiles repo's `settings.json` disables agent view.
+filtering on `interactive` will drop; this dotfiles repo's `settings.json` disables agent view ([claude-code-agent-view-settings.md](claude-code-agent-view-settings.md)).
 
 ## Related
 

@@ -180,8 +180,8 @@ grep-driven reasoning.
 
 With Claude Code's agent view enabled and one viewer enough, `claude --bg` plus `claude attach` needs
 no WSL, no tmux and no scheduled task. This dotfiles repo's `settings.json` sets
-`"disableAgentView": true`, which disables both: the binary still lists them in `claude --help` but
-refuses them, naming the setting, so tmux is the path here.
+`"disableAgentView": true`, which turns both off ([claude-code-agent-view-settings.md](claude-code-agent-view-settings.md)),
+so tmux is the path here.
 
 ## Nothing on a tmux client says which machine it is on
 

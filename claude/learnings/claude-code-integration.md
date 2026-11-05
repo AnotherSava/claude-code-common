@@ -527,7 +527,7 @@ Caveats: the versioned binary (`~/.local/share/claude/versions/<ver>`) does **no
 
 ### The bound is not enough, because a background agent has no tab of its own
 
-This section's daemon, `parkedJobId`, `kind:"bg"`, `bg-pty-host` and `continued-in` material applies only with Claude Code's agent view enabled. This dotfiles repo's `settings.json` sets `"disableAgentView": true`, which disables background sessions and the daemon that hosts them. The `~/.claude/sessions/<pid>.json` record and its `status`/`statusUpdatedAt` fields hold either way.
+This section's daemon, `parkedJobId`, `kind:"bg"`, `bg-pty-host` and `continued-in` material applies only with Claude Code's agent view enabled. This dotfiles repo's `settings.json` sets `"disableAgentView": true`; what that turns off is in [claude-code-agent-view-settings.md](claude-code-agent-view-settings.md). The `~/.claude/sessions/<pid>.json` record and its `status`/`statusUpdatedAt` fields hold either way.
 
 Bounding stops the walk writing to a stranger's tab; it does not let you *find* the right tab, and for one whole class of session nothing can. **A conversation moved into the background** — `claude --bg`, or parking a live session from its window — stops executing in its terminal and starts executing inside a detached daemon: `claude daemon run --origin transient --spawned-by {…}`, with `claude bg-pty-host` / `claude bg-spare` children, every one of them `??`. Hooks fire from *there*, so the whole bounded chain is tty-less even though the user is looking at a real, live tab.
 
