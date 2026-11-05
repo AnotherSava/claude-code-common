@@ -1,13 +1,15 @@
 ---
 name: transcript-history
 description: >-
-  Search and read this project's past Claude Code conversations — every session the private
-  transcripts archive has captured on either machine, including sessions Claude Code's retention
-  has already deleted from its own store, plus today's.
+  Search and read past Claude Code conversations, this project's or any other's, and list the
+  projects worked in recently — every session the private transcripts archive has captured on
+  either machine, including sessions Claude Code's retention has already deleted from its own
+  store, plus today's.
   TRIGGER when: the user refers to something discussed or decided in an earlier session ("what did
   we decide about X", "the script we fixed last month", "the usual config"); you need the reasoning
   behind a past change that the repo, its memory and git history do not record; or CLAUDE.md's
-  rule to search past conversation before asking for missing context applies.
+  rule to search past conversation before asking for missing context applies; or the user asks
+  which projects they worked in recently, or when they last touched each one.
   DO NOT TRIGGER when: the answer is in the current conversation, the repo, project memory or git
   log; or the history wanted is Perplexity's, not Claude Code's.
 allowed-tools: Bash(readlink -f ~/.claude/skills), Bash(test -f:*), Bash(python:*), Bash(python3:*), Read
@@ -65,8 +67,23 @@ own docstring is the reference for what it reads and why.
    Add `--tools` to see which tools each reply used. Results are omitted either way. A long
    session prints a lot, so pipe it through `sed -n` to read it in ranges.
 
-6. **Report what the history says**, citing the date and the session-id prefix. Any timestamp you
-   quote is already in local time.
+6. **To list projects by last interaction instead**, skip steps 3 to 5 and run:
+
+   ```bash
+   python <path> [--machine local] recent [--days N]
+   ```
+
+   It lists every project the user typed a prompt in during the last N days (default 1, fractions
+   allowed), newest first, one machine's block after the other's; the script's docstring defines
+   which prompts count as typed. A row's prompt is the newest one in the window with words in it,
+   so it is blank when every prompt there was a bare slash command such as `/yolo`; the row is
+   still a real interaction. A project is named by its repository (`owner/name`) when one
+   resolves, and otherwise by its folder name, or `?` for a record with no folder, so a bare name
+   says nothing about whether the folder was ever a repository. `--project` is ignored here.
+
+7. **Report what the history says**, citing the date, and the session-id prefix for anything found
+   with `sessions`, `search` or `show` (`recent` prints none). Any timestamp you quote is already
+   in local time.
 
 ## Reading the output
 
