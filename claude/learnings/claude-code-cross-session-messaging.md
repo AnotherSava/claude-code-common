@@ -342,9 +342,9 @@ session variable, `CLAUDE_EFFORT`, `CLAUDE_PID`, `MSYSTEM` and `MSYS_NO_PATHCONV
 without an `MSYS_NO_PATHCONV=1` prefix, which otherwise rides into the tab. Without that prefix Git Bash
 rewrites a bare `/k` into a drive path (`K:/`), so write it `cmd //k`.
 
-A session given a pty but no *visible* terminal still writes `kind: "interactive"`; `claude --bg`
-publishes an inbox too but under a different `kind`, which any reader filtering on `interactive` will
-drop.
+A session given a pty but no *visible* terminal still writes `kind: "interactive"`. With Claude Code's
+agent view enabled, `claude --bg` publishes an inbox too but under a different `kind`, which any reader
+filtering on `interactive` will drop; this dotfiles repo's `settings.json` disables agent view.
 
 ## Related
 

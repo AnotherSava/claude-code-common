@@ -144,9 +144,11 @@ claude-code-dashboard owns status display, because agterm's four values cannot e
 An agent spawned from inside a session inherits the spawner's whole `AGTERM_*` set, so its own hooks
 repaint the **spawner's** row. Upstream accepts this (Discussion #456: *"the ownership guard: the bug is
 mine"*); the fix is PR #461, a ppid-walk that silences a hook when it counts more than one agent binary
-up the chain. Carriers include an agent CLI's own background daemon — Claude Code's
+up the chain. With Claude Code's agent view enabled, carriers include its background daemon,
 `claude daemon run --origin transient`, which no user launches, so the documented `env -u` prevention
-has no application point and the daemon outlives the pane you would restart.
+has no application point and the daemon outlives the pane you would restart. This dotfiles repo's
+`settings.json` sets `"disableAgentView": true`, which removes that daemon; the advice below holds
+regardless.
 
 The counter-intuitive part: **when a release containing #461 appears, the action here is to decline the
 installer, not to adopt the fix.** With zero hook entries present, #461's byte-exact migration finds

@@ -358,6 +358,7 @@
   },
   "outputStyle": "action-first",
   "awaySummaryEnabled": false,
+  "disableAgentView": true,
   "tui": "fullscreen",
   "skipWorkflowUsageWarning": true,
   "theme": "dark",

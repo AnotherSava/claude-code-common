@@ -178,8 +178,9 @@ grep-driven reasoning.
   Pass `-x`/`-y` at creation so the first attaching client does not inherit a layout built for a
   terminal nobody is using.
 
-So where one viewer is enough, `claude --bg` plus `claude attach` needs no WSL, no tmux and no
-scheduled task, and is by far the shorter path. Everything above is the price of the second viewer.
+With Claude Code's agent view enabled and one viewer enough, `claude --bg` plus `claude attach` needs
+no WSL, no tmux and no scheduled task. This dotfiles repo's `settings.json` sets
+`"disableAgentView": true`, which removes both commands, so tmux is the path here.
 
 ## Nothing on a tmux client says which machine it is on
 
@@ -282,5 +283,3 @@ than a keepalive are in `ssh-sessions-across-a-laptop-sleep.md`.
 - Whether `SIGWINCH` reaches the *Windows* console child through the WSL interop relay on a
   mid-session resize. The measurement above covers the client→WSL leg only.
 - Ctrl-C, bracketed paste and mouse reporting through the interop relay.
-- Whether an ssh-started `claude --bg` escapes the job object on a box with no daemon already
-  running.

@@ -49,10 +49,12 @@ export REMOTE_SESSION_ORIGIN
 # is equally a prompt: Claude Code decides between the two by knowing its own commands, and nothing
 # here can infer it. A command added later falls through to the session path and refuses, which
 # names itself clearly enough to recognise — add it here when that happens.
+# The background-session commands (`agents`, `attach`, `logs`, `respawn`, `rm`, `stop`, `kill`,
+# `--bg`) are left out: `disableAgentView` in settings.json turns that feature off.
 case "${1:-}" in
-    agents|attach|auth|auto-mode|doctor|gateway|import|install|logs|mcp|plugin|plugins|project|respawn|rm|setup-token|stop|kill|ultrareview|update|upgrade)
+    auth|auto-mode|doctor|gateway|import|install|mcp|plugin|plugins|project|purge|setup-token|ultrareview|update|upgrade)
         exec "$CLAUDE_EXE" "$@" ;;
-    -h|--help|-v|--version|-p|--print|--bg|--background)
+    -h|--help|-v|--version|-p|--print)
         exec "$CLAUDE_EXE" "$@" ;;
 esac
 
