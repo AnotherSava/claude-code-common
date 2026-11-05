@@ -90,10 +90,12 @@ a few minutes). The site often serves over HTTPS while still "pending".
 - **Listing zones needs Zone → Zone → Read.** A DNS-only token returns an empty zone list,
   so you can't discover the zone ID without it.
 - Inspect a token's actual policies (permission groups + scoped resources) via the account
-  tokens API to see exactly what it can do, rather than guessing from the dashboard. Reading
-  them needs **API Tokens Read**, which a working token normally does not carry — so the
-  fallback is the token's Summary tab in the dashboard, which lists every policy and is worth
-  asking for before inferring a permission from which probes pass.
+  tokens API to see exactly what it can do, rather than guessing from the dashboard. A working
+  token normally cannot read its own policies, but a token carrying **API Tokens Write** (a
+  minting token) can: `GET /accounts/{acct}/tokens/{id}` returns every policy with the
+  resources it is scoped to (measured 2026-11-04). Prefer that over the dashboard Summary tab,
+  which is the fallback only when no such token exists and which hides mis-scoping (see the
+  wrong-resource-kind bullet).
 - **A probe that succeeds names no permission.** An endpoint can answer 200 off a group you
   were not thinking about, so "the GET worked, therefore Read is granted" is not sound — and
   it leads to asking for Edit on a group the token does not carry at all. Verified on

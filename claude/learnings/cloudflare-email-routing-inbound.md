@@ -29,8 +29,8 @@ still refuses every rule write.
 **A successful GET does not tell you which permission granted it.** `GET …/email/routing/rules` answered
 200 on a token carrying no Email Routing group at all — evidently off Zone Settings — while the matching
 POST refused. Inferring "they granted Read but not Edit" from that was wrong twice over. Read the token's
-actual policies instead of inferring them from probes; see the Pages learning for that endpoint, and note
-it needs **API Tokens Read**, which a working token usually does not have.
+actual policies instead of inferring them from probes; see the Pages learning for that endpoint. The token
+under test usually cannot call it, but the minting token described in the minting section can.
 
 ## Minting a token from a token
 
