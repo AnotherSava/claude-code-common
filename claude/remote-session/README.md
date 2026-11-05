@@ -48,7 +48,8 @@ fresh conversation, use `/clear` inside it, from whichever terminal is watching.
 
 Claude Code's own subcommands — `claude update`, `claude doctor`, `claude mcp` and the others
 `claude --help` lists — run straight through, outside tmux, because they open no session. So do the
-flags that print and exit, and `--print`. Only an interactive session is wrapped, which is why the
+flags that print and exit, `--print`, and `--bg`, which Claude Code itself refuses while
+`disableAgentView` is set. Only an interactive session is wrapped, which is why the
 one-per-directory rule below never stands in the way of updating.
 
 One session per directory, and one terminal per machine onto it. Running `claude` where a session is

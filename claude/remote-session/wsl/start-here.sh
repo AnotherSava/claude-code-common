@@ -39,10 +39,11 @@ export CLAUDE_CODE_DISABLE_TERMINAL_TITLE WSLENV
 REMOTE_SESSION_ORIGIN=windows
 export REMOTE_SESSION_ORIGIN
 
-# Claude Code's own subcommands, and the flags that print and exit, open no session in this
+# Claude Code's own subcommands, the flags that print and exit, and `--bg`, open no session in this
 # directory — so they run straight through instead of being wrapped. Without this, `claude update`
 # reached the one-session-per-directory refusal below and never ran at all, telling the user to
-# attach to a session they were not trying to start.
+# attach to a session they were not trying to start. The background-session commands reach Claude
+# Code's own refusal while `disableAgentView` is set; wrapped, they became a session's first prompt.
 #
 # The list is the Commands section of `claude --help`, matched on the first argument only, which is
 # where a subcommand is always typed. It has to be a list rather than a rule, because `claude <word>`
