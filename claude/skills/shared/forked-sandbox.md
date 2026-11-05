@@ -38,7 +38,10 @@ What the skill that launched the fork does with its result. `/wrap-up` is that s
   `git apply <path>`, and confirm with `git status --short` that the files it named are the files that changed. An
   empty patch means nothing to fix.
 - **A failed `git apply` means the tree moved under it** — another pass editing the same file, or a peer write. Say so
-  and re-run the skill against the current tree; `--3way` is a merge nobody approved.
+  and re-run the skill against the current tree; `--3way` is a merge nobody approved. The one exception is a
+  transcrypt file (`filter=crypt` in `.gitattributes`): `git apply` runs the clean filter on the working file and
+  matches plaintext hunks against ciphertext, so it refuses a patch whose context matches byte for byte. Apply it with
+  `git -c filter.crypt.clean=cat -c filter.crypt.smudge=cat -c filter.crypt.required=false apply <path>`.
 - **No patch path at all is a failed run**, as is a report that it could not create the sandbox: re-run the skill in
   the main session, where its edits are checkpointed.
 - **A rejected or amended change goes back to the same fork.** `SendMessage` to it by name resumes it with what it
