@@ -169,6 +169,13 @@ heuristically. The transcript `content` is the framed form —
 `<cross-session-message from-name=… from-mode=…>` plus an anti-laundering preamble — while the hook got
 the bare body. A transcript-tailing consumer can therefore recover origin; a hook-only consumer cannot.
 
+A typed prompt carries an origin too: `"origin":{"kind":"human"}`, with `isMeta` absent. A message the
+dashboard relays from the other machine is `"kind":"peer"` like a local one, its `from` a
+`did:ccdash-<device>-<agent>` id rather than a socket path. Skill expansions and `/clear`'s caveat record
+are `isMeta: true` with no origin at all. So "what did a person type" is: `type == "user"`, `isMeta`
+unset, and `origin.kind` absent or `human` — the absent case covers records written before the field
+existed. Measured 2026-11-04 on a live session; the transcripts repo's `history.py recent` filters this way.
+
 ## Framing and safety, which you get for free
 
 Claude Code prepends its own preamble: the message came from another session, not the user; it cannot
