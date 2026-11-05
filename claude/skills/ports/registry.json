@@ -81,11 +81,11 @@
     },
     {
       "port": 3901,
-      "use_case": "tripit-dev-tailnet",
+      "use_case": "trips-dev-tailnet",
       "owner": "trips",
       "scope": "machine",
       "status": "assigned",
-      "notes": "Tailnet front port for tripit's dev server on 3941. Allocated by deploy-dev-server.sh; the origin cannot share its own number.",
+      "notes": "Tailnet front port for trips' dev server on 3941. Allocated by deploy-dev-server.sh; the origin cannot share its own number.",
       "front_for": 3941
     },
     {
@@ -140,11 +140,11 @@
     },
     {
       "port": 3941,
-      "use_case": "tripit-dev-server",
+      "use_case": "trips-dev-server",
       "owner": "trips",
       "scope": "machine",
       "status": "assigned",
-      "notes": "`next dev -p 3941`, pinned in package.json as well as config/deploy.env."
+      "notes": "trips' dev server, started through `dev-port` from web/ and by deploy-dev-server.sh."
     },
     {
       "port": 3942,
