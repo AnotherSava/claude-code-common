@@ -164,6 +164,7 @@
 - [User GitHub account](user_github_account.md) {always} — handle is `AnotherSava`; use to filter "my repos" vs third-party clones
 - [One session per folder](user_one_session_per_folder.md) — never two Claude Code sessions in one folder, no --fork-session; a second one is a fault
 - [Where supplied screenshots land](user_screenshot_location.md) {always} — "see the screenshot" with nothing attached means the newest PNG in `~/Desktop`, or `~/CropStage` on Windows; go look first
+- [Russian keyboard layout](user_russian_keyboard_layout.md) {always} — a lone Cyrillic letter is the Latin key it sits on: "н" is "y", a yes
 - [Memos go through the wrapper and the skill](user_memo_access_paths.md) — `memo` calls only `add`/`list`, everything else comes via `/memo`; `memos.py` is never typed by hand, so weight wrapper and SKILL.md over CLI ergonomics
 - [Always report images with a contact sheet](feedback_image_report_always.md) {always} — reporting anything about screenshots means building the HTML sheet with the `docs-screenshot` skill and linking it; prose and transcript images are not substitutes
 - [Post-iteration cleanup audit](feedback_post_iteration_cleanup.md) {always} — before committing after a debug/optimize session, remove changes from disproven theories; don't leave cruft
