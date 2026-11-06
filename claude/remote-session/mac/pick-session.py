@@ -34,11 +34,13 @@ import subprocess
 import sys
 import tempfile
 import urllib.error
-import urllib.request
+
+# peer_relay.dashboard_open is the one definition of how the local dashboard is reached; it lives in skills/shared.
+sys.path.insert(0, os.path.join(os.path.dirname(os.path.dirname(os.path.dirname(os.path.realpath(__file__)))), "skills", "shared"))
+from peer_relay import dashboard_open  # noqa: E402 — needs the sys.path line above
 
 WORKSPACE = "remote"
 SESSION_PREFIX = "cc-"
-DEFAULT_DASHBOARD = "http://127.0.0.1:9077"
 SUBTITLE_LIMIT = 70
 # Marks the row that opens the folder browser. Guarded against collision with a real directory
 # before it is trusted, since nothing stops someone naming one this.
@@ -139,9 +141,8 @@ def roster_status(device: str) -> "dict[str, str]":
     and does not always keep the whole path below the projects root, so an exact match would drop
     the status off rows that have one. Getting it wrong costs a subtitle, never a row.
     """
-    url = os.environ.get("TAURI_DASHBOARD_URL", DEFAULT_DASHBOARD).rstrip("/") + "/api/agents"
     try:
-        with urllib.request.urlopen(url, timeout=5) as response:
+        with dashboard_open("/api/agents", None, 5) as response:
             data = json.load(response)
     except (urllib.error.URLError, OSError, ValueError):
         return {}

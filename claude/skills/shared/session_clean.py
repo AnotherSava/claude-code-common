@@ -34,13 +34,11 @@ learns relay-vs-typed without a preamble to match on, and this file is deleted w
 
 from __future__ import annotations
 
-import json
 import os
 import sys
 import urllib.error
-import urllib.request
 
-from peer_relay import current_project, dashboard_url
+from peer_relay import current_project, dashboard_open
 
 ROUTE = "/api/session-clean"
 TIMEOUT_SECONDS = 2.0
@@ -61,11 +59,8 @@ def _payload() -> dict[str, str]:
 
 
 def main() -> int:
-    request = urllib.request.Request(dashboard_url() + ROUTE,
-                                     data=json.dumps(_payload()).encode("utf-8"),
-                                     headers={"Content-Type": "application/json"})
     try:
-        urllib.request.urlopen(request, timeout=TIMEOUT_SECONDS).close()
+        dashboard_open(ROUTE, _payload(), TIMEOUT_SECONDS).close()
     except (urllib.error.URLError, OSError, ValueError):
         pass
     return 0

@@ -218,14 +218,12 @@ for _ in $(seq 1 40); do
         # URL is what the other machine opens it at. The dashboard forgets the server once the port
         # stops answering. It may not be running, so this is best-effort and silent: a server that came
         # up is the result, and its line is extra.
-        "$PY" - "$SKILLS/shared" "$DEV_PORT" "$REPO_DIR" "${AGTERM_SESSION_ID:-}" "${CLAUDE_CODE_SESSION_ID:-}" "${PUBLISHED_URL:-}" <<'EOF' >/dev/null 2>&1 || true
-import json, sys, urllib.request
+        "$PY" - "$SKILLS/shared" "$DEV_PORT" "$REPO_DIR" "${AGTERM_SESSION_ID:-}" "${CLAUDE_CODE_SESSION_ID:-}" "$PUBLISHED_URL" <<'EOF' >/dev/null 2>&1 || true
+import sys
 shared, port, repo_dir, session, claude_session, url = sys.argv[1:7]
 sys.path.insert(0, shared)
-from peer_relay import dashboard_url
-body = json.dumps({"port": int(port), "dir": repo_dir, "session": session or None, "claude_session": claude_session or None, "url": url or None}).encode()
-req = urllib.request.Request(dashboard_url() + "/api/dev-server", data=body, headers={"Content-Type": "application/json"})
-urllib.request.urlopen(req, timeout=2).read()
+from peer_relay import dashboard_open
+dashboard_open("/api/dev-server", {"port": int(port), "dir": repo_dir, "session": session or None, "claude_session": claude_session or None, "url": url or None}, 2).read()
 EOF
         exit 0
     fi

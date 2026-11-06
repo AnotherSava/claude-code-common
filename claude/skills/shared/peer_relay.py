@@ -30,6 +30,7 @@ model read them; `unknown` means the answer was lost and the frame may exist, so
 from __future__ import annotations
 
 import argparse
+import http.client
 import json
 import os
 import subprocess
@@ -44,15 +45,26 @@ class PeerUnmeasured(Exception):
     """The dashboard could not answer the question asked, which is not the same as nobody being there."""
 
 
-def dashboard_url() -> str:
-    """The local dashboard's base URL. Public because other helpers post to the same dashboard (`session_clean.py`, `deploy-dev-server.sh`)."""
+def _dashboard_url() -> str:
+    """The local dashboard's base URL."""
     return os.environ.get("TAURI_DASHBOARD_URL", DEFAULT_DASHBOARD).rstrip("/")
 
 
-def _request(path: str, body: dict | None = None) -> dict:
+def dashboard_open(path: str, body: dict | None, timeout: float) -> http.client.HTTPResponse:
+    """Open a request to the local dashboard: a JSON POST when `body` is given, a GET otherwise.
+
+    Public because every helper that talks to the dashboard goes through it (`session_clean.py`, `deploy-dev-server.sh`,
+    `remote-session/mac/pick-session.py`), so a change to how the dashboard is reached reaches all of them. Timeout and
+    error handling stay with the caller, since they differ on purpose: the relay waits for a receipt, the two notifiers
+    are fire-and-forget, and the picker drops its status subtitles when the roster does not answer.
+    """
     data = None if body is None else json.dumps(body).encode("utf-8")
     headers = {"Content-Type": "application/json"} if data else {}
-    with urllib.request.urlopen(urllib.request.Request(dashboard_url() + path, data=data, headers=headers), timeout=120) as response:
+    return urllib.request.urlopen(urllib.request.Request(_dashboard_url() + path, data=data, headers=headers), timeout=timeout)
+
+
+def _request(path: str, body: dict | None = None) -> dict:
+    with dashboard_open(path, body, 120) as response:
         return json.load(response)
 
 
@@ -82,7 +94,7 @@ def peer_devices() -> list[str]:
     try:
         roster = _request("/api/agents")
     except (urllib.error.URLError, OSError, ValueError) as exc:
-        raise PeerUnmeasured(f"the dashboard at {dashboard_url()} did not answer ({exc})") from exc
+        raise PeerUnmeasured(f"the dashboard at {_dashboard_url()} did not answer ({exc})") from exc
     if not roster.get("sync_listening"):
         raise PeerUnmeasured("this dashboard is not syncing with a peer")
     devices = [p["device"] for p in roster.get("peers", [])]
@@ -112,7 +124,7 @@ def local_session(project: str) -> tuple[str | None, str]:
     try:
         roster = _request("/api/agents")
     except (urllib.error.URLError, OSError, ValueError) as exc:
-        raise PeerUnmeasured(f"the dashboard at {dashboard_url()} did not answer ({exc})") from exc
+        raise PeerUnmeasured(f"the dashboard at {_dashboard_url()} did not answer ({exc})") from exc
     if (roster.get("device") or "this device") in roster.get("registry_unreadable", []):
         raise PeerUnmeasured("the dashboard could not read this machine's session registry")
     rows = [r for r in roster.get("agents", []) + roster.get("registry_only", []) if r.get("local") and r.get("project") == project]
