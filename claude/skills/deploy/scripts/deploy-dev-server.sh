@@ -20,7 +20,7 @@
 #
 # Stops whatever holds the port, runs the data sync and the pre-start step if either is set, then relaunches DEV_CMD
 # detached so the server outlives this command and the Claude session. Logs go to
-# <DEV_DIR>/dev-server.log (errors: .err.log). Run from an agterm session, a successful start is also
+# <DEV_DIR>/dev-server.log (errors: .err.log). A successful start is also
 # reported to the tauri-dashboard (TAURI_DASHBOARD_URL), best-effort and silent.
 #
 # Both ports come from the ports registry, asked on every run and recorded there under the use cases
@@ -188,21 +188,6 @@ for _ in $(seq 1 40); do
         # Repeated here because the pre-start output is dozens of lines back by now, and a server that came
         # up perfectly reads as a clean run. Restated where the eye already lands.
         [ -n "$STEP_FAILED" ] && echo "  !! FAILED earlier: $STEP_FAILED — this server is running on whatever state that left"
-        # Tell the tauri-dashboard which terminal session this server was started from, so that session
-        # shows it running and can open it; the dashboard forgets it once the port stops answering. Only
-        # an agterm session has an address to give, and the dashboard may not be running, so this is
-        # best-effort and silent: a server that came up is the result, and its line is extra.
-        if [ -n "${AGTERM_SESSION_ID:-}" ]; then
-            "$PY" - "$SKILLS/shared" "$DEV_PORT" "$REPO_DIR" "$AGTERM_SESSION_ID" <<'EOF' >/dev/null 2>&1 || true
-import json, sys, urllib.request
-shared, port, repo_dir, session = sys.argv[1:5]
-sys.path.insert(0, shared)
-from peer_relay import dashboard_url
-body = json.dumps({"port": int(port), "dir": repo_dir, "session": session}).encode()
-req = urllib.request.Request(dashboard_url() + "/api/dev-server", data=body, headers={"Content-Type": "application/json"})
-urllib.request.urlopen(req, timeout=2).read()
-EOF
-        fi
         # 5. Last line, and only on success: the address is the point of the whole command, and a port number
         #    alone is not it — someone still has to assemble the URL before they can look at the thing.
         #    Printed by the script rather than left to whoever reports the run, so it cannot be omitted. It
@@ -213,6 +198,7 @@ EOF
         #    fronting the server from its own number stops it rebinding at the next restart — with every
         #    process listing showing the port free. The ports registry hands out the second number and
         #    records who owns it; asking it on every run is what makes the answer stable across deploys.
+        PUBLISHED_URL=
         if [ "$DEV_TAILNET" = "no" ]; then
             echo "  open: http://localhost:$DEV_PORT  (this machine only: DEV_TAILNET=no)"
         elif ! FRONT="$("$PY" "$PORTS" allocate \
@@ -221,9 +207,26 @@ EOF
             echo "  open: http://localhost:$DEV_PORT  (this machine only: no tailnet port allocated, reason above)"
         elif URL="$("$PY" "$SKILLS/shared/tailnet_publish.py" publish-port "$FRONT" --target "$DEV_PORT")"; then
             echo "  open: $URL"
+            PUBLISHED_URL=$URL
         else
             echo "  open: http://localhost:$DEV_PORT  (this machine only: not published, reason above)"
         fi
+        # Tell the tauri-dashboard about the server, so the agterm session it was started from shows it
+        # running and can open it, and so does the other machine's ⇄ tab onto this session. That tab is
+        # why it goes out with no agterm session too: a Windows agent runs under the WSL tmux holder and
+        # has none, and the dashboard finds its row from the Claude Code session instead. The tailnet
+        # URL is what the other machine opens it at. The dashboard forgets the server once the port
+        # stops answering. It may not be running, so this is best-effort and silent: a server that came
+        # up is the result, and its line is extra.
+        "$PY" - "$SKILLS/shared" "$DEV_PORT" "$REPO_DIR" "${AGTERM_SESSION_ID:-}" "${CLAUDE_CODE_SESSION_ID:-}" "${PUBLISHED_URL:-}" <<'EOF' >/dev/null 2>&1 || true
+import json, sys, urllib.request
+shared, port, repo_dir, session, claude_session, url = sys.argv[1:7]
+sys.path.insert(0, shared)
+from peer_relay import dashboard_url
+body = json.dumps({"port": int(port), "dir": repo_dir, "session": session or None, "claude_session": claude_session or None, "url": url or None}).encode()
+req = urllib.request.Request(dashboard_url() + "/api/dev-server", data=body, headers={"Content-Type": "application/json"})
+urllib.request.urlopen(req, timeout=2).read()
+EOF
         exit 0
     fi
     printf "."; sleep 1
