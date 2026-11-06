@@ -888,3 +888,18 @@ The marker exists because `date -r "$FILE" +%s` is not portable to every BSD `da
 seconds since the epoch. On macOS 27 it does accept a file. `-nt` with a missing right-hand file came back true
 in both Git Bash and the Mac's `/bin/bash` 3.2, measured 2026-10-30; the Mac's login shell, zsh, returned false,
 so run the check under bash.
+
+## `ls` output in the Bash tool carries `-F` markers, so an exact-match grep finds nothing
+
+Git Bash on the Windows box aliases `ls='ls -F --color=auto --show-control-chars'`, and the Bash tool loads that
+profile. So every directory comes out with a trailing `/` (and executables with `*`, symlinks with `@`), even
+through a pipe:
+
+```bash
+ls node_modules | grep -x pg      # nothing: the entry is "pg/"
+```
+
+Measured 2026-11-05: that empty result was reported as "the `pg` module isn't installed", while
+`node -e "require.resolve('pg')"` found it in that very `node_modules`. To test whether something exists, test it
+directly (`[ -d node_modules/pg ]`, `require.resolve`), or bypass the alias with `command ls` or `\ls`. An empty
+`ls | grep` doesn't show the thing is missing.
