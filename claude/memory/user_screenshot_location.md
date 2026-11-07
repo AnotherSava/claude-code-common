@@ -32,3 +32,15 @@ ls -lt ~/CropStage ~/Desktop 2>/dev/null | grep -iE "\.(png|jpg|jpeg)$" | head -
 ```
 
 Observed 2026-09-02, six images handed over from that directory in one message.
+
+## From the iPhone or iPad
+
+Screenshots taken on the phone or the iPad reach this machine by Taildrop (share sheet, then Tailscale, then the
+machine's tailnet name). On Windows they land in `~/Downloads` as `IMG_NNNN.PNG`, so an iPhone screenshot is the
+newest file there:
+
+```bash
+ls -lt ~/Downloads | grep -iE "\.(png|jpg|jpeg|heic)$" | head -3
+```
+
+If nothing arrived there, `tailscale file get <dir>` collects files Taildrop is still holding. Observed 2026-11-06.
