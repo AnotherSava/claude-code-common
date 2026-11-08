@@ -28,7 +28,7 @@ from typing import Any
 
 sys.path.insert(0, os.path.join(os.path.dirname(os.path.abspath(__file__)), "..", "..", "shared"))
 
-from transcripts import PROJECTS, content_blocks, project_dir_name, records, timestamp  # noqa: E402 — needs the sys.path line above
+from transcripts import PROJECTS, calls_skill, content_blocks, project_dir_name, records, timestamp  # noqa: E402 — needs the sys.path line above
 
 SYSTEM_REMINDER_RE = re.compile(r"<system-reminder>.*?</system-reminder>", re.DOTALL)
 COMMAND_NAME_RE = re.compile(r"<command-name>([^<]*)</command-name>")
@@ -125,6 +125,11 @@ def _result_text(block: dict[str, Any]) -> str:
     return ""
 
 
+def _command_item(stamp: datetime | None, name: str, args: str, by: str) -> dict[str, Any]:
+    """A command record, typed by the user or invoked by Claude through the Skill tool; _clip_window matches on its text."""
+    return {"kind": "command", "ts": stamp, "text": name.strip().lstrip("/"), "args": _collapse(args, 120), "by": by}
+
+
 def _read_items(path: str) -> tuple[list[dict[str, Any]], dict[str, Any]]:
     """Turn a transcript into an ordered list of prose, command, decision and tool events."""
     items: list[dict[str, Any]] = []
@@ -155,6 +160,12 @@ def _read_items(path: str) -> tuple[list[dict[str, Any]], dict[str, Any]]:
                         decision_ids.add(block.get("id") or "")
                         continue  # rendered from its result, which holds both the question and the answer
                     tool_input = block.get("input") or {}
+                    if calls_skill(block, "wrap-up"):
+                        # A /wrap-up another agent asked for by message bounds the next window exactly like a typed one.
+                        # Only wrap-up is recorded: a run invokes /reflect and /peer itself before step 8, and both
+                        # SKILL.md files match STEP_8_RE, so as command records they would end _reached_step_8's search.
+                        items.append(_command_item(stamp, tool_input["skill"], str(tool_input.get("args") or ""), "claude"))
+                        continue
                     command = tool_input.get("command") if name == "Bash" else None
                     items.append({"kind": "tool", "ts": stamp, "text": _summarize_tool(name, tool_input), "step_8": isinstance(command, str) and bool(STEP_8_RE.search(command))})
                 continue
@@ -170,7 +181,7 @@ def _read_items(path: str) -> tuple[list[dict[str, Any]], dict[str, Any]]:
             named = COMMAND_NAME_RE.search(raw)
             if named:
                 args = COMMAND_ARGS_RE.search(raw)
-                items.append({"kind": "command", "ts": stamp, "text": named.group(1).strip().lstrip("/"), "args": _collapse(args.group(1), 120) if args else ""})
+                items.append(_command_item(stamp, named.group(1), args.group(1) if args else "", "user"))
                 continue
             if any(marker in raw for marker in INJECTED_MARKERS) or record.get("isMeta"):
                 continue  # command output, or skill and system text injected as if from the user
@@ -205,8 +216,9 @@ def _clip_window(items: list[dict[str, Any]]) -> tuple[list[dict[str, Any]], int
     A finished /wrap-up is one _reached_step_8 accepts. The run calling this has not reached step 8, so its own command
     record is never a boundary, and neither is a run the user interrupted or diverted into more work, which settled
     nothing and so must not hide what came before it. The window keeps the finished run's own exchange, since
-    /wrap-up treats what it settled as final and needs it in view to do so. A wrap-up started by asking in words
-    rather than typing /wrap-up leaves no command record and is not a boundary.
+    /wrap-up treats what it settled as final and needs it in view to do so. A wrap-up Claude invoked through the Skill
+    tool, because a message asked for it, is a command record like a typed one; a wrap-up carried out from the skill's
+    text without either leaves no record and is not a boundary.
     Returns the window, how many items it dropped, and which command bounded it.
     """
     last_clear, last_wrap_up = -1, -1
@@ -294,7 +306,8 @@ def _render(items: list[dict[str, Any]], per_message_chars: int, tool_detail: bo
         index += 1
         if kind == "command":
             args = f" {item['args']}" if item.get("args") else ""
-            lines.append(f"[{index}] {stamp_of(item)} USER ran /{item['text']}{args}")
+            who = "CLAUDE invoked" if item.get("by") == "claude" else "USER ran"
+            lines.append(f"[{index}] {stamp_of(item)} {who} /{item['text']}{args}")
             lines.append("")
             continue
         if kind == "decision":

@@ -32,6 +32,11 @@ def said(who: str, text: str) -> dict:
     return {"type": who, "message": {"role": who, "content": [{"type": "text", "text": text}]}}
 
 
+def invoked(skill: str) -> dict:
+    """Claude starting a skill through the Skill tool, as it does when another agent's message asks for it."""
+    return {"type": "assistant", "message": {"role": "assistant", "content": [{"type": "tool_use", "id": "s", "name": "Skill", "input": {"skill": skill}}]}}
+
+
 def ran(command_line: str) -> dict:
     return {"type": "assistant", "message": {"role": "assistant", "content": [{"type": "tool_use", "id": "t", "name": "Bash", "input": {"command": command_line}}]}}
 
@@ -75,6 +80,12 @@ def main() -> int:
 
         window, body = scan(home, "h", [command("clear"), said("user", "first task"), command("wrap-up"), said("assistant", "summary one"), said("user", "hold"), ran("python3 ~/.claude/scripts/review_scope.py advance"), said("user", "second task")])
         check("a bookmark advance alone finishes a /wrap-up", (window.startswith("window: clipped to the last /wrap-up"), "first task" in body), (True, False))
+
+        window, body = scan(home, "j", [command("clear"), said("user", "first task"), said("user", "please run /wrap-up and answer hold"), invoked("wrap-up"), said("assistant", "summary one"), ran("python3 ~/.claude/scripts/review_scope.py advance"), said("user", "second task")])
+        check("a /wrap-up Claude invoked through the Skill tool bounds the window like a typed one", (window.startswith("window: clipped to the last /wrap-up"), "first task" in body, "CLAUDE invoked /wrap-up" in body, "second task" in body), (True, False, True, True))
+
+        window, body = scan(home, "k", [command("clear"), said("user", "first task"), command("wrap-up"), invoked("reflect"), said("assistant", "summary one"), said("user", "go"), invoked("peer"), COMMITTED, said("user", "second task")])
+        check("a /reflect or /peer the run invokes itself before step 8 leaves the commit with the /wrap-up", (window.startswith("window: clipped to the last /wrap-up"), "first task" in body, "summary one" in body), (True, False, True))
 
         window, body = scan(home, "i", [command("clear"), said("user", "first task"), command("wrap-up"), command("login"), command("frontend-design:frontend-design"), command("memo"), said("user", "go"), COMMITTED, said("user", "second task"), command("wrap-up")])
         check("a built-in, plugin or non-committing skill typed mid-run leaves the commit with the /wrap-up", (window.startswith("window: clipped to the last /wrap-up"), "first task" in body), (True, False))

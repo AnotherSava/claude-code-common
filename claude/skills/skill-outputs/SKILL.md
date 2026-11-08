@@ -22,9 +22,9 @@ really wrote rather than on what its SKILL.md asks for.
 ## Process
 
 1. **Name the skill.** `/wrap-up` is the only skill `scripts/collect.py` recognises. For any other, stop here and
-   generalise the script against that skill first: replace the `/wrap-up` command and `_is_wrap_up_summary()` with
-   what identifies the new skill's output, worked out from its real transcripts, and extend this file's Context and
-   steps to match. Do not generalise for a skill nobody has asked about yet.
+   generalise the script against that skill first: replace the `"wrap-up"` passed to `invokes_skill()` and
+   `_is_wrap_up_summary()` with what identifies the new skill's output, worked out from its real transcripts, and
+   extend this file's Context and steps to match. Do not generalise for a skill nobody has asked about yet.
 
 2. **Pick the moment.** Use what the user named — a commit, a date, "since we changed X". When they named a change
    rather than a moment, take it from **Changes to /wrap-up's summary step**: the newest commit there whose subject is

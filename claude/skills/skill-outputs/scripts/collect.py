@@ -4,7 +4,7 @@
     collect.py --since 2026-10-31T03:38:29-07:00 [--out <file>]
 
 Only /wrap-up's summary is recognised so far. A second skill's output is a reason to generalise
-WRAP_UP_COMMAND and _is_wrap_up_summary() against that real case, not before.
+the "wrap-up" passed to invokes_skill() and _is_wrap_up_summary() against that real case, not before.
 
 The page lists one tab per summary and a toggle per section; a section is a heading at the level of
 the summary's Review heading (its first heading where it has none), so the toggles follow whatever
@@ -26,9 +26,8 @@ sys.path.insert(0, os.path.join(HERE, "..", "..", "shared"))
 sys.path.insert(0, os.path.join(HERE, "..", "..", "..", "scripts"))
 
 from review_picker import triage_rows  # noqa: E402 — needs the sys.path lines above
-from transcripts import PROJECTS, content_blocks, parse_iso, project_dir_name, records, text_of, timestamp  # noqa: E402 — needs the sys.path lines above
+from transcripts import PROJECTS, content_blocks, invokes_skill, parse_iso, project_dir_name, records, text_of, timestamp  # noqa: E402 — needs the sys.path lines above
 
-WRAP_UP_COMMAND = "<command-name>/wrap-up</command-name>"
 # How the closing prompt of /wrap-up's step 7 opens, in every wording it has had: `go` from commit 063e8e2 on,
 # `recommended` before it. It is the one part every summary with something to approve carries, since each section
 # above it is left out when it has nothing in it. A new wording in claude/skills/wrap-up/SKILL.md is added here, and
@@ -129,10 +128,10 @@ def _collect(since: datetime) -> list[dict[str, str]]:
     for transcript in glob.glob(os.path.join(PROJECTS, "*", "*.jsonl")):
         rows = _read_rows(transcript)
         for i, (row, row_stamp) in enumerate(rows):
-            if row["type"] != "user" or WRAP_UP_COMMAND not in text_of(row) or row_stamp < since:
+            if not invokes_skill(row, "wrap-up") or row_stamp < since:
                 continue
             for later, later_stamp in rows[i + 1:]:
-                if later["type"] == "user" and WRAP_UP_COMMAND in text_of(later):
+                if invokes_skill(later, "wrap-up"):
                     break
                 if later["type"] != "assistant":
                     continue

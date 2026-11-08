@@ -14,14 +14,13 @@ from __future__ import annotations
 
 import argparse
 import glob
-import json
 import os
 import sys
 
 # realpath, because ~/.claude/scripts is a symlink into the dotfiles repo and the path below climbs out of it.
 sys.path.insert(0, os.path.join(os.path.dirname(os.path.realpath(__file__)), "..", "skills", "shared"))
 
-from transcripts import PROJECTS, project_dir_name, records, timestamp  # noqa: E402 — needs the sys.path line above
+from transcripts import PROJECTS, invokes_skill, project_dir_name, records, timestamp  # noqa: E402 — needs the sys.path line above
 
 
 def slug_for(path: str) -> str:
@@ -53,11 +52,9 @@ def load(path: str) -> list[dict]:
 
 def find_invocation(rows: list[dict], skill: str) -> int | None:
     """Index of the last turn that invoked `skill`, whether typed or called by the model."""
-    typed = f"<command-name>/{skill}</command-name>"
     found = None
     for i, row in enumerate(rows):
-        blob = json.dumps(row.get("message", {}))
-        if typed in blob or f'"skill":"{skill}"' in blob or f'"skill": "{skill}"' in blob:
+        if invokes_skill(row, skill):
             found = i
     return found
 

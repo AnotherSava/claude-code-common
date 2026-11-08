@@ -70,3 +70,18 @@ def content_blocks(record: dict[str, Any]) -> list[dict[str, Any]]:
 def text_of(record: dict[str, Any]) -> str:
     """The text blocks of a record's message, joined."""
     return "\n".join(b.get("text") or "" for b in content_blocks(record) if b.get("type") == "text")
+
+
+def calls_skill(block: dict[str, Any], name: str) -> bool:
+    """Whether a content block is Claude invoking skill `name` through the Skill tool, a leading slash or surrounding spaces ignored."""
+    if block.get("type") != "tool_use" or block.get("name") != "Skill":
+        return False
+    skill = (block.get("input") or {}).get("skill")
+    return isinstance(skill, str) and skill.strip().lstrip("/") == name
+
+
+def invokes_skill(record: dict[str, Any], name: str) -> bool:
+    """Whether a record starts a run of skill `name`: the user typing it, or Claude invoking it through the Skill tool."""
+    if record.get("type") == "user" and f"<command-name>/{name}</command-name>" in text_of(record):
+        return True
+    return any(calls_skill(block, name) for block in content_blocks(record))
