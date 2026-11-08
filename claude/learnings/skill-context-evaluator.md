@@ -102,7 +102,13 @@ A fallback appended to a pipeline binds to the pipeline's status, which is the *
 !`doppler projects --json 2>&1 | tr ',' '\n' | grep -o '"name":"[^"]*"' || echo UNAVAILABLE`
 ```
 
-Verified both directions: the working form renders the project list normally, and forcing the failure (`--token bogus`) renders `UNAVAILABLE`. The cost is losing `head`'s output cap, so only drop it where the result set is inherently small. Always test the failure path — the success path looks identical either way, and a silently-empty context label is far harder to diagnose later than a loud one.
+Verified both directions: the working form renders the project list normally, and forcing the failure (`--token bogus`) renders `UNAVAILABLE`. The cost is losing `head`'s output cap, so only drop it where the result set is inherently small. Where the cap is wanted, capture the output and test it instead, which keeps `head` and fires the fallback on empty output whatever exited non-zero:
+
+```
+!`V=$(grep -v '^#' .claude/conventions 2>/dev/null | head -1); [ -n "$V" ] && echo "$V" || echo none`
+```
+
+Always test the failure path — the success path looks identical either way, and a silently-empty context label is far harder to diagnose later than a loud one.
 
 ## Testing a Context line means running the skill
 
