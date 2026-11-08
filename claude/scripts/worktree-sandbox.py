@@ -63,11 +63,14 @@ def create(name: str | None) -> None:
     copied, deleted = carry_in(root, sandbox, paths)
 
     # Commit the incoming state so a later `git diff HEAD` shows only what the sub-skill changed,
-    # not the change set it was handed. Detached HEAD, so no branch name can collide.
+    # not the change set it was handed. Detached HEAD, so no branch name can collide. --no-verify
+    # because this commit never leaves the sandbox: a repo's pre-commit hook guards real commits, and
+    # one refusing a carried-in file (the global hook refuses config/deploy.env below convention 017)
+    # would otherwise leave every forked pass in that repo without a sandbox.
     git(["add", "-A"], cwd=sandbox)
     if git(["status", "--porcelain"], cwd=sandbox).strip():
         git(["-c", "user.name=sandbox", "-c", "user.email=sandbox@localhost",
-             "commit", "--no-gpg-sign", "--quiet", "-m", CARRIED_MARKER], cwd=sandbox)
+             "commit", "--no-gpg-sign", "--no-verify", "--quiet", "-m", CARRIED_MARKER], cwd=sandbox)
 
     print(f"carried {copied} file(s) in, {deleted} deletion(s), from a {len(paths)}-path change set")
     print("ignored files were not carried in; copy any build artifact you need yourself")

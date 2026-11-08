@@ -133,6 +133,22 @@ def main() -> None:
         check("remove from inside the sandbox exits 0", (gone.returncode, gone.stderr), (0, ""))
         check("and leaves no worktree entry", listed(repo), [same_path(repo)])
         check("and no temp directory", os.path.exists(os.path.dirname(inner)), False)
+
+        # A repo whose pre-commit hook refuses one of the carried-in files — a global hook refusing an
+        # untracked config/deploy.env below convention 017 is the real case — still gets a sandbox, since
+        # the baseline commit is scratch that never leaves it.
+        hooks = os.path.join(work, "hooks")
+        os.makedirs(hooks)
+        write(hooks, "pre-commit", "#!/bin/sh\necho refusing >&2\nexit 1\n")
+        os.chmod(os.path.join(hooks, "pre-commit"), 0o755)
+        git(["config", "core.hooksPath", hooks], repo)
+        write(repo, "config/deploy.env", "X=1\n")
+        refused = run([sys.executable, SCRIPT, "create"], repo)
+        check("create survives a pre-commit hook that refuses", refused.returncode, 0)
+        guarded = refused.stdout.strip().split("\n")[-1] if refused.returncode == 0 else ""
+        check("and the refused file arrived", bool(guarded) and os.path.exists(os.path.join(guarded, "config/deploy.env")), True)
+        if guarded:
+            run([sys.executable, SCRIPT, "remove", guarded], repo)
     finally:
         shutil.rmtree(work, ignore_errors=True)
     raise SystemExit(report())
