@@ -42,13 +42,10 @@ broke rather than hand it back.
 
 **A question about another project's behaviour is routed, not researched here.**
 The misrouted-instruction and sibling's-claim cases are about editing and about believing; this one is about
-answering. On 2026-10-04 the transcripts session was asked why bga-assistant was
-not showing clean on the dashboard. That is a question about the
-claude-code-dashboard's classification rules, and its session was live — and was
-the one the user had selected. Answering it from here meant reading another
-repo's source, app-data and log to reconstruct a rule its own session knows, and
-the user's correction was that it should have been forwarded. The researched
-answer was correct and still the wrong move.
+answering. When a question is about how another project behaves and that
+project's session is live, forward it there rather than reading the other repo's
+source, app-data and logs to reconstruct a rule its own session knows; even a
+correct researched answer is the wrong move.
 
 **Why:** the owning session can check its own tree and act on what it finds; a
 foreign session can only describe. So the research is duplicated work that ends
