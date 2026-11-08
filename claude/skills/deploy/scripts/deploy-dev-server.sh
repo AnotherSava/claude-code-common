@@ -214,7 +214,8 @@ for _ in $(seq 1 40); do
         # Tell the tauri-dashboard about the server, so the agterm session it was started from shows it
         # running and can open it, and so does the other machine's ⇄ tab onto this session. That tab is
         # why it goes out with no agterm session too: a Windows agent runs under the WSL tmux holder and
-        # has none, and the dashboard finds its row from the Claude Code session instead. The tailnet
+        # has none, and the dashboard picks the row from the Claude Code session's anchor, else from the
+        # repo dir; with no agterm session only that ⇄ tab shows the server. The tailnet
         # URL is what the other machine opens it at. The dashboard forgets the server once the port
         # stops answering. It may not be running, so this is best-effort and silent: a server that came
         # up is the result, and its line is extra.
