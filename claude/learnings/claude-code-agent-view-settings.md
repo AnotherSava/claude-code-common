@@ -19,6 +19,12 @@ keep routing them. Ordinary sessions, `--resume`/`--continue`, subagents and mes
 keep working. It takes effect only in sessions started after the change. Sessions already running
 keep the Left key until they restart.
 
+Background sessions already running when the switch goes on are left without a clean way out. Measured
+2026-11-04 on Windows: `claude stop <jobId>` was refused ("'stop' is disabled by the 'disableAgentView'
+setting"), and `taskkill /T /F` on a background session's `claude.exe` brought it back within seconds
+under a new PID with the same `sessionId` and `jobId`. One of two such sessions stayed dead after its
+kill and the other came back, so what decides which one is restarted is not known.
+
 `~/.claude/keybindings.json` cannot unbind ←. The keybindings reference names no action for it, so
 setting `"left": null` in a context does nothing to this behaviour.
 
