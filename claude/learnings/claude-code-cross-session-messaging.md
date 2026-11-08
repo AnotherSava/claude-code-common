@@ -250,9 +250,8 @@ messaging off, so cross-machine messages go through the Claude Code Dashboard re
 ### `no_such_session` does not mean the session is gone
 
 Where a relay routes by **project id**, that id is derived per session and is not stable across a
-restart. Measured 2026-09-06 against the dashboard relay: a Windows session addressable as
-`CHROME/D--projects-what-is-next` came back after a restart as `CHROME/what-is-next`, and sends to
-the old address were refused:
+restart. A session can come back under a different project id, and sends to the old address are
+refused:
 
 ```json
 {"outcome":"refused","reason":"no_such_session",
@@ -261,26 +260,24 @@ the old address were refused:
 ```
 
 The wording reads as "that session has ended" and is equally consistent with "that session is alive
-under a different name" — which it was. Two sends were spent diagnosing liveness before the address
-was suspected at all. **Ask the relay what it can see rather than reasoning about it:** `/api/agents`
+under a different name". **Ask the relay what it can see rather than reasoning about it:** `/api/agents`
 names every reachable target with its device, project and status, and the mismatch is then obvious.
 Only that path answered — `/api/sessions`, `/api/targets` and `/api/devices` were all 404, so do not
 go fishing for others.
 
 **A session name and a project id are different identifiers, and the relay routes by the second.**
-Measured 2026-09-13 on the same relay: a Windows session whose `ListAgents` header read
-`claude-b8 [368a70]` posted a reply with `from_agent: "claude-b8"`, and the peer's answer to that
-address came back `no_such_session`. The routable id was `CHROME/claude` — the project, not the
-session. The mistake is invisible at send time, because `from_agent` is only the *reply* address: the
-outbound message is written and receipted normally, and the failure surfaces one round trip later in
-the other agent's transcript, where you cannot see it. `ListAgents` names are the address for
+A reply posted with `from_agent` set to a `ListAgents` session name (`claude-b8`) has the peer's
+answer refused `no_such_session`; the routable id is the project (`CHROME/claude`). The mistake is
+invisible at send time, because `from_agent` is only the *reply* address: the outbound message is
+written and receipted normally, and the failure surfaces one round trip later in the other agent's
+transcript, where you cannot see it. `ListAgents` names are the address for
 `SendMessage` on the same machine and are **not** interchangeable with the relay's, so derive the
 relay's from the relay (`/api/agents`) rather than from the roster you already have on screen.
 `peer_relay.py` builds both from this clone's directory name, which holds only while the peer's clone
 sits under the same name and derives the same id; on a `no_such_session`, `/api/agents` is still the
 check.
 
-Two traps from the same exchange:
+Two more traps on the same route:
 
 - **`refused before anything was written` is the useful half of the reply.** It says the failure was
   total, so nothing is half-delivered and a retry cannot duplicate. Read it before re-sending.
@@ -334,7 +331,7 @@ an allowlist.
 
 **Two things silently produce no record at all**, both easy to hit from an automated spawner:
 
-- A directory that has never been trusted (above).
+- A directory that has never been trusted (the trust prompt stops it first).
 - `CLAUDE_CODE_CHILD_SESSION` inherited from a parent Claude Code process. Spawning from inside an agent's
   own process tree suppresses the pid file entirely — so a session launched by a hook, or by a tool call,
   is invisible to every reader in this document.

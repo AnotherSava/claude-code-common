@@ -14,24 +14,19 @@ happening elsewhere.
 Editing those files from a second session risks clobbering work in flight, and
 you have none of the context the other session built up.
 
-**How to check** — on 2026-07-31 an "align the elements" request for the BGA
-compact header arrived in the tauri-dashboard session. Find the session the
-instruction fits and see what it is mid-way through, as the `peer` skill's
-"Find the session" step describes (`peer_relay.py session`, the dashboard roster, its
-`widget.jsonl`, and `git status` in that repo).
+**How to check** — find the session the instruction fits and see what it is
+mid-way through, as the `peer` skill's "Find the session" step and its "What a
+session is doing right now" paragraph describe.
 
 Then name the session it belongs in rather than acting. Offer to do it from the
 current session only once the other one is confirmed parked.
 
-**A sibling's claim about *your* repo is a hypothesis, not a finding.** The case
-above is an instruction that arrived in the wrong session; this is the opposite
-and easier to miss, because the message is correctly routed, well argued, and
-still wrong. On 2026-08-25 and again on 2026-08-26 the printlab session reported
-that scheduler's other workstation still carried a broken `IDENTITY_CHECK` line,
-reasoning correctly from "`config/publish.env` is per-machine and gitignored" —
-but from a false premise: that machine had never been set up to publish
-scheduler at all, so there was no copy to go stale. The first time, this was
-relayed onward to the user as fact and had to be retracted.
+**A sibling's claim about *your* repo is a hypothesis, not a finding.** A
+misrouted instruction is one failure; this is the opposite and easier to miss,
+because the message is correctly routed, well argued, and still wrong: a claim
+that a per-machine, gitignored file on the other machine is stale can reason
+correctly from a false premise, such as that file never having been set up
+there. Relayed onward to the user as fact, it has to be retracted.
 
 **Why:** the sibling is reasoning about a file it cannot see. Gitignored,
 per-machine and untracked files are exactly where cross-session claims go wrong,
@@ -46,7 +41,7 @@ sibling generally wants to know: mine offered to fix anything of theirs that
 broke rather than hand it back.
 
 **A question about another project's behaviour is routed, not researched here.**
-The two cases above are about editing and about believing; this one is about
+The misrouted-instruction and sibling's-claim cases are about editing and about believing; this one is about
 answering. On 2026-10-04 the transcripts session was asked why bga-assistant was
 not showing clean on the dashboard. That is a question about the
 claude-code-dashboard's classification rules, and its session was live — and was
@@ -70,11 +65,9 @@ getting it wrong is one message.
 sessions share one macOS pasteboard (sandboxed and unsandboxed Bash read the
 same one; there is no per-sandbox clipboard). So a `pbcopy` followed by a
 `pbpaste` roundtrip proves only that the write happened — not that the content
-will still be there when the user pastes. On 2026-07-31 a copy for the user was
-overwritten by a sibling session's console snippet before they got to it; the
-user reported "you didn't copy", and the natural but wrong conclusion was that
-the sandbox had its own pasteboard. **How to apply:** when handing the user
-copied text while other sessions are live, re-check `pbpaste` at hand-off time
-rather than trusting the copy-time verification, and give the file path too so
-they have a stable fallback. Never invoke `dangerouslyDisableSandbox` for
-clipboard work — it changes nothing here.
+will still be there when the user pastes: a sibling can overwrite it first, and
+the tempting wrong conclusion is that the sandbox has its own pasteboard.
+**How to apply:** when handing the user copied text while other sessions are
+live, re-check `pbpaste` at hand-off time rather than trusting the copy-time
+verification, and give the file path too so they have a stable fallback. Never
+invoke `dangerouslyDisableSandbox` for clipboard work — it changes nothing here.

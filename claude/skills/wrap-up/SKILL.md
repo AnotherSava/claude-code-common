@@ -246,15 +246,13 @@ per complaint, this one removes a finding that would otherwise keep coming back.
 **Work only another machine can do is a routed ping, not a `memo`.** The backlog is for work
 nobody is going to do yet, not for work this machine cannot do: a memo defers it to whoever next
 reads it, on whichever box they happen to be on, while the machine that can act has a live session
-reachable through the `peer` skill. Offered as a memo and corrected on 2026-09-13 and again on
-2026-09-15, so recommend the ping.
+reachable through the `peer` skill. Recommend the ping.
 
 **A finding another repo's session has to decide is routed too, even where this machine could act.**
 The other-machine test is capability; this one is ownership, and they come apart on a finding this session
 could implement but has no standing to settle — whether a convention is worth writing, whether a
-shared rule should change. Recommend the ping to the session that owns that repo. Offered as a memo
-on 2026-09-18 and corrected: *"discuss with claude agent — either on this machine or air — it's
-their work"*. A memo there files the question in the backlog of a repo that cannot answer it.
+shared rule should change. Recommend the ping to the session that owns that repo: a memo there files the
+question in the backlog of a repo that cannot answer it.
 
 **A finding in a file the project's upstream owns is reported and nothing else — not a memo, and
 not a ping either.** The capability and ownership tests both end at a session that can act; this one ends at an account
@@ -266,9 +264,7 @@ read it before re-dispositioning, rather than taking the report and choosing afr
 exceptions, both named in `docs-relevance`: the gap touches a change the user
 carries on their own branch, or it belongs to an issue they have already raised upstream. Test them
 with `git diff --name-only upstream/main...<branch>` rather than from memory. Otherwise the
-disposition is `drop`, and an upstream issue only when the user asks for one. On 2026-10-01 a
-stale screenshot and a source comment in a third-party fork were both carried in from the
-relevance pass's own report and recommended as memos, which is the one disposition it names as forbidden.
+disposition is `drop`, and an upstream issue only when the user asks for one.
 
 **A `--platform` tag does not soften that.** The flag exists for a memo that was going into the
 backlog anyway and happens to need one box — not as a way to park work a live session over there
