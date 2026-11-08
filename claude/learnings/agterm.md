@@ -91,7 +91,7 @@ Two consequences worth planning around:
   writer's own output**, which is the likely case if the rename happened by accident rather than on
   purpose. Seen 2026-08-30: `customName` was the literal `🔵 tauri-dashboard`, emoji included, so every
   time the row sat in the writer's blue/Working state `.name == .title` and every row looked healthy —
-  the row read as a full status title, not the "bare cwd basename" the paragraph above suggests looking
+  the row read as a full status title, not the "bare cwd basename" the `agtermctl tree --json` paragraph suggests looking
   for. The discriminator that always works is a **unique** marker: write
   `printf '\033]0;UNIQUE-XYZ\007' > /dev/ttysNNN` and re-read the tree **within about a second**, before
   the status writer's next pass overwrites it (a 3s wait already lost it, twice). Pinned shows

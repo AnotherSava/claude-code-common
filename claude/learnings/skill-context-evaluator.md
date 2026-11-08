@@ -102,7 +102,7 @@ A fallback appended to a pipeline binds to the pipeline's status, which is the *
 !`doppler projects --json 2>&1 | tr ',' '\n' | grep -o '"name":"[^"]*"' || echo UNAVAILABLE`
 ```
 
-Verified both directions: the working form renders the project list normally, and forcing the failure (`--token bogus`) renders `UNAVAILABLE`. The cost is losing `head`'s output cap, so only drop it where the result set is inherently small. Where the cap is wanted, capture the output and test it instead, which keeps `head` and fires the fallback on empty output whatever exited non-zero:
+Verified both directions: the working form renders the project list normally, and forcing the failure (`--token bogus`) renders `UNAVAILABLE`. The cost is losing `head`'s output cap, so only drop it where the result set is inherently small. Where the cap is wanted, capture the output and test it instead, which keeps `head` and fires the fallback on empty output whatever exited non-zero. This assigned-substitution shape is the one observed to load, but the section headed "`$(…)` is refused by the permission check" records that nothing proves assignment makes a substitution safe:
 
 ```
 !`V=$(grep -v '^#' .claude/conventions 2>/dev/null | head -1); [ -n "$V" ] && echo "$V" || echo none`
@@ -196,7 +196,7 @@ The general rule for these probes: anything the evaluator might read as a variab
 extension `$(...)` — is a hazard, and the safest probes are plain pipelines of `grep`, `cut`, `test`, `ls` and
 `wc`.
 
-## `$(…)` is refused by the permission check, which is a different failure from the mangling above
+## `$(…)` is refused by the permission check, which is a different failure from the `$1` mangling
 
 Write the argument plainly. A command substitution inside a probe whose command matches one of the skill's
 own `allowed-tools` Bash patterns is refused before it runs, and the refusal aborts the whole skill load —
@@ -214,7 +214,7 @@ Shell command permission check failed for pattern "!`git diff --stat $(…)`": C
 ```
 
 That error is the one good thing here: it names the offending probe and the reason, where the positional-field
-corruption in the section above surfaces as a syntax error from whatever tool received the garbage, blaming
+corruption in the `$1`, `$2` section surfaces as a syntax error from whatever tool received the garbage, blaming
 the skill for what the loader did.
 
 **Removing the substitution is the fix; removing the argument is not.** The idiom being replaced was there to
@@ -230,7 +230,7 @@ part of it, on exactly the runs where an unstage lost its `index.lock` race.
 **Not every `$(…)` in one Context block is refused, and the discriminator is not isolated.** In the same
 block, `R=$(git rev-parse --show-toplevel …)` as an assignment and
 `gh issue list --repo "$(git remote get-url origin | sed …)"` as a quoted argument value both load without
-complaint, while the bare-argument form above does not — and `gh issue list` has an `allowed-tools` entry of
+complaint, while the bare-argument `git diff --stat $(…)` probe does not — and `gh issue list` has an `allowed-tools` entry of
 its own, so matching a pattern cannot be the whole rule. Treat a plain argument as the only shape known to be
 safe rather than concluding that quoting or assignment launders a substitution.
 

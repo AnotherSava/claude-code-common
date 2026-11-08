@@ -13,7 +13,7 @@ Real case (tauri-dashboard, 2026-09-02): "has the user opened this finished sess
 
 **How to apply:**
 - Before building a detector, say plainly what it *samples* versus what was *asked for*. If those differ, the gap is permanent — no interval closes it.
-- Prefer an edge from the source: an event carrying a timestamp. Check whether the source already offers one before settling for a poll. In the case above it had been *offered* and declined, on reasoning that contradicted documentation already read (the events carried the timestamp I claimed they lacked).
+- Prefer an edge from the source: an event carrying a timestamp. Check whether the source already offers one before settling for a poll. In the tauri-dashboard case it had been *offered* and declined, on reasoning that contradicted documentation already read (the events carried the timestamp I claimed they lacked).
 - When no edge is available, state the limit in the code doc and the project map rather than tuning toward it, and make the miss fail in the recoverable direction (leave the thing showing, not hidden).
 - A back-off is about how fast an *answer* changes. Never apply one to a detector watching for an *event*.
 

@@ -86,7 +86,7 @@ appeared to confirm it. `uname -a` was what settled it, after the fact.
 
 ## `which` as a resolver is right; `which` as a check is the trap
 
-These read alike and are opposites, which is worth stating because the section above only warns against
+These read alike and are opposites, which is worth stating because the mechanism section only warns against
 the second:
 
 ```python

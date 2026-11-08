@@ -127,7 +127,7 @@ On checkout the order reverses: eol conversion happens *before* the smudge filte
 
 This matters for base64-armored filters (transcrypt, git-crypt in ASCII mode). Their stored form is text, so leaving it normalizable is exactly what keeps blobs byte-identical across platforms — marking it `-text` is what makes them diverge. Only genuinely binary filter output needs `-text`.
 
-Prefer writing `text=auto eol=lf` on the rule over deleting `-text` and inheriting the global. The third row of the table above is a *borrowed* protection: it holds only while that machine has `* text=auto eol=lf` in its `core.attributesFile`, which is per-machine, uncommitted, and absent on CI. An explicit per-path attribute travels with the repo.
+Prefer writing `text=auto eol=lf` on the rule over deleting `-text` and inheriting the global. The inherits-global row of the check-in attribute table is a *borrowed* protection: it holds only while that machine has `* text=auto eol=lf` in its `core.attributesFile`, which is per-machine, uncommitted, and absent on CI. An explicit per-path attribute travels with the repo.
 
 **To tell borrowed from owned, suppress the global and ask again.** `git check-attr` merges every source, so on the machine doing the borrowing it answers `auto`/`lf` and proves nothing about the repo:
 

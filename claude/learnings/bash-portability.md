@@ -292,7 +292,7 @@ things every other shell accepts.
 
 ## A failed `$( )` yields empty, and writing that empty is the real damage
 
-The mirror image of the section below, and worse when the destination is configuration. A script that
+The mirror image of the `exit` inside `$( )` section, and worse when the destination is configuration. A script that
 dies on a *parse* error prints to stderr and substitutes to the empty string, so the obvious one-liner
 writes emptiness into the very key it was installing:
 
@@ -393,7 +393,7 @@ mistake is assuming that anything shaped like `KEY=value` is safe to `source`. S
 make any worked example in its header print a key that actually exists; an example quoting a key that was later
 removed demonstrates nothing and hides the contradiction.
 
-**Where the value's tail is a real executable, sourcing does not fail — it RUNS it.** The case above is benign
+**Where the value's tail is a real executable, sourcing does not fail — it RUNS it.** The `BUILD_SERVICES=app migrate` probe is benign
 only because `migrate` is on nobody's PATH. `DEV_CMD=bash ../scripts/dev.sh` parses the same way, so sourcing
 assigns `bash` to `DEV_CMD` for the duration of `../scripts/dev.sh` and then executes that script — starting a
 dev server as a side effect of a file you meant only to read, while `DEV_CMD` still ends up unchanged. Measured
@@ -631,7 +631,7 @@ Measured 2026-09-29 on zsh 5.9 and bash 3.2.57; it is `read`'s behaviour, not a 
 Write `printf '%s\n'` every time — the extra newline on input that already ends in one costs an empty
 final `read`, which the loop skips anyway.
 
-**A missing `mapfile` leaves the array empty and the status clean.** The table above says to avoid it
+**A missing `mapfile` leaves the array empty and the status clean.** The Bash 4+ features table says to avoid it
 on macOS; what it does not say is the shape of the failure. The builtin's absence goes to stderr while
 the array stays empty, and the script's exit status belongs to whatever ran next:
 

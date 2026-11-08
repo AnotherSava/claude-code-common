@@ -131,7 +131,7 @@ rather than as a fresh judgement call each time: keep both blocks, upstream firs
 the three marker lines. Then confirm both sides survived, since "kept both" is exactly the
 claim a careless edit silently breaks.
 
-## A file that is one enormous line breaks every assumption above
+## A file that is one enormous line defeats line-based merging
 
 "Non-overlapping edits to the same file merge cleanly" is a statement about *lines*. A file
 whose content is one gigantic line — a prose paragraph kept unwrapped, minified output,
@@ -236,7 +236,7 @@ check cannot vouch for, which is why the merged block goes in front of the user.
 
 ## The worst case makes no conflict at all
 
-Both sections above are about a pop that *stops*. The case to fear is the one that succeeds: two
+The one-enormous-line and both-sides-rewrote sections are about a pop that *stops*. The case to fear is the one that succeeds: two
 sides added the **same knowledge in different places**, so the hunks never touch and git has
 nothing to report. Measured 2026-09-14 on a shared learnings file — one session appended a
 "PrintWindow's alpha is not the window's transparency" section at line 108, another pushed the
@@ -256,7 +256,7 @@ Two headings can differ in every word and still be one section — "`PrintWindow
 not the window's transparency" against "PrintWindow's alpha cannot tell you whether a window is
 transparent" — so compare what they *claim*, not how they are spelled. Resolve by merging the two
 into whichever one is better placed, taking each side's strongest parts; do not keep both and do
-not pick a side, for the same reason the section above gives. The risk scales with how many
+not pick a side, for the same reason the both-sides-rewrote section gives. The risk scales with how many
 sessions write to one knowledge base, and it is highest exactly where the base is most useful.
 
 **The same duplication happens across two files, where no table of contents can see it.** The check
@@ -423,7 +423,7 @@ git diff --name-only <old-head> <new-head> -- <the unstashed dirty paths>   # em
 
 ## Discarding untracked work safely: prove it is a function of what is committed
 
-The sections above are about untracked or stashed work you must **keep**. The inverse case turns up
+The fast-forwarding, conflict and stash sections are about untracked or stashed work you must **keep**. The inverse case turns up
 whenever a change was made by hand and never committed, and you now want the tested path to make it
 instead: a hand-run migration, a scripted edit, a generated tree. `git checkout` cannot restore what
 it never tracked, so `rm -rf` on that tree is the one genuinely irreversible step in the operation.

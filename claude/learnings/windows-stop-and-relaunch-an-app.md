@@ -16,7 +16,7 @@ Measured 2026-10-09 with a hidden stand-in exe that exits about a second after l
 
 A long-lived process passed the last check and a never-launched one failed it. The same reasoning applies on Linux, where a backgrounded exec exists before the shell moves on. `wait_for_app_start` in `claude/skills/shared/app-process.sh` implements the last row for every platform.
 
-A process probe through `powershell.exe -Command "Get-Process …"` costs about 1 s on a cold start and 0.35 s once warm. That cost is part of every poll interval and can swallow a short-lived process before the first poll sees it, which is why the first trial in the table above failed both checks.
+A process probe through `powershell.exe -Command "Get-Process …"` costs about 1 s on a cold start and 0.35 s once warm. That cost is part of every poll interval and can swallow a short-lived process before the first poll sees it, which is why the first trial in the launch-check table failed both checks.
 
 ## The stop path showed no lock in what was measured
 

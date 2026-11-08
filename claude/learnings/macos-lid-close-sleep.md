@@ -172,7 +172,7 @@ Rules learned the hard way:
   names contain `.` or end in `~`. Naming the drop-in after a bundle id
   (`com.example.app`) leaves the grant permanently, silently inert.
 - **Pin the argv.** sudo matches arguments literally when they are specified, so
-  the rule above permits exactly two commands and cannot be widened into a root
+  the `pmset` sudoers rule permits exactly two commands and cannot be widened into a root
   shell. The rule and every call site must then agree character-for-character —
   build both from one constant.
 - **No `Digest_Spec`.** `/usr/bin/pmset` lives on the sealed, read-only system

@@ -36,7 +36,7 @@ Every normal defence misses it:
 - **The compiler is happy.** `then_some` is being used exactly as designed.
 - **Tests miss it.** The bad branch fires only when the underlying call fails, which for a fixed
   ASCII literal means an allocator failure — unreachable in any ordinary test.
-- **The `Err` path looks implemented.** In the case below, `hold()` carried a perfectly good
+- **The `Err` path looks implemented.** In the worked case, `hold()` carried a perfectly good
   `.ok_or_else(|| "could not build the assertion-type string")` that was **dead code**: control
   trapped inside the constructor and never returned to produce it.
 - **Grep does not sort it out.** A crate can have a dozen `then_some` call sites and only one of

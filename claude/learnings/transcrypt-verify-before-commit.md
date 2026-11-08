@@ -171,11 +171,11 @@ passes, because the attribute is committed. A content check guarded on the per-r
 (`[ -x .git/crypt/transcrypt ] || exit 0`) no-ops, because that copy is exactly what a fresh clone lacks. The
 two together look like defence in depth and have a shared blind spot. Make the content check unconditional —
 if a staged path resolves to `filter=crypt`, assert the staged blob has ciphertext's whole shape, whether or not
-transcrypt is installed in that clone. A prefix alone is not enough; the next section says why.
+transcrypt is installed in that clone. A prefix alone is not enough; the appended-line section says why.
 
 ## A prefix check passes ciphertext with a line appended
 
-"Starts with `U2FsdGVkX1`" is the check transcrypt uses and the one the section above reaches for, and an
+"Starts with `U2FsdGVkX1`" is the check transcrypt uses and the one the un-initialised-machine section reaches for, and an
 append defeats it in every clone. In a clone that is not unlocked, the working copy of a secret *is* its
 ciphertext, so `echo KEY=value >> x.secret.env` keeps the first bytes and stages verbatim. In an unlocked clone
 the same append survives, because transcrypt's clean filter passes any input that already opens with the magic

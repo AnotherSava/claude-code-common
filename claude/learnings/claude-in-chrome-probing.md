@@ -361,7 +361,7 @@ place to put anything load-bearing.
 
 ## `cancel` on `<dialog>` IS observable, unlike `close`
 
-The sibling of the section above, and the useful half: `dlg.dispatchEvent(new Event("cancel", { cancelable: true }))`
+The sibling of the `close` on `<dialog>` section, and the useful half: `dlg.dispatchEvent(new Event("cancel", { cancelable: true }))`
 does reach React's `onCancel`. So the Esc path of a dialog — usually a separate branch from the ✕ button, and the one
 that is easy to leave out of a refactor — can be exercised from evaluated code even though Esc itself cannot be
 synthesised. Assert on what the handler does (the dialog unmounts, a request goes out), not on the event.

@@ -118,7 +118,7 @@ The other repo tests its own rules; duplicating those cases here would recreate 
 What is worth pinning locally is everything this side owns: that the rules get called for the right file, that
 they are skipped for the wrong one, and that each of the three ways they can fail to run — absent checkout,
 absent declaration, declaration pointing at nothing — produces a notice rather than silence. Write the
-silent cases and the notice cases next to each other in the test file; a row of the table above missing from it
+silent cases and the notice cases next to each other in the test file; a row of the `VHOST_SRC` outcome table missing from it
 is exactly how one of them goes back to being quiet.
 
 Stub the dependency so the tests run on a machine that lacks it — and have the stub assert the arguments it

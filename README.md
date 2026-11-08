@@ -1211,13 +1211,13 @@ The last line puts the `dev-port` command on `PATH` — for the user on Windows,
 
 ### Verifying the install
 
-Confirm every link above resolves, on this machine:
+Confirm every link the install blocks create resolves, on this machine:
 
 ```bash
 python ~/.claude/hooks/check-install.py
 ```
 
-It prints a pass/fail line per link, per git setting and per `PATH` entry, and the same script runs at every session start — silent unless something is broken. A link added to the blocks above needs a matching line in its `LINKS` list or it goes unchecked, which the commit gate now asserts rather than leaving to memory. See [Install Check](#install-check) for what it catches and what it cannot.
+It prints a pass/fail line per link, per git setting and per `PATH` entry, and the same script runs at every session start — silent unless something is broken. A link added to the Windows or Linux / macOS install block needs a matching line in its `LINKS` list or it goes unchecked, which the commit gate now asserts rather than leaving to memory. See [Install Check](#install-check) for what it catches and what it cannot.
 
 ### Python interpreter
 

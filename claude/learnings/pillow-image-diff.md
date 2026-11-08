@@ -37,5 +37,5 @@ rows = [y for y in range(h) if d.crop((0, y, w, y + 1)).getbbox()]
 # group consecutive rows into bands, then getbbox() each band
 ```
 
-In the case above the raw box ran from the edited card down to a slider 850 px below; with a
+In the recaptured-screenshot case the raw box ran from the edited card down to a slider 850 px below; with a
 threshold of 8 the only band left was the one line of changed text.

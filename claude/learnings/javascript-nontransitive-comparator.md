@@ -39,4 +39,4 @@ A comparator key gated on a predicate P (returns 0 unless BOTH items satisfy P) 
 
 ## Debugging signature
 
-If a `.sort()` result matches NEITHER the old behavior NOR the intended new one (looks random), suspect non-transitivity **before** suspecting a data / deploy / cache problem. A one-shot log of the post-sort order printing each item's competing keys confirms it in one request — that's how the case above was pinned after "stale render" and "did the build pick it up?" were ruled out.
+If a `.sort()` result matches NEITHER the old behavior NOR the intended new one (looks random), suspect non-transitivity **before** suspecting a data / deploy / cache problem. A one-shot log of the post-sort order printing each item's competing keys confirms it in one request — that's how the shows-list case was pinned after "stale render" and "did the build pick it up?" were ruled out.

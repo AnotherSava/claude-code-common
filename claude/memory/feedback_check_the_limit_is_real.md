@@ -47,7 +47,7 @@ the coverage and a single existing capture was enough. Nothing was blocked. By t
 been written into a memo and a screenshot manifest as fact, and the proposed unblocking involved the
 user setting up a table and editing site CSS — for work that needed neither.
 
-The tell differs from the case above. There the question is *what already decided this upstream*;
+The tell differs from the sender-identity case. There the question is *what already decided this upstream*;
 here it is **does this general rule's premise actually hold for my subject?** A method's precondition
 is a property of the method, not of the world, so check the subject against it before reporting the
 subject as the obstacle. Both times the correction was the user asking nothing more than "why do you

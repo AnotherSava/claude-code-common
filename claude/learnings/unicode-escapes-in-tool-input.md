@@ -48,7 +48,7 @@ strings:
 "command": "python -S \u0022$HOME/.claude/hooks/doppler-guard.py\u0022"
 ```
 
-Every hook command is therefore an un-editable line by the rule above — `old_string` containing
+Every hook command is therefore an un-editable line by the Edit-can't-match rule — `old_string` containing
 `\u0022` arrives as a plain `"` and matches nothing. Two further traps compound it:
 
 - **Edit strips trailing whitespace from `new_string`.** A replacement meant to end in a space
@@ -76,7 +76,7 @@ hot-reloads on write, so the first bad save is already in force.
 
 ## `\n` has the same problem, and a whitespace-normalizing destination hides it
 
-The trap above is usually caught by a failed match, which is loud. It goes silent when the escape is
+The `\uXXXX` trap is usually caught by a failed match, which is loud. It goes silent when the escape is
 part of **prose being written into a store that collapses whitespace**. Real case, 2026-09-03: a memo
 whose text quoted the shell fix `base64 -i "$CASK" | tr -d '\n'` went through `memos.py`, which then
 did `text = " ".join(" ".join(args).split())` to force one line per entry. The `\n` had already become

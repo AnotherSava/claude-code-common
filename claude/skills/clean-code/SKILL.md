@@ -17,7 +17,7 @@ Audit modified files for dead code, duplication, needless complexity, naming con
 ## Process
 
 **When `/wrap-up` runs this skill, do not stop for approval.** It collects every question of a close-out into one
-summary, so make the changes that need none (debug prints, imports), and return each proposal the steps below would
+summary, so make the changes that need none (debug prints, imports), and return each proposal the Process steps would
 wait on as a list — what, where, why — for that summary. Apply the approved ones when the caller says so.
 
 **The scope is the working tree AND the unpushed commits**, not whichever of the two the first

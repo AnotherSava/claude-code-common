@@ -365,7 +365,7 @@ OPTIONS /Videos/{id}/stream     → 204, access-control-allow-headers: authoriza
 new Hls({ xhrSetup: (xhr) => xhr.setRequestHeader("Authorization", mediaBrowserAuth) })
 ```
 
-The header route matters for more than tidiness: per the section above, a query-authenticated manifest request
+The header route matters for more than tidiness: per the query-token section, a query-authenticated manifest request
 comes back with the token stamped into every child URL. Header auth keeps it out of all of them — verified, 0
 occurrences in a real transcode manifest. Subtitles are a few hundred KB, so leaving them same-origin costs
 nothing and avoids both a second credential-bearing URL and the `crossorigin` attribute entirely.
@@ -603,7 +603,7 @@ Note that throttling deliberately pauses ffmpeg, which in principle can look lik
 to a TTFB-based diagnostic — it engages only once the client is far ahead, so the segments being asked for are already
 written.
 
-**Segment deletion is the one to leave alone, and the section below is why.**
+**Segment deletion is the one to leave alone, and the `EnableSegmentDeletion` section is why.**
 
 ## `EnableSegmentDeletion` costs ~1.8 s on every stream-copy play
 

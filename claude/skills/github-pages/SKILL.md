@@ -164,7 +164,7 @@ nav_order: 1
 
 *<One-line tagline — same as README, italicized.>*
 
-<Context paragraph: what kind of thing this is (form factor, supported platforms) plus the one or two core capabilities a visitor sees first — not a features rundown; those stay in the list below.>
+<Context paragraph: what kind of thing this is (form factor, supported platforms) plus the one or two core capabilities a visitor sees first — not a features rundown; those stay in the Features list.>
 
 <a href="screenshots/<cover>.png"><img src="screenshots/<cover>.png" alt="<descriptive alt>" width="1000"></a>
 
@@ -177,7 +177,7 @@ nav_order: 1
 - **<Feature 1>** — one-line user-visible description
 - **<Feature 2>** — ...
 
-## Install  (omit when a dedicated Installation page leads the Next steps list below)
+## Install  (omit when a dedicated Installation page leads the Next steps list)
 
 <One-line pointer to the Developer guide or distribution channel.>
 
@@ -356,7 +356,7 @@ The README never contains setup, build, architecture, or API content. If you cat
 
 ## In-app About dialog (if present)
 
-Some projects (desktop apps, browser extensions, IDE plugins) ship an in-app **About** dialog. When one exists, treat it as a third surface that shares the **tagline** with `README.md` and `docs/index.md`, word for word. Beyond the tagline the surfaces diverge: README and index carry the Features bullet list (see below), while the About dialog carries its own short what-it-does prose — a couple of sentences, not required to mirror README/index paragraphs and never a bullet list.
+Some projects (desktop apps, browser extensions, IDE plugins) ship an in-app **About** dialog. When one exists, treat it as a third surface that shares the **tagline** with `README.md` and `docs/index.md`, word for word. Beyond the tagline the surfaces diverge: README and index carry the Features bullet list (see the `docs/index.md` shape and README.md shape sections), while the About dialog carries its own short what-it-does prose — a couple of sentences, not required to mirror README/index paragraphs and never a bullet list.
 
 The About dialog additionally carries two things the README/home page handle elsewhere, and which belong only in the dialog:
 

@@ -47,7 +47,7 @@ So decode once, keep the raw bytes, and hand each tier its own view.
 
 ### The model needs the attachment's TEXT, and the failure without it is a confident lie
 
-Handing the model the decoded body alone is the obvious reading of the rule above, and it is wrong for the
+Handing the model the decoded body alone is the obvious reading of the decode-once rule, and it is wrong for the
 senders who put the itinerary in the attachment. Run each PDF part through a text extractor and append the
 result to what the model is sent.
 

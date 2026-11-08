@@ -175,12 +175,12 @@ New-ScheduledTaskAction -Execute $cmd -Argument $args -WorkingDirectory $repo
 ```
 
 Keep the redirect. It captures bash's own startup failures, which the script by definition cannot log about
-itself — exactly the class of failure above.
+itself — exactly the silent `LastTaskResult : 1` class of failure.
 
 ### …but `cmd.exe` puts the console window straight back
 
-This silently undoes *Avoiding a console window* above, for every bash job. The two fixes are natural to
-reach independently and they contradict each other: a task shaped like the block above flashes a window on
+This silently undoes *Avoiding a console window*, for every bash job. The two fixes are natural to
+reach independently and they contradict each other: a task shaped like the `cmd.exe` `New-ScheduledTaskAction` block flashes a window on
 the user's desktop every night at whatever hour it runs, and nobody connects that to a section about
 `pythonw` written for Python entry points.
 

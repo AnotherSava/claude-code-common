@@ -47,7 +47,7 @@ rule is the more expensive answer and one of these obstacles was never there.
 this machine report incompatible results from 2026-09-29. One was refused three times — inside a `set -x`
 block, as a plain multi-line sequence, and alone as the only command on the line — then succeeded on a later
 invocation. A second was refused with nothing wrapping it. A third ran it unblocked *inside a bash heredoc*,
-the shape the section above identifies as the problem. So the wrapper is not the discriminator for this
+the shape the heredoc-wrapper section identifies as the problem. So the wrapper is not the discriminator for this
 subcommand. `transcrypt --list` and `--version` were refused in none of the three.
 
 **A `Bash(transcrypt:*)` rule is not the remedy, however plausible it reads.** In the session that recovered,
