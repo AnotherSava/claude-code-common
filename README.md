@@ -527,7 +527,7 @@ Closes out a section of work with one approval. It reviews the change through th
 - Runs `review-auto` in fix mode over everything since the last recorded review — the working tree and every commit [`/yolo`](#yolo) pushed since — in the background while it reads the transcript, and skips it only when nothing has changed since the bookmark
 - Settles what belongs in the tree before launching that review, deleting junk such as crash dumps and checking every path the session did not write for another live session still writing it, since the review snapshots every untracked file that is not ignored and a reviewed path left out of the commits stops the bookmark from moving
 - Reads the transcript on disk rather than the live context, so a session that has been compacted still gets a complete review
-- Starts that reading after the last earlier `/wrap-up` in the session that went on to commit, push or move the review bookmark, or at the last `/clear` when that comes later, so a session that carries on after a wrap-up needs no `/clear` to keep the next one to the new work, and a run interrupted or diverted before its commit step hides nothing said before it
+- Starts that reading after the last earlier `/wrap-up` in the session that went on to commit, push or move the review bookmark, whether the user typed it or Claude invoked it through the Skill tool, or at the last `/clear` when that comes later, so a session that carries on after a wrap-up needs no `/clear` to keep the next one to the new work, and a run interrupted or diverted before its commit step hides nothing said before it
 - Keeps every word both sides said and discards tool traffic; prose is a small fraction of a transcript (82 KB of a 3.5 MB session, measured), so no keyword heuristic has to decide which findings are allowed to surface
 - Restores answers given through question prompts, which carry direction that often appears nowhere else in the session
 - Checks each candidate against the current working tree before presenting it, dropping whatever is already settled: a later message, an existing memo, an earlier `/wrap-up`, or a step of this skill that owns it
@@ -544,7 +544,7 @@ Closes out a section of work with one approval. It reviews the change through th
 - Offers `/release` when feat or fix commits have gone in since the last `v*` tag, listing them so the user judges whether they reach users; counted after the push, with tags fetched first so a release cut on the other machine is not counted again, and silent for a project never tagged, whose first release stays a deliberate act
 - Ends by recommending `/clear` as the sign that the section is finished, and withholds it where the push was declined or a run left something to fix
 
-**Tests:** `python claude/tests/session-scan.py` — exit 0 when every case behaves, 1 otherwise. It writes transcripts under a scratch `HOME` and pins where the digest starts: after an earlier `/wrap-up` that reached its commit step, not at one interrupted or diverted before it, nor at a trailing one the current run wrote, and at a later `/clear` when there is one.
+**Tests:** `python claude/tests/session-scan.py` — exit 0 when every case behaves, 1 otherwise. It writes transcripts under a scratch `HOME` and pins where the digest starts: after an earlier `/wrap-up` that reached its commit step, typed or invoked through the Skill tool, not at one interrupted or diverted before it, nor at a trailing one the current run wrote, and at a later `/clear` when there is one.
 
 ---
 
