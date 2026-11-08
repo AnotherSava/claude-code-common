@@ -355,6 +355,21 @@ The destructive counterpart to `deploy`: stops the running app, removes the inst
 
 ---
 
+### Broom
+
+Reclaims disk space on the Mac and warns before it runs out. The deterministic half is `claude/scripts/reclaim-disk.sh`, which sweeps what a rule already calls regenerable; the skill is the judgement the script cannot encode: settling the rows it refuses to settle alone, and classifying a consumer no rule covers yet.
+
+**Command:** `/broom`
+
+**Features:**
+- `reclaim-disk.sh` with no flag reports and deletes nothing; `--apply` removes the candidates whose class authorizes a delete and leaves the rest in the report
+- Every candidate carries a class, and a guard that refuses one prints its reason; the script's header defines the classes and documents every guard
+- `--alarm` only measures free space and sends a Telegram notice below the warn and critical floors the script's usage block sets; `--install` loads it as a daily LaunchAgent, `--uninstall` removes it
+- Separate age gates for build artifacts, tool caches and signed-bundle clones
+- Scope is the Mac's own free space: a disk inside a VM or container filling up is that tool's concern, since pruning inside it frees nothing on the Mac
+
+---
+
 ### Build
 
 Configures a build shortcut for any project. On first use, sets up the `build` bash function, creates a local `scripts/build.sh` wrapper, and updates `.gitignore`. Then auto-detects the project type and builds. Optionally generates a GitHub Actions CI workflow.
@@ -624,6 +639,7 @@ Moves or renames the current project folder while preserving the Claude Code dat
 - Re-points a project memory link made by `link-project-memory.sh` at the new folder, since the link's absolute target would otherwise dangle; on Windows that step needs an Administrator shell
 - Previews every move and the relink with their resolved paths before anything runs, and refuses a destination that already exists, except for a case-only rename (`Web` → `web`), which a case-insensitive file system reports as existing because it is the same folder
 - Ends the printed commands with a call to the dashboard's `/api/project/rename` route, chained after the moves so it runs only once the folder has actually moved; the project's dashboard history and custom name then follow it to the new path
+- Adds a `ports.py release` for the dev-server claims a folder rename strands, since those claims are keyed on the folder name and the next `deploy` allocates new ones
 - **Prints the commands rather than running them** — moving the working directory out from under a live session would break it, so they are run from elsewhere and Claude reopened at the new location
 - Prints PowerShell alongside bash on Windows, bash alone on macOS and Linux; the PowerShell variant posts with `Invoke-RestMethod` and a UTF-8 charset, since Windows PowerShell 5.1 otherwise sends a non-ASCII folder name as `?`
 - Skips the root data move for a project that has no `~/.claude/projects/` directory yet, while still moving any subfolder keys
