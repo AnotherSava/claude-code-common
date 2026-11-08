@@ -47,7 +47,7 @@ Move or rename the current project folder while preserving all associated Claude
                     ~/.claude/projects/OLD_KEY-<suffix> → ~/.claude/projects/NEW_KEY-<suffix>   (one line per subfolder key, or: none)
    Memory link:     re-pointed at NEW_PATH/.claude/memory   (or: not linked)
    Ports registry:  <N> claim(s) owned by OLD_NAME → NEW_NAME   (or: none)
-   Dev-server claims: release <slug>, <slug>; the registry diff is left uncommitted in the dotfiles repo   (or: none)
+   Dev claims:      release <slug>, <slug>; the registry diff is left uncommitted in the dotfiles repo   (or: none)
    ```
    Ask: "Proceed? (y/n)"
 
