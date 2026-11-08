@@ -158,6 +158,13 @@ Worth knowing before ingesting any of it:
   (attendee row count equals summed `taken_count`). It's an include on a call you already make, so it costs no
   extra requests. Gated per convention by an organizer-set `event_attendees_visible` flag — roughly a quarter
   of upcoming scheduled events are hidden. That flag is an **organizer** setting, not attendee consent.
+  The include also works on the paged list `GET /convention/{id}/events`, so a whole convention's rosters
+  arrive with the schedule pages an adapter already reads. Verified inert there too: with and without it, no
+  other field differed across 888 events of two conventions. In that sample no name held an `@` (0 of 2,182),
+  and `is_host` rows exist (19 on the larger convention): a host holding a ticket of their own, listed under
+  the badge name while `hosts[].name` is the account username, so the two never match by string.
+- **`hosts_also_play`** (0/1, on every event, no include needed) is what the event page renders as "Hosts are
+  also playing": whether the host takes a seat at the table.
 - **Host names are frequently raw email addresses** (~6–8% of host values across two conventions).
 - **`avatar_uri` is `md5(account_email)`**, case-preserved (not lowercased, contrary to Gravatar's spec),
   served anonymously wherever users appear. That makes it an email-confirmation oracle — and, usefully, a

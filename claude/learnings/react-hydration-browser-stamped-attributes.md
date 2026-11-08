@@ -45,10 +45,12 @@ an ordinary prop, so the spread keeps refs working.
 
 Next 16's dev server forwards browser console errors to its terminal output with a `[browser]` prefix, diff
 included: lines starting with `-` are attributes the client has and the server did not render. Grep the dev
-server's log for the attribute and the element above it, rather than asking for a screenshot of the overlay:
+server's log for the attribute and the element above it, rather than asking for a screenshot of the overlay.
+The diff prints each attribute on its own line, so the opening tag can sit any number of lines above the stamp;
+remember the last tag line instead of taking a fixed count of lines before it:
 
 ```bash
-grep -B4 "^-  *__gcr" dev-server.err.log | grep -E "^ *<[a-z]+|__gcr"
+awk '/^[-+]? *<[a-z]+/ { tag = $0 } /^-  *__gcr/ { print tag; print $0 }' dev-server.err.log
 ```
 
 Related: `nextjs-ssr-hydration-locale-sort.md`, a mismatch the app itself causes.
