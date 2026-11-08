@@ -23,6 +23,11 @@ newMonitor  type=2  url=…  keyword_type=2  keyword_value=<marker>  interval=30
 - `type=2` is a keyword monitor; `type=1` is plain HTTP, which stays green whatever app answers.
 - `keyword_type=2` means **alert when the keyword does NOT exist**. `1` is the opposite, alerting when it
   appears, and is the easy wrong choice.
+- One monitor covers **half** of the shared-host identity rule (`docker-compose-shared-host-co-tenancy.md`,
+  its "Detect it" section): `keyword_type=2` asserts the host's own marker is present, but the rule also wants every
+  other tenant's marker absent. `keyword_value` is a single parameter in the v2 docs, with no list syntax, so the
+  absent half takes one more `keyword_type=1` monitor per foreign marker on each hostname. That count comes from
+  the parameter's documentation, not from a test of a multi-value string.
 - `alert_contacts` is `<contact id>_<threshold>_<recurrence>`; read the id from `getAlertContacts`. The
   sign-up address is created as a contact automatically.
 - Encode the values (`curl --data-urlencode`, or `urllib.parse.urlencode`). A marker such as

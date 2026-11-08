@@ -110,6 +110,7 @@ template field selector rejects the hyphen — so index the inspect JSON instead
 | `ingress-lint.py` (hook adapter) | the dotfiles `hooks/` dir (global) | the same check, on `PostToolUse` | **written and tested, not registered** — see below before writing another |
 | `verify-tenancy.py` | the proxy-owning project's `bin/` dir, reaching the box as `/opt/landlord/bin/verify-tenancy.py` — no tenant keeps a copy | on-box structural check | run by hand |
 | `identity-check.py` | the dotfiles `scripts/` dir (global) | external identity assertion | every publish, via `IDENTITY_CHECK` |
+| an UptimeRobot keyword monitor per hostname | UptimeRobot, created through its API (`uptimerobot-api.md`) | external identity assertion, between publishes | continuous at the monitor's interval; one monitor asserts only the present half |
 | the per-host identity manifest | emitted on the box by `/opt/landlord/bin/host-manifest`, which publish finds with `test -x` over the ssh connection it already holds and then runs there | the per-host data the checker reads | the same `IDENTITY_CHECK` string |
 
 **The lint is repo-local and cannot see a collision between two repos** — it catches "this repo claims a generic
