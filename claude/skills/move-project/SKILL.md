@@ -38,6 +38,8 @@ Move or rename the current project folder while preserving all associated Claude
 
 4. **Rename the repo's ports registry claims, where it owns any and has no GitHub origin.** A repo is identified to the ports registry by its GitHub repository name, read from `origin`, which a folder move leaves alone — so where `git -C OLD_PATH remote get-url origin` names a GitHub repository, say the owners need nothing and move on. Only without one is the folder's basename the identity: `ports.py check --repo` then derives it from the main worktree and matches it against each claim's `owner`. Rename such a folder and leave the registry alone, and that check reports every pinned literal in the repo as pinned to some other repo while silently dropping the genuine finding about a port nothing resolves — a repo with a pinned claim then fails its own commit gate on a defect it does not have. Run `python3 ~/.claude/skills/ports/scripts/ports.py list` and read the `owner` column for the old folder name; where nothing carries it, say so and move on. Where something does, edit `owner` in `claude/skills/ports/registry.json` — `amend` does not reach that field, so this is a hand edit — changing only the old name and leaving the other entries of a shared comma-separated `owner` alone. Then run `ports.py check` to prove the document still passes, and `ports.py check --repo NEW_PATH` once the move has happened. That registry lives in the dotfiles repo rather than this one, so report the diff to the session that owns it and leave the commit there.
 
+   **Release the dev-server claims a rename strands, whatever the origin.** The claims are keyed by `ports.py dev-use-case` on the project folder's name, so the next `deploy` allocates fresh ones under the new name and the old pair stays in the registry, owned by the same repo and never used. Before the move, ask for the old slugs with `python3 ~/.claude/skills/ports/scripts/ports.py dev-use-case --from OLD_PATH --role server` and again with `--role tailnet`, rather than spelling them by hand. Where `ports.py list` shows either slug, add `python3 ~/.claude/skills/ports/scripts/ports.py release --use-case <slug>` for each to the commands step 6 hands over; a move that keeps the basename strands nothing. Those release lines edit `claude/skills/ports/registry.json` in the dotfiles repo after this session has exited, so nothing reports that diff to the session owning it: say so in the preview, so the user knows the next commit there will carry the released claims.
+
 5. **Preview and confirm.** Show the user what will happen:
    ```
    Project folder:  OLD_PATH → NEW_PATH
@@ -45,6 +47,7 @@ Move or rename the current project folder while preserving all associated Claude
                     ~/.claude/projects/OLD_KEY-<suffix> → ~/.claude/projects/NEW_KEY-<suffix>   (one line per subfolder key, or: none)
    Memory link:     re-pointed at NEW_PATH/.claude/memory   (or: not linked)
    Ports registry:  <N> claim(s) owned by OLD_NAME → NEW_NAME   (or: none)
+   Dev-server claims: release <slug>, <slug>; the registry diff is left uncommitted in the dotfiles repo   (or: none)
    ```
    Ask: "Proceed? (y/n)"
 
