@@ -11,7 +11,7 @@ See `~/.claude/learnings/shell-environment.md` for the expected bash functions a
 - Build function in shell rc: !`cat ~/.bashrc ~/.zshrc ~/.bash_profile ~/.zprofile 2>/dev/null | grep -c "build()" || echo 0`
 - run_repo_script helper in shell rc: !`cat ~/.bashrc ~/.zshrc ~/.bash_profile ~/.zprofile 2>/dev/null | grep -c "run_repo_script()" || echo 0`
 - Wrapper script exists: !`test -f scripts/build.sh && echo yes || echo no`
-- GitHub workflow: !`ls .github/workflows/*.yml 2>/dev/null || echo none`
+- GitHub workflow: !`F=$(find .github/workflows -maxdepth 1 -name '*.yml' 2>/dev/null | sort); [ -n "$F" ] && echo "$F" || echo none`
 
 ## 1. Check prerequisites
 

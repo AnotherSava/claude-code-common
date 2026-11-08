@@ -15,13 +15,13 @@ If `config/deploy.env` contains a `BACKUP_FILES=` line (comma- or space-separate
 - Cleanup function in shell rc: !`cat ~/.bashrc ~/.zshrc ~/.bash_profile ~/.zprofile 2>/dev/null | grep -c "cleanup()" || echo 0`
 - Shell rc target: !`case "$(uname -s)" in Darwin) echo "~/.zshrc" ;; MINGW*|MSYS*|CYGWIN*) echo "~/.bashrc" ;; *) [ -n "$ZSH_VERSION" ] || [ "${SHELL##*/}" = "zsh" ] && echo "~/.zshrc" || echo "~/.bashrc" ;; esac`
 - Wrapper script exists: !`test -f scripts/cleanup.sh && echo yes || echo no`
-- Wrapper target: !`grep -oE 'cleanup(-[a-z]+)?\.sh' scripts/cleanup.sh 2>/dev/null | tail -1 || echo none`
+- Wrapper target: !`V=$(grep -oE 'cleanup(-[a-z]+)?\.sh' scripts/cleanup.sh 2>/dev/null | tail -1); [ -n "$V" ] && echo "$V" || echo none`
 - Scripts in gitignore: !`grep -cx 'scripts/' .gitignore 2>/dev/null || echo 0`
 - Deploy env: !`cat config/deploy.env 2>/dev/null || echo MISSING`
 - Deploy env has BACKUP_FILES: !`grep -c '^BACKUP_FILES=' config/deploy.env 2>/dev/null || echo 0`
 - Cleanup backups in gitignore: !`grep -cx '.cleanup-backups/' .gitignore 2>/dev/null || echo 0`
 - Tauri project: !`test -f src-tauri/tauri.conf.json && echo yes || echo no`
-- Tauri identifier: !`sed -n 's/.*"identifier"[[:space:]]*:[[:space:]]*"\([^"]*\)".*/\1/p' src-tauri/tauri.conf.json 2>/dev/null | head -1 || echo none`
+- Tauri identifier: !`V=$(sed -n 's/.*"identifier"[[:space:]]*:[[:space:]]*"\([^"]*\)".*/\1/p' src-tauri/tauri.conf.json 2>/dev/null | head -1); [ -n "$V" ] && echo "$V" || echo none`
 
 ## 1. Detect project type
 

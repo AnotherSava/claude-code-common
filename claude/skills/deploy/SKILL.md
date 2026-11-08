@@ -39,7 +39,7 @@ that target script's header.
 - Deploy function calls run.sh: !`cat ~/.bashrc ~/.zshrc ~/.bash_profile ~/.zprofile 2>/dev/null | grep -c "skills/deploy/scripts/run.sh" || echo 0`
 - Shell rc target: !`case "$(uname -s)" in Darwin) echo "~/.zshrc" ;; MINGW*|MSYS*|CYGWIN*) echo "~/.bashrc" ;; *) [ -n "$ZSH_VERSION" ] || [ "${SHELL##*/}" = "zsh" ] && echo "~/.zshrc" || echo "~/.bashrc" ;; esac`
 - Legacy wrapper exists (scripts/deploy.sh): !`test -f scripts/deploy.sh && echo yes || echo no`
-- Convention record: !`grep -v '^#' .claude/conventions 2>/dev/null | head -1 || echo none`
+- Convention record: !`V=$(grep -v '^#' .claude/conventions 2>/dev/null | head -1); [ -n "$V" ] && echo "$V" || echo none`
 - Deploy settings ignored by git: !`git check-ignore -q config/deploy.env && echo yes || echo no`
 - Static web entry (index.html): !`(ls index.html web/index.html public/index.html src/index.html dist/index.html 2>/dev/null | grep -q .) && echo yes || echo no`
 - Static web dir (dir holding index.html; empty if none): !`for d in . web public src dist; do [ -f "$d/index.html" ] && { echo "$d"; break; }; done; true`
@@ -54,10 +54,10 @@ that target script's header.
 - Deploy local env: !`cat config/deploy.local.env 2>/dev/null || echo MISSING`
 - Deploy env has CONFIG_DEST: !`grep -c '^CONFIG_DEST=' config/deploy.env 2>/dev/null || echo 0`
 - Tauri project: !`test -f src-tauri/tauri.conf.json && echo yes || echo no`
-- Tauri identifier: !`sed -n 's/.*"identifier"[[:space:]]*:[[:space:]]*"\([^"]*\)".*/\1/p' src-tauri/tauri.conf.json 2>/dev/null | head -1 || echo none`
+- Tauri identifier: !`V=$(sed -n 's/.*"identifier"[[:space:]]*:[[:space:]]*"\([^"]*\)".*/\1/p' src-tauri/tauri.conf.json 2>/dev/null | head -1); [ -n "$V" ] && echo "$V" || echo none`
 - Secret config template present (config/local.template.json): !`test -f config/local.template.json && echo yes || echo no`
 - Deploy env has DOPPLER_PROJECT: !`grep -c '^DOPPLER_PROJECT=' config/deploy.env 2>/dev/null || echo 0`
-- .NET project: !`ls src/*.csproj 2>/dev/null | grep -q . && echo yes || echo no`
+- .NET project: !`F=$(find src -maxdepth 1 -name '*.csproj' 2>/dev/null); [ -n "$F" ] && echo yes || echo no`
 - IntelliJ plugin project: !`(test -f build.gradle.kts || test -f build.gradle) && grep -lE 'org\.jetbrains\.intellij(\.platform)?' build.gradle.kts build.gradle 2>/dev/null | grep -q . && echo yes || echo no`
 - IntelliJ plugins-dir guess: !`bash ~/.claude/skills/deploy/scripts/detect-intellij-target.sh plugins-dir 2>/dev/null || echo`
 - IntelliJ IDE exe guess: !`bash ~/.claude/skills/deploy/scripts/detect-intellij-target.sh ide-exe 2>/dev/null || echo`

@@ -30,16 +30,16 @@ produces is indistinguishable from the `0` that means current. See
 
 ### Project type probes
 - Chrome extension: !`R=$(git rev-parse --show-toplevel 2>/dev/null || pwd) && test -f "$R/manifest.json" && test -f "$R/package.json" && grep -q '"manifest_version"' "$R/manifest.json" 2>/dev/null && echo yes || echo no`
-- .NET project: !`R=$(git rev-parse --show-toplevel 2>/dev/null || pwd) && ls "$R"/src/*.csproj 2>/dev/null | grep -q . && echo yes || echo no`
+- .NET project: !`R=$(git rev-parse --show-toplevel 2>/dev/null || pwd); F=$(find "$R/src" -maxdepth 1 -name '*.csproj' 2>/dev/null | head -1); [ -n "$F" ] && echo yes || echo no`
 - Tauri project: !`R=$(git rev-parse --show-toplevel 2>/dev/null || pwd) && test -f "$R/src-tauri/tauri.conf.json" && echo yes || echo no`
 
 ### Stack-specific data
 - Manifest version: !`R=$(git rev-parse --show-toplevel 2>/dev/null || pwd) && node -p "require('$R/manifest.json').version" 2>/dev/null || echo n/a`
 - Package version: !`R=$(git rev-parse --show-toplevel 2>/dev/null || pwd) && node -p "require('$R/package.json').version" 2>/dev/null || echo n/a`
-- AssemblyName: !`R=$(git rev-parse --show-toplevel 2>/dev/null || pwd) && sed -n 's/.*<AssemblyName>\([^<]*\)<.*/\1/p' "$R"/src/*.csproj 2>/dev/null | head -1 || echo n/a`
-- Signing policy documented in: !`R=$(git rev-parse --show-toplevel 2>/dev/null || pwd); F=$(grep -rilE "code[ -]signing" "$R/README.md" "$R/docs" --include=*.md 2>/dev/null | sed "s|^$R/||" | head -3 | tr '\n' ' '); [ -n "$F" ] && echo "$F" || echo none`
+- AssemblyName: !`R=$(git rev-parse --show-toplevel 2>/dev/null || pwd); V=$(find "$R/src" -maxdepth 1 -name '*.csproj' 2>/dev/null | while read -r f; do sed -n 's/.*<AssemblyName>\([^<]*\)<.*/\1/p' "$f"; done | head -1); [ -n "$V" ] && echo "$V" || echo n/a`
+- Signing policy documented in: !`R=$(git rev-parse --show-toplevel 2>/dev/null || pwd); F=$(grep -rilE "code[ -]signing" "$R/README.md" "$R/docs" --include='*.md' 2>/dev/null | sed "s|^$R/||" | head -3 | tr '\n' ' '); [ -n "$F" ] && echo "$F" || echo none`
 - Tauri config version: !`R=$(git rev-parse --show-toplevel 2>/dev/null || pwd) && node -p "require('$R/src-tauri/tauri.conf.json').version" 2>/dev/null || echo n/a`
-- Tauri Cargo version: !`R=$(git rev-parse --show-toplevel 2>/dev/null || pwd) && sed -n 's/^version = "\([^"]*\)".*/\1/p' "$R/src-tauri/Cargo.toml" 2>/dev/null | head -1 || echo n/a`
+- Tauri Cargo version: !`R=$(git rev-parse --show-toplevel 2>/dev/null || pwd); V=$(sed -n 's/^version = "\([^"]*\)".*/\1/p' "$R/src-tauri/Cargo.toml" 2>/dev/null | head -1); [ -n "$V" ] && echo "$V" || echo n/a`
 
 ## Working directory
 

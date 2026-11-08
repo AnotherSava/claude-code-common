@@ -20,7 +20,7 @@ Read `~/.claude/skills/shared/bash-rules.md` for bash command constraints.
 - Latest release: !`gh release view --json tagName --jq .tagName 2>/dev/null || echo NONE`
 - Release zip assets: !`gh release view --json assets --jq ".assets[].name" 2>/dev/null || echo NONE`
 - API credentials: !`test -f ~/.claude/skills/publish-chrome-extension/config/cws.conf && echo PRESENT || echo MISSING`
-- Extension ID: !`grep -rhoE 'chromewebstore\.google\.com/detail/[^/]+/[a-p]{32}' --include='*.md' --exclude-dir=node_modules . 2>/dev/null | grep -oE '[a-p]{32}' | head -1 || echo NONE`
+- Extension ID: !`V=$(grep -rhoE 'chromewebstore\.google\.com/detail/[^/]+/[a-p]{32}' --include='*.md' --exclude-dir=node_modules . 2>/dev/null | grep -oE '[a-p]{32}' | head -1); [ -n "$V" ] && echo "$V" || echo NONE`
 
 ## 1. Check preconditions
 

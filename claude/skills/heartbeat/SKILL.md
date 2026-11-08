@@ -29,7 +29,7 @@ each leaves a green dashboard over an unwatched job, which is worse than an obvi
 ## Context
 - Project root: !`git rev-parse --show-toplevel 2>/dev/null || pwd`
 - Scheduled jobs here: !`find . -maxdepth 4 \( -name '*.timer' -o -name '*.service' -o -name 'backup*.sh' -o -name 'offsite*' -o -name 'crontab*' \) -not -path '*/node_modules/*' -not -path '*/.git/*' | head -20`
-- Ping already wired: !`grep -rl -e 'hc-ping' -e 'HEARTBEAT_URL' -e 'healthchecks' . --exclude-dir=node_modules --exclude-dir=.git 2>/dev/null | head -10 || echo NONE`
+- Ping already wired: !`V=$(grep -rl -e 'hc-ping' -e 'HEARTBEAT_URL' -e 'healthchecks' . --exclude-dir=node_modules --exclude-dir=.git 2>/dev/null | head -10); [ -n "$V" ] && echo "$V" || echo NONE`
 - Doppler coordinates: !`cat doppler.yaml 2>/dev/null || echo "(no doppler.yaml — ask /doppler for this project's shard and config)"`
 
 ## Two channels, two questions

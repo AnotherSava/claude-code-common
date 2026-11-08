@@ -24,9 +24,9 @@ three entry points, never merged — see `~/.claude/memory/feedback_deploy_publi
 - Wrapper script exists: !`test -f scripts/publish.sh && echo yes || echo no`
 - `publish()` in shell rc: !`grep -c "publish()" ~/.bashrc ~/.zshrc 2>/dev/null | awk -F: '{s+=$2} END {print s+0}'`
 - `run_repo_script()` in shell rc: !`grep -c "run_repo_script()" ~/.bashrc ~/.zshrc 2>/dev/null | awk -F: '{s+=$2} END {print s+0}'`
-- Compose file: !`ls docker-compose.yml */docker-compose.yml 2>/dev/null | head -1 || echo none`
-- Vhost file: !`ls */deploy/*.caddy deploy/*.caddy 2>/dev/null | head -1 || echo none`
-- CI publish workflow: !`ls .github/workflows/*publish* .github/workflows/*deploy* 2>/dev/null | head -1 || echo none`
+- Compose file: !`F=$(test -f docker-compose.yml && echo docker-compose.yml || find . -mindepth 2 -maxdepth 2 -name docker-compose.yml 2>/dev/null | sed 's|^\./||' | head -1); [ -n "$F" ] && echo "$F" || echo none`
+- Vhost file: !`F=$(find . -maxdepth 3 -path '*/deploy/*.caddy' 2>/dev/null | sed 's|^\./||' | head -1); [ -n "$F" ] && echo "$F" || echo none`
+- CI publish workflow: !`F=$(find .github/workflows -maxdepth 1 -name '*publish*' 2>/dev/null | head -1); [ -n "$F" ] || F=$(find .github/workflows -maxdepth 1 -name '*deploy*' 2>/dev/null | head -1); [ -n "$F" ] && echo "$F" || echo none`
 - Git remote: !`git remote get-url origin 2>/dev/null || echo none`
 - Crypt filter for `config/publish.env`: !`a=$(git check-attr filter -- config/publish.env 2>/dev/null | grep -c 'filter: crypt'); c=$(git config --get filter.crypt.clean >/dev/null 2>&1 && echo 1 || echo 0); [ "$a" = 1 ] && [ "$c" = 1 ] && echo "READY — attribute set and transcrypt initialised" || echo "NOT READY (attribute=$a initialised=$c) — do NOT write publish.env until both are 1"`
 
