@@ -123,6 +123,14 @@
       "front_for": 3904
     },
     {
+      "port": 3906,
+      "use_case": "whats-next-agent-dev-server",
+      "owner": "whats-next-agent",
+      "scope": "machine",
+      "status": "assigned",
+      "notes": "Vite dev server for the agent's Tauri UI; scripts/dev.mjs resolves it and hands it to Vite and to build.devUrl"
+    },
+    {
       "port": 3939,
       "use_case": "what-is-next-dev-server",
       "owner": "what-is-next",
