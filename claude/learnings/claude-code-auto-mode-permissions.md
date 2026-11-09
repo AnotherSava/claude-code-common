@@ -87,6 +87,14 @@ waiting for one is a stall. Where a bare, unwrapped single command is still refu
 their own step — see "What to do with a real denial" below — rather than reaching for a permission rule
 whose effect on this command nobody has measured.
 
+## A push wrapped in other commands is refused where the bare call passes
+
+Measured 2026-11-09, inside a `/yolo` the user had just approved: `cd … && git log … && push.py --caller yolo >
+log 2>&1; echo …; cat log` was denied with no reason given, and the bare `python ~/.claude/skills/shared/push.py
+--caller yolo` the skill prescribes went through on the next call. Run a push step exactly as its skill writes it,
+backgrounded where it is slow, and read the background task's output file afterwards instead of wrapping the call
+in a redirect.
+
 ## Appending to a shell rc file is refused as persistence
 
 Measured 2026-11-04: a command adding an `export PATH=…` line to `~/.zshrc` was denied as
