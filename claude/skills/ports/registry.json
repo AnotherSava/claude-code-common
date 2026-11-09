@@ -131,6 +131,15 @@
       "notes": "Vite dev server for the agent's Tauri UI; scripts/dev.mjs resolves it and hands it to Vite and to build.devUrl"
     },
     {
+      "port": 3907,
+      "use_case": "printlab-dev-tailnet",
+      "owner": "printlab",
+      "scope": "machine",
+      "status": "assigned",
+      "notes": "Tailnet front port for printlab's dev server on 3000. Allocated by deploy-dev-server.sh; the origin cannot share its own number.",
+      "front_for": 3000
+    },
+    {
       "port": 3939,
       "use_case": "what-is-next-dev-server",
       "owner": "what-is-next",
