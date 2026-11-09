@@ -493,6 +493,17 @@ work throws away the context needed to finish it. A run in step 9 that failed an
 to fix withholds it for the same reason: the session holding the output is the one that can act
 on it.
 
+A run driven by a peer's message has no user at the keyboard to type it, so that peer clears the session instead.
+Send step 8's report, the one carrying the dispositions and the push step's lines, to the driving peer as this run's
+last act, by `SendMessage` to the message's `from` or with `peer_relay.py send --project <its project>` when it came
+across machines, and say in it whether this session is clearable. On that word the peer runs
+`python3 ~/.claude/skills/shared/peer_relay.py clear --project <this repo's project>`, which has the dashboard type
+`/clear` into this session's composer and refuses over a draft. The message arrives while this session's turn is still
+ending, so say in it too that a refusal of `busy` means that turn has not finished yet and the peer runs `clear` again
+after it, stopping only on any other refusal; the peer reads its own docs and not this skill. The peer clears only a session whose
+wrap-up finished and pushed, the state in which this step offers `/clear` to the user; one that answered `hold`
+stays, as does one the paragraph on withholding keeps.
+
 ## Out of scope
 
 - Do NOT act on an item the user marked memo or drop.

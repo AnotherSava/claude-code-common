@@ -2,7 +2,8 @@
 `check` that collects failures, and the `report` that ends a suite.
 
 One module because every suite here that runs git for real owes the same seal, and a fix made to one copy of it (a
-new config key, a timeout) would leave the others reading this machine's config, signing key included.
+new config key, a timeout) would leave the others reading this machine's config, signing key included. A suite that
+runs no git imports `check` and `report` alone, which touch nothing until a seal is asked for.
 """
 
 from __future__ import annotations

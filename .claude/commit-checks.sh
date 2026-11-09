@@ -143,6 +143,10 @@ run "no raw commits" python3 claude/tests/no-raw-commits.py
 # review that reports success over files it never saw.
 run "worktree sandbox" python3 claude/tests/worktree-sandbox.py
 
+# The one relay subcommand that types into another session. A receipt reading as success when nothing
+# was typed leaves a peer believing a session was cleared.
+run "peer relay clear" python3 claude/tests/peer-relay.py
+
 # The global pre-push hook, which every push on both machines runs and which nothing else tests. A
 # review of one change to it found three defects, each of which let a push through that it existed
 # to stop or stopped one it had no reason to. Most cases are a real push to a bare repo on disk, and

@@ -1,5 +1,6 @@
 #!/usr/bin/env python3
-"""Send a message to the session working on a project on the OTHER machine, via the dashboard relay.
+"""Send a message to the session working on a project on the OTHER machine, via the dashboard relay, and have
+this machine's dashboard look up, start or clear a local session.
 
 Claude Code's own `SendMessage` reaches sessions on this machine only. Across machines, the local
 dashboard relays: `POST /api/message` on this box hops to the peer's dashboard, which resolves the
@@ -14,9 +15,10 @@ Two addressing rules this encodes, both of which cost real sends when done by ha
   mints a reply address like `CHROME/CHROME/claude`, refused one round trip later.
 - Both are PROJECT ids — the directory name the dashboard derives — never a `ListAgents` session name.
 
-The one local lookup is `session`: it asks this machine's dashboard for the `SendMessage` address of
-the session working in a project, matched by working directory, because a session renamed away from
-its directory name no longer matches a `ListAgents` name prefix.
+The local subcommands act on this machine's sessions through its dashboard: `open` starts one, and `clear` has the
+dashboard type `/clear` into one's composer. The one local lookup is `session`: it asks for the `SendMessage` address
+of the session working in a project, matched by working directory, because a session renamed away from its directory
+name no longer matches a `ListAgents` name prefix.
 
 Receipts are reported literally. `written` means the peer's session accepted the bytes, not that the
 model read them; `unknown` means the answer was lost and the frame may exist, so it is never retried.
@@ -25,6 +27,7 @@ model read them; `unknown` means the answer was lost and the frame may exist, so
     peer_relay.py peers                                   # the peer devices the dashboard hears
     peer_relay.py session [--project P]                   # the ListAgents name of P's session on THIS machine
     peer_relay.py open --dir D                            # start a session in D on THIS machine (opens a window)
+    peer_relay.py clear [--project P]                     # have the dashboard type /clear into P's session on THIS machine
 """
 
 from __future__ import annotations
@@ -77,10 +80,33 @@ def _post_receipt(path: str, body: dict) -> dict:
     try:
         return _request(path, body)
     except urllib.error.HTTPError as exc:
-        try:
-            return json.loads(exc.read().decode("utf-8", "replace"))
-        except ValueError:
-            return {"outcome": "refused", "reason": f"HTTP {exc.code}"}
+        receipt = _error_receipt(exc)
+        return {"outcome": "refused", "reason": f"HTTP {exc.code}"} if receipt is None else receipt
+
+
+def _error_receipt(exc: urllib.error.HTTPError) -> dict | None:
+    """The JSON receipt an error status carries, or None when its body is not one."""
+    try:
+        return json.loads(exc.read().decode("utf-8", "replace"))
+    except ValueError:
+        return None
+
+
+def _post_local(path: str, body: dict) -> dict:
+    """POST to a route that acts on THIS machine and return its receipt, raising PeerUnmeasured when nothing judged it.
+
+    An error status without a JSON receipt is the dashboard's router answering, not the route: a dashboard built before
+    the route answers it with an empty 404. Reading that as `refused` would claim a session or composer was checked.
+    """
+    try:
+        return _request(path, body)
+    except urllib.error.HTTPError as exc:
+        receipt = _error_receipt(exc)
+        if receipt is None:
+            raise PeerUnmeasured(f"the local dashboard answered {path} with HTTP {exc.code} and no receipt, so it likely predates that route; redeploy it") from exc
+        return receipt
+    except (urllib.error.URLError, OSError, ValueError) as exc:
+        raise PeerUnmeasured(f"the local dashboard did not answer ({exc})") from exc
 
 
 def current_project() -> str:
@@ -159,10 +185,17 @@ def _open_session(directory: str) -> dict:
     never land in one folder, and places the new one where the project's terminal last lived. Answers `outcome`
     `started`, `running` or `refused` with a `reason`. It opens a terminal window, so the caller asks the user first.
     """
-    try:
-        return _post_receipt("/api/session/open", {"dir": os.path.abspath(directory)})
-    except (urllib.error.URLError, OSError, ValueError) as exc:
-        raise PeerUnmeasured(f"the local dashboard did not answer ({exc})") from exc
+    return _post_local("/api/session/open", {"dir": os.path.abspath(directory)})
+
+
+def _clear_session(project: str) -> dict:
+    """Ask the dashboard to type `/clear` into the composer of `project`'s session on THIS machine.
+
+    A peer message cannot make a session run a built-in command, so `/api/session/command` types it the way the
+    dashboard already types `/exit`: it reads the composer first, refuses over a draft, and confirms the read-back before
+    Enter. Answers `outcome` `typed` or `refused` with a `reason`.
+    """
+    return _post_local("/api/session/command", {"project": project, "command": "/clear"})
 
 
 def send_to_project(project: str, text: str, from_label: str | None = None) -> list[tuple[str, dict]]:
@@ -191,17 +224,19 @@ def describe(target: str, receipt: dict) -> str:
 
 
 def main() -> int:
-    parser = argparse.ArgumentParser(description="Message the session on the other machine through the dashboard relay.")
+    parser = argparse.ArgumentParser(description="Message the session on the other machine through the dashboard relay, or look up, start or clear a session on this one.")
     sub = parser.add_subparsers(dest="command", required=True)
-    send_parser = sub.add_parser("send")
+    send_parser = sub.add_parser("send", help="message a project's session on the other machine")
     send_parser.add_argument("--project", default=None, help="target project id (default: this repo's)")
     send_parser.add_argument("--label", default=None, help="free description of the sender")
     send_parser.add_argument("text", nargs="?", help="message text (default: read stdin)")
-    sub.add_parser("peers")
-    session_parser = sub.add_parser("session")
+    sub.add_parser("peers", help="list the peer devices the dashboard hears")
+    session_parser = sub.add_parser("session", help="the ListAgents name of a project's session on this machine")
     session_parser.add_argument("--project", default=None, help="project id (default: this repo's)")
-    open_parser = sub.add_parser("open")
+    open_parser = sub.add_parser("open", help="start a session in a folder on this machine (opens a window)")
     open_parser.add_argument("--dir", required=True, help="the project folder to start a session in")
+    clear_parser = sub.add_parser("clear", help="have the dashboard type /clear into a project's session on this machine")
+    clear_parser.add_argument("--project", default=None, help="project id (default: this repo's)")
     args = parser.parse_args()
     try:
         if args.command == "peers":
@@ -214,14 +249,20 @@ def main() -> int:
         if args.command == "open":
             answer = _open_session(args.dir)
             outcome = answer.get("outcome", "?")
-            print(f"{answer.get('project') or args.dir}: {outcome}" + "".join(f" — {answer[k]}" for k in ("reason", "detail") if answer.get(k)))
+            print(describe(answer.get("project") or args.dir, answer))
             return 0 if outcome in ("started", "running") else 1
+        if args.command == "clear":
+            project = args.project or current_project()
+            answer = _clear_session(project)
+            outcome = answer.get("outcome", "?")
+            print(describe(project, answer))
+            return 0 if outcome == "typed" else 1
         text = args.text if args.text is not None else sys.stdin.read()
         receipts = send_to_project(args.project or current_project(), text, args.label)
         for target, receipt in receipts:
             print(describe(target, receipt))
     except PeerUnmeasured as exc:
-        if args.command in ("session", "open"):
+        if args.command in ("session", "open", "clear"):
             print(f"UNMEASURED — {exc}")
             return 1
         print(f"NOT SENT — {exc}, so the other machine is unmeasured")
