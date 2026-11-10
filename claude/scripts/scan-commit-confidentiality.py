@@ -215,16 +215,18 @@ def control_read(sources: Dict[str, List[Line]], allow_empty: Sequence[str] = ()
     This is what distinguishes a clean scan from one whose paths never resolved: an unreadable or empty source cannot
     supply a probe that matches itself. An empty range or index is the one source that can be legitimately empty —
     nothing to publish is a state, not a failed read — so a caller naming it in `allow_empty` exempts it. An added-line
-    source is often one short line, so a source named in `short_ok` needs only a non-empty line to probe with. A file
-    whose only added lines are blank still fails, so a commit adding nothing but a blank line to a file exits 2 ("could
-    not run") and is blocked by `commit.py` and pre-push alike: fold that line into a commit with real content in the
-    same file, or drop it.
+    source is often one short line, so a source named in `short_ok` needs only a non-empty line to probe with, and one
+    whose added lines are all blank passes outright: git produced those lines, which is the read the probe stands in
+    for, and whitespace publishes nothing. A file named in `paths` gets no such pass, since nothing but its own content
+    shows it was read.
     """
     failures: List[str] = []
     for name, lines in sources.items():
         if not lines and name in allow_empty:
             continue
         texts = [text for _, text in lines]
+        if texts and name in short_ok and not any(text.strip() for text in texts):
+            continue
         probe = max(texts, key=len).strip() if texts else ""
         if len(probe) < (1 if name in short_ok else 12):
             failures.append("{0}: no line long enough to probe with ({1} line(s))".format(name, len(lines)))
@@ -368,6 +370,13 @@ def self_test() -> int:
             failures.append("read control rejected an empty range it was told to allow")
         if not control_read({"empty.md": []}, (key,)):
             failures.append("allow_empty exempted a source it does not name")
+
+        # An added-line source of blank lines alone is a read diff with nothing to publish; a named file of blank lines
+        # is still unproven, since only its content shows it was read.
+        if control_read({"abc1234:app.py": [(5, ""), (6, "   ")]}, (), {"abc1234:app.py"}):
+            failures.append("read control rejected an added-line source holding only blank lines")
+        if not control_read({"blank.md": [(1, ""), (2, "  ")]}):
+            failures.append("read control passed a named file holding only blank lines")
 
         # Only added lines are read: a removed line and a context line publish nothing.
         patch = "COMMIT abc1234\n+++ b/app.txt\n@@ -1,2 +1,2 @@\n-old 100.64.0.1 line\n+new line at 100.64.0.2\n"
