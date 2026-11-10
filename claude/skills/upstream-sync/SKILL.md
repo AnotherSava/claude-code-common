@@ -99,8 +99,9 @@ The feature triage is only as good as this. Gather, read-only:
   `grep -ohE "<tool>ctl(\.exe)? [a-z-]+( [a-z-]+)?" ~/.claude/projects/*/*.jsonl | sort | uniq -c | sort -rn | head -25`.
 - **Integrating repos:** delegate one `Explore` agent to list every call the user's other repos make into
   the product (dashboards, skills, scripts), with file, function and what each call is used for. A call
-  existing is not relevance: a `session new` that only runs an attach script never cares which cwd it opens in. When the product is a terminal or app
-  with a live control socket, its prompt carries the project's own safety line verbatim (agterm's:
+  existing is not relevance: a `session new` that only runs an attach script never cares which cwd it
+  opens in. When the product is a terminal or app with a live control socket, its prompt carries the
+  project's own safety line verbatim (agterm's:
   "never execute `agterm`/`agtermctl` against the default socket, never launch or quit the app, static
   reading only."); for a product with none written down, adapt that one.
 - **Memories and memos** of the integrating repos that name a missing capability: an upstream feature may
@@ -123,30 +124,32 @@ The session that ran steps 1-5 asks it, and names where step 6 will run.
 
 ## 6. Integrate
 
-Steps 1-5 may run on either machine; step 6 runs where the patch branch is owned and the gate runs. When
-that is another session, hand it off through the `peer` skill with the step 3 plan, the user's answer, and
-the order agreed for committing and the discussion. The receiver re-measures (rev-list, `git cherry`,
-merge-tree) before rebasing, since the range may have moved.
+Steps 1-5 may run on either machine; step 6 runs where the patch branch is owned. When that is another
+session, hand it off through the `peer` skill with the step 3 plan and the user's answer. The receiver
+re-measures (rev-list, `git cherry`, merge-tree) before rebasing, since the range may have moved.
 
 1. Rebase or merge by the method from step 1. Resolve per the step 3 plan; mid-rebase `--ours` is the
    upstream side (the learnings file has the detail).
 2. Update the fork's own record of its patches in the same change: the patches README, the fork memory note,
-   and any fork version bump. Commit these through `shared/commit.py` (or `/wrap-up`) before the force push,
-   so the pushed branch carries its own description.
+   and any fork version bump. Commit these through `shared/commit.py`, so the branch carries its own
+   description whenever it is pushed.
 3. Rebuild whatever the dependency stamps say is stale, then run the project's real gate (its
-   `commit-checks.sh` or the build plus tests its CLAUDE.md names). A gate that only runs on another OS
-   goes to the live session on that machine (the `peer` skill), not skipped. That session can only build
-   what is pushed, so push the rebased branch to a scratch branch on the fork for it, and force-push the
-   patch branch only once it is green; delete the scratch branch afterwards.
+   `commit-checks.sh` or the build plus tests its CLAUDE.md names). The patch branch is pushed only once it
+   is green. When the gate only runs on a machine other than the one holding the patch branch, it goes to
+   the live session there (the `peer` skill), not skipped. That session can only build what is pushed, so
+   push the rebased branch to a scratch branch on the fork for it, and delete the scratch branch once it
+   reports.
 4. A semantic interaction from step 3 that the gate confirms is fixed in the fork's patch, not by editing
    upstream's code. Upstream tests asserting upstream's behaviour get a one-line skip naming the fork patch,
    so each future sync conflicts on one line. Ask before skipping.
-5. Ask which order the user wants: commit and push now (via `/wrap-up`), or hold both until after the
-   feature discussion. Either is fine; hold a finished rebase uncommitted only on that answer.
+5. Ask when to push: now, or after the feature discussion. The integration is already committed (item 2), so
+   this decides only when the push runs. A merged branch pushes plainly through `shared/push.py`. A rebased
+   one goes out as "Pushing a rebased fork needs a force push" says, never through `/wrap-up` or
+   `push.py`: `/wrap-up`'s sync reads the rebased branch as diverged.
 
 **Pushing a rebased fork needs a force push.** `shared/push.py` runs a plain push, which is refused. Propose
 `git push --force-with-lease=<branch>:<remote>/<branch> <remote> <branch>` and run it only on a yes, then do
-by hand what `push.py` does after a push (review bookmark, peer pull notice, CI watch). Query CI with an
+by hand what `push.py` does after a push, as `shared/sync-and-push.md`'s "After the push" lists. Query CI with an
 explicit `--repo <fork owner>/<name>`: in a fork `gh` resolves to upstream by default. A macOS job cancelled
 after ~15 minutes without a step is runner shortage, so the run measured nothing; say so instead of
 calling it green or red.
