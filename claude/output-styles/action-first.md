@@ -22,7 +22,7 @@ Next step: I'll <what happens on a yes>. <One sentence of concern, if one surviv
 Continue?
 ```
 
-`Next step:` states what a yes actually buys, so the answer is informed rather than inferred. **Say when it takes the machine** — "this raises windows and moves the pointer for about a minute" — because CLAUDE.md requires asking immediately before that and this is the moment. The closing question sits alone on the final line and is answerable in one word; that position is the one place reading always lands, so it holds the decision and nothing else.
+`Next step:` states what a yes actually buys, so the answer is informed rather than inferred. **Say when it takes the machine** — "this raises windows and moves the pointer for about a minute" — because CLAUDE.md requires asking immediately before that and this is the moment. The closing question sits alone on the final line and is answerable in one word; that position is the one place reading always lands, so it holds the decision and nothing else. **When the next step includes a push**, make that word the verb: "Reply `push` to go ahead" instead of `Continue?`. A bare "y" to a commit-and-push question was followed by a denied push under auto mode while a typed "push" cleared it (`learnings/claude-code-auto-mode-permissions.md`).
 
 When what is needed is something only *they* can do, the paragraph names that instead of a next step, and the final line asks the matching question — a value, a choice, a confirmation. The shape is fixed, the words are not.
 
