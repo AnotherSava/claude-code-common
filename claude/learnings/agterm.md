@@ -456,6 +456,28 @@ Measured against 0.40.0 on 2026-11-03. A URL page has no bridge, so it cannot ca
 puts the page's own `<title>` back, so the same read also confirms that the page reloaded. It needs a
 page opened with `--js`, which every link agterm opens has; in a browser the marker reaches nobody.
 
+## Typing a built-in command into Claude Code: `session text` and `session type`
+
+Measured against 0.40.0 on 2026-11-09, building a dashboard route that types `/clear` or `/exit`
+into a session's Claude Code composer and presses Enter only once the composer reads it back.
+
+- **`session text` is plain text, with no styling option.** `--pane primary` picks the pane the
+  session's title belongs to and `--json` wraps the screen as `result.text`. Claude Code's faint
+  placeholder can't be told from typed text this way. A finished session's composer showed an empty
+  `❯` and no placeholder in ten sessions read, so treating any composer text as a draft refuses
+  nothing real.
+- **A session started with a name has the name drawn inside the composer's top rule**:
+  `──── tripit ──` rather than a row of `─` only. A parser that bounds the composer by "a row made
+  only of `─`" finds no composer on these sessions. Bound it by a row that begins and ends with `─`.
+- **`session type` takes `--` before the text**, as `context` and `info` do. An unknown `--target`
+  answers `no such session: <id>` before anything is typed, which makes it a safe argv probe.
+  Enter is the text `"\r"`, sent as its own call after the composer reads back the command.
+- **Typing `/exit` ends the agent and leaves the tab.** A session started as
+  `zsh -ilc 'claude; exec zsh -i'` drops to the `exec`'d shell, and the `tree` node's `foreground`
+  then reads `["-zsh", "-i"]` or similar. A session whose pane command is `claude` itself keeps
+  an exited pane on screen instead, with `foreground: null`. To end the tab too, wait for either,
+  then `session close`.
+
 ## Workspaces belong to a window, and a closed tab leaves a dated record
 
 `session new` places a session with either `--workspace <id|prefix|active>` or `--workspace-name <name>`,
