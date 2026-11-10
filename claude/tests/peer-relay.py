@@ -22,6 +22,7 @@ from git_scratch import check, report
 ROOT = os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 SCRIPT = os.path.join(ROOT, "claude", "skills", "shared", "peer_relay.py")
 
+
 class Dashboard(http.server.BaseHTTPRequestHandler):
     """Answers POST /api/session/command with the status and receipt the test queued, and keeps what it received.
 
