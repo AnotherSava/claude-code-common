@@ -118,6 +118,14 @@ false positive, and one pass PDF named two legs of a connection.
   `<path> None` when there is none, and exits 255 with `Failed to read image` for a file that is not an image.
   Hand the decoded text back to KItinerary as a `.txt` file and it parses the BCBP string just as it does one
   from a PDF.
+- **Its reservations do not say which PDF page they came from.** A two-page PDF with one pass per page yields both
+  flights with nothing tying either to a page, so filing each page on its own leg means cutting the PDF into
+  one-page documents and reading each separately. A pure-JS splitter (`pdf-lib`, created and loaded with
+  `updateMetadata: false`) gives byte-identical output on every cut, so a page can be recorded by its digest and
+  cut again later. To build a synthetic pass PDF for a test, measured 2026-11-10: a `ZXingWriter -size 900x300
+  PDF417` image drawn stretched (135×148 ppi) was not found at all, while a `ZXingWriter -size 300x300 Aztec`
+  image drawn square at 200 pt decoded on every page. `ZXingWriter <format> "<text>" <out.png>` ships in the same
+  `zxing-cpp-tools` package as the reader.
 - **The year comes from `--context-date`, and no context gets it right at every boundary.** BCBP dates the
   flight by day of the year, plus (optionally) the last digit of the issue year. KItinerary places that digit in
   the context's decade, ten years back when that lands after the context's year, and dates the flight to the
