@@ -227,7 +227,7 @@ def control_read(sources: Dict[str, List[Line]], allow_empty: Sequence[str] = ()
         texts = [text for _, text in lines]
         if texts and name in short_ok and not any(text.strip() for text in texts):
             continue
-        probe = max(texts, key=len).strip() if texts else ""
+        probe = max((text.strip() for text in texts), key=len) if texts else ""
         if len(probe) < (1 if name in short_ok else 12):
             failures.append("{0}: no line long enough to probe with ({1} line(s))".format(name, len(lines)))
             continue
@@ -377,6 +377,9 @@ def self_test() -> int:
             failures.append("read control rejected an added-line source holding only blank lines")
         if not control_read({"blank.md": [(1, ""), (2, "  ")]}):
             failures.append("read control passed a named file holding only blank lines")
+        # The probe is chosen after stripping, so an indented blank line longer than the real content cannot win.
+        if control_read({"abc1234:app.py": [(1, "        "), (2, "pass")]}, (), {"abc1234:app.py"}):
+            failures.append("read control probed a whitespace-only line over a shorter real one")
 
         # Only added lines are read: a removed line and a context line publish nothing.
         patch = "COMMIT abc1234\n+++ b/app.txt\n@@ -1,2 +1,2 @@\n-old 100.64.0.1 line\n+new line at 100.64.0.2\n"
