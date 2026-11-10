@@ -255,3 +255,17 @@ green build does.
 The general rule this is an instance of: a check whose "pass" is silence must not be read through
 anything that can produce the same silence for its own reasons. See
 `verify-the-detector-before-the-negative.md`.
+
+## Dependabot alerts: `vulnerability-alerts` answers in status codes, not a body
+
+Whether a repo has Dependabot alerts on is read with `gh api -i repos/<owner>/<repo>/vulnerability-alerts`
+and judged by the status line alone: `204` is on, `404` is off. A 404 here does not mean the token lacks
+access, so confirm the token on one repo known to be on before reading a fleet of 404s as "off" —
+measured 2026-11-10, 40 of 41 owned repos answered 404 and the one that answered 204 proved the probe.
+
+`gh api -X PUT repos/<owner>/<repo>/vulnerability-alerts` turns them on, forks included, and re-reading
+gives 204. An archived repo refuses every write, so filter on `isArchived` from `gh repo list --json`
+first. A new repo starts with alerts off, so a fleet enabled once drifts as repos are created.
+
+A loop of these PUTs across every owned repo was refused by the auto-mode classifier with no reason
+given; the same loop ran in `manual` mode on approval (`memory/feedback_offer_the_mode_switch.md`).
