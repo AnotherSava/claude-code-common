@@ -120,6 +120,29 @@ inherits that stale environment — a dev server detached through `Start-Process
 a command from the new directory fails to start until Claude Code restarts. For a one-off run in the meantime,
 prefix the directory onto `PATH` for that command alone.
 
+## A bare "y" did not authorize a push
+
+Measured 2026-11-05: Claude ended a reply with "Commit and push?", the user answered `y`, and the push was denied;
+once the user replied `push`, it went through on the first try. The commit itself went through. Two pushes were
+denied, and only the standalone `git push` tests authorization: the other was chained after the commit, and a
+wrapped push is refused for its shape alone (see "A push wrapped in other commands is refused where the bare call
+passes"). The push had also first been requested by a peer session, and a peer's message is not a user turn.
+
+The classifier gave no reason, and the rule text does not explain the denial. The push rule in
+`~/.claude/settings.json`'s `autoMode.soft_deny` defines the missing authorization as the user not having asked
+"in their own words or by affirming a proposal to push", so by its wording a "y" to "Commit and push?" is asking.
+Its "Clears when" sentence tests the same thing, "the user asked for this push", and the phrases quoted after it
+are examples. The denial shows the classifier did not apply the affirmation clause here; why is open. The
+question may not have been visible to it, though that is not established either: in the rc-file case under
+"Appending to a shell rc file is refused as persistence", "do yourself" answering a question cleared a denial,
+which needs the question to have been read. Whether a rewording would help is untested and depends on that
+cause: the affirmation appears only inside the rule's must-name clause, and adding it to the "Clears when"
+examples has not been tried.
+
+So for a push, ask the user to reply with the act itself, such as "push", or hand over `! git push`. That reply
+was measured clearing a bare, non-force `git push` run on its own. A force-push stayed denied after explicit
+approval (see "It judges per COMMAND, not per category"), so plan that one as the user's `!` step.
+
 ## A denial means the command did NOT run
 
 The check happens before execution. Nothing partial, nothing queued, no side effects.
