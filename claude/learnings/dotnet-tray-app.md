@@ -267,10 +267,6 @@ WPF then stays at its original render DPI for the window's whole lifetime. DWM b
 
 **Cascade display**: When showing multiple windows sequentially, track the active `DispatcherTimer` and stop it in `Dismiss()` to prevent orphaned windows appearing after dismiss.
 
-## FileSystemWatcher
-
-**A filename `Filter` does not fire on bare directory creation**: a watcher with `Filter = "data.json"` (even with `IncludeSubdirectories = true`) only raises events for files matching that name — creating an empty subfolder raises nothing. To detect a new subdirectory appearing (e.g. a per-id folder created by another process), add a *second* `FileSystemWatcher` with `NotifyFilter = NotifyFilters.DirectoryName` and handle its `Created` event. Both watchers can share the same root and disposal list.
-
 ## Global Hotkey (Win32)
 
 ```csharp
@@ -291,6 +287,8 @@ RegisterHotKey(hWnd, id, MOD_CONTROL | MOD_SHIFT | MOD_NOREPEAT, vk);
 - Debounce change events (100ms) — FSW fires multiple times per write
 - Use `ConcurrentDictionary<string, CancellationTokenSource>` for per-file debounce
 - Retry on `IOException` (file locked by game writing) with async delay
+
+**A filename `Filter` does not fire on bare directory creation**: a watcher with `Filter = "data.json"` (even with `IncludeSubdirectories = true`) only raises events for files matching that name — creating an empty subfolder raises nothing. To detect a new subdirectory appearing (e.g. a per-id folder created by another process), add a *second* `FileSystemWatcher` with `NotifyFilter = NotifyFilters.DirectoryName` and handle its `Created` event. Both watchers can share the same root and disposal list.
 
 **Subscribe `Renamed`, not just `Changed` + `Created`.** A writer that saves atomically — write `x.tmp`, then move it over `x` — raises **`Renamed`** on the destination and *neither* of the other two. A watcher missing that handler sees nothing: no event, no exception, no log line, indistinguishable from "the feature doesn't work". `RenamedEventArgs` derives from `FileSystemEventArgs`, so one handler takes all three:
 
