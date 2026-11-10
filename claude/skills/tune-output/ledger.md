@@ -431,3 +431,35 @@ carries every choice, note and flag. Outcome pending: judged by living with it.
 **Do not re-litigate:**
 
 - The rule's home is the output style. A skill cannot fire on output that arises mid-task.
+
+---
+
+## 2026-11-10 — Sixth pass: the closing word before a push is `push`
+
+**Source:** a measurement recorded in `learnings/claude-code-auto-mode-permissions.md` ("A bare "y" did not
+authorize a push"): on 2026-11-05 a reply ended "Commit and push?", the user answered `y`, and the standalone
+`git push` was denied under auto mode; the user's next reply, `push`, cleared it on the first try.
+
+**Mechanism:** one sentence in the output style's go-ahead paragraph, the place that fixes the closing question's
+form. The question is asked mid-task, where no skill fires.
+
+**Adopted:** when the next step includes a push, the closing question asks for the verb ("Reply `push` to go
+ahead") instead of `Continue?`. Every other go-ahead keeps `Continue?`.
+
+**Rewritten:** the go-ahead bullet under the 2026-09-10 pass's **Do not re-litigate** fixed `Continue?` as the
+closing question. That settlement now has one exception, the push, and stands otherwise; the shape (`Next step:`
+then one answerable word alone on the final line) is unchanged.
+
+**Rejected:** nothing.
+
+**What would re-open it:** the push rule in `settings.json`'s `autoMode.soft_deny` being shown to clear on an
+affirmation such as `y`, which the parked memo on adding affirmation to that rule's Clears-when examples would test.
+If it does, the exception can go and `Continue?` covers pushes again.
+
+**Tested:** not tested with the A/B harness, which disables tools and cannot see a permission decision. The
+evidence is the one measured denial and clearance above, a single case whose cause the classifier did not state.
+
+**Do not re-litigate:**
+
+- A `y` that the classifier does not accept costs a denied push and a second round trip; asking for `push` costs
+  nothing. Keep the verb until the memo's test says otherwise.
