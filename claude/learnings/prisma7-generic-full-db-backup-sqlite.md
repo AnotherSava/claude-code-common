@@ -52,9 +52,10 @@ Stand up a throwaway migrated SQLite file with `prisma db push`, then point a re
 
 - **Prisma 7 removed `--skip-generate` from `db push`** (it no longer regenerates the client anyway) and added **`--url`** to override the datasource. Use it instead of an env var:
   ```ts
-  execSync(`npx prisma db push --url "file:${dbFile.split(path.sep).join("/")}" --accept-data-loss`, { cwd, stdio: "ignore" });
+  execSync(`npx prisma db push --url "file:${dbFile.split(path.sep).join("/")}"`, { cwd, stdio: "ignore" });
   const prisma = new PrismaClient({ adapter: new PrismaBetterSqlite3({ url: `file:${...}` }) });
   ```
+- Leave out `--accept-data-loss`: a freshly created empty file has nothing to lose, and from Prisma 7.10 the AI-agent guard refuses that flag under Claude Code (`Prisma Migrate detected that it was invoked by Claude Code`), so a harness carrying it fails whenever an agent runs the suite. Measured 2026-11-11 on 7.10.1: the same `db push --url` without the flag succeeds.
 - Use forward slashes in the `file:` URL even on Windows (native `os.tmpdir()` path). A Git Bash `/tmp/...` path gets mis-translated by the Windows Prisma binary — build the path with Node's `os.tmpdir()` + `mkdtempSync`, not a bash `mktemp`.
 - The datasource block can omit `url` when a `prisma.config.ts` supplies `datasource: { url: process.env.DATABASE_URL }`; `db push --url` overrides it regardless.
 - Round-trip assertion: seed → `export` → `JSON.parse(JSON.stringify(...))` (exercise the real serialize+validate path) → `clearData` → `importData` → `export` again → `expect(second.tables).toEqual(first.tables)`. `toEqual` compares `Date`s by value, and rows come back in rowid (= insertion) order on both sides, so it's order-stable without an explicit `orderBy`.

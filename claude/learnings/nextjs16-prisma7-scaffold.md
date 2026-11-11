@@ -73,7 +73,7 @@ export default defineConfig({
 
 ## Migrations in a non-interactive / AI-agent shell
 
-`prisma migrate dev` is **interactive** and aborts in a non-interactive shell ("environment is non-interactive, which is not supported") — and `--create-only` still prompts the moment it detects possible data loss. `prisma migrate reset` is additionally blocked by a Prisma guard for AI agents: it refuses unless you pass `PRISMA_USER_CONSENT_FOR_DANGEROUS_AI_ACTION=<the user's exact consent text>`, and it **destroys all data**, so only ever with explicit user sign-off on a *dev* DB.
+`prisma migrate dev` is **interactive** and aborts in a non-interactive shell ("environment is non-interactive, which is not supported") — and `--create-only` still prompts the moment it detects possible data loss. `prisma migrate reset` is additionally blocked by a Prisma guard for AI agents: it refuses unless you pass `PRISMA_USER_CONSENT_FOR_DANGEROUS_AI_ACTION=<the user's exact consent text>`, and it **destroys all data**, so only ever with explicit user sign-off on a *dev* DB. From 7.10 the same guard also refuses `prisma db push --accept-data-loss` (measured 2026-11-11 on 7.10.1), even against a brand-new empty file; drop the flag where there is no data to lose.
 
 Reliable non-interactive flow:
 - **Hand-author the migration**: create `prisma/migrations/<YYYYMMDDHHMMSS>_<name>/migration.sql` yourself (timestamp must sort after the last applied one), then apply with **`prisma migrate deploy`** — non-interactive, applies pending migrations, and is **non-destructive** (preserves existing rows, unlike `reset`).
