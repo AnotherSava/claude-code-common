@@ -113,7 +113,7 @@ Every key below goes into `config/deploy.env` unless it says `config/deploy.loca
 
 ### 2a. Local web server configuration
 
-For a local web server, `deploy` stops whatever holds the port and relaunches the start command detached (so it outlives the Claude session), then waits for the port to come up. Write `config/deploy.env` with these keys (ask only for keys not already present; use the Context-derived defaults — confirm them with the user rather than asking blind):
+For a local web server, `deploy` stops whatever holds the port and relaunches the start command detached (so it outlives the Claude session), then waits for the port to come up and for the server to answer an HTTP request on it, so a server that binds and then crashes fails the run. Write `config/deploy.env` with these keys (ask only for keys not already present; use the Context-derived defaults — confirm them with the user rather than asking blind):
 
 - `DEPLOY_TYPE=dev-server` — always; `run.sh` dispatches on it.
 - `DEV_DIR=` — the directory `DEV_CMD` is **run from** (not necessarily the one being served), relative to repo root; logs are written here too. Decide it together with `DEV_CMD` below:

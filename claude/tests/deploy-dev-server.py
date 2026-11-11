@@ -19,6 +19,8 @@ through `run.sh` as the `deploy` function does:
   returns     the caller reading stdout reaches EOF soon after the script exits
   succeeds    the script exits 0 and prints the address it brought up
   detached    the server is still listening afterwards — closing the stream must not cost that
+  answers     a server that binds the port and then exits before answering a request fails the run,
+              naming its logs, instead of printing the address of a server that is gone
   db sync     a second run with --db runs DEV_DB_SYNC_CMD after the first server has stopped, and a sync
               that fails still restarts the server and is named again beside the address
 
@@ -62,12 +64,26 @@ open("sync-saw.txt", "w").write("up" if up else "down")
 sys.exit(3)
 """
 
-SERVER = """import os, socket, time
+SERVER = """import os
+from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
+
+class Handler(BaseHTTPRequestHandler):
+    def do_GET(self):
+        self.send_response(200)
+        self.end_headers()
+
+ThreadingHTTPServer(("127.0.0.1", int(os.environ["PORT"])), Handler).serve_forever()
+"""
+
+# The shape of a Next server whose instrumentation hook throws: the port opens, nothing answers, and the
+# process is gone a moment later.
+CRASHER = """import os, socket, sys, time
 s = socket.socket()
 s.bind(("127.0.0.1", int(os.environ["PORT"])))
 s.listen()
-while True:
-    time.sleep(3600)
+time.sleep(2)
+print("instrumentation failed: ECONNREFUSED", file=sys.stderr)
+sys.exit(1)
 """
 
 FAILURES = []
@@ -102,7 +118,7 @@ def claimed_port(registry: str) -> int | None:
     return next((c.get("port") for c in claims if c.get("use_case") == "deploy-pipe-test-dev-server"), None)
 
 
-def deploy(bash: str, project: str, env: dict, args: list[str]) -> tuple[int | None, str]:
+def deploy(bash: str, project: str, env: dict, args: list[str], expect_failure: bool = False) -> tuple[int | None, str]:
     """Run `deploy` once and return its exit code and output, recording a failure if its stream is held."""
     proc = subprocess.Popen([bash, SCRIPT, *args], cwd=project, env=env, stdin=subprocess.DEVNULL,
                             stdout=subprocess.PIPE, stderr=subprocess.STDOUT)
@@ -121,7 +137,7 @@ def deploy(bash: str, project: str, env: dict, args: list[str]) -> tuple[int | N
              "the detached server holds the caller's stream, so `deploy | tail` and any tool reading to EOF hang")
         return None, ""
     output = (chunks[0] if chunks else b"").decode("utf-8", "replace")
-    if code not in (0, None):
+    if code not in (0, None) and not expect_failure:
         fail(f"the script exited {code}; output was:\n{output}")
     return code, output
 
@@ -142,6 +158,8 @@ def main() -> int:
         handle.write(SYNC)
     with open(os.path.join(project, "serve.py"), "w", encoding="utf-8") as handle:
         handle.write(SERVER)
+    with open(os.path.join(project, "crash.py"), "w", encoding="utf-8") as handle:
+        handle.write(CRASHER)
     with open(os.path.join(project, "config", "deploy.env"), "w", encoding="utf-8") as handle:
         handle.write(f"DEPLOY_TYPE=dev-server\nDEV_DIR=.\nDEV_CMD={PY} serve.py\nDEV_TAILNET=no\n")
     registry = os.path.join(scratch, "registry.json")
@@ -172,6 +190,14 @@ def main() -> int:
                 fail(f"--db: the sync saw the old server {seen or 'never ran'}; it must run after the server is stopped")
             if code == 0 and not re.search(r"FAILED earlier: data sync \(exit 3\).*\n.*open: http://localhost:\d+", output):
                 fail(f"--db: the failed sync is not named again just above the address line; output was:\n{output}")
+
+            with open(os.path.join(project, "config", "deploy.env"), "w", encoding="utf-8") as handle:
+                handle.write(f"DEPLOY_TYPE=dev-server\nDEV_DIR=.\nDEV_CMD={PY} crash.py\nDEV_TAILNET=no\n")
+            code, output = deploy(bash, project, env, [], expect_failure=True)
+            if code == 0:
+                fail(f"a server that bound the port and then exited was reported up; output was:\n{output}")
+            elif code is not None and "dev-server.err.log" not in output:
+                fail(f"the crashed server's run failed without pointing at its error log; output was:\n{output}")
     finally:
         if port is not None:
             stop_server(port)
@@ -184,7 +210,7 @@ def main() -> int:
             print(f"  {failure}")
         print()
         return 1
-    print("deploy dev server: returns its caller's stream, exits 0 with the address, server still up, --db syncs with the server stopped")
+    print("deploy dev server: returns its caller's stream, exits 0 with the address, server still up, --db syncs with the server stopped, a server that dies after binding fails the run")
     return 0
 
 

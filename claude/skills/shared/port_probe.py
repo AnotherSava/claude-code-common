@@ -24,10 +24,12 @@ Usage as a CLI, for the shell callers that need one fact:
     port_probe.py pids <port>        # one PID per line, every listener this user can see
     port_probe.py served <port>      # the serve mapping's target; exit 0 mapped, 1 not
     port_probe.py verdict <port>     # a sentence naming the holder; exit 0 free, 1 held
+    port_probe.py answers <port>     # exit 0 when an HTTP request to it gets any response, 1 when not
 """
 
 from __future__ import annotations
 
+import http.client
 import re
 import socket
 import subprocess
@@ -168,8 +170,28 @@ def verdict(port: int) -> Verdict:
     return Verdict(port=port, free=free, summary=summary)
 
 
+def answers(port: int, timeout: float = 30) -> bool:
+    """Does a request to `port` on localhost get an HTTP response, of any status?
+
+    A listener alone is not a running server: Next binds its port before its instrumentation hook runs,
+    and a hook that throws takes the process down seconds after the port opened. Any status counts,
+    because a 500 still comes from a live process. `localhost` rather than an address, so the
+    connection tries both `::1` and `127.0.0.1`, whichever the server bound. The timeout is per
+    request and generous, since a dev server compiles the page the first request asks for.
+    """
+    connection = http.client.HTTPConnection("localhost", port, timeout=timeout)
+    try:
+        connection.request("GET", "/")
+        connection.getresponse()
+        return True
+    except (OSError, http.client.HTTPException):
+        return False
+    finally:
+        connection.close()
+
+
 def main(argv: List[str]) -> int:
-    if len(argv) != 2 or argv[0] not in ("pids", "served", "verdict"):
+    if len(argv) != 2 or argv[0] not in ("pids", "served", "verdict", "answers"):
         print(__doc__.strip().split("Usage as a CLI", 1)[-1], file=sys.stderr)
         return 2
     try:
@@ -189,6 +211,8 @@ def main(argv: List[str]) -> int:
             return 1
         print(target or "a handler this cannot read")
         return 0
+    if argv[0] == "answers":
+        return 0 if answers(port) else 1
     answer = verdict(port)
     print(answer.summary)
     return 0 if answer.free else 1

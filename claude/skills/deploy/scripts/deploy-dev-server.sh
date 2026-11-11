@@ -179,10 +179,37 @@ else
     ( cd "$RUN_DIR" && nohup $DEV_CMD </dev/null >"$LOG" 2>"$ERR" & ) </dev/null >/dev/null 2>&1
 fi
 
-# 4. Wait for the port to come up.
+# 4. Wait for the port to come up, then for the server to answer a request on it. An open port is not a
+#    running server: Next binds before its instrumentation hook runs, and a hook that throws (a database
+#    that is not up) ends the process seconds later, leaving a printed address that returns 502. Any HTTP
+#    response counts. The second wait is longer because the first request is what makes a dev server
+#    compile its page, and a listener that disappears ends it at once.
+await_answer() {
+    local deadline=$((SECONDS + 120))
+    while [ "$SECONDS" -lt "$deadline" ]; do
+        "$PY" "$SKILLS/shared/port_probe.py" answers "$DEV_PORT" && return 0
+        [ -z "$(listening_pids)" ] && return 2
+        printf "."; sleep 1
+    done
+    return 1
+}
 printf "  waiting for port %s " "$DEV_PORT"
 for _ in $(seq 1 40); do
     if [ -n "$(listening_pids)" ]; then
+        printf " bound, waiting for a response "
+        await_answer; ANSWER=$?
+        if [ "$ANSWER" -ne 0 ]; then
+            if [ "$ANSWER" -eq 2 ]; then
+                printf " exited\n"
+                echo "  the server opened port $DEV_PORT and then exited before answering a request"
+            else
+                printf " timed out\n"
+                echo "  the server holds port $DEV_PORT but answered no request in 120 s"
+            fi
+            echo "  check $DEV_DIR/dev-server.err.log and $DEV_DIR/dev-server.log"
+            [ -n "$STEP_FAILED" ] && echo "  also FAILED earlier: $STEP_FAILED — check that before the log"
+            exit 1
+        fi
         printf " ready\n"
         echo "  logs: $DEV_DIR/dev-server.log (errors: $DEV_DIR/dev-server.err.log)"
         # Repeated here because the pre-start output is dozens of lines back by now, and a server that came
