@@ -442,6 +442,8 @@ required, and the harness must call `Application.SetHighDpiMode(HighDpiMode.PerM
 the real app does — otherwise every geometry reading is DPI-virtualized and invents bugs that aren't
 there. Screenshot with `RenderTargetBitmap.Render(window)` (WPF has no `DrawToBitmap`).
 
+**Fluent DataGrid selection.** With `ThemeMode="System"` the stock Fluent `DataGridCell` template paints selection on its own inner `Border`, whose `Background` is hardcoded `Transparent` and switched by an `IsSelected` trigger to `DataGridRowSelectedBackgroundThemeBrush`, with `DataGridRowSelectedForegroundThemeBrush` for the text. That brush is a solid accent colour (`SystemAccentColorDark1` in Light, `SystemAccentColorLight3` in Dark). The template reads neither the row's nor the cell's `Background`, and the row template has no selection trigger, so editing either property or the row template leaves the fill as it was; to restyle selection, override those two theme brushes in `DataGrid.Resources` or replace the cell template. No Fluent DataGrid template references `SystemColors.InactiveSelection*`: the grey selection on focus loss, and the fix of overriding `InactiveSelectionHighlightBrushKey` and `InactiveSelectionHighlightTextBrushKey`, belong to the classic `DataGridCell` template. Fluent registers its cell style only under the key `DefaultDataGridCellStyle`, which the DataGrid style applies through its `CellStyle` setter, and defines no implicit `{x:Type DataGridCell}` style. So only a `CellStyle` with `BasedOn="{StaticResource DefaultDataGridCellStyle}"` keeps the Fluent template, where the `InactiveSelection*` override has no effect. The usual `BasedOn="{StaticResource {x:Type DataGridCell}}"` misses the Fluent dictionary and resolves to the system theme's classic style and template: there the `InactiveSelection*` override is the one that works, and the `DataGridRowSelected*` brushes are never read.
+
 ## WPF Gotchas (from the screen-tools port)
 
 **WPF dialog shown modelessly from WinForms `Application.Run` needs `ElementHost.EnableModelessKeyboardInterop` — or text input silently fails**: This is the single most disorienting bug in the WinForms-tray + WPF-overlay hybrid. Symptoms: a WPF dialog opens fine, textboxes accept focus (`GotKeyboardFocus` fires), `PreviewKeyDown` and `KeyDown` fire on every key, but `PreviewTextInput`/`TextInput` *never* fire, so letters and digits never appear in textboxes. Backspace and Delete still work because TextBox handles them in KeyDown without needing TextInput. Esc, Tab, arrow keys also work. It looks like a keyboard hook — Grammarly, TSF/`ctfmon`, IME, password manager — but it isn't. Killing every suspect process changes nothing. Disabling TSF via `InputMethod.IsInputMethodEnabled="False"` on the textbox style changes nothing.
@@ -664,6 +666,16 @@ A tray app is a background process, so Windows usually refuses it the foreground
 - **A later `Activate()` on the same window was refused**, when a re-copy brought it forward: `GetForegroundWindow()` wasn't the form, `FlashWindowEx` flashed the taskbar button, and typing stayed in the browser.
 - **Clicking one of the app's balloons first doesn't help.** The next `Activate()` was refused just the same.
 - **A `TopMost` window stays above the browser** when the browser is clicked, so it never ends up hidden behind it.
+
+## WinForms menus under a WPF ShowDialog loop never close
+
+A tray app that opens its WPF windows with `ShowDialog` hands the thread to WPF's dispatcher loop for as long as one is open. WinForms closes a `ContextMenuStrip` from a message filter that only its own loop runs, so while the WPF dialog is up, every WinForms menu stays open on an outside click: the `NotifyIcon`'s tray menu, and any `ContextMenuStrip` the WPF window shows itself. Clicking an item still closes it, which hides the bug in a one-item menu.
+
+The documented fix is one call at startup, before any dialog: `System.Windows.Forms.Integration.WindowsFormsHost.EnableWindowsFormsInterop()`. It hooks `ComponentDispatcher.ThreadFilterMessage` so WinForms' filters see the WPF loop's messages ("Windows Forms and WPF Interoperability Input Architecture" on learn.microsoft.com). Applied 2026-11-10 in a tray app after the tray menu stuck open over a modal WPF window; the user did not report it again, which is not the same as a confirmed close.
+
+Hand-closing the menu from the WPF window (`PreviewMouseDown`, `Deactivated`, Esc) covers only clicks inside that window and misses the tray menu entirely; the interop call covers both.
+
+Showing a WinForms `ContextMenuStrip` from WPF is how to make a window's menus match the tray's look, since a WPF `ContextMenu` takes the Fluent theme's. Position it with `element.PointToScreen(...)`, which returns physical pixels, as `Show(System.Drawing.Point)` expects. To keep a checklist menu open across clicks, cancel `Closing` when `CloseReason == ItemClicked`. Dispose it from `Closed` through `Dispatcher.BeginInvoke`, so a click handler it raised has finished first.
 
 ## SharpCompress: extracting a solid .7z
 
