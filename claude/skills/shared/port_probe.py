@@ -43,6 +43,9 @@ SPECIFIC = "specific"
 WILDCARD_ADDRESSES = ("*", "0.0.0.0", "::", "[::]")
 LOOPBACK_ADDRESSES = ("127.0.0.1", "::1", "[::1]", "localhost")
 
+# Seconds one `answers` request waits: generous, since a dev server compiles the page the first request asks for.
+ANSWER_TIMEOUT = 30
+
 
 class Holder(NamedTuple):
     """One listening socket a process listing reported."""
@@ -170,16 +173,15 @@ def verdict(port: int) -> Verdict:
     return Verdict(port=port, free=free, summary=summary)
 
 
-def answers(port: int, timeout: float = 30) -> bool:
+def answers(port: int) -> bool:
     """Does a request to `port` on localhost get an HTTP response, of any status?
 
     A listener alone is not a running server: Next binds its port before its instrumentation hook runs,
     and a hook that throws takes the process down seconds after the port opened. Any status counts,
     because a 500 still comes from a live process. `localhost` rather than an address, so the
-    connection tries both `::1` and `127.0.0.1`, whichever the server bound. The timeout is per
-    request and generous, since a dev server compiles the page the first request asks for.
+    connection tries both `::1` and `127.0.0.1`, whichever the server bound.
     """
-    connection = http.client.HTTPConnection("localhost", port, timeout=timeout)
+    connection = http.client.HTTPConnection("localhost", port, timeout=ANSWER_TIMEOUT)
     try:
         connection.request("GET", "/")
         connection.getresponse()
