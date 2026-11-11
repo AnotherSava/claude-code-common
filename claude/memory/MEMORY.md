@@ -254,7 +254,7 @@
 - [Don't open a sentence with code-formatted text](feedback_no_code_at_sentence_start.md) — in prose, lead with a real word; don't start a sentence or line with backtick-wrapped code when prose follows
 - [Link inside the question](feedback_link_inside_the_question.md) {always} — a choice that needs a page opened first gets the link in the question box or plain text; the box covers the text above it
 - [Ask for the entry point](feedback_ask_for_the_entry_point.md) {always} — can't find the surface a request names? ask how they reach it (chord, menu path, URL), not which candidate it is
-- [Commit gate contents](feedback_commit_gate_contents.md) {always} — a repo's commit gate runs its build, lint and tests where each exists; draft from what's there, invent no linter
+- [Commit gate contents](feedback_commit_gate_contents.md) {always} — a repo's commit gate runs its build, lint and tests where each exists; draft from what's there, invent no linter; advisories go to Dependabot, not the gate
 - [Rate realism before hardening](feedback_realism_before_hardening.md) {always} — a rare edge case a review found, harmless or cheap to handle by hand, is reported and gets a warning or a doc line, not code; a duplication is never such a case; an automated review-and-fix loop runs through the saved `review-auto` workflow, whose verify step rates who reaches each finding
 - [Base rate before a detector](feedback_base_rate_before_a_detector.md) — measure how often the condition already holds; a resting-state condition gets no detector, only the narrower predicate that tracks the harm
 - [Date split memos from the pickaxe](feedback_memo_split_dates_from_pickaxe.md) — v1 Path A split: recover each [x] close date with the pickaxe and offer dated done/ names
