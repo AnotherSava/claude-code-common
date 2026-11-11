@@ -156,6 +156,12 @@ Requires Chrome 117+ / Firefox 125+ / Safari 16+.
 
 **To widen ONE inter-column gap**, padding on a cell is the lever — `column-gap` can only move all of them at once. With an `auto` track the cell's padding grows the track, so `padding-right` on a right-aligned cell reads as extra space before the next column. Uniform padding across rows is safe: a subgrid item's padding insets its first and last tracks relative to the parent's lines, so rows with *differing* padding would misalign, but identical padding shifts every row the same way.
 
+**Gaps that grow only when the row has room** cannot be a `column-gap`, which is one fixed length. Put a spacer track between each pair of content columns, and make it *flexible*: `minmax(1rem, 1fr)`, with the content columns `auto` and an empty trailing `minmax(0, 4fr)` track to cap how much the spacers take. Flexible tracks are expanded only after the "maximize tracks" step has grown every `auto` track to its max-content, so text gets its full width first and the spacers share what is left. A spacer with a *fixed* maximum (`minmax(1rem, 3rem)`) is a non-flexible track, grown in that same maximize step alongside the content: measured 2026-11-10 on a 760px itinerary, the three spacers kept their full 3rem while a `minmax(0, 1fr)` last column was squeezed to one word per line.
+
+Spacer tracks must stay empty, so the cells can no longer be auto-placed. Name the lines (`[name-start] … [name-end] minmax(1rem,1fr) [time-start] …`) and place each cell with `grid-column: name`: a subgrid inherits its parent's line names, so a row and a nested band both resolve them. When every row emits its cells in the same order, `:nth-child(4n + 1) { grid-column: name }` and its siblings place them without touching the markup, a second line of cells included.
+
+**A wrapping note under a column's heading widens the column** when the track is content-sized (`auto`, `fit-content()`): its max-content is the whole note on one line. Setting `contain: inline-size` on the note's wrapper makes it contribute nothing, so the column sizes to the headings and the note wraps inside that width.
+
 ## Confine scroll to a child region — flex column + `min-height: 0`
 
 To make only an inner region scroll (e.g. a long table) instead of the whole page, the scroll container must be height-bounded **and** the scrollable child must be allowed to shrink below its content size:
