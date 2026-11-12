@@ -39,6 +39,15 @@ bgstats://app.bgstatsapp.com/createPlay.html?data=<url-encoded JSON>
 | `game.bggId`, `highestWins`, `noPoints` | no | `bggId` is recommended; it drives the match suggestion |
 | per player `startPlayer`, `winner`, `score`, `rank`, `role`, `team` | no | multiple roles or boards are joined with `／` (U+FF0F), not `/` |
 
+## What the app does with `playDate`
+
+The app files the play under the date written in `playDate` as wall-clock time on the phone, whatever the spec says
+about UTC. Observed 2026-11-12 with a phone on Pacific time: a session that ran 18:00–22:00 Pacific was sent, per the
+spec, as `"<next day> 06:00:00"` UTC, and the app filed it on the next day. Read as UTC it would have stayed on the
+day it was played. The app shows a play's date and not its time, so the time it stored could not be read off the
+phone, and that one play is the whole evidence. A sender that wants plays on the right day sends the wall-clock time
+of the place they were played.
+
 ## Choosing the source ids
 
 The app remembers each match the user makes against the sender's ids, per sender. So `sourceGameId` and
