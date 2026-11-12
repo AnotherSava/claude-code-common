@@ -32,7 +32,7 @@ bgstats://app.bgstatsapp.com/createPlay.html?data=<url-encoded JSON>
 |---|---|---|
 | `sourceName` | yes | the sending app; also the location when `location` is absent |
 | `sourcePlayId` | yes | the sender's id for this play |
-| `playDate` | yes | when the play **ended**, in **UTC**, `yyyy-MM-dd HH:mm:ss` |
+| `playDate` | yes | when the play **ended**, `yyyy-MM-dd HH:mm:ss`; the spec says **UTC**, but the app reads it as local time (see "What the app does with `playDate`") |
 | `game.name`, `game.sourceGameId` | yes | `sourceGameId` is what later imports re-match on |
 | `players[].name`, `players[].sourcePlayerId` | yes | same re-matching role as `sourceGameId` |
 | `durationMin`, `location`, `comments`, `board` | no | keep `comments` short: it rides in the URL |
