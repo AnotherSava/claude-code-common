@@ -99,31 +99,46 @@ Cost to budget for: the tailnet-only hostname has no public record, so its cert 
 means the Caddy image needs the plugin for *that zone's* DNS provider. Two domains on two providers means two
 plugins in the same `xcaddy` build; a Porkbun-only build cannot issue for a Cloudflare-hosted name.
 
-### Windows: the NRPT rule is a *suffix* match, so the bare hostname isn't routed
+### Windows: check a split-DNS name with `Resolve-DnsName`, never `nslookup`
 
-A split-DNS route can be correct on the Tailscale side and still not reach the browser. On Windows the client
-implements it as an NRPT (Name Resolution Policy Table) rule, and it registers the namespace with a **leading
-dot**:
+On Windows the Tailscale client implements a split-DNS route as an NRPT (Name Resolution Policy Table) rule, and
+it registers the namespace with a **leading dot**:
 
 ```powershell
 (Get-DnsClientNrptRule).Namespace   # -> .whats-next.example.com
 ```
 
-A leading-dot namespace is a DNS *suffix* rule: it matches `anything.whats-next.example.com` but **not
-`whats-next.example.com` itself**. So a gate keyed on the source being `100.x` keeps refusing the operator, on a
-machine where everything looks configured.
+That rule routes `whats-next.example.com` itself as well as the names under it. The `nslookup` tool cannot show
+it: it sends its query straight to the interface's DNS server and never consults the NRPT, so where that server
+is the LAN's it returns the public address on a machine whose route works. The `Resolve-DnsName` cmdlet asks the
+Windows DNS client, which is what applies the rule:
 
-What makes it confusing is that Tailscale's own resolver is fine — only the OS isn't pointed at it:
-
+```powershell
+tailscale dns query whats-next.example.com            # Tailscale's side: 100.x.y.z, RCodeSuccess
+Clear-DnsClientCache                                  # so the next line is a fresh lookup
+Resolve-DnsName whats-next.example.com -NoHostsFile   # the OS: 100.x.y.z when the rule routes the name
+nslookup whats-next.example.com                       # the public address, whatever the rule does
 ```
-tailscale dns query whats-next.example.com   # Forwarding to resolver: 100.x.y.z -> RCodeSuccess
-nslookup whats-next.example.com 100.x.y.z    # correct tailnet answer
-nslookup whats-next.example.com              # the PUBLIC address
+
+So check Tailscale's resolver first and the OS second. Keep `-NoHostsFile`: a hosts entry answers ahead of DNS,
+so without the switch the check passes on a machine whose route is broken. A lookup that `tailscale dns query`
+itself fails is a different problem, and `proton-vpn-blocks-port-53.md` records one cause.
+
+Measured 2026-11-13 on Windows 11 build 26300 with Tailscale 1.104.5, the DNS cache cleared first: every
+split-DNS name on the machine resolved to its `100.x` address through `Resolve-DnsName -NoHostsFile`, while
+`nslookup` returned the public address for each one that has a public record. For a name with no hosts entry,
+`ping` and `curl` reached the `100.x` address as well; a browser was not part of the measurement. The switch
+was checked against a name the hosts file overrides, which resolved to its public addresses with
+`-NoHostsFile` and to the hosts value without it.
+
+Where `Resolve-DnsName -NoHostsFile` does return the public address, Tailscale's docs offer per-device hosts
+entries as the supported fallback, and that is the quickest way to unblock one machine:
+
+```powershell
+Add-Content -Path "$env:SystemRoot\System32\drivers\etc\hosts" -Value "100.x.y.z name.example.com"
 ```
 
-So diagnose in that order — resolver first, then the OS. `ipconfig /flushdns` does not help; the rule never
-matched. Tailscale's docs offer per-device hosts entries as the supported fallback, and that is the quickest way
-to unblock one machine:
+TLS still validates — the same proxy serves the same certificate on the tailnet interface.
 
 **The inverse trap, once split-DNS *is* working: your own workstation cannot tell you what the public record
 says.** On a tailnet-connected machine a plain `dig name` returns the split answer — the `100.x` address — so
@@ -134,12 +149,6 @@ public cert was ever issued for it). Always check a public record against a reso
 dig +short name.example.com               # split-DNS answer: 100.x.y.z
 dig +short @1.1.1.1 name.example.com      # what the world actually sees
 ```
-
-```powershell
-Add-Content -Path "$env:SystemRoot\System32\drivers\etc\hosts" -Value "100.x.y.z name.example.com"
-```
-
-TLS still validates — the same proxy serves the same certificate on the tailnet interface.
 
 ## Giving a tailnet service a real https origin (`tailscale serve`)
 
