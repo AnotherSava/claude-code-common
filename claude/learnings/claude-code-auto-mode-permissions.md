@@ -27,6 +27,18 @@ Every one of those changes state, four on a production host. Creating a GitHub d
 patching a DNS record did not. So **do not generalise from one denial to a class** — and if you already have,
 say so when the next command in that "class" succeeds, because a wrong model gets repeated to other people.
 
+A later session (2026-11-12, before the user had approved anything) adds two refusals that run the other way.
+A denial states its reason after `Reason:`, as `(it gave no explanation)` or as a category in brackets, and
+both of these named a category:
+
+| Command | Verdict |
+| --- | --- |
+| `ssh root@host 'cat /etc/resolv.conf; docker exec <app> getent hosts <name>; docker network ls; git log -1'` | denied `[Production Reads]` |
+| `doppler secrets names … \| grep -i tail; doppler run … -- bash -c 'echo "${KEY:0:12}… len ${#KEY}"'` | denied `[Credential Materialization]` |
+
+The first only reads, and it was still refused, so "it only reads" does not clear a command aimed at a
+production host. Read access to the box is a step to put to the user, the same as a write.
+
 Approval in chat does not change a verdict. In another session (2026-09-27),
 `git push --force-with-lease=main:<old-sha> origin main` was denied after the user had approved the history
 rewrite and then the push itself. The user ran the identical command through `!` and it went through. A
