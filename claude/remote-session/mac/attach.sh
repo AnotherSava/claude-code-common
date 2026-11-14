@@ -102,6 +102,14 @@ drop_typed_input() {
     /usr/bin/python3 -c 'import sys, termios; termios.tcflush(sys.stdin.fileno(), termios.TCIFLUSH)' 2>/dev/null || true
 }
 
+# ServerAlive* is a deadline, not a keepalive. Nothing is sent while the Mac is asleep; what they
+# buy is that a transport which died during that sleep is noticed within 75s of waking instead of
+# hours later, the probe deadline being absolute against a clock that ran through the suspend.
+# They are set here rather than in ~/.ssh/config, which is per-machine and unversioned while this
+# file is shared by both checkouts, and because tearing a connection down after 75s of silence is
+# right for one a person is watching and wrong for every other ssh to this host.
+ssh_opts="-o ServerAliveInterval=15 -o ServerAliveCountMax=4 -o ConnectTimeout=10"
+
 # Tints this tab's agterm sidebar row so a remote session reads as one at a glance. The tab tints
 # itself because every route to it runs this script, pick-session.py and the dashboard's attach
 # alike; the ⇄ badge stays in the title for terminals with no row colours, agwinterm among them.
@@ -124,6 +132,14 @@ if [ -n "${AGTERM_SESSION_ID:-}" ]; then
     [ "$tint" = clear ] && tint_parts=
     agtermctl session tint "$tint" ${tint_parts:+--on "$tint_parts"} --target "$AGTERM_SESSION_ID" ${AGTERM_SOCKET:+--socket "$AGTERM_SOCKET"} >/dev/null \
         || echo "attach: could not tint this tab $tint" >&2
+
+    # cmd+d in this tab opens a shell on the same machine in the project's directory, rather than a
+    # local one. agterm runs the line as argv with no shell, which the project check above keeps safe;
+    # the split's ssh ends with the split, so it gets the attach's deadline but not its reconnect loop.
+    # An agterm too old for the command only loses that, so it is reported and the attach goes on.
+    agtermctl session split command "/usr/bin/ssh -t $ssh_opts $REMOTE_USER@$REMOTE_HOST wsl -d $WSL_DISTRO --cd $WSL_PROJECT_ROOT/$project" \
+        --target "$AGTERM_SESSION_ID" ${AGTERM_SOCKET:+--socket "$AGTERM_SOCKET"} >/dev/null \
+        || echo "attach: could not point this tab's cmd+d at $REMOTE_HOST" >&2
 fi
 
 stop=0
@@ -152,13 +168,6 @@ while [ "$stop" -eq 0 ]; do
     # The `mac` is the origin: this script only ever runs on the Mac, so it is the one place that
     # knows the person is not at the Windows keyboard. `claude` over there reads it back off the
     # client and attaches alongside rather than refusing.
-    # ServerAlive* is a deadline, not a keepalive. Nothing is sent while the Mac is asleep; what they
-    # buy is that a transport which died during that sleep is noticed within 75s of waking instead of
-    # hours later, the probe deadline being absolute against a clock that ran through the suspend.
-    # They are set here rather than in ~/.ssh/config, which is per-machine and unversioned while this
-    # file is shared by both checkouts, and because tearing a connection down after 75s of silence is
-    # right for one a person is watching and wrong for every other ssh to this host.
-    ssh_opts="-o ServerAliveInterval=15 -o ServerAliveCountMax=4 -o ConnectTimeout=10"
     remote="wsl -d $WSL_DISTRO -- $REPO_WSL_PATH/claude/remote-session/wsl/cc-session.sh $project mac $mode"
 
     # Asked first without a terminal, because the Windows sshd returns 0 for every remote exit once
