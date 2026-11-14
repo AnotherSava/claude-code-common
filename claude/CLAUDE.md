@@ -317,6 +317,7 @@ Cross-project preferences and feedback. Memory files live in `~/.claude/memory/`
 - [User GitHub account](~/.claude/memory/user_github_account.md) — handle is `AnotherSava`; use to filter "my repos" vs third-party clones
 - [Where supplied screenshots land](~/.claude/memory/user_screenshot_location.md) — "see the screenshot" with nothing attached means the newest PNG in `~/Desktop`, or `~/CropStage` on Windows; phone shots arrive by Taildrop in `~/Downloads`
 - [Russian keyboard layout](~/.claude/memory/user_russian_keyboard_layout.md) — a lone Cyrillic letter is the Latin key it sits on: "н" is "y", a yes
+- [Windows apps go in C:\Programs](~/.claude/memory/user_windows_install_location.md) — install apps on the Windows desktop to `C:\Programs\<App>`: pass the installer's directory property, and ask first when it takes none
 - [Always report images with a contact sheet](~/.claude/memory/feedback_image_report_always.md) — reporting anything about screenshots means building the HTML sheet with the `docs-screenshot` skill and linking it; prose and transcript images are not substitutes
 - [Post-iteration cleanup audit](~/.claude/memory/feedback_post_iteration_cleanup.md) — before committing after a debug/optimize session, remove changes from disproven theories; don't leave cruft
 - [Verify before justifying legacy behavior](~/.claude/memory/feedback_verify_before_justifying.md) — if explaining why old code/docs exist (especially defending keeping it), check the source before speculating; defensive guesses preserve cruft
