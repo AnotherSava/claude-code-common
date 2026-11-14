@@ -232,6 +232,7 @@
 - [Check the record before building an observer](feedback_record_before_observer.md) {always} — a definition phrased "after X happens" is an event the system already receives; find where it arrives before designing a poll
 - [Reserve space for async content](feedback_reserve_space_for_async_content.md) — a field or row revealed after a fetch must not move siblings or resize the dialog; hold its slot hidden from the start
 - [Minimal UI chrome](feedback_minimal_ui_chrome.md) {always} — no duplicate state signals, no field help text, no card blurbs; icon over text button; state in a badge, never a placeholder
+- [Item menus open on click, no submenus](feedback_click_menus_no_submenus.md) — no hover menus; a few states go inline as a vertical toggle group; delete apart at the foot
 - [Inline edit reads as the value](feedback_inline_edit_reads_as_value.md) — one-line field on a read page: aligned with the column, border only on hover/focus, OK only after a change
 - [Help text keeps its height](feedback_help_text_keeps_its_height.md) — a toggle's help text is the same in both states; a resizing dialog keeps its top-left fixed
 - [Redrawn icons keep the original's identity](feedback_redrawn_icons_keep_identity.md) {always} — keep the frame/facets that identify a host's component; drop only what smudges at icon size, and go bigger before going plainer
