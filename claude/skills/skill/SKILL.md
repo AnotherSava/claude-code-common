@@ -138,6 +138,16 @@ If <condition>, see `references/<topic>.md` for <what it covers>.
 
 Keep it a one-liner in SKILL.md; the reference carries the depth.
 
+### One recipe per case when the subject varies by project
+
+A skill that has to work across projects of different stacks or shapes is a recipe book, not one procedure stretched over all of them. An early step settles which case the project in hand presents and names the recipe to read. Each recipe is one file under `references/`, and the steps every case shares stay in SKILL.md.
+
+- Enumerate the cases by reading the projects the skill will serve, before writing any recipe.
+- Write a recipe only for a case one of those projects presents. For a case none of them has yet, the early step says to stop, settle the design with the user, and route what was built back to the skill as a new recipe.
+- Where the per-stack work is mostly a script, make the same choice with probes in the Context section and one script per target. The memory `~/.claude/memory/feedback_generalize_global_skills.md` describes that form.
+
+The preference behind this, and where it came from, is in `~/.claude/memory/feedback_recipes_over_universal_procedure.md`.
+
 ### Always confirm before destructive actions
 
 If the skill performs irreversible operations (commits, pushes, deletes, moves), require explicit user confirmation before executing. Show the plan first, then ask.

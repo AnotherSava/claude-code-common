@@ -178,6 +178,7 @@
 - [Fix bugs at the source, not in callers](feedback_fix_at_source.md) {always} — if a bug lives in code I can modify (including vendored copies), fix it at the source instead of working around or suppressing it (gitignore, filtering, silencing)
 - [Cover the unrecoverable cases](feedback_cover_the_unrecoverable_cases.md) {always} — a kept copy or undo record is judged by which cases it reaches, ranked by the cost of redoing each; at one caller of a shared step it covers only that caller
 - [Generalize global skills, don't fork project-local](feedback_generalize_global_skills.md) {always} — name collisions load the wrong SKILL body; but a skill whose domain IS one project belongs in its repo
+- [Recipes over one universal procedure](feedback_recipes_over_universal_procedure.md) — a skill serving varied stacks gets per-case recipes picked by an early step
 - [Check for a live sibling session](feedback_check_live_sibling_session.md) {always} — an instruction, or a question about another project, likely belongs to another live session; route it there and check its `git status` (the `peer` skill) before editing its files; siblings also overwrite the shared clipboard
 - [Native dialogs render plain text — no clickable links](feedback_native_dialogs_no_links.md) {always} — `tauri-plugin-dialog`/MessageBox/NSAlert can't embed `<a>`; build a custom Tauri webview window for About-style content with links
 - [About dialogs describe WHAT, not HOW](feedback_about_what_not_how.md) {always} — About copy stays declarative ("Each session keeps a history"), not action-prescriptive ("Double-click to open")
@@ -229,6 +230,7 @@
 - [Fix the part, not the whole](feedback_fix_the_part_not_the_whole.md) {always} — an objection to one sentence is not licence to delete the construct around it
 - [Complexity may be self-imposed](feedback_complexity_may_be_self_imposed.md) {always} — check a constraint is real before designing around it; judge a subagent's design against what the user actually asked for
 - [Check the record before building an observer](feedback_record_before_observer.md) {always} — a definition phrased "after X happens" is an event the system already receives; find where it arrives before designing a poll
+- [Reserve space for async content](feedback_reserve_space_for_async_content.md) — a field or row revealed after a fetch must not move siblings or resize the dialog; hold its slot hidden from the start
 - [Minimal UI chrome](feedback_minimal_ui_chrome.md) {always} — no duplicate state signals, no field help text, no card blurbs; icon over text button; state in a badge, never a placeholder
 - [Inline edit reads as the value](feedback_inline_edit_reads_as_value.md) — one-line field on a read page: aligned with the column, border only on hover/focus, OK only after a change
 - [Help text keeps its height](feedback_help_text_keeps_its_height.md) — a toggle's help text is the same in both states; a resizing dialog keeps its top-left fixed
