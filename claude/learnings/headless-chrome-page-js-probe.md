@@ -35,3 +35,24 @@ then delete the directory.
 It reads the DOM only. A URL changed with `history.pushState`, or anything that arrives after the time budget, is
 invisible to it (`google-maps-link-coordinates.md` has a case). For that, use CDP through `puppeteer-core` against
 the installed Chrome.
+
+## What CDP adds: real keys, a drop, and a clipboard of its own
+
+Driven through `puppeteer-core`, the installed Chrome takes trusted input, which a probe script's own events are
+not. Measured 2026-11-14 with Chrome 157 on Windows and puppeteer-core 25, launched headless with a profile
+directory of its own, on a page served from loopback with focus emulation switched on
+(`Emulation.setFocusEmulationEnabled`); neither condition was tried without.
+
+- **Keys:** pressing Enter in a text field with `page.keyboard.press` submitted the form around it, and Tab moved
+  focus to the next control.
+- **A drop:** three `Input.dispatchDragEvent` calls (`dragEnter`, `dragOver`, `drop`) at the field's coordinates,
+  each carrying a `text/plain` item in `data.items`, put the text into an input.
+- **The clipboard:** headless Chrome keeps one of its own. Once `browserContext.overridePermissions` had granted
+  the clipboard permissions, `navigator.clipboard.readText()` gave an empty string while the system clipboard
+  held text. After a `writeText()`, Ctrl+V key presses pasted that text into a field, and the system clipboard's
+  sequence number (`GetClipboardSequenceNumber`) had not moved. A paste can be tested without touching what the
+  user has copied.
+- **Accessibility:** a node's entry from `Accessibility.getPartialAXTree` says whether it is ignored and why. The
+  call takes an object id from the CDP session it is sent on: an id taken from the page's element handle was
+  refused by a session made with `createCDPSession()`, and resolving the node with `Runtime.evaluate` on that
+  session worked.
