@@ -518,3 +518,28 @@ the width of all of them. Give it the same explicit `height` and centre the cell
 `inline-grid h-6 content-center`). An `inline-grid` button is inline-level like an `inline-flex` one, so the
 `display: flex` on its wrapping `<form>` applies to it too; only a block-level `display: grid` button escapes the
 line box.
+
+## Controls revealed by `focus-within` stay up after a mouse click on one of them
+
+**Give hover-revealed controls their keyboard path with `:has(:focus-visible)`, not with `:focus-within`.** In
+Tailwind v4 that is the `has-focus-visible:` variant. Chrome focuses a link or a button when it is clicked, and a
+link with `target="_blank"` keeps that focus while its tab opens. A row that reveals its controls on `:focus-within`
+therefore goes on showing them after the user comes back and moves the pointer away, until something else takes
+focus, and the controls look stuck.
+
+A clicked control matches `:focus` and not `:focus-visible`, so under `:has(:focus-visible)` the controls fade when
+the pointer leaves, while tabbing onto one still shows them. A key pressed while the clicked control still holds
+focus turns it `:focus-visible` and brings the controls back, as the section "A keypress makes an already-focused
+element show its ring" describes. Shift on its own was enough.
+
+Measured 2026-11-14 in headless Chrome 157 with Tailwind 4.3.3, on a row holding a link with `target="_blank"` and
+a button. The controls were hidden by `pointer-fine:opacity-0`, revealed on hover by the group-hover class
+(`pointer-fine:group-hover/row:opacity-100`), and given one keyboard path or the other:
+
+| What happened | `focus-within:opacity-100` | `has-focus-visible:opacity-100` |
+|---|---|---|
+| the link clicked, the user back on the page, the pointer moved away | shown | hidden |
+| the same, then Shift or a letter pressed | shown | shown |
+| the same, then a click on an empty part of the page | hidden | hidden |
+| the button clicked, the pointer moved away | shown | hidden |
+| Tab onto the link, the pointer away | shown | shown |

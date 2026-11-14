@@ -66,10 +66,10 @@ Light dismiss is a `pointerdown` listener on `document` while something is open,
 Hiding row actions until hover strands them on touch devices, where nothing hovers. Gate the *hiding* on the pointer, not the reveal:
 
 ```
-className="… focus-within:opacity-100 pointer-fine:opacity-0 pointer-fine:group-hover/row:opacity-100"
+className="… has-focus-visible:opacity-100 pointer-fine:opacity-0 pointer-fine:group-hover/row:opacity-100"
 ```
 
-Tailwind v4 emits `@media (pointer: fine)` around the hide, and nests `@media (hover: hover)` around the reveal itself. Keep `focus-within:` outside both so the keyboard path works everywhere.
+Tailwind v4 emits `@media (pointer: fine)` around the hide, and nests `@media (hover: hover)` around the reveal itself. Keep `has-focus-visible:` outside both so the keyboard path works everywhere. With `focus-within:` in its place the controls also stay up after a mouse click on one of them, which `css-layout-gotchas.md` measures under "Controls revealed by `focus-within` stay up after a mouse click on one of them".
 
 ## Measuring these in a background tab
 
