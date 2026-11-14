@@ -74,7 +74,7 @@ PS1
 powershell -NoProfile -Command "Start-Process powershell -Verb RunAs -WindowStyle Hidden -Wait -ArgumentList '-NoProfile','-ExecutionPolicy','Bypass','-File','$(cygpath -w "$dir/fix.ps1")'"
 ```
 
-`-Verb RunAs` raises the UAC consent dialog on the secure desktop, so it takes the foreground for a few seconds and the user has to click — ask immediately before running it. `-WindowStyle Hidden` keeps a console from flashing, and `-Wait` is what lets the caller verify afterwards rather than racing the elevation.
+`-Verb RunAs` raises the UAC consent dialog on the secure desktop, so it takes the foreground for a few seconds and the user has to click — ask immediately before running it. Unanswered, the dialog is cancelled after two minutes and the call fails with `The operation was canceled by the user` (`windows-uac-elevation-from-agent-shell.md`). `-WindowStyle Hidden` keeps a console from flashing, and `-Wait` is what lets the caller verify afterwards rather than racing the elevation.
 
 `(OI)(CI)` is object-inherit plus container-inherit, so files and directories created under that tree afterwards carry the grant. Verify by creating one and reading its ACL back — the user's `(I)(F)` entry appearing is the proof, and a `/grant` that silently reached nothing looks identical without it.
 

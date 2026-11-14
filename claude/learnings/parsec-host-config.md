@@ -1,0 +1,9 @@
+# Parsec: changing a setting that has no switch in the app
+
+Parsec keeps settings without a UI toggle in an advanced config file. On Windows it is `%APPDATA%\Parsec\config.txt` for a per-user install, or `%ProgramData%\Parsec\config.txt` for a per-computer one, which Parsec used to call shared. Check which folder exists: a PC with the Parsec service installed kept the file under `%APPDATA%`. The full list of keys is in Parsec's support article "All Advanced Configuration Options".
+
+To change one, append `key = value` to `config.txt` and restart Parsec. Since Parsec 150-89 the real store is `config.json` in the same folder. On its next start Parsec moves every setting in `config.txt` into the JSON and leaves the text file holding only its own notice comment. Prefer the text file: the list of options gives only the text spelling, and Parsec's article on the files warns that a `config.json` saved as invalid JSON is reset. The JSON on disk is `["<comment>", {"<key>": {"value": <v>}}]`.
+
+Measured 2026-11-13 on a Windows host: `app_copy_paste = false`, appended to `config.txt`, was in `config.json` as `"app_copy_paste": {"value": false}` after the restart. Parsec documents the option as preventing "copying and pasting text between the guest and host on owner connections", and does not say which side has to set it. Whether sharing stopped was not tested in a session. The reason to turn it off was a second tool syncing the clipboard between the same two machines.
+
+**Restarting needs no administrator rights when the service is installed.** The `Parsec` Windows service runs a loader `parsecd.exe`, and that loader starts a second `parsecd.exe` in the user's session, whose command line carries `SERVICE_LAUNCHED_...`. Kill only that user-session process, by PID, and the loader starts a fresh one within seconds, reading the new config: seven seconds when measured. Expect a streaming session in progress to drop with it; that was not checked.
