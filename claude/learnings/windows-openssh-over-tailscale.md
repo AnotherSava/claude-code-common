@@ -222,6 +222,17 @@ terminal. Ask the question first over `ssh -n -T`, where the code survives, and 
 run's status as saying only whether the transport held. `claude/remote-session/mac/attach.sh` does
 this with `cc-session.sh … check` before every attach.
 
+## Starting WSL in a directory: `--cd` falls back to `/` and still exits 0
+
+`wsl -d <distro> --cd /mnt/d/projects -e pwd` survives cmd.exe as bare tokens and prints the
+directory, so it is the way to open a WSL shell somewhere specific over this sshd. A directory that
+does not exist is not an error, though. Measured 2026-11-13: `--cd` on a missing path printed
+`CreateProcessCommon:792: chdir(...) failed 2` to stderr, then ran the command in `/` and exited 0.
+A caller deriving the path from a name has to check it exists first, or it gets a shell in the
+wrong place with nothing failing. The same session showed this WSL has no `xterm-ghostty` terminfo
+(`infocmp xterm-ghostty` fails), so a client passing that `TERM` relies on whatever the sshd and
+conhost layer substitutes.
+
 ## You cannot drop privileges here, and `runas` says nothing about it
 
 An sshd session for an account in the Administrators group arrives **elevated** — High mandatory
