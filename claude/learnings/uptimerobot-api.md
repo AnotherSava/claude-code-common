@@ -32,6 +32,10 @@ newMonitor  type=2  url=…  keyword_type=2  keyword_value=<marker>  interval=30
   sign-up address is created as a contact automatically.
 - Encode the values (`curl --data-urlencode`, or `urllib.parse.urlencode`). A marker such as
   `What&#x27;s next` carries `&` and `#`, which an unencoded `-d` splits or truncates.
+- A value that holds a non-ASCII character, such as a monitor name with a `·` in it, goes through Python when the
+  shell is Git Bash on Windows. Git Bash's `curl` receives its arguments in the ANSI code page and sends the dot
+  as `%B7`, which the API stores as that literal text while answering `"stat":"ok"`. The measurements and the
+  other ways around it are in `git-bash-native-exe-non-ascii-args.md`.
 
 `getMonitors` reports `status`: `2` up, `9` down, `1` not checked yet, `0` paused. A new monitor runs its
 first check within about a minute.
