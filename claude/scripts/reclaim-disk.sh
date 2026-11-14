@@ -647,7 +647,7 @@ esac
 
 start_kib="$(free_kib)" || { log "FAILED   df gave no answer for $VOLUME"; exit 1; }
 log "---- broom ${mode} — $(gib "$start_kib") free on $VOLUME ----"
-[ "$mode" = report ] && log "Report only. Nothing is deleted. Re-run with --apply to remove the FREE rows."
+[ "$mode" = report ] && log "Report only. Nothing is deleted. Re-run with --apply to remove the FREE and REBUILD rows."
 
 rule_cargo
 rule_scratch_clones
