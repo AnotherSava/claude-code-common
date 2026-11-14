@@ -25,6 +25,6 @@ defaults write com.apple.coreservices.useractivityd ClipboardSharingEnabled -boo
 killall useractivityd                                                        # relaunches by itself
 ```
 
-Then on the iPhone, turn Handoff off and on in Settings › General › AirPlay & Continuity, restart the phone, and copy once Mac → iPhone before testing iPhone → Mac with fresh text. One report in the thread needed that Mac → iPhone copy before the other direction woke up. All of this was done in one go, so which step was needed is not known. To undo the change, run `defaults delete` on the same key.
+Then on the iPhone, turn Handoff off and on in Settings › General › AirPlay & Continuity, restart the phone, and copy once Mac → iPhone before testing iPhone → Mac with fresh text. One report in the thread needed that Mac → iPhone copy before the other direction woke up. The two commands on the Mac were confirmed by reading the key back. Whether each iPhone step was done was not, so which step was needed is not known. To undo the change, run `defaults delete` on the same key.
 
 The `com.apple.coreservices.useractivityd` domain also holds `kRemotePasteboardBlobName`, the path of a file under the user's Group Containers. While iPhone → Mac was broken that file had not changed for a week. Its modification time then moved to within a minute of the first iPhone → Mac copy the user reported working, and its size from 6 bytes to 170. That is one observation, and it makes the file's mtime a usable sign of when the Mac last received a copy from another device.
