@@ -55,3 +55,20 @@ Two ways out:
   - consumers don't depend on the label list being **pushed** to them (removes a class of "stuck waiting for labels" bugs);
   - resolution stays **always-fresh** against the live list — no persisted id to go stale when a label is deleted+recreated, and no invalidation logic to maintain.
 - If the cached value behind the id (e.g. a per-label message-index) is built asynchronously, gate the reply on that value being **ready**, not merely on the id resolving — see the "pull/deferred reply must wait for readiness" note in `chrome-extension.md`.
+
+## The claude.ai Gmail connector cannot see Spam
+
+**To read a mail that went to Spam through the claude.ai Gmail connector, ask the user to press "Not spam" first.**
+The connector's `search_threads` leaves Spam out of every result. Its own description says that even a search
+with `in:anywhere` leaves out mail that is "spam, confidential, encrypted, or suspicious", which is "still
+filtered out for security". Its one flag of this kind, `includeTrash`, covers Trash alone.
+
+- Measured 2026-11-13: a message sitting in Spam was not returned by `from:<sender> newer_than:1d in:anywhere`.
+  After the user pressed "Not spam", a search for `from:<sender> newer_than:1d` returned it.
+- Measured 2026-11-14: searches for `in:spam` and for `label:spam` returned nothing, with `includeTrash` set and
+  without it, though the `SPAM` label held threads according to `list_labels`. A search for `in:trash` returned
+  threads without the flag.
+
+So an empty result says nothing about whether a mail arrived in Spam. The one sign of it the connector gives is
+the `SPAM` label's `threadsTotal` in `list_labels`; comparing that count before and after a send was not tried.
+Whether `get_message` returns a Spam message by its id was not tested either, since no search yields the id.

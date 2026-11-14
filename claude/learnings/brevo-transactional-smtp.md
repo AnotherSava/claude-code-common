@@ -29,7 +29,14 @@ key off the next time it needs one.
 ## The relay
 
 - The host is `smtp-relay.brevo.com`. Ports 587 and 2525 take STARTTLS and port 465 takes implicit TLS. The key
-  logged in on 587 and 465; 2525 was only seen to offer STARTTLS.
+  logged in on all three (2525 measured 2026-11-13, `235` after STARTTLS).
+- **Test the port from the sending box before choosing it.** A VPS provider may drop outbound 25, 465 and 587 while
+  leaving 2525 open, and the host's own firewall then shows nothing. Measured on one VPS 2026-11-13: from the host,
+  connections to the relay on 25, 465 and 587 did not open within eight seconds while 2525 and 443 connected, with
+  the host's `ufw` allowing all outgoing traffic. From a container, 465 did not open and 2525 connected; 25 and
+  587 were not tried there. No other mail host was tried, so placing the block at the provider is an inference.
+  The sending app showed it only as a "send test mail" button that kept spinning and, two minutes on, a line in
+  its log reading `dial tcp …:465: connect: connection timed out`.
 - The login is a generated address on the `smtp-brevo.com` domain for a recently created account, and the account's
   own login address for an older one (Brevo's SMTP troubleshooting page). It is not a secret, and the API returns it
   as `relay.data.userName` in `GET /v3/account`.
@@ -74,6 +81,12 @@ Seen in the source of one delivered login-code mail:
 - No "Sent with Brevo" badge was added, though the free-plan FAQ says the plan's mail always carries one.
 - At Gmail, DKIM and DMARC passed for the sending domain, and SPF for Brevo's envelope domain.
 
+Passing all three did not keep a later mail out of Gmail's Spam folder. On 2026-11-13 a login-code mail reached
+the inbox, a test mail five hours later went to Spam, and a second test mail, sent after the user pressed "Not
+spam" on the first, reached the inbox. The login-code mail and the first test mail were both fetched: same sender,
+same Brevo sending address and envelope domain, all three checks passing on each, and no reason given in the
+headers. They differed in subject and body. What "Not spam" changes for other recipients was not measured.
+
 Turning tracking off is done by Brevo's support and not by a setting. Its product manager wrote on the community
 forum in 2024 that disabling is available on request, to Enterprise customers only. Users who asked support anyway
 report both outcomes: switched off within a day (issue 115 of `sendinblue/APIv3-nodejs-library` on GitHub, November
@@ -93,7 +106,9 @@ value under `plan[]` in `GET /v3/account`, which read 299 after the day's first 
 ## Authorized IPs
 
 From Brevo's help article "Authorize and block IP addresses for API and SMTP security" and its SMTP troubleshooting
-page, read 2026-11-13; none of it was exercised on the account.
+page, read 2026-11-13. Exercised 2026-11-13 for the happy path: with the box's address and one workstation address
+listed and blocking on for both kinds of key, the box's test mail was delivered and API calls from the workstation
+still answered. No refusal was provoked.
 
 **Authorise the sending box's outbound address before any other address, or together with it, then send a test mail
 from the box.** Authorising any address by hand starts blocking for API and SMTP calls alike, and SMTP addresses are
