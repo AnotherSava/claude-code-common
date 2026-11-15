@@ -71,5 +71,25 @@ A website cannot detect whether the app is installed; the spec suggests a user s
   preselected.
 - The `.bgsplay` share file and the QR-code share have no published format.
 
+## Reading plays back
+
+There is no public API, and cloud sync has no documented endpoint. The only read path is the backup the user exports
+in the app (Settings > Export, import and backup), a `.json` file with separate `games`, `players`, `locations` and
+`plays` arrays linked by sequential `id`s (`gameRefId`, `locationRefId`, `playerRefId`). Each play carries three
+timestamps, all wall-clock strings with no zone:
+
+| Field | Meaning |
+| --- | --- |
+| `playDate` | the `playDate` the push carried, stored verbatim: the spec's end time, or whatever the sender chose instead |
+| `entryDate` | when the play was created in the app; for a pushed play, when the import dialog was confirmed |
+| `modificationDate` | the last edit |
+
+So `entryDate` is the only record of when a pushed link was acted on, which the sending site cannot see unless it
+logs the redirect itself. Measured 2026-11-14 on a real export, from a sender that puts the game's wall-clock *start* in `playDate` so the
+play files under the day it began: `entryDate` sat four minutes after `playDate + durationMin`, the game's end, and
+`modificationDate` a few minutes after that. With a spec-following sender `playDate` is already the end, and the
+duration is not added. The sample export the docs link to is
+`https://www.bgstatsapp.com/help/BGStatsExport.json`.
+
 Not stated in the spec: whether re-sending a `sourcePlayId` replaces the earlier play or adds a second one, and
 whether a play with an empty `players` array is accepted.
