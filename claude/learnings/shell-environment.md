@@ -70,17 +70,17 @@ memo() {
   if [ $# -gt 0 ]; then python "$py" add "$@"; return; fi
   # memos.py sizes itself everywhere but Windows, where a console is not a pty — see Width below.
   case "$(uname -s)" in
-    MINGW* | MSYS* | CYGWIN*) python "$py" list --width "${MEMO_WIDTH:-148}" ;;
-    *) python "$py" list ;;
+    MINGW* | MSYS* | CYGWIN*) python "$py" page --width "${MEMO_WIDTH:-148}" ;;
+    *) python "$py" page ;;
   esac
 }
 ```
 
 macOS reaches the same helper through `~/.local/bin/memo` rather than a shell function, and that script needs no width arm at all — it execs `memos.py` and nothing else.
 
-`! memo` (or `memo` in any terminal) prints the open backlog at full width in ~0.1 s; `memo <text>` writes that text as a new memo file, deriving the title from its first sentence (no quotes needed). This is the **model-free** path — the `/memo` skill is slow because it drives the model through multi-step tool calls, wasted effort for a plain list/append. Reach for the skill only when you want model help: titling an idea well on capture, or reviewing with offers to act on items.
+`! memo` (or `memo` in any terminal) shows the open backlog, and `memo <text>` writes that text as a new memo file, deriving the title from its first sentence (no quotes needed). Inside agterm the backlog opens as a page over the session, with each memo's body behind a ▸ button, and the command ends when the page is closed. Anywhere else the listing prints at full width, followed by a tailnet link to the same page. The page is published before anything prints, so the command takes about a second and a half where the listing alone took a tenth (measured on the Windows box, 2026-11-14). This is the **model-free** path — the `/memo` skill is slower because it drives the model through tool calls, wasted effort for a plain look or an append. Reach for the skill when you want model help: titling an idea well on capture, or a page whose rows can be set to start or done.
 
-**The function is add-and-list only; every other subcommand goes through the script.** It passes any argument straight to `add`, so `memo done 1` creates a memo *titled* "done 1" rather than closing memo 1 — use `python ~/.claude/skills/memo/memos.py done 1` for that, and likewise for `show`, `path`, `reopen`. Routing on the first word was considered and rejected: memos are written as imperatives, so `done`, `list`, `show` and `count` are all plausible openers for a real memo, and any such guard would swallow one. The mistake is at least visible — `add` echoes the stored title and the new count, so a junk entry shows up the moment it is made.
+**The function adds and shows, and nothing else; every other subcommand goes through the script.** It passes any argument straight to `add`, so `memo done 1` creates a memo *titled* "done 1" rather than closing memo 1 — use `python ~/.claude/skills/memo/memos.py done 1` for that, and likewise for `show`, `path`, `reopen`. Routing on the first word was considered and rejected: memos are written as imperatives, so `done`, `list`, `show` and `count` are all plausible openers for a real memo, and any such guard would swallow one. The mistake is at least visible — `add` echoes the stored title and the new count, so a junk entry shows up the moment it is made.
 
 **Flags forward for free, and only from the front.** `"$@"` reaches `add` unchanged, so `memo --platform windows the thing that only works there` works without touching the function. `_take_flag` reads only the opening run of `--flag value` pairs, which is what keeps a flag word occurring later in a memo's own prose — `memo use --title to name a thing` — from being eaten along with the word after it. Lead with the flags; anything after the first non-flag argument is memo text.
 
@@ -114,11 +114,11 @@ function memo {
     $py = "$HOME\.claude\skills\memo\memos.py"
     if ($args.Count -gt 0) { python $py add @args; return }
     $w = if ($env:MEMO_WIDTH) { [int]$env:MEMO_WIDTH } else { [Math]::Max(40, $Host.UI.RawUI.WindowSize.Width - 2) }
-    python $py list --width $w
+    python $py page --width $w
 }
 ```
 
-Same as the bash `memo` — fast, model-free backlog access (`memo` to list, `memo <text>` to add).
+Same as the bash `memo` — fast, model-free backlog access (`memo` to show the backlog, `memo <text>` to add).
 
 ## Verification checklist
 

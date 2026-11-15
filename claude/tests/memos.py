@@ -23,6 +23,10 @@ directory entry disagree.
                    filters, so a number still indexes what a listing showed; an unbound memo must
                    write the bytes it wrote before the field existed; and a value that reached the
                    file by hand renders rather than being read as "either machine".
+  the page         `page` shows the backlog as rows a reader can set to start or done, and the answer
+                   can come back much later, pasted from a published page. So a row is keyed by slug,
+                   an answer is matched exactly and whole before anything moves, and a stale one
+                   moves nothing.
 
 The extension case is the one a regression would reach first: `_move` builds its `taken` set from
 the destination directory alone, which is only correct while `_load` can see every file in there.
@@ -41,10 +45,12 @@ Exit:   0 all cases behave, 1 at least one does not
 import contextlib
 import datetime
 import importlib.util
+import json
 import os
 import subprocess
 import sys
 import tempfile
+from typing import Optional
 
 REPO = os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 MEMOS_PATH = os.path.join(REPO, "claude", "skills", "memo", "memos.py")
@@ -110,10 +116,17 @@ class Backlog:
         for i in range(1, count + 1):
             self.write(f"{prefix.lower()}-{i}.md", f"{prefix} {i}", created=f"2026-09-0{i} 10:00:00")
 
-    def run(self, *args: str) -> tuple[int, str, str]:
-        proc = subprocess.run([sys.executable, "-S", MEMOS_PATH, *args], cwd=self.root,
+    def run(self, *args: str, stdin: Optional[str] = None, env: Optional[dict[str, str]] = None) -> tuple[int, str, str]:
+        proc = subprocess.run([sys.executable, "-S", MEMOS_PATH, *args], cwd=self.root, input=stdin, env=env,
                               capture_output=True, text=True, encoding="utf-8")
         return proc.returncode, proc.stdout.strip(), proc.stderr.strip()
+
+    def answer(self, value: object) -> tuple[int, str, str]:
+        """Hand `page` an answer the way a pasted one arrives: as a file of JSON."""
+        path = os.path.join(self.root, "answer.json")
+        with open(path, "w", encoding="utf-8") as fh:
+            json.dump(value, fh)
+        return self.run("page", "--answer", path)
 
     def names(self, done: bool = False) -> list[str]:
         directory = self.done_dir if done else self.open_dir
@@ -387,6 +400,74 @@ def main() -> int:
         rc, out, err = b.run("count")
         check("count refuses over .claude/memos.md when the version check itself fails",
               (rc != 0, "could not check" in err, "memos.md" in err), (True, True, True))
+
+        # --- the page: rows keyed by slug, and an answer that is matched whole before anything moves ----
+        b = Backlog(stack)
+        b.fill(4)
+        block = memos.page_spec(memos.open_memos(b.root), True, "Memos")["blocks"][0]
+        check("a page row is keyed by slug and labelled with the listing's number",
+              [(row["id"], row["label"]) for row in block["rows"]], [("memo-4", "1"), ("memo-3", "2"), ("memo-2", "3"), ("memo-1", "4")])
+        check("every row is preset to change nothing, and start is held by one row at a time",
+              ({row["choice"] for row in block["rows"]}, block["single"]), ({"leave"}, "start"))
+        check("a memo's body is its row's detail, and its capture time the row's age",
+              (block["rows"][0]["detail"], block["rows"][0]["captured"] > 0), ("PRECIOUS BODY", True))
+        shown = memos.page_spec(memos.open_memos(b.root), False, "Memos")["blocks"][0]
+        check("the page that only shows offers no choices", (shown["kind"], any("choices" in row for row in shown["rows"])), ("entries", False))
+
+        rc, out, err = b.answer({"choices": {"memo-4": "leave", "memo-3": "start", "memo-2": "done", "memo-1": "done"},
+                                 "notes": {"memo-3": "first half only"}, "flags": {}})
+        check("an answer closes what it marks done", (rc, b.titles(done=True)), (0, ["Memo 1", "Memo 2"]))
+        check("and prints the memo to start in full, under its note",
+              "start: Memo 3\nslug: memo-3\nnote: first half only\n\nPRECIOUS BODY" in out)
+        check("and leaves the rest open", b.titles(), ["Memo 3", "Memo 4"])
+
+        rc, out, err = b.answer({"choices": {"memo-4": "done", "memo-2": "done"}, "notes": {}})
+        check("an answer naming a memo that is no longer open moves nothing",
+              (rc, b.titles(), "memo-2" in err), (1, ["Memo 3", "Memo 4"], True))
+
+        # `done fix-the-thing` reaches this memo by part of its slug. An answer must not, or one that
+        # names a memo closed since the page was drawn would close its neighbour.
+        b = Backlog(stack)
+        b.write("fix-the-thing-2.md", "Fix the thing again")
+        rc, out, err = b.answer({"choices": {"fix-the-thing": "done"}, "notes": {}})
+        check("an answer does not match part of a slug", (rc, b.titles()), (1, ["Fix the thing again"]))
+        rc, out, err = b.answer({"choices": {"fix-the-thing-2": "bury"}, "notes": {}})
+        check("an unknown choice is refused", (rc, b.titles()), (1, ["Fix the thing again"]))
+        rc, out, err = b.answer(["fix-the-thing-2"])
+        check("an answer that is not an object is refused, not crashed on", (rc, "Traceback" in err), (1, False))
+        rc, out, err = b.answer({"choices": {"fix-the-thing-2": "leave"}, "notes": {}})
+        check("an untouched page changes nothing", (rc, "nothing picked" in out, b.titles()), (0, True, ["Fix the thing again"]))
+        rc, out, err = b.run("page", "--answer", "-", stdin=json.dumps({"choices": {"fix-the-thing-2": "done"}, "notes": {}}))
+        check("an answer is read from standard input too", (rc, b.titles(done=True)), (0, ["Fix the thing again"]))
+        check("an empty backlog shows no page", b.run("page")[1], "(no open memos)")
+
+        # Showing a page publishes it on the tailnet for real, which a test must not do from the commit gate.
+        print("  NOT COVERED the listing and link `page` prints outside agterm")
+        # agterm is macOS-only, and a Windows PATH lookup matches only PATHEXT extensions, so the stub below
+        # would be invisible there, as claude/tests/review-picker.py found.
+        if os.name == "nt":
+            print("  NOT COVERED `page` over a session: agterm does not run on Windows")
+        else:
+            bin_dir = stack.enter_context(tempfile.TemporaryDirectory())
+            inside = {**os.environ, "AGTERM_SESSION_ID": "test-session", "PATH": f"{bin_dir}{os.pathsep}{os.environ.get('PATH', '')}"}
+
+            def agtermctl(stdout: str, status: int) -> None:
+                """An agtermctl that answers the way a blocking overlay does, for every call it gets."""
+                with open(os.path.join(bin_dir, "agtermctl"), "w", encoding="utf-8") as fh:
+                    fh.write(f"#!/bin/sh\ncat <<'EOF'\n{stdout}\nEOF\nexit {status}\n")
+                os.chmod(os.path.join(bin_dir, "agtermctl"), 0o755)
+
+            b = Backlog(stack)
+            b.fill(2)
+            picked = {"choices": {"memo-2": "start", "memo-1": "done"}, "notes": {}, "flags": {}}
+            agtermctl(json.dumps({"pageID": "p", "outcome": "submitted", "value": json.dumps(picked)}), 0)
+            rc, out, err = b.run("page", "--pick", env=inside)
+            check("a page answered over the session is acted on", (rc, b.titles(done=True), "start: Memo 2" in out), (0, ["Memo 1"], True))
+            agtermctl(json.dumps({"pageID": "p", "outcome": "dismissed"}), 2)
+            rc, out, err = b.run("page", "--pick", env=inside)
+            check("a page closed without applying exits 2 and moves nothing", (rc, b.titles()), (2, ["Memo 2"]))
+            rc, out, err = b.run("page", env=inside)
+            check("a page that was only shown prints no listing under it", (rc, out), (0, ""))
 
     if FAILURES:
         print(f"memos tests: {len(FAILURES)} case(s) failed\n")

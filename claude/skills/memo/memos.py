@@ -44,6 +44,10 @@ in the name, rather than also in a field that could disagree with it.
   memos.py drop <n|slug> […]          delete open memos outright
   memos.py count                      "<open> open · <done> done", plus how many of the
                                       open ones this machine's platform cannot act on
+  memos.py page [--pick] [--width N]  the open backlog as a page: an overlay inside agterm,
+                                      else the listing and a tailnet link; --pick adds a
+                                      start and a done choice to each row and acts on them
+  memos.py page --answer <file|->     act on an answer copied from a published page
 
 The root is the git toplevel, else the current directory. `memos-surface.py`
 imports `open_memos()` from here rather than re-implementing the parse.
@@ -52,6 +56,7 @@ from __future__ import annotations
 
 import datetime
 import functools
+import json
 import os
 import re
 import subprocess
@@ -105,6 +110,10 @@ TITLE_MAX = 90
 BREAK_RE = re.compile(r"[ \t]+[–—][ \t]+|(?<=[\w)\"'][.!?])[ \t]+(?=[A-Z(\"'])")
 # Windows refuses these as filenames whatever the extension.
 RESERVED = {"con", "prn", "aux", "nul"} | {f"com{i}" for i in range(1, 10)} | {f"lpt{i}" for i in range(1, 10)}
+# The page of rows that `page` shows the backlog on, and what a row of it can be set to. The first is every row's
+# preset, so an untouched page changes nothing.
+PICKER = os.path.join(os.path.dirname(os.path.abspath(__file__)), "..", "..", "scripts", "review_picker.py")
+PICKS = ("leave", "start", "done")
 
 
 class Memo(NamedTuple):
@@ -457,16 +466,21 @@ def cmd_path(args: list[str]) -> None:
     print(_select(args).path)
 
 
-def cmd_done(args: list[str]) -> None:
+def _close(memos: list[Memo]) -> None:
+    """Move memos into done/, printing each one's title and the command that brings it back."""
     done_dir = _dirs()[1]
     # One date for the whole batch, read once: `done 2 4` closes both memos in the same act, and
     # a per-memo read could straddle midnight and file them under two different days.
     prefix = f"{datetime.datetime.now().strftime(DONE_DATE_FMT)}-"
-    for memo in _select_all(args):
+    for memo in memos:
         # Name the undo at the one moment it might be wanted, using the slug the memo has
         # NOW: a number indexes the open list it has just left, and its slug gains the close
         # date on the way into done/ — so the name to reopen by is never the one just listed.
         print(f"done: {memo.title}\nundo: memos.py reopen {_move(memo, done_dir, prefix)}")
+
+
+def cmd_done(args: list[str]) -> None:
+    _close(_select_all(args))
     cmd_count([])
 
 
@@ -482,6 +496,123 @@ def cmd_drop(args: list[str]) -> None:
         os.remove(memo.path)
         print(f"dropped: {memo.title}")
     cmd_count([])
+
+
+def _epoch(created: str) -> float:
+    """A stored `created:` stamp as epoch seconds, or 0 where it does not parse, which a page draws as no age."""
+    for layout in (TS_FMT, TS_FMT[:-3]):
+        try:
+            return datetime.datetime.strptime(created, layout).timestamp()
+        except ValueError:
+            pass
+    return 0
+
+
+def page_spec(memos: list[Memo], pick: bool, title: str) -> dict:
+    """The open backlog as a page for `claude/scripts/review_picker.py`: one row per memo, in listing order.
+
+    A row is keyed by the memo's slug and only labelled with its number. An answer can arrive long after the page
+    was drawn, pasted back from a published page, and a capture made in between renumbers the listing, so a number
+    in an answer would close whichever memo took its place.
+    """
+    rows = []
+    for number, memo in enumerate(memos, 1):
+        row: dict = {"id": memo.slug, "label": str(number), "memo": f"{memo.tag}{memo.title}", "captured": _epoch(memo.created)}
+        if memo.body:
+            row["detail"] = memo.body
+        if pick:
+            row.update(choices=list(PICKS), choice=PICKS[0])
+        rows.append(row)
+    block: dict = {"kind": "choices" if pick else "entries", "rows": rows,
+                   "columns": [{"key": "memo", "label": "Memo"}, {"key": "captured", "label": "Captured", "age": True}]}
+    if pick:
+        # Starting a memo begins a task, so one row at a time can hold it.
+        block["single"] = "start"
+    return {"title": title, "blocks": [block]}
+
+
+def _apply_answer(answer: object) -> None:
+    """Carry out a page's answer: close each memo set to `done`, and print each one set to `start` in full.
+
+    Every slug is matched exactly against the open backlog, and before anything moves. `_resolve` also accepts part
+    of a slug, which suits a name typed by hand and is wrong here: an answer naming a memo that has since been closed
+    would land on whichever open memo's slug contains it.
+    """
+    choices = answer.get("choices") if isinstance(answer, dict) else None
+    notes = (answer.get("notes") or {}) if isinstance(answer, dict) else None
+    if not isinstance(choices, dict) or not isinstance(notes, dict):
+        sys.exit("not a page's answer: expected an object holding choices and notes")
+    unknown = sorted({str(choice) for choice in choices.values()} - set(PICKS))
+    if unknown:
+        sys.exit(f"not a memo page's answer: unknown choice {', '.join(unknown)}")
+    memos = open_memos()
+    by_slug = {memo.slug: memo for memo in memos}
+    gone = sorted(({slug for slug, choice in choices.items() if choice != PICKS[0]} | set(notes)) - set(by_slug))
+    if gone:
+        sys.exit(f"nothing was changed, because these are no longer open: {', '.join(gone)}")
+    done = [memo for memo in memos if choices.get(memo.slug) == "done"]
+    start = [memo for memo in memos if choices.get(memo.slug) == "start"]
+    _close(done)
+    for memo in done:
+        if notes.get(memo.slug):
+            print(f"note on the closed {memo.title!r}: {notes[memo.slug]}")
+    for memo in start:
+        print(f"start: {memo.tag}{memo.title}\nslug: {memo.slug}" + (f"\nnote: {notes[memo.slug]}" if notes.get(memo.slug) else "")
+              + (f"\n\n{memo.body}\n" if memo.body else ""))
+    for memo in memos:
+        if notes.get(memo.slug) and memo not in done and memo not in start:
+            print(f"note on {memo.title!r} ({memo.slug}), left open: {notes[memo.slug]}")
+    if not (done or start or notes):
+        print("nothing picked")
+    cmd_count([])
+
+
+def cmd_page(args: list[str]) -> None:
+    """Show the open backlog as a page, or with `--answer` act on an answer copied from one.
+
+    The page script decides where the page goes and reports it in its exit status, so nothing here asks whether
+    this is agterm: 0 is an answer, 2 a page shown and closed, 4 a page published with its URL printed, and 3 or
+    1 a page that could not be shown, with the reason on stderr.
+    """
+    if "--answer" in args:
+        at = args.index("--answer") + 1
+        source = args[at] if at < len(args) else "-"
+        try:
+            if source == "-":
+                raw = sys.stdin.read()
+            else:
+                with open(source, encoding="utf-8") as fh:
+                    raw = fh.read()
+            answer = json.loads(raw)
+        except (OSError, ValueError) as error:
+            sys.exit(f"cannot read the answer: {error}")
+        _apply_answer(answer)
+        return
+    pick, memos = "--pick" in args, open_memos()
+    if not memos:
+        print("(no open memos)")
+        return
+    root = _root()
+    os.makedirs(os.path.join(root, "tmp"), exist_ok=True)
+    spec = os.path.join(root, "tmp", "memos.json")
+    with open(spec, "w", encoding="utf-8", newline="\n") as fh:
+        json.dump(page_spec(memos, pick, f"Memos · {os.path.basename(root)}"), fh)
+    shown = subprocess.run([sys.executable, PICKER, spec], capture_output=True, text=True, encoding="utf-8")
+    if pick:
+        if shown.returncode == 0:
+            _apply_answer(json.loads(shown.stdout))
+            return
+        sys.stdout.write(shown.stdout)
+        sys.stderr.write(shown.stderr)
+        sys.exit(shown.returncode)
+    if shown.returncode in (0, 2):
+        return
+    # No page over the session, so the listing is what answers a glance, with the page's link under it.
+    cmd_list(args)
+    if shown.returncode == 4:
+        print(f"\n{json.loads(shown.stdout)['url']}")
+    else:
+        print(f"\nno page: {shown.stderr.strip() or 'the page script exited ' + str(shown.returncode)}", file=sys.stderr)
 
 
 def cmd_count(args: list[str]) -> None:
@@ -559,7 +690,7 @@ def _refuse_if_single_file_backlog() -> None:
 
 def main() -> None:
     cmd, *rest = (sys.argv[1:] or ["list"])
-    handlers = {"add": cmd_add, "list": cmd_list, "show": cmd_show, "path": cmd_path,
+    handlers = {"add": cmd_add, "list": cmd_list, "show": cmd_show, "path": cmd_path, "page": cmd_page,
                 "done": cmd_done, "reopen": cmd_reopen, "drop": cmd_drop, "count": cmd_count}
     handler = handlers.get(cmd)
     if not handler:
