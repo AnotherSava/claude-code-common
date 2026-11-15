@@ -25,6 +25,7 @@ HERE = os.path.dirname(os.path.realpath(__file__))
 sys.path.insert(0, os.path.join(HERE, "..", "..", "shared"))
 sys.path.insert(0, os.path.join(HERE, "..", "..", "..", "scripts"))
 
+from live_time import local_stamp  # noqa: E402 — needs the sys.path lines above
 from review_picker import triage_rows  # noqa: E402 — needs the sys.path lines above
 from transcripts import PROJECTS, content_blocks, invokes_skill, parse_iso, project_dir_name, records, text_of, timestamp  # noqa: E402 — needs the sys.path lines above
 
@@ -75,13 +76,17 @@ def _spec_markdown(spec: dict) -> str:
             lines += [block.get("text", "")]
         elif block.get("kind") == "text":
             lines += ["```", block.get("text", ""), "```"]
-        elif block.get("kind") == "choices":
-            keys = [column["key"] for column in block.get("columns") or []]
-            labels = [column.get("label", column["key"]) for column in block.get("columns") or []]
-            lines += ["| # | " + " | ".join(map(_cell, labels)) + " | Choice |", "|" + "---|" * (len(keys) + 2)]
+        elif block.get("kind") in ("choices", "entries"):
+            # An entries block is a choices block with nothing to choose, so it is the same table less its last column.
+            decides = block["kind"] == "choices"
+            columns = block.get("columns") or []
+            labels = [column.get("label", column["key"]) for column in columns]
+            lines += ["| # | " + " | ".join(map(_cell, labels)) + (" | Choice |" if decides else " |"), "|" + "---|" * (len(columns) + (2 if decides else 1))]
             for row in block.get("rows") or []:
+                # An age column holds epoch seconds, which the page shows as an interval; a summary states the moment.
+                cells = [_cell(local_stamp(row.get(column["key"]) or 0) if column.get("age") else row.get(column["key"], "")) for column in columns]
                 choices = " · ".join(f"**{c}**" if c == row.get("choice") else str(c) for c in row.get("choices") or [])
-                lines.append(f"| {_cell(row.get('id', ''))} | " + " | ".join(_cell(row.get(key, "")) for key in keys) + f" | {choices} |")
+                lines.append(f"| {_cell(row.get('label', row.get('id', '')))} | " + " | ".join(cells) + (f" | {choices} |" if decides else " |"))
         else:
             lines += [f"Block kind {block.get('kind')!r} is not rendered by collect.py:", "```json", json.dumps(block, indent=2), "```"]
         parts.append("\n".join(lines))

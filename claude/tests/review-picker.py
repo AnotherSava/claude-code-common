@@ -84,7 +84,35 @@ def main() -> int:
         check("an absent or null triage field prints nothing", ("None" in page, "<span class=\"meta\"></span>" not in page.split("polish-edit-5")[-1]), (False, False))
         check("a note selects the block's note_choice", page.count('data-note-choice="fix"'), 2)
 
+        check("a page without an age column carries no clock script", "formatInterval" in page, False)
+
         check("outside agterm the page copies its answer instead of submitting", ("Copy answer" in page, "overlay.submit" in page, "overlay.close" in page), (True, False, False))
+
+        # A page that only shows things: rows with a label, a detail and an age, and nothing to choose.
+        backlog = os.path.join(scratch, "backlog.json")
+        with open(backlog, "w", encoding="utf-8") as handle:
+            json.dump({"title": "Memos", "blocks": [{"kind": "entries", "columns": [{"key": "memo", "label": "Memo"}, {"key": "captured", "label": "Captured", "age": True}], "rows": [
+                {"id": "first-memo", "label": "1", "memo": "<b>First</b>", "captured": 1_700_000_000, "detail": "line one\n<i>line two</i>"},
+                {"id": "second-memo", "label": "2", "memo": "Second"}]}]}, handle)
+        shown = open(run(backlog, "--render-only", env=base).stdout.strip(), encoding="utf-8").read()
+        check("an entries row has no pills and no note", (shown.count('class="entry"'), 'type="radio"' in shown, 'class="feedback"' in shown), (2, False, False))
+        check("an entries cell is escaped", ("<b>First</b>" in shown, "&lt;b&gt;First&lt;/b&gt;" in shown), (False, True))
+        check("a label is what the first column shows, with the id on hover", '<td class="id" title="first-memo">1</td>' in shown, True)
+        check("a detail sits collapsed under its row, escaped, with a button only where there is one",
+              (shown.count('<tr class="detail-row" data-for="first-memo" hidden>'), "&lt;i&gt;line two&lt;/i&gt;" in shown, shown.count('class="more"')), (1, True, 1))
+        check("an age column carries its epoch for the page to keep current, and an absent one draws nothing", (shown.count('data-ts="1700000000000"'), shown.count('class="rel"'), "formatInterval" in shown), (1, 1, True))
+        check("a page with nothing to decide has no Apply, and outside agterm no bar", ('id="apply"' in shown, 'class="bar"' in shown), (False, False))
+
+        picking = os.path.join(scratch, "picking.json")
+        with open(picking, "w", encoding="utf-8") as handle:
+            json.dump({"blocks": [{"kind": "choices", "single": "start", "columns": [{"key": "memo"}], "rows": [
+                {"id": "a", "label": "1", "memo": "A", "detail": "more", "choices": ["leave", "start", "done"], "choice": "leave"},
+                {"id": "b", "label": "2", "memo": "B", "choices": ["leave", "start", "done"], "choice": "leave"}]}]}, handle)
+        picked = open(run(picking, "--render-only", env=base).stdout.strip(), encoding="utf-8").read()
+        check("a single choice is marked on its table for the page to enforce", picked.count('<table data-single="start">'), 1)
+        check("a choices row keeps its pills and note beside the detail button", (picked.count('class="more"'), picked.count('class="feedback"'), picked.count('data-for="a"'), picked.count('data-for="b"')), (1, 2, 2, 1))
+        check("a page with choices keeps Apply", 'id="apply"' in picked, True)
+        print("  NOT COVERED the page's own script: the detail button, the single choice and the clock were run by hand in a browser")
         # Outside agterm the picker publishes the page on the tailnet for real, which a test must not do from the
         # commit gate; that path was run by hand against a live node when it was written.
         print("  NOT COVERED publishing outside agterm (exit 4, or 3 when publishing fails)")
@@ -97,6 +125,8 @@ def main() -> int:
             stub(bin_dir, "", 0)
             inside_page = open(run(rows, "--render-only", env=inside).stdout.strip(), encoding="utf-8").read()
             check("inside agterm the page submits the overlay", ("overlay.submit" in inside_page, "Copy answer" in inside_page), (True, False))
+            inside_shown = open(run(backlog, "--render-only", env=inside).stdout.strip(), encoding="utf-8").read()
+            check("inside agterm a page with nothing to decide offers only Close", ('id="apply"' in inside_shown, 'data-agterm="session.overlay.close">Close</button>' in inside_shown), (False, True))
 
             answer = {"choices": {"r1-1": "fix", "r1-2": "fix"}, "notes": {"r1-2": "keep the old name"}, "flags": {"push": False}}
             stub(bin_dir, json.dumps({"pageID": "p", "outcome": "submitted", "value": json.dumps(answer)}), 0)
@@ -123,6 +153,11 @@ def main() -> int:
                              ("a note_choice some row lacks", {"kind": "choices", "note_choice": "fix", "rows": [{"id": "a", "choices": ["save", "skip"], "choice": "save"}]}),
                              ("an unknown block kind", {"kind": "chart"}),
                              ("a choices block with string columns", {"kind": "choices", "columns": ["finding"], "rows": [{"id": "a", "choices": ["x"], "choice": "x"}]}),
+                             ("a single that is a row's recommendation", {"kind": "choices", "single": "start", "rows": [{"id": "a", "choices": ["start", "leave"], "choice": "start"}]}),
+                             ("a single some row lacks", {"kind": "choices", "single": "start", "rows": [{"id": "a", "choices": ["leave"], "choice": "leave"}]}),
+                             ("an age column holding text", {"kind": "entries", "columns": [{"key": "at", "age": True}], "rows": [{"id": "a", "at": "yesterday"}]}),
+                             ("an entries block with no rows", {"kind": "entries", "rows": []}),
+                             ("a detail that is not text", {"kind": "entries", "rows": [{"id": "a", "detail": ["x"]}]}),
                              ("a table with object columns", {"kind": "table", "columns": [{"key": "a"}], "rows": []}),
                              ("a table with object rows", {"kind": "table", "rows": [{"id": "r1-1", "finding": "x"}]})):
             with open(broken, "w", encoding="utf-8") as handle:

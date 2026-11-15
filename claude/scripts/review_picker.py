@@ -19,9 +19,10 @@ Input is a JSON file:
     {"title": "...",
      "blocks": [
        {"kind": "choices", "heading": "Findings",
-        "columns": [{"key": "finding", "label": "Finding"}, ...],
-        "note_choice": "fix",
-        "rows": [{"id": "r1-8", "finding": "...", "choices": ["fix", "leave"], "choice": "fix", "dim": false}, ...]},
+        "columns": [{"key": "finding", "label": "Finding"}, {"key": "seen", "label": "Seen", "age": true}, ...],
+        "note_choice": "fix", "single": "start",
+        "rows": [{"id": "r1-8", "label": "8", "finding": "...", "detail": "...", "choices": ["fix", "leave"], "choice": "fix", "dim": false}, ...]},
+       {"kind": "entries", "heading": "Backlog", "columns": [...], "rows": [{"id": "a-slug", "label": "1", "detail": "...", ...}, ...]},
        {"kind": "triage", "heading": "Review", "rows": [<review-auto's triage objects, as the workflow returns them>]},
        {"kind": "table", "heading": "...", "columns": ["#", "Finding", ...], "rows": [["1", "..."], ...]},
        {"kind": "list", "heading": "Commits", "items": [{"text": "feat(x): ...", "note": "..."}, ...]},
@@ -41,6 +42,15 @@ Input is a JSON file:
     and its rows are lists of cells, one per column. A `triage` block reads each object's `id`, `finding`,
     `disposition`, `outcome`, `lens`, `frequency`, `cost` and `file`, any of them absent or null; it numbers the
     rows from 1, puts each id and file in the hover, and shows a disposition whose outcome is `applied` in green.
+    An `entries` block is a `choices` block with nothing to choose: the same rows and columns, drawn without pills
+    or notes, for items the page only shows. On a row of either kind, `label` is what the first column shows in
+    place of the id, which stays the answer's key and moves to the hover; use it where the visible number can shift
+    under an answer given later. `detail` is long text kept under the row behind a ▸ button. A column with
+    `"age": true` holds epoch seconds and shows them as "3h ago", kept current by the page, with the stamp on hover.
+    `single` on a `choices` block names a choice one row at a time can hold: taking it on a second row returns the
+    first to its recommendation, so it has to be a choice every row offers and none is preset to.
+    A page with no `choices` block and no flags has nothing to apply: in agterm its bar holds only Close, elsewhere
+    it has no bar, and closing it is exit 2 as for any page.
 
 Prints one JSON line and exits:
     0  {"outcome": "submitted", "choices": {"r1-8": "fix", ...}, "notes": {"r1-8": "..."}, "flags": {"push": true}}
@@ -60,7 +70,11 @@ import shutil
 import subprocess
 import sys
 
-PUBLISH = os.path.join(os.path.dirname(os.path.abspath(__file__)), "..", "skills", "shared", "tailnet_publish.py")
+SHARED = os.path.join(os.path.dirname(os.path.abspath(__file__)), "..", "skills", "shared")
+PUBLISH = os.path.join(SHARED, "tailnet_publish.py")
+sys.path.insert(0, SHARED)
+
+from live_time import LIVE_TIME_SCRIPT, rel_time  # noqa: E402 — needs the sys.path line above
 
 
 def _e(value: object) -> str:
@@ -96,12 +110,13 @@ def _validate(spec: dict) -> None:
         elif kind in ("text", "prose"):
             if not isinstance(block.get("text"), str):
                 raise ValueError(f"block {index}: a {kind} block needs text")
-        elif kind == "choices":
+        elif kind in ("choices", "entries"):
             rows = block.get("rows")
             if not isinstance(rows, list) or not rows:
-                raise ValueError(f"block {index}: a choices block needs rows")
+                raise ValueError(f"block {index}: a {kind} block needs rows")
             if columns is not None and not (isinstance(columns, list) and all(isinstance(column, dict) and "key" in column for column in columns)):
-                raise ValueError(f'block {index}: a choices block\'s columns are {{"key", "label"}} objects, not {columns!r}')
+                raise ValueError(f'block {index}: a {kind} block\'s columns are {{"key", "label"}} objects, not {columns!r}')
+            ages = [column["key"] for column in columns or [] if column.get("age")]
             for row in rows:
                 if not isinstance(row, dict) or "id" not in row:
                     raise ValueError(f"block {index}: every row needs an id")
@@ -109,40 +124,61 @@ def _validate(spec: dict) -> None:
                 if rid in seen:
                     raise ValueError(f"row {rid} appears twice")
                 seen.add(rid)
-                choices = row.get("choices")
-                if not isinstance(choices, list) or not choices or row.get("choice") not in choices:
-                    raise ValueError(f"row {rid}: choice must be one of a non-empty choices list")
-            note_choice = block.get("note_choice")
-            if note_choice is not None and not all(note_choice in row["choices"] for row in rows):
-                raise ValueError(f"block {index}: note_choice {note_choice!r} is not a choice on every row")
+                if not all(isinstance(row.get(key, ""), str) for key in ("label", "detail")):
+                    raise ValueError(f"row {rid}: label and detail are text")
+                # A bool is an int to Python, and would be drawn as a moment in 1970.
+                if not all(row.get(key) in (None, "") or (isinstance(row[key], (int, float)) and not isinstance(row[key], bool)) for key in ages):
+                    raise ValueError(f"row {rid}: an age column holds epoch seconds")
+                if kind == "choices":
+                    choices = row.get("choices")
+                    if not isinstance(choices, list) or not choices or row.get("choice") not in choices:
+                        raise ValueError(f"row {rid}: choice must be one of a non-empty choices list")
+            if kind == "choices":
+                note_choice = block.get("note_choice")
+                if note_choice is not None and not all(note_choice in row["choices"] for row in rows):
+                    raise ValueError(f"block {index}: note_choice {note_choice!r} is not a choice on every row")
+                single = block.get("single")
+                if single is not None and not all(single in row["choices"] and row["choice"] != single for row in rows):
+                    raise ValueError(f"block {index}: single {single!r} must be a choice on every row and the recommendation on none")
         else:
-            raise ValueError(f"block {index}: kind must be choices, triage, table, list, text or prose, not {kind!r}")
+            raise ValueError(f"block {index}: kind must be choices, entries, triage, table, list, text or prose, not {kind!r}")
 
 
 # The spec format has a second reader: `_spec_markdown` in skills/skill-outputs/scripts/collect.py renders the same
 # blocks as markdown, so a new block kind or column field is added there too.
-def _choices_block(block: dict) -> str:
+def _rows_block(block: dict) -> str:
+    """A `choices` or an `entries` block: one row per item, with pills and a note only where the block offers choices."""
     columns = block.get("columns") or []
+    decides = block["kind"] == "choices"
     note_choice = block.get("note_choice")
     note_attr = f' data-note-choice="{_e(note_choice)}"' if note_choice else ""
+    single = f' data-single="{_e(block["single"])}"' if decides and block.get("single") is not None else ""
     head = "".join(f"<th>{_e(column.get('label', column['key']))}</th>" for column in columns)
+    span = len(columns) + (2 if decides else 1)
     rows = []
     for row in block["rows"]:
         rid = _e(row["id"])
-        pills = "".join(
-            f'<label class="pill{" rec" if choice == row["choice"] else ""}"><input type="radio" name="{rid}" value="{_e(choice)}"'
-            f'{" checked" if choice == row["choice"] else ""}><span>{_e(choice)}</span></label>'
-            for choice in row["choices"]
-        )
-        cells = "".join(f"<td>{_e(row.get(column['key'], ''))}</td>" for column in columns)
-        rows.append(
-            f'<tr class="item{" dim" if row.get("dim") else ""}" data-id="{rid}"><td class="id">{rid}</td>{cells}'
-            f'<td class="pills">{pills}</td>'
-            f'<td class="note"><button type="button" class="feedback" title="Add a note">✎</button></td></tr>'
-            f'<tr class="feedback-row" hidden><td></td><td colspan="{len(columns) + 2}">'
-            f'<textarea rows="2" placeholder="Note"{note_attr}></textarea></td></tr>'
-        )
-    return f'<table><thead><tr><th>#</th>{head}<th></th><th></th></tr></thead><tbody>\n' + "\n".join(rows) + "\n</tbody></table>"
+        dim = " dim" if row.get("dim") else ""
+        first = f'<td class="id" title="{rid}">{_e(row["label"])}</td>' if "label" in row else f'<td class="id">{rid}</td>'
+        cells = "".join(f"<td>{rel_time(row.get(column['key']) or 0) if column.get('age') else _e(row.get(column['key'], ''))}</td>" for column in columns)
+        more = '<button type="button" class="more" title="Show the rest" aria-expanded="false">▸</button>' if row.get("detail") else ""
+        if decides:
+            pills = "".join(
+                f'<label class="pill{" rec" if choice == row["choice"] else ""}"><input type="radio" name="{rid}" value="{_e(choice)}"'
+                f'{" checked" if choice == row["choice"] else ""}><span>{_e(choice)}</span></label>'
+                for choice in row["choices"]
+            )
+            rows.append(
+                f'<tr class="item{dim}" data-id="{rid}">{first}{cells}<td class="pills">{pills}</td>'
+                f'<td class="note">{more}<button type="button" class="feedback" title="Add a note">✎</button></td></tr>'
+            )
+        else:
+            rows.append(f'<tr class="entry{dim}" data-id="{rid}">{first}{cells}<td class="note">{more}</td></tr>')
+        if row.get("detail"):
+            rows.append(f'<tr class="detail-row" data-for="{rid}" hidden><td></td><td colspan="{span}"><div class="detail">{_e(row["detail"])}</div></td></tr>')
+        if decides:
+            rows.append(f'<tr class="feedback-row" data-for="{rid}" hidden><td></td><td colspan="{span}"><textarea rows="2" placeholder="Note"{note_attr}></textarea></td></tr>')
+    return f'<table{single}><thead><tr><th>#</th>{head}{"<th></th><th></th>" if decides else "<th></th>"}</tr></thead><tbody>\n' + "\n".join(rows) + "\n</tbody></table>"
 
 
 def triage_rows(block: dict) -> list[dict[str, str]]:
@@ -190,7 +226,7 @@ def _render(spec: dict, in_agterm: bool) -> str:
     state = spec.get("status")
     status = (f'<div class="status">' + (f'{_e(state["label"])} ' if state.get("label") else "") + f'<span class="{"ok" if state["ok"] else "bad"}">{_e(state["text"])}</span>'
               + (f'<div>{_e(state["detail"])}</div>' if state.get("detail") else "") + "</div>") if state else ""
-    render = {"choices": _choices_block, "triage": _triage_block, "table": _table_block, "text": lambda block: f'<pre>{_e(block["text"])}</pre>',
+    render = {"choices": _rows_block, "entries": _rows_block, "triage": _triage_block, "table": _table_block, "text": lambda block: f'<pre>{_e(block["text"])}</pre>',
               "list": lambda block: '<ul class="list">' + "".join(f'<li class="rule"><span>{_e(item["rule"])}</span></li>' if "rule" in item else f'<li><code>{_e(item["text"])}</code>' + (f' <span class="note">{_e(item["note"])}</span>' if item.get("note") else "") + "</li>" for item in block["items"]) + "</ul>",
               "prose": lambda block: "".join(f'<p class="prose">{_e(part.strip())}</p>' for part in block["text"].split("\n\n") if part.strip())}
     sections = "\n".join(
@@ -207,6 +243,15 @@ def _render(spec: dict, in_agterm: bool) -> str:
         # The answer is shown, selected, only when the browser refuses clipboard access.
         answer = ("navigator.clipboard.writeText(value).then(() => { count.textContent = 'Copied: paste it into the chat'; }, () => {\n"
                   "      const answer = document.getElementById('answer'); answer.value = value; answer.hidden = false; answer.select(); count.textContent = 'Copy the selected text into the chat'; });")
+    # A page that only shows things has nothing to apply, so it gets no Apply to press by mistake: a way to close it
+    # in agterm, and no bar at all in a browser, where the tab is closed.
+    if flags or any(block["kind"] == "choices" for block in spec["blocks"]):
+        bar = (f'<div class="bar">\n  <button type="button" class="apply" id="apply">{"Apply" if in_agterm else "Copy answer"}</button>\n  '
+               + ('<button type="button" data-agterm="session.overlay.close">Cancel</button>' if in_agterm else '<textarea id="answer" rows="1" readonly hidden></textarea>')
+               + f'\n  {flags}\n  <span id="count"></span>\n</div>')
+    else:
+        bar = '<div class="bar">\n  <button type="button" data-agterm="session.overlay.close">Close</button>\n</div>' if in_agterm else ""
+    live = LIVE_TIME_SCRIPT if any(column.get("age") for block in spec["blocks"] if block["kind"] in ("choices", "entries") for column in block.get("columns") or []) else ""
     # Styled from the terminal theme agterm injects, with a fallback at each use, so the page reads as part of the
     # session in light and dark alike.
     return f"""<!doctype html>
@@ -255,39 +300,59 @@ def _render(spec: dict, in_agterm: bool) -> str:
   button {{ font: inherit; padding: 4px 14px; border-radius: 6px; border: 1px solid color-mix(in srgb, var(--agterm-foreground, #222) 30%, transparent); background: transparent; color: inherit; cursor: pointer; }}
   button.apply {{ background: var(--agterm-color-4, #2563eb); border-color: transparent; color: #fff; }}
   #count {{ opacity: 0.7; }}
-  td.note {{ width: 2em; }}
-  button.feedback {{ padding: 0 6px; border-color: transparent; opacity: 0.6; }}
+  td.note {{ width: 2em; white-space: nowrap; }}
+  button.feedback, button.more {{ padding: 0 6px; border-color: transparent; opacity: 0.6; }}
   button.feedback.on {{ opacity: 1; border-color: color-mix(in srgb, var(--agterm-foreground, #222) 30%, transparent); }}
+  button.more[aria-expanded="true"] {{ opacity: 1; }}
   tr.feedback-row td {{ border-bottom: none; padding-top: 0; }}
+  tr.detail-row td {{ padding-top: 0; }}
+  tr:has(+ tr.detail-row:not([hidden])) td {{ border-bottom-color: transparent; }}
+  .detail {{ white-space: pre-wrap; overflow-wrap: anywhere; font-size: 12px; opacity: 0.85; padding-bottom: 4px; }}
   #answer {{ font: 12px ui-monospace, monospace; flex: 1; }}
   textarea {{ font: inherit; width: 100%; box-sizing: border-box; padding: 4px 6px; border-radius: 4px; color: inherit; background: transparent; border: 1px solid color-mix(in srgb, var(--agterm-foreground, #222) 30%, transparent); }}
 </style></head>
 <body>
 <header><h1>{_e(title)}</h1>{status}</header>
 {sections}
-<div class="bar">
-  <button type="button" class="apply" id="apply">{"Apply" if in_agterm else "Copy answer"}</button>
-  {'<button type="button" data-agterm="session.overlay.close">Cancel</button>' if in_agterm else '<textarea id="answer" rows="1" readonly hidden></textarea>'}
-  {flags}
-  <span id="count"></span>
-</div>
+{bar}
 <script>
   const items = [...document.querySelectorAll('tr.item')];
   const count = document.getElementById('count');
+  const apply = document.getElementById('apply');
   const picked = (row) => row.querySelector('input[type=radio]:checked').value;
   const recommended = (row) => row.querySelector('.pill.rec input').value;
-  const noteOf = (row) => row.nextElementSibling.querySelector('textarea');
+  // A row's note and its detail sit in rows of their own under it, each naming the row it belongs to.
+  const under = (kind) => new Map([...document.querySelectorAll('tr.' + kind)].map((panel) => [panel.dataset.for, panel]));
+  const noteRows = under('feedback-row');
+  const detailRows = under('detail-row');
+  const noteOf = (row) => noteRows.get(row.dataset.id).querySelector('textarea');
   // A tally per choice, and a mark on each row moved off its recommendation, so what Apply will do is visible at once.
   const recount = () => {{
+    if (!count) return;
     const tally = new Map();
     for (const row of items) {{ tally.set(picked(row), (tally.get(picked(row)) || 0) + 1); row.classList.toggle('changed', picked(row) !== recommended(row)); }}
     const changed = items.filter((row) => row.classList.contains('changed')).length;
     count.textContent = [...tally].map(([choice, n]) => choice + ' ' + n).join(' · ') + (changed ? ' — ' + changed + ' changed' : '');
   }};
+  for (const button of document.querySelectorAll('button.more')) {{
+    button.addEventListener('click', () => {{
+      const panel = detailRows.get(button.closest('tr').dataset.id);
+      panel.hidden = !panel.hidden;
+      button.textContent = panel.hidden ? '▸' : '▾';
+      button.setAttribute('aria-expanded', String(!panel.hidden));
+    }});
+  }}
   for (const row of items) {{
     const note = noteOf(row);
     const toggle = row.querySelector('button.feedback');
-    row.addEventListener('change', recount);
+    const table = row.closest('table');
+    row.addEventListener('change', (event) => {{
+      // The table's single choice is held by one row at a time: taking it here hands the others back their recommendation.
+      if (table.dataset.single !== undefined && event.target.value === table.dataset.single) {{
+        for (const other of items) if (other !== row && other.closest('table') === table && picked(other) === table.dataset.single) other.querySelector('.pill.rec input').checked = true;
+      }}
+      recount();
+    }});
     toggle.addEventListener('click', () => {{ const panel = note.closest('tr'); panel.hidden = !panel.hidden; if (!panel.hidden) note.focus(); }});
     note.addEventListener('input', () => {{
       toggle.classList.toggle('on', note.value.trim() !== '');
@@ -296,7 +361,7 @@ def _render(spec: dict, in_agterm: bool) -> str:
     }});
   }}
   recount();
-  document.getElementById('apply').addEventListener('click', () => {{
+  if (apply) apply.addEventListener('click', () => {{
     const choices = Object.fromEntries(items.map((row) => [row.dataset.id, picked(row)]));
     const notes = Object.fromEntries(items.map((row) => [row.dataset.id, noteOf(row).value.trim()]).filter(([, text]) => text));
     const flags = Object.fromEntries([...document.querySelectorAll('input[data-flag]')].map((box) => [box.dataset.flag, box.checked]));
@@ -304,6 +369,7 @@ def _render(spec: dict, in_agterm: bool) -> str:
     {answer}
   }});
 </script>
+{live}
 </body></html>
 """
 

@@ -103,7 +103,6 @@ import time
 from collections.abc import Iterable
 from concurrent.futures import ThreadPoolExecutor
 from dataclasses import asdict, dataclass, field, fields
-from datetime import datetime
 from pathlib import Path
 from types import ModuleType
 
@@ -149,15 +148,6 @@ def format_local(uncommitted: int, added: int, deleted: int) -> str:
         return ""
     lines = format_lines(added, deleted)
     return f"{uncommitted} ({lines})" if lines else str(uncommitted)
-
-
-def local_stamp(epoch: float) -> str:
-    """An absolute timestamp in this machine's local time, for hover text.
-
-    Epochs are absolute, so a peer's timestamp converts correctly here even
-    though it was taken under a different clock and time zone.
-    """
-    return datetime.fromtimestamp(epoch).strftime("%Y-%m-%d %H:%M") if epoch else ""
 
 
 def os_label() -> str:
@@ -1091,7 +1081,7 @@ def build_groups(rows: list[RepoRow], reached: list[str]) -> list[DisplayGroup]:
                 cells["remote"] = f"{state.behind} ✓" if state.pulled else str(state.behind)
             cells["local"] = format_local(state.uncommitted, state.lines_added, state.lines_deleted)
             if state.oldest_epoch:
-                cells["age"] = compact_age(now - state.oldest_epoch)
+                cells["age"] = _live_time().compact_age(now - state.oldest_epoch)
             lines.append(cells)
         groups.append(DisplayGroup(rows=lines))
     return groups
@@ -1222,7 +1212,7 @@ def print_machine_summary(snapshots: list[MachineSnapshot]) -> None:
         # Sub-minute rounds up to "1m" in the shared formatter, and this line is
         # printed seconds after the scan it describes, so it would always say that.
         elapsed = now - snap.scanned_at
-        when = f"{compact_age(elapsed)} ago" if elapsed >= 60 else "just now"
+        when = f"{_live_time().compact_age(elapsed)} ago" if elapsed >= 60 else "just now"
         print(f"{snap.name}: {snap.os_label} · {snap.projects_root} · {snap.scanned_count} repos · "
               f"{conventions_summary(snap)} · scanned {when}")
 
@@ -1339,41 +1329,25 @@ PAGE = """<!doctype html>
 {script}
 """
 
-# Kept out of PAGE because PAGE goes through str.format, which reads every brace
-# in a script as a field and fails on the first one. It arrives through the
-# `{script}` slot instead, where its braces are never scanned.
-#
-# formatInterval is ported verbatim from the What's Next repo's web/src/lib/format.ts
-# rather than rewritten, so every surface that shows an interval agrees on where
-# the boundaries fall. Recomputing on an interval is the point: a report left open
-# — or reopened tomorrow — otherwise keeps asserting the age it had when written.
-LIVE_TIME_SCRIPT = """<script>
-(() => {
-  const formatInterval = (ms) => {
-    const min = Math.floor((ms > 0 ? ms : 0) / 60000);
-    if (min < 60) return `${Math.max(1, min)}m`;
-    const hrs = Math.floor(min / 60);
-    if (hrs < 24) return `${hrs}h`;
-    const days = Math.floor(hrs / 24);
-    if (days < 30) return `${days}d`;
-    if (days < 365) return `${Math.floor(days / 30)}mo`;
-    return `${Math.floor(days / 365)}y`;
-  };
-  const tick = () => {
-    const now = Date.now();
-    for (const el of document.querySelectorAll('.rel[data-ts]')) {
-      const ts = Number(el.dataset.ts);
-      if (!Number.isFinite(ts)) continue;
-      el.textContent = formatInterval(now - ts) + (el.dataset.suffix || '');
-    }
-  };
-  tick();
-  setInterval(tick, 30000);
-  // A backgrounded tab throttles timers hard, so a page returned to after hours
-  // would show whatever it last managed to render. Recompute on the way back in.
-  document.addEventListener('visibilitychange', () => { if (!document.hidden) tick(); });
-})();
-</script>"""
+# The script that keeps a page's intervals current is kept out of PAGE because PAGE goes through str.format,
+# which reads every brace in a script as a field and fails on the first one. It arrives through the `{script}`
+# slot instead, where its braces are never scanned.
+_LIVE_TIME: ModuleType | None = None
+
+
+def _live_time() -> ModuleType:
+    """The shared relative-timestamp helpers: `compact_age`, `rel_time` and `LIVE_TIME_SCRIPT`.
+
+    Imported on first use, as `terminal_width` is in `table_width`: the peer runs this script from stdin, where a
+    module beside it cannot be found, and only the rendering side ever formats an interval.
+    """
+    global _LIVE_TIME
+    if _LIVE_TIME is None:
+        sys.path.insert(0, str(skill_dir().parent / "shared"))
+        import live_time  # inline: see above
+
+        _LIVE_TIME = live_time
+    return _LIVE_TIME
 
 
 def esc(text: str) -> str:
@@ -1405,7 +1379,7 @@ def metric_html(state: RepoState, now: float) -> str:
         noun = "file" if state.uncommitted == 1 else "files"
         parts.append(f'<span class="m"><b>{state.uncommitted}</b> {noun}{lines}</span>')
     if state.oldest_epoch:
-        parts.append(f'<span class="m">{rel_time(state.oldest_epoch)}</span>')
+        parts.append(f'<span class="m">{_live_time().rel_time(state.oldest_epoch)}</span>')
     parts.append(conventions_metric(state.conventions))
     return "".join(parts)
 
@@ -1487,53 +1461,11 @@ def track(count: int) -> str:
     return f"repeat({count},minmax(0,1fr))"
 
 
-def rel_time(epoch: float, suffix: str = " ago") -> str:
-    """A relative timestamp the page keeps current by itself.
-
-    Baking the interval in at render time makes it wrong the moment the file is
-    left open — a report generated eight minutes ago went on claiming "8 mins
-    ago" indefinitely. The epoch travels in `data-ts` and the script at the foot
-    of the page recomputes from it; the text written here is the no-JS fallback,
-    correct at the instant of writing. The exact local stamp sits on hover, per
-    feedback_relative_timestamps.
-    """
-    if not epoch:
-        return ""
-    return (f'<span class="rel" data-ts="{int(epoch * 1000)}" data-suffix="{esc(suffix)}"'
-            f' title="{esc(local_stamp(epoch))}">{esc(compact_age(time.time() - epoch))}{esc(suffix)}</span>')
-
-
-def compact_age(seconds: float) -> str:
-    """Format a delta as 5m / 3h / 2d / 4mo / 1y.
-
-    Ported from formatInterval in the What's Next repo (web/src/lib/format.ts)
-    rather than rewritten, so every surface that shows an interval agrees on
-    where the boundaries fall. LIVE_TIME_SCRIPT carries the same function for the
-    page to recompute with; this copy renders the terminal table and the no-JS
-    fallback. A delta at or below zero returns empty, which callers read as
-    "just now".
-    """
-    if seconds <= 0:
-        return ""
-    minutes = int(seconds // 60)
-    if minutes < 60:
-        return f"{max(1, minutes)}m"
-    hours = minutes // 60
-    if hours < 24:
-        return f"{hours}h"
-    days = hours // 24
-    if days < 30:
-        return f"{days}d"
-    if days < 365:
-        return f"{days // 30}mo"
-    return f"{days // 365}y"
-
-
 def column_head(snap: MachineSnapshot, now: float) -> str:
     return (f'<div><div class="cname">{esc(snap.name)}</div>'
             f'<div class="cmeta">'
             f'{esc(snap.os_label)} · {esc(snap.projects_root)} · {snap.scanned_count} repos · '
-            f'{esc(conventions_summary(snap))} · scanned {rel_time(snap.scanned_at)}</div></div>')
+            f'{esc(conventions_summary(snap))} · scanned {_live_time().rel_time(snap.scanned_at)}</div></div>')
 
 
 def write_html(path: Path, rows: list[RepoRow], snapshots: list[MachineSnapshot], owner: str) -> None:
@@ -1560,7 +1492,7 @@ def write_html(path: Path, rows: list[RepoRow], snapshots: list[MachineSnapshot]
     failed = "".join(failed_machine_card(s) for s in snapshots if s.status != "ok")
     page = PAGE.format(title=esc(title), sub=esc(sub),
                        machines=f'<div class="machines">{failed}</div>' if failed else "", body=body,
-                       script=LIVE_TIME_SCRIPT)
+                       script=_live_time().LIVE_TIME_SCRIPT)
     path.parent.mkdir(parents=True, exist_ok=True)
     path.write_text(page, encoding="utf-8")
 
@@ -1822,7 +1754,7 @@ def machine_facts(state: RepoState) -> list[str]:
     elif state.behind:
         facts.append(f"{state.behind} inbound{' (pulled)' if state.pulled else ''}")
     if state.oldest_epoch:
-        facts.append(f"oldest {compact_age(time.time() - state.oldest_epoch)} ago")
+        facts.append(f"oldest {_live_time().compact_age(time.time() - state.oldest_epoch)} ago")
     if (conv := state.conventions) and conv.anything:
         facts.append(conv.note or f"{conv.behind} convention{'s' if conv.behind != 1 else ''} behind")
     return facts
