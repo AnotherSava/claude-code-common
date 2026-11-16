@@ -131,7 +131,7 @@ When setting up a new shell (e.g. WSL), verify:
 2. **`deploy` function exists** — `type deploy`
 3. **`build` function exists** — `type build`
 4. **`publish` function exists** — `type publish`
-5. **`memo` function exists** — `type memo`
+5. **`memo` command exists** — `type memo`
 6. **`notify` function exists** — `type notify`
 7. **A real `python` on `PATH`** — `python -V`. Hooks and the statusline invoke the bare name, never `python3`, because `python3` is an indirection on both platforms (bash shim on Windows, `xcode-select` dispatcher on macOS). A machine without it runs no hooks, silently. Measure that indirection from a script, not from a prompt: on Windows `command -v python3` answers `alias python3='python'` interactively, while a non-interactive `bash script.sh` calling `python3` resolves the bash shim above, which execs `python` and runs — so a prompt suggests a committed `python3` line is broken when it works.
 8. **macOS only:** Apple ships no `python`, and the Command Line Tools `python3` is 3.9 — old enough that `str | None` annotations fail at import. Run `brew install python && ln -s /opt/homebrew/bin/python3 ~/.local/bin/python`, and check `~/.local/bin` is on `PATH`. See the README's [Python interpreter](../../README.md#python-interpreter) section.

@@ -1,6 +1,6 @@
 ---
 name: Memos are reached through the wrapper and the skill, never the CLI
-description: the memo backlog is used via the `memo` shell function and the /memo skill; memos.py is not typed by hand, so invest in those two surfaces
+description: the memo backlog is used via the `memo` shell command and the /memo skill; memos.py is not typed by hand, so invest in those two surfaces
 metadata:
   type: user
 ---
