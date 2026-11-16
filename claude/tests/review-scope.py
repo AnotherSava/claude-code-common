@@ -160,6 +160,10 @@ def main() -> int:
         check("and appends the unreviewed commit to the scope", args.get("scope", "").startswith("the uncommitted diff\n\nAlso in scope") and "edit late.txt" in args.get("scope", ""), True)
         check("and passes the base and the tree at launch", (args.get("review_bookmark") or {}).get("tree"), review_scope.worktree_tree(b))
         check("and tells the model", "1 commit(s) since the last review" in out["hookSpecificOutput"].get("additionalContext", ""), True)
+        check("its own rewrite sent back passes through unchanged, as auto mode needs", hook({**payload, "tool_input": updated}), None)
+        moved = hook({**payload, "tool_input": {**updated, "args": {**args, "review_bookmark": {**args["review_bookmark"], "tree": "stale"}}}})
+        resent = moved["hookSpecificOutput"]["updatedInput"]["args"]
+        check("a resend whose tree has moved keeps one copy of the commits and takes the new tree", (resent["scope"], resent["review_bookmark"]["tree"]), (args["scope"], review_scope.worktree_tree(b)))
 
         os.environ["CLAUDE_PROJECT_DIR"] = b
         out = hook({**payload, "tool_input": {"name": "review-auto", "args": json.dumps({"scope": "s", "lenses": [], "review_bookmark": {"base": "forged"}})}})

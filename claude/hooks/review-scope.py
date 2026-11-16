@@ -8,7 +8,7 @@ passes `args.review_bookmark` — the base and the tree at launch — so the wor
 covered. The rewrite goes back as `updatedInput`, so the model writing the call cannot leave the range out.
 
 The repo is `args.repo` when the call names one, else the project directory. A non-git directory, an unreadable
-args object, or any other workflow passes through untouched. When no base can be trusted (origin unreadable,
+args object, any other workflow, and a call already carrying this hook's rewrite pass through untouched. When no base can be trusted (origin unreadable,
 history rewritten past the bookmark) the scope says so and no `review_bookmark` is passed, so that review can never
 be recorded as covering a range it did not see. The script never raises and exits 0 on every path.
 """
@@ -55,10 +55,17 @@ def main() -> int:
             f"The review-scope hook failed ({error}), so this review covers only the scope its call names and will not be "
             f"recorded. Commits pushed since the last review are not in it; tell the user.")}}))
         return 0
-    widened = {**args, "scope": args["scope"] + review_scope.scope_text(found)}
+    # Auto mode reviews a call before this hook runs, gives a rewritten call no verdict, and has the model send the
+    # rewrite back as written. That resend has to come through unchanged for the review to cover what runs, so a scope
+    # already ending in this text keeps one copy of it, and a call carrying everything this hook would write is let be.
+    text = review_scope.scope_text(found)
+    scope = args["scope"][: -len(text)] if text and args["scope"].endswith(text) else args["scope"]
+    widened = {**args, "scope": scope + text}
     widened.pop("review_bookmark", None)
     if tree:
         widened["review_bookmark"] = {"repo": repo, "base": found["base"], "tree": tree}
+    if widened == args:
+        return 0
     note = (f"The review-scope hook widened this review: {len(found['commits'])} commit(s) since the last review were added to its scope."
             if found["commits"] else None)
     if found["problem"]:
