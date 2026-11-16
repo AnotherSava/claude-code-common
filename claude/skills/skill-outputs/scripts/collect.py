@@ -26,7 +26,7 @@ sys.path.insert(0, os.path.join(HERE, "..", "..", "shared"))
 sys.path.insert(0, os.path.join(HERE, "..", "..", "..", "scripts"))
 
 from live_time import local_stamp  # noqa: E402 — needs the sys.path lines above
-from review_picker import triage_rows  # noqa: E402 — needs the sys.path lines above
+from review_picker import rows_table, triage_rows  # noqa: E402 — needs the sys.path lines above
 from transcripts import PROJECTS, content_blocks, invokes_skill, parse_iso, project_dir_name, records, text_of, timestamp  # noqa: E402 — needs the sys.path lines above
 
 # How the closing prompt of /wrap-up's step 7 opens, in every wording it has had: `go` from commit 063e8e2 on,
@@ -56,7 +56,8 @@ def _spec_markdown(spec: dict) -> str:
 
     Each row shows its recommended choice in bold among the others; the answer the user gave on the page is not in the
     spec, and the summary is what this page compares. The format is the one `_render` in claude/scripts/review_picker.py
-    renders, so a block kind or column field added there is added here too; until it is, the block shows as raw JSON.
+    renders. A `choices` or `entries` block is read through its `rows_table`, as the page reads it, so a field a row
+    gains reaches both; a block kind added there is added here too, and until it is, the block shows as raw JSON.
     """
     state = spec.get("status")
     parts = [f"{state.get('label', '')} **{state.get('text', '')}**  \n{state.get('detail', '')}".strip()] if isinstance(state, dict) else []
@@ -78,15 +79,16 @@ def _spec_markdown(spec: dict) -> str:
             lines += ["```", block.get("text", ""), "```"]
         elif block.get("kind") in ("choices", "entries"):
             # An entries block is a choices block with nothing to choose, so it is the same table less its last column.
-            decides = block["kind"] == "choices"
-            columns = block.get("columns") or []
-            labels = [column.get("label", column["key"]) for column in columns]
-            lines += ["| # | " + " | ".join(map(_cell, labels)) + (" | Choice |" if decides else " |"), "|" + "---|" * (len(columns) + (2 if decides else 1))]
-            for row in block.get("rows") or []:
-                # An age column holds epoch seconds, which the page shows as an interval; a summary states the moment.
-                cells = [_cell(local_stamp(row.get(column["key"]) or 0) if column.get("age") else row.get(column["key"], "")) for column in columns]
-                choices = " · ".join(f"**{c}**" if c == row.get("choice") else str(c) for c in row.get("choices") or [])
-                lines.append(f"| {_cell(row.get('label', row.get('id', '')))} | " + " | ".join(cells) + (f" | {choices} |" if decides else " |"))
+            # An age column holds epoch seconds, which the page shows as an interval; a summary states the moment.
+            table = rows_table(block, lambda seconds: _cell(local_stamp(seconds)), _cell)
+            decides = table["decides"]
+            lines += ["| # | " + " | ".join(map(_cell, table["headings"])) + (" | Choice |" if decides else " |"), "|" + "---|" * table["width"]]
+            for row in table["rows"]:
+                choices = " · ".join(f"**{_cell(choice)}**" if recommended else _cell(choice) for choice, recommended in row["choices"])
+                lines.append(f"| {_cell(row['first'])} | " + " | ".join(row["cells"]) + (f" | {choices} |" if decides else " |"))
+            # A detail is the long text the page keeps folded under its row. A table cell cannot hold its lines, so each
+            # follows the table, fenced as a text block is.
+            lines += [part for row in table["rows"] if row["detail"] for part in ("", f"Detail of {row['first']}:", "```", row["detail"], "```")]
         else:
             lines += [f"Block kind {block.get('kind')!r} is not rendered by collect.py:", "```json", json.dumps(block, indent=2), "```"]
         parts.append("\n".join(lines))

@@ -69,6 +69,7 @@ import os
 import shutil
 import subprocess
 import sys
+from typing import Callable
 
 SHARED = os.path.join(os.path.dirname(os.path.abspath(__file__)), "..", "skills", "shared")
 PUBLISH = os.path.join(SHARED, "tailnet_publish.py")
@@ -144,29 +145,52 @@ def _validate(spec: dict) -> None:
             raise ValueError(f"block {index}: kind must be choices, entries, triage, table, list, text or prose, not {kind!r}")
 
 
-# The spec format has a second reader: `_spec_markdown` in skills/skill-outputs/scripts/collect.py renders the same
-# blocks as markdown, so a new block kind or column field is added there too.
-def _rows_block(block: dict) -> str:
-    """A `choices` or an `entries` block: one row per item, with pills and a note only where the block offers choices."""
+def rows_table(block: dict, moment: Callable[[float], str], text: Callable[[object], str]) -> dict:
+    """A `choices` or an `entries` block as the parts every rendering of it shows, read one way for all of them.
+
+    Returns `decides` (the block offers choices), `headings` (each column's label), `width` (the columns a row spans:
+    the number, the data columns and, where the block decides, the choices) and `rows`. Each row holds `id`; `first`,
+    its label or else its id, with `labelled` saying which; `cells`, an age column through `moment` and every other
+    column through `text`; `choices` as (choice, recommended) pairs; `detail`; and `dim`. Every field but the cells is
+    the raw value, for the caller to escape. The skill-outputs comparison page reads rows through here too
+    (`_spec_markdown` in claude/skills/skill-outputs/scripts/collect.py), so a field a row gains reaches both or
+    neither.
+    """
     columns = block.get("columns") or []
     decides = block["kind"] == "choices"
+    rows = [{"id": str(row.get("id", "")), "first": str(row.get("label", row.get("id", ""))), "labelled": "label" in row,
+             "cells": [moment(row.get(column["key"]) or 0) if column.get("age") else text(row.get(column["key"], "")) for column in columns],
+             "choices": [(str(choice), choice == row.get("choice")) for choice in row.get("choices") or []] if decides else [],
+             "detail": str(row.get("detail") or ""), "dim": bool(row.get("dim"))}
+            for row in block.get("rows") or []]
+    return {"decides": decides, "headings": [str(column.get("label", column["key"])) for column in columns], "width": len(columns) + (2 if decides else 1), "rows": rows}
+
+
+# The spec format has a second reader: `_spec_markdown` in skills/skill-outputs/scripts/collect.py renders the same
+# blocks as markdown. A row of a `choices` or `entries` block reaches both through `rows_table`; a new block kind is
+# added there too.
+def _rows_block(block: dict) -> str:
+    """A `choices` or an `entries` block: one row per item, with pills and a note only where the block offers choices."""
+    table = rows_table(block, rel_time, _e)
+    decides = table["decides"]
+    span = table["width"]
     note_choice = block.get("note_choice")
     note_attr = f' data-note-choice="{_e(note_choice)}"' if note_choice else ""
     single = f' data-single="{_e(block["single"])}"' if decides and block.get("single") is not None else ""
-    head = "".join(f"<th>{_e(column.get('label', column['key']))}</th>" for column in columns)
-    span = len(columns) + (2 if decides else 1)
+    head = "".join(f"<th>{_e(heading)}</th>" for heading in table["headings"])
     rows = []
-    for row in block["rows"]:
+    for row in table["rows"]:
         rid = _e(row["id"])
-        dim = " dim" if row.get("dim") else ""
-        first = f'<td class="id" title="{rid}">{_e(row["label"])}</td>' if "label" in row else f'<td class="id">{rid}</td>'
-        cells = "".join(f"<td>{rel_time(row.get(column['key']) or 0) if column.get('age') else _e(row.get(column['key'], ''))}</td>" for column in columns)
-        more = '<button type="button" class="more" title="Show the rest" aria-expanded="false">▸</button>' if row.get("detail") else ""
+        dim = " dim" if row["dim"] else ""
+        hover = f' title="{rid}"' if row["labelled"] else ""
+        first = f'<td class="id"{hover}>{_e(row["first"])}</td>'
+        cells = "".join(f"<td>{cell}</td>" for cell in row["cells"])
+        more = '<button type="button" class="more" title="Show the rest" aria-expanded="false">▸</button>' if row["detail"] else ""
         if decides:
             pills = "".join(
-                f'<label class="pill{" rec" if choice == row["choice"] else ""}"><input type="radio" name="{rid}" value="{_e(choice)}"'
-                f'{" checked" if choice == row["choice"] else ""}><span>{_e(choice)}</span></label>'
-                for choice in row["choices"]
+                f'<label class="pill{" rec" if recommended else ""}"><input type="radio" name="{rid}" value="{_e(choice)}"'
+                f'{" checked" if recommended else ""}><span>{_e(choice)}</span></label>'
+                for choice, recommended in row["choices"]
             )
             rows.append(
                 f'<tr class="item{dim}" data-id="{rid}">{first}{cells}<td class="pills">{pills}</td>'
@@ -174,7 +198,7 @@ def _rows_block(block: dict) -> str:
             )
         else:
             rows.append(f'<tr class="entry{dim}" data-id="{rid}">{first}{cells}<td class="note">{more}</td></tr>')
-        if row.get("detail"):
+        if row["detail"]:
             rows.append(f'<tr class="detail-row" data-for="{rid}" hidden><td></td><td colspan="{span}"><div class="detail">{_e(row["detail"])}</div></td></tr>')
         if decides:
             rows.append(f'<tr class="feedback-row" data-for="{rid}" hidden><td></td><td colspan="{span}"><textarea rows="2" placeholder="Note"{note_attr}></textarea></td></tr>')
@@ -376,7 +400,7 @@ def _render(spec: dict, in_agterm: bool) -> str:
 
 def main() -> int:
     parser = argparse.ArgumentParser(description="Show rows of recommended choices as a page and print the user's answer; outside agterm, publish the page and print its URL.")
-    parser.add_argument("spec", help="JSON file: {title, blocks: [{kind: choices|table|text, ...}], flags?}")
+    parser.add_argument("spec", help="JSON file: {title, blocks: [{kind: choices|entries|triage|table|list|text|prose, ...}], status?, flags?}; the module docstring has each kind's fields")
     parser.add_argument("--out", help="where to write the page; default: beside the spec file, with its name and .html")
     parser.add_argument("--render-only", action="store_true", help="write the page and print its path without showing it")
     options = parser.parse_args()

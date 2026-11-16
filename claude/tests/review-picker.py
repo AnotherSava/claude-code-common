@@ -5,8 +5,8 @@ what should not go as recommended.
 What the caller acts on is the exit status and the one JSON line, so most cases pin those: an answer comes back with
 every row's choice, its notes and its flags, a closed page is never read as "take the recommendations", and outside
 agterm the page asks to be copied.
-`agtermctl` is replaced by a stub on PATH that answers the way the real one documents, since the real one would open
-an overlay over the user's session.
+`agtermctl` is replaced by the stub in claude/tests/agterm_stub.py, which answers the way the real one documents, since
+the real one would open an overlay over the user's session.
 """
 
 from __future__ import annotations
@@ -16,6 +16,8 @@ import os
 import subprocess
 import sys
 import tempfile
+
+import agterm_stub
 
 ROOT = os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 PICKER = os.path.join(ROOT, "claude", "scripts", "review_picker.py")
@@ -40,14 +42,6 @@ def printed(done: subprocess.CompletedProcess[str]) -> object:
         return done.stdout
 
 
-def stub(bin_dir: str, stdout: str, status: int) -> None:
-    """An agtermctl that prints what a blocking HTML overlay prints and exits with its status."""
-    path = os.path.join(bin_dir, "agtermctl")
-    with open(path, "w", encoding="utf-8") as handle:
-        handle.write(f"#!/bin/sh\ncat <<'EOF'\n{stdout}\nEOF\nexit {status}\n")
-    os.chmod(path, 0o755)
-
-
 def main() -> int:
     with tempfile.TemporaryDirectory() as scratch:
         rows = os.path.join(scratch, "review-findings.json")
@@ -65,8 +59,8 @@ def main() -> int:
                 {"kind": "prose", "text": "Push to <origin>.\n\nBookmark moves."}]}, handle)
         bin_dir = os.path.join(scratch, "bin")
         os.mkdir(bin_dir)
-        base = {key: value for key, value in os.environ.items() if key != "AGTERM_SESSION_ID"}
-        inside = {**base, "AGTERM_SESSION_ID": "test-session", "PATH": f"{bin_dir}{os.pathsep}{base.get('PATH', '')}"}
+        base = agterm_stub.outside()
+        inside = agterm_stub.inside(bin_dir)
 
         done = run(rows, "--render-only", env=base)
         check("render-only exits 0", done.returncode, 0)
@@ -117,31 +111,29 @@ def main() -> int:
         # commit gate; that path was run by hand against a live node when it was written.
         print("  NOT COVERED publishing outside agterm (exit 4, or 3 when publishing fails)")
 
-        # agterm is macOS-only, and a Windows PATH lookup matches only PATHEXT extensions, so the extensionless
-        # stub is invisible there and the picker never gets past "not inside agterm".
-        if os.name == "nt":
-            print("  NOT COVERED the inside-agterm cases: agterm does not run on Windows")
+        if agterm_stub.UNAVAILABLE:
+            print(f"  NOT COVERED the inside-agterm cases: {agterm_stub.UNAVAILABLE}")
         else:
-            stub(bin_dir, "", 0)
+            agterm_stub.stub(bin_dir, "", 0)
             inside_page = open(run(rows, "--render-only", env=inside).stdout.strip(), encoding="utf-8").read()
             check("inside agterm the page submits the overlay", ("overlay.submit" in inside_page, "Copy answer" in inside_page), (True, False))
             inside_shown = open(run(backlog, "--render-only", env=inside).stdout.strip(), encoding="utf-8").read()
             check("inside agterm a page with nothing to decide offers only Close", ('id="apply"' in inside_shown, 'data-agterm="session.overlay.close">Close</button>' in inside_shown), (False, True))
 
             answer = {"choices": {"r1-1": "fix", "r1-2": "fix"}, "notes": {"r1-2": "keep the old name"}, "flags": {"push": False}}
-            stub(bin_dir, json.dumps({"pageID": "p", "outcome": "submitted", "value": json.dumps(answer)}), 0)
+            agterm_stub.submitted(bin_dir, answer)
             done = run(rows, env=inside)
             check("a submitted page exits 0", done.returncode, 0)
             check("the choices, notes and flags come back", printed(done), {"outcome": "submitted", **answer})
 
-            stub(bin_dir, json.dumps({"pageID": "p", "outcome": "dismissed"}), 2)
+            agterm_stub.dismissed(bin_dir)
             done = run(rows, env=inside)
             check("a closed page exits 2, not as an empty answer", (done.returncode, printed(done)), (2, {"outcome": "dismissed"}))
 
-            stub(bin_dir, json.dumps({"pageID": "p", "outcome": "submitted", "value": '["r1-1"]'}), 0)
+            agterm_stub.submitted(bin_dir, ["r1-1"])
             check("a value without choices, notes and flags is an error", run(rows, env=inside).returncode, 1)
 
-            stub(bin_dir, "boom", 1)
+            agterm_stub.stub(bin_dir, "boom", 1)
             check("an agtermctl failure exits 1", run(rows, env=inside).returncode, 1)
 
         broken = os.path.join(scratch, "broken.json")
