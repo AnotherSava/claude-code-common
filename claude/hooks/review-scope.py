@@ -8,9 +8,10 @@ passes `args.review_bookmark` — the base and the tree at launch — so the wor
 covered. The rewrite goes back as `updatedInput`, so the model writing the call cannot leave the range out.
 
 The repo is `args.repo` when the call names one, else the project directory. A non-git directory, an unreadable
-args object, any other workflow, and a call already carrying this hook's rewrite pass through untouched. When no base can be trusted (origin unreadable,
-history rewritten past the bookmark) the scope says so and no `review_bookmark` is passed, so that review can never
-be recorded as covering a range it did not see. The script never raises and exits 0 on every path.
+args object, any other workflow, and a call already carrying this hook's rewrite pass through untouched. When no
+base can be trusted (origin unreadable, history rewritten past the bookmark) the scope says so and no
+`review_bookmark` is passed, so that review can never be recorded as covering a range it did not see. The script
+never raises and exits 0 on every path.
 """
 from __future__ import annotations
 
@@ -59,8 +60,7 @@ def main() -> int:
     # rewrite back as written. That resend has to come through unchanged for the review to cover what runs, so a scope
     # already ending in this text keeps one copy of it, and a call carrying everything this hook would write is let be.
     text = review_scope.scope_text(found)
-    scope = args["scope"][: -len(text)] if text and args["scope"].endswith(text) else args["scope"]
-    widened = {**args, "scope": scope + text}
+    widened = {**args, "scope": args["scope"].removesuffix(text) + text}
     widened.pop("review_bookmark", None)
     if tree:
         widened["review_bookmark"] = {"repo": repo, "base": found["base"], "tree": tree}
