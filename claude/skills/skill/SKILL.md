@@ -144,9 +144,10 @@ A skill that has to work across projects of different stacks or shapes is a reci
 
 - Enumerate the cases by reading the projects the skill will serve, before writing any recipe.
 - Write a recipe only for a case one of those projects presents. For a case none of them has yet, the early step says to stop, settle the design with the user, and route what was built back to the skill as a new recipe.
-- Where the per-stack work is mostly a script, make the same choice with probes in the Context section and one script per target. The memory `~/.claude/memory/feedback_generalize_global_skills.md` describes that form.
+- Where the per-stack work is mostly a script, make the same choice with probes in the Context section, each exposed as a named field (`test -f Cargo.toml`, `ls src/*.csproj`), and one script per target under `scripts/`. The `deploy` skill is that form.
+- Where the per-stack work is instructions, the recipe file holds them. A difference that fits inside a step every case shares stays in that step, as the `auth` skill's gated and open shapes do in its wiring step; a case that changes what the steps do gets its own recipe.
 
-The preference behind this, and where it came from, is in `~/.claude/memory/feedback_recipes_over_universal_procedure.md`.
+The preference behind this, and where it came from, is in `~/.claude/memory/feedback_recipes_over_universal_procedure.md`; why a skill is generalized in place rather than forked into a project under the same name is in `~/.claude/memory/feedback_generalize_global_skills.md`.
 
 ### Always confirm before destructive actions
 
