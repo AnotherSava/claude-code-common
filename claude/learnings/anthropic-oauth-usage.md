@@ -209,6 +209,11 @@ Tracked in [claude-code#31637](https://github.com/anthropics/claude-code/issues/
   when a stored sample is younger than the interval.
 - Rate-limit quota is **pooled per organizationUuid**, not per-account ([claude-code#41886](https://github.com/anthropics/claude-code/issues/41886)).
 - **Polling every 10 minutes is stable in practice** (verified on a Max subscription). Still retain last-good values on 429 since community reports indicate recovery isn't always immediate.
+  - Not a guarantee: on 2026-11-15 a 10-minute poller that had run clean all day got a 429 with
+    `retry-after: 3600`, while a second machine on the same account had sent one request in 24h. Its
+    only extra traffic that hour was one token refresh. The quota is pooled, and the Claude Code sessions
+    running on both machines call the same route unlogged, so the refusal cannot be pinned on the poller.
+    Plan for an hour-long block at any cadence.
 
 ## Messages-API fallback
 
