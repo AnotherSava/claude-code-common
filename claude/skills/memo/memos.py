@@ -48,6 +48,9 @@ in the name, rather than also in a field that could disagree with it.
                                       else the listing and a tailnet link; --pick adds a
                                       start and a done choice to each row and acts on them
   memos.py page --answer <file|->     act on an answer copied from a published page
+  memos.py page-or-add [--width N] [<text>…]
+                                      what the `memo` shell command runs: `page` with no text,
+                                      else `add` with every word of it
 
 The root is the git toplevel, else the current directory. `memos-surface.py`
 imports `open_memos()` from here rather than re-implementing the parse.
@@ -615,6 +618,23 @@ def cmd_page(args: list[str]) -> None:
         print(f"\nno page: {shown.stderr.strip() or 'the page script exited ' + str(shown.returncode)}", file=sys.stderr)
 
 
+def cmd_page_or_add(args: list[str]) -> None:
+    """What the `memo` shell command runs: `page` when it is handed no memo text, else `add` with all of it.
+
+    The bash and PowerShell functions and the macOS script in learnings/shell-environment.md hand their arguments
+    here unread, so how a typed `memo` is understood is decided in this one place. Every word reaches `add`, a first
+    word naming a subcommand included: memos are written as imperatives, and routing a first `add` to the subcommand
+    files `memo add participants to trips` as "participants to trips". A leading `--width N` is the wrapper's, for
+    the page; whatever follows it is the memo, `add`'s own leading flags with it.
+    """
+    width = args[:2] if args[:1] == ["--width"] else []
+    text = args[len(width):]
+    if text:
+        cmd_add(text)
+    else:
+        cmd_page(width)
+
+
 def cmd_count(args: list[str]) -> None:
     memos = _load()
     # A subset of the open count, not a filter of it — nothing anywhere hides a memo bound
@@ -691,7 +711,7 @@ def _refuse_if_single_file_backlog() -> None:
 def main() -> None:
     cmd, *rest = (sys.argv[1:] or ["list"])
     handlers = {"add": cmd_add, "list": cmd_list, "show": cmd_show, "path": cmd_path, "page": cmd_page,
-                "done": cmd_done, "reopen": cmd_reopen, "drop": cmd_drop, "count": cmd_count}
+                "page-or-add": cmd_page_or_add, "done": cmd_done, "reopen": cmd_reopen, "drop": cmd_drop, "count": cmd_count}
     handler = handlers.get(cmd)
     if not handler:
         sys.exit(f"usage: memos.py {{{'|'.join(handlers)}}}")

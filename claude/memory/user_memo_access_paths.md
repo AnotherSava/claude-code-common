@@ -6,9 +6,10 @@ metadata:
 ---
 
 The memo backlog has two surfaces in daily use, and the script under them has none. The `memo`
-shell function — bash and PowerShell, documented in `learnings/shell-environment.md` — is the
-model-free path, and it only ever calls `add` and `page`, which shows the backlog as a page over the
-session or, outside agterm, as the listing with a link to that page. Everything else (`done`, `reopen`,
+shell command — a bash and a PowerShell function and a script on macOS, all documented in
+`learnings/shell-environment.md` — is the model-free path. Each hands its arguments to `memos.py
+page-or-add`, which files them as a memo or, given none, shows the backlog as a page over the session
+or, outside agterm, as the listing with a link to that page. Everything else (`done`, `reopen`,
 `show`, `path`, `drop`) arrives through the `/memo` skill, which is where the model does the
 typing. `memos.py` is not invoked by hand.
 

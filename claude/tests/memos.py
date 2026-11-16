@@ -27,6 +27,8 @@ directory entry disagree.
                    can come back much later, pasted from a published page. So a row is keyed by slug,
                    an answer is matched exactly and whole before anything moves, and a stale one
                    moves nothing.
+  the shell entry  Every `memo` wrapper runs `page-or-add`, which shows the page when given no text
+                   and files all of it otherwise, so a memo opening on `add` or `count` keeps the word.
 
 The extension case is the one a regression would reach first: `_move` builds its `taken` set from
 the destination directory alone, which is only correct while `_load` can see every file in there.
@@ -51,6 +53,8 @@ import subprocess
 import sys
 import tempfile
 from typing import Optional
+
+import agterm_stub
 
 REPO = os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 MEMOS_PATH = os.path.join(REPO, "claude", "skills", "memo", "memos.py")
@@ -283,8 +287,8 @@ def main() -> int:
 
         # Nothing deletes a done memo. The command that used to is gone rather than neutered, so the
         # skill step that offered it — the only caller it ever really had — fails loudly rather than
-        # appearing to work. Almost nothing reaches this CLI by hand: the shell wrapper calls `add`
-        # and `list`, and every other subcommand arrives through the skill.
+        # appearing to work. Almost nothing reaches this CLI by hand: the shell wrapper calls
+        # `page-or-add`, and every other subcommand arrives through the skill.
         b = Backlog(stack)
         b.fill(2)
         b.run("done", "1")
@@ -368,6 +372,22 @@ def main() -> int:
         check("a flag after the text is left in the memo",
               b.titles(), ["use --title to name a memo"])
 
+        # --- the shell command's entry point: no text shows the page, and any text is the memo -----------
+        # The bash and PowerShell functions and the macOS script hand their arguments to `page-or-add`
+        # unread, so a first word naming a subcommand has to reach the memo with the rest of it.
+        b = Backlog(stack)
+        b.run("page-or-add", "add", "a", "debounce", "to", "the", "search", "box")
+        b.run("page-or-add", "count", "rows", "before", "the", "import")
+        b.run("page-or-add", "--width", "80", "list", "the", "ports")
+        check("page-or-add files every word, a subcommand's name included",
+              b.titles(), ["add a debounce to the search box", "count rows before the import", "list the ports"])
+        b = Backlog(stack)
+        rc, out, err = b.run("page-or-add", "--platform", OTHER, "Bound", "here")
+        check("and hands add its own leading flags", (rc, f"platform: {OTHER}\n" in b.body("bound-here.md")), (0, True))
+        # An empty backlog, because a page over one that holds memos is published on the tailnet for real.
+        b = Backlog(stack)
+        check("with no text it shows the backlog", b.run("page-or-add", "--width", "80")[1], "(no open memos)")
+
         # --- a leading flag nothing takes is refused, not filed ------------------------------------------
         b = Backlog(stack)
         check("add --help is refused", b.run("add", "--help")[0] != 0, True)
@@ -443,27 +463,17 @@ def main() -> int:
 
         # Showing a page publishes it on the tailnet for real, which a test must not do from the commit gate.
         print("  NOT COVERED the listing and link `page` prints outside agterm")
-        # agterm is macOS-only, and a Windows PATH lookup matches only PATHEXT extensions, so the stub below
-        # would be invisible there, as claude/tests/review-picker.py found.
-        if os.name == "nt":
-            print("  NOT COVERED `page` over a session: agterm does not run on Windows")
+        if agterm_stub.UNAVAILABLE:
+            print(f"  NOT COVERED `page` over a session: {agterm_stub.UNAVAILABLE}")
         else:
             bin_dir = stack.enter_context(tempfile.TemporaryDirectory())
-            inside = {**os.environ, "AGTERM_SESSION_ID": "test-session", "PATH": f"{bin_dir}{os.pathsep}{os.environ.get('PATH', '')}"}
-
-            def agtermctl(stdout: str, status: int) -> None:
-                """An agtermctl that answers the way a blocking overlay does, for every call it gets."""
-                with open(os.path.join(bin_dir, "agtermctl"), "w", encoding="utf-8") as fh:
-                    fh.write(f"#!/bin/sh\ncat <<'EOF'\n{stdout}\nEOF\nexit {status}\n")
-                os.chmod(os.path.join(bin_dir, "agtermctl"), 0o755)
-
+            inside = agterm_stub.inside(bin_dir)
             b = Backlog(stack)
             b.fill(2)
-            picked = {"choices": {"memo-2": "start", "memo-1": "done"}, "notes": {}, "flags": {}}
-            agtermctl(json.dumps({"pageID": "p", "outcome": "submitted", "value": json.dumps(picked)}), 0)
+            agterm_stub.submitted(bin_dir, {"choices": {"memo-2": "start", "memo-1": "done"}, "notes": {}, "flags": {}})
             rc, out, err = b.run("page", "--pick", env=inside)
             check("a page answered over the session is acted on", (rc, b.titles(done=True), "start: Memo 2" in out), (0, ["Memo 1"], True))
-            agtermctl(json.dumps({"pageID": "p", "outcome": "dismissed"}), 2)
+            agterm_stub.dismissed(bin_dir)
             rc, out, err = b.run("page", "--pick", env=inside)
             check("a page closed without applying exits 2 and moves nothing", (rc, b.titles()), (2, ["Memo 2"]))
             rc, out, err = b.run("page", env=inside)

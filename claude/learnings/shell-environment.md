@@ -67,22 +67,26 @@ plaintext on disk and a rotation can't leave it serving a dead credential. See t
 ```bash
 memo() {
   local py="$HOME/.claude/skills/memo/memos.py"
-  if [ $# -gt 0 ]; then python "$py" add "$@"; return; fi
   # memos.py sizes itself everywhere but Windows, where a console is not a pty — see Width below.
   case "$(uname -s)" in
-    MINGW* | MSYS* | CYGWIN*) python "$py" page --width "${MEMO_WIDTH:-148}" ;;
-    *) python "$py" page ;;
+    MINGW* | MSYS* | CYGWIN*) python "$py" page-or-add --width "${MEMO_WIDTH:-148}" "$@" ;;
+    *) python "$py" page-or-add "$@" ;;
   esac
 }
 ```
 
-macOS reaches the same helper through `~/.local/bin/memo` rather than a shell function, and that script needs no width arm at all — it execs `memos.py` and nothing else.
+macOS reaches the same helper through `~/.local/bin/memo` rather than a shell function, and that script needs no width arm at all:
+
+```sh
+#!/bin/sh
+exec python3 "$HOME/.claude/skills/memo/memos.py" page-or-add "$@"
+```
 
 `! memo` (or `memo` in any terminal) shows the open backlog, and `memo <text>` writes that text as a new memo file, deriving the title from its first sentence (no quotes needed). Inside agterm the backlog opens as a page over the session, with each memo's body behind a ▸ button, and the command ends when the page is closed. Anywhere else the listing prints at full width, followed by a tailnet link to the same page. The page is published before anything prints, so the command takes about a second and a half where the listing alone took a tenth (measured on the Windows box, 2026-11-14). This is the **model-free** path — the `/memo` skill is slower because it drives the model through tool calls, wasted effort for a plain look or an append. Reach for the skill when you want model help: titling an idea well on capture, or a page whose rows can be set to start or done.
 
-**The function adds and shows, and nothing else; every other subcommand goes through the script.** It passes any argument straight to `add`, so `memo done 1` creates a memo *titled* "done 1" rather than closing memo 1 — use `python ~/.claude/skills/memo/memos.py done 1` for that, and likewise for `show`, `path`, `reopen`. Routing on the first word was considered and rejected: memos are written as imperatives, so `done`, `list`, `show` and `count` are all plausible openers for a real memo, and any such guard would swallow one. The mistake is at least visible — `add` echoes the stored title and the new count, so a junk entry shows up the moment it is made.
+**The wrappers add and show, and nothing else; every other subcommand goes through the `/memo` skill.** Each one hands its arguments unread to `memos.py page-or-add`, which shows the backlog when given nothing and files everything it is given as one memo, so how a typed `memo` is read is decided in the script, once, and the three wrappers cannot disagree about it. `memo done 1` therefore creates a memo *titled* "done 1" rather than closing memo 1. Nothing routes on the first word: memos are written as imperatives, so `add`, `done`, `list`, `show` and `count` are all plausible openers for a real memo, and a guard on `add` alone files `memo add participants to trips` as "participants to trips". The mistake is at least visible — `add` echoes the stored title and the new count, so a junk entry shows up the moment it is made.
 
-**Flags forward for free, and only from the front.** `"$@"` reaches `add` unchanged, so `memo --platform windows the thing that only works there` works without touching the function. `_take_flag` reads only the opening run of `--flag value` pairs, which is what keeps a flag word occurring later in a memo's own prose — `memo use --title to name a thing` — from being eaten along with the word after it. Lead with the flags; anything after the first non-flag argument is memo text.
+**Flags forward for free, and only from the front.** `page-or-add` takes the wrapper's own leading `--width N` and hands the rest to `add` unchanged, so `memo --platform windows the thing that only works there` works without touching the function. `_take_flag` reads only the opening run of `--flag value` pairs, which is what keeps a flag word occurring later in a memo's own prose — `memo use --title to name a thing` — from being eaten along with the word after it. Lead with the flags; anything after the first non-flag argument is memo text.
 
 **Width.** Pass nothing on macOS, Linux and WSL: `memos.py` asks `skills/shared/terminal_width.py`, which walks up the process chain to the Claude Code process and reads that tty's winsize. Neither `tput cols` nor `$COLUMNS` can answer from a captured shell — both return their own defaults, 80 and 0, with no error — which is why the wrapper used to carry a pinned number instead.
 
@@ -112,9 +116,8 @@ Same behavior as the bash version. PowerShell re-asserts its own title on each p
 ```powershell
 function memo {
     $py = "$HOME\.claude\skills\memo\memos.py"
-    if ($args.Count -gt 0) { python $py add @args; return }
     $w = if ($env:MEMO_WIDTH) { [int]$env:MEMO_WIDTH } else { [Math]::Max(40, $Host.UI.RawUI.WindowSize.Width - 2) }
-    python $py page --width $w
+    python $py page-or-add --width $w @args
 }
 ```
 
