@@ -13,6 +13,12 @@ Detect it: the run's `journal.jsonl` shows one `started` with no matching `resul
 3. If it hangs again, **harvest** instead of re-running. Read the run's `journal.jsonl` under
    `~/.claude/projects/<mangled-project-id>/subagents/workflows/<runId>/`. Each `type:"result"` entry holds the agent's returned object — **but only the schema fields**, not the post-`.then()` mapping, so results are unlabeled. Map each result back to its input by reading that agent's `agent-<id>.jsonl` transcript and pulling the prompt (e.g. the line that names the item). The missing item = the hung agent; grab its answer straight from its transcript if it got that far.
 
+## A usage limit pauses a run rather than ending it
+Measured 2026-11-15 on a fix-mode `review-auto` run that hit the weekly limit. Every agent in flight failed with `rate_limit`, "You've hit your weekly limit · resets <time> (<time zone>)", and its transcript ended on an entry whose model is `<synthetic>`. The run itself stayed alive: when the limit reset it started those calls again from scratch, each under its old journal `key` with a new `agentId`, and kept every result already finished. Such a run needs no resume, and its journal shows which calls are being redone.
+
+## A running workflow keeps the model it was launched with
+Agents a run spawns use the model the session had when the run started, whatever `/model` says later. Measured 2026-11-15: agents started after a switch to Opus still ran `claude-fable-5-2`, as the `model` field on each assistant message in their `agent-<id>.jsonl` shows. To move a run, `TaskStop` it and resume it from the main loop on the new model, re-passing the same `args`: finished calls replay from the cache, keyed on prompt and options, and the rest start on the new model.
+
 ## Web-search budget is session-wide and shared with workflow agents
 `WebSearch` has a per-**session** cap (default 200) shared across the main loop **and every workflow subagent**. A big research fan-out can exhaust it; afterwards, subsequent agents silently can't search and fall back to `WebFetch` only (their transcripts show "Web search budget … 200 of 200"). Consequence: a second research workflow later in the same session may return degraded "not found" results not because the data is absent but because the agents couldn't search. Budget searches across the whole session, or lead with `WebFetch` of known authoritative URLs (often better than search anyway for facts like pricing/dates on an official page).
 
