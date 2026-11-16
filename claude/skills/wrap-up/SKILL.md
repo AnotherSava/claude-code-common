@@ -375,18 +375,16 @@ what the gate could not see.
   as routed.
 - **drop** means do nothing at all: no memo, no work, no argument, no raising it again later in
   the same run.
-- **A memo number read in step 7 may be stale by now.** The listing is positional and
-  newest-first, so a memo the user captures while answering the gate renumbers everything below
-  it. Re-run `memos.py list` before any `done <n>`, and key the disposition to the memo's title
-  rather than the number you presented. Measured 2026-09-19: a finding presented as memo 4 was
-  memo 5 by the time it was closed.
 
 **Saves.** Write what `/reflect` drafted and the answer kept, as its step 7 describes, rendering the memory index
 where a global memory changed.
 
 **Decisions.** Apply the rest: apply the clean-up proposals approved, run an approved pending capture (asking right
 before it, as the `docs-screenshot` skill says), un-ignore or record untracked skills, archive the finished plans approved,
-close the memos the change set delivers (one `memos.py done` call, per `commit-grouping.md`).
+close the memos the change set delivers as `commit-grouping.md` describes, by the slug step 6 took for each. A memo
+number from step 7, or a slug looked up from one now, may name a neighbour by this point: the listing is newest-first,
+so a memo the user captures while answering the gate renumbers everything below it, and so does every memo the `memo`
+disposition adds. Measured 2026-09-19: a finding presented as memo 4 was memo 5 by the time it was closed.
 
 **Commits.** Re-run `review_scope.py layout` if anything above changed the tree, regroup only what changed, and
 commit each group with `python3 ~/.claude/skills/shared/commit.py -F <message-file> [--reviewed] <paths…>`. A

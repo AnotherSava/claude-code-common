@@ -45,8 +45,8 @@ Start from `git status --short` and `git diff HEAD`, with untracked files includ
 - **A finished plan moves to `docs/plans/completed/`** — one whose body, with fenced code blocks stripped, carries
   `<!-- plan-archive: done -->`, or has at least one `- [x]` and no `- [ ]`. Propose the `git mv` and move it only on
   confirmation, in the same commit as the work; `/yolo` never moves one.
-- **A memo the change set delivers is closed** with one `memos.py done <n> [<n> …]` call naming all of them (two calls
-  close the wrong memo, since closing renumbers), and both paths of the move go in the commit that delivers it.
+- **A memo the change set delivers is closed** the way the `/memo` skill closes a picked memo, by the slug taken when
+  grouping identifies the memo, and both paths of the move go in the commit that delivers it.
 
 ## A recorded review
 
