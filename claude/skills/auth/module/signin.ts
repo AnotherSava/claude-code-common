@@ -148,7 +148,7 @@ function redirect(status: 302 | 303, location: string, cookies: string[] = []): 
   return new Response(null, { status, headers });
 }
 
-function failure(status: number, message: string, cookies: string[] = []): Response {
+function failure(status: number, message: string, cookies: string[]): Response {
   const headers = new Headers({ "Content-Type": "text/html; charset=utf-8", "Cache-Control": "no-store" });
   for (const cookie of cookies) headers.append("Set-Cookie", cookie);
   return new Response(`<!doctype html><meta charset="utf-8"><title>Sign-in</title><p>${message}</p><p><a href="${LOGIN_PATH}">Try again</a></p>`, { status, headers });
