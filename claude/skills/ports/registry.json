@@ -140,6 +140,31 @@
       "front_for": 3000
     },
     {
+      "port": 3908,
+      "use_case": "auth-skill-e2e-idp",
+      "owner": "claude-code-common",
+      "scope": "machine",
+      "status": "assigned",
+      "notes": "Throwaway Pocket ID published on localhost by the auth skill's scripts/e2e.mjs, for the length of one test run"
+    },
+    {
+      "port": 3909,
+      "use_case": "auth-skill-e2e-app",
+      "owner": "claude-code-common",
+      "scope": "machine",
+      "status": "assigned",
+      "notes": "The harness app hosting module/signin.ts in the auth skill's scripts/e2e.mjs, for the length of one test run"
+    },
+    {
+      "port": 3910,
+      "use_case": "clipcascade-server",
+      "owner": "toolbox",
+      "scope": "machine",
+      "status": "assigned",
+      "notes": "ClipCascade clipboard sync server (Docker) bound to the tailnet IP; PC and Mac clients connect to it",
+      "pinned": "the server's compose.yml lives outside any repo (beside the ClipCascade client on the Windows desktop) and both clients store this port in their saved server URL; changing it means editing the compose file and logging both clients in again"
+    },
+    {
       "port": 3939,
       "use_case": "what-is-next-dev-server",
       "owner": "what-is-next",
