@@ -437,8 +437,13 @@ The collapse can also kill the whole command before anything runs. A body holdin
 that leaves the rest of the command unbalanced, and bash refuses it with `unexpected EOF while looking
 for matching `''`. Nothing executes, so a multi-file write in that heredoc writes none of its files.
 
+The same message also comes from a command that is merely long. On 2026-11-14 two Bash-tool commands of
+8,201 and 9,759 characters, each a quoted heredoc feeding Python with no quoted backslash anywhere in it,
+failed with it; the same scripts ran once written to a file, and heredocs of a few kilobytes ran all through
+that session. Where between those sizes the failure starts was not measured.
+
 Fix: write the script to a real file and run it (`python script.py`, `powershell -File script.ps1`).
-Reserve heredocs for bodies with no backslashes.
+Reserve heredocs for short bodies with no backslashes.
 
 **`/tmp` is not the same directory for bash and for a Windows-native interpreter.** MSYS maps `/tmp`
 into the user's temp dir; Python on Windows resolves `/tmp` against the *current drive*, so a file bash
@@ -518,6 +523,12 @@ wanted to pipe data to the remote command. Three rules that generalise:
   value that can end up *inside* the program text can end up in the error text.
 - **`--silent` flags hide command OUTPUT, not command INPUT.** A tool's quiet mode does nothing about a
   value the shell already echoed while failing to run it.
+
+The collision can also run away. On 2026-11-14 a diagnostic piped a tool's output into `python -I -` and gave
+it an empty heredoc as well. Python 3.13 on Windows started its interactive REPL instead of exiting, and the
+REPL printed `_pyrepl` tracebacks in a loop, 353 MB of them before anything stopped it. The Bash tool had moved
+the still-running command into the background at its two-minute timeout, so the loop kept writing there until
+a `TaskStop` ended it.
 
 The safe route when the value must be validated before use is to prove it works rather than to pattern-match
 it — a guessed prefix check rejected a perfectly good key here, and the fix was to attempt the API call and
