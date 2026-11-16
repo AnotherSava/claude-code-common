@@ -66,8 +66,8 @@ async function until(label, probe, timeoutMs = 90_000) {
   }
 }
 
-async function http(url, { method = "GET", headers = {}, body } = {}) {
-  const response = await fetch(url, { method, headers, body, redirect: "manual" });
+async function http(url, { method = "GET", headers = {} } = {}) {
+  const response = await fetch(url, { method, headers, redirect: "manual" });
   return { status: response.status, location: response.headers.get("location"), cookies: response.headers.getSetCookie(), text: await response.text() };
 }
 
@@ -98,21 +98,22 @@ async function idpSession(user) {
 }
 
 // What the browser does at the sign-in service: follow the authorization request and complete the
-// interaction it opens. Returns the address the service sends the browser back to, or null when it refuses.
+// interaction it opens. Returns the address the service sends the browser back to, or null when it refuses,
+// and where the browser ended up either way, for a failed check to print.
 async function authorize(authorizeUrl, idpCookie) {
   const first = await http(authorizeUrl, { headers: { cookie: idpCookie } });
   let location = first.location ?? "";
+  let ended = `${first.status} ${location || first.text.slice(0, 200)}`;
   if (location.startsWith("/interaction")) {
     const id = new URL(location, issuer).searchParams.get("interaction");
     const opened = await fetch(`${issuer}/api/oidc/interactions/${id}`, { headers: { cookie: idpCookie } });
     const interaction = await opened.json();
-    if (process.env.E2E_DEBUG) console.log("interaction", opened.status, JSON.stringify(interaction));
     const completed = await fetch(`${issuer}/api/oidc/interactions/${id}/complete`, { method: "POST", headers: { cookie: idpCookie, "Content-Type": "application/json" }, body: JSON.stringify({ step: interaction.step, scopes: ["openid", "profile", "email"] }) });
     const result = await completed.json();
-    if (process.env.E2E_DEBUG) console.log("complete", completed.status, JSON.stringify(result));
     location = result.redirectUrl ?? "";
+    ended = `${completed.status} ${location || JSON.stringify(result).slice(0, 200)}`;
   }
-  return location.startsWith(`${appUrl}/auth/callback?`) ? location : null;
+  return { back: location.startsWith(`${appUrl}/auth/callback?`) ? location : null, ended };
 }
 
 // A sign-in taken as far as the service sending the browser back, with the callback not yet made. A check
@@ -122,7 +123,7 @@ async function begin(user, next) {
   const start = await http(`${appUrl}/auth/login${next === undefined ? "" : `?next=${encodeURIComponent(next)}`}`);
   const flow = sent(start.cookies);
   const idpCookie = await idpSession(user);
-  return { start, flow, idpCookie, back: await authorize(start.location, idpCookie) };
+  return { start, flow, idpCookie, ...(await authorize(start.location, idpCookie)) };
 }
 
 async function signIn(user, next) {
@@ -214,7 +215,7 @@ async function main() {
   check("the request carries the client, the callback, PKCE, state and nonce", request.searchParams.get("client_id") === CLIENT && request.searchParams.get("redirect_uri") === `${appUrl}/auth/callback` && request.searchParams.get("code_challenge_method") === "S256" && Boolean(request.searchParams.get("code_challenge")) && Boolean(request.searchParams.get("state")) && Boolean(request.searchParams.get("nonce")), request.search);
   const flowCookie = named(ok.start.cookies, FLOW) ?? "";
   check("the flow cookie is host-only, HttpOnly, Secure and SameSite=Lax", /; Path=\/; HttpOnly; SameSite=Lax; Max-Age=600; Secure$/.test(flowCookie), flowCookie.replace(/=[^;]*/, "=<value>"));
-  check("the service sends an allowed, verified user back with a code", Boolean(ok.back));
+  check("the service sends an allowed, verified user back with a code", Boolean(ok.back), ok.ended);
   check("the callback returns the user to where they were going", ok.done?.status === 302 && ok.done.location === `${appUrl}/private?a=1`, `${ok.done?.status} ${ok.done?.location}`);
   const sessionCookie = named(ok.done?.cookies ?? [], SESSION) ?? "";
   check("the session cookie is host-only, HttpOnly, Secure, SameSite=Lax and lasts 30 days", /; Path=\/; HttpOnly; SameSite=Lax; Max-Age=2592000; Secure$/.test(sessionCookie), sessionCookie.replace(/=[^;]*/, "=<value>"));
@@ -298,6 +299,10 @@ async function main() {
 
 try {
   await main();
+} catch (error) {
+  // Counted rather than thrown, so a run that stops partway still ends on its passed/failed line.
+  check("the run reaches its last check", false, error instanceof Error ? error.message : String(error));
+  console.error(error);
 } finally {
   await stopHarness();
   removeContainer();
