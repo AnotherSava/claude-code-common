@@ -511,7 +511,7 @@ def _epoch(created: str) -> float:
     return 0
 
 
-def page_spec(memos: list[Memo], pick: bool, title: str) -> dict:
+def _page_spec(memos: list[Memo], pick: bool, title: str) -> dict:
     """The open backlog as a page for `claude/scripts/review_picker.py`: one row per memo, in listing order.
 
     A row is keyed by the memo's slug and only labelled with its number. An answer can arrive long after the page
@@ -599,7 +599,7 @@ def cmd_page(args: list[str]) -> None:
     os.makedirs(os.path.join(root, "tmp"), exist_ok=True)
     spec = os.path.join(root, "tmp", "memos.json")
     with open(spec, "w", encoding="utf-8", newline="\n") as fh:
-        json.dump(page_spec(memos, pick, f"Memos · {os.path.basename(root)}"), fh)
+        json.dump(_page_spec(memos, pick, f"Memos · {os.path.basename(root)}"), fh)
     shown = subprocess.run([sys.executable, PICKER, spec], capture_output=True, text=True, encoding="utf-8")
     if pick:
         if shown.returncode == 0:

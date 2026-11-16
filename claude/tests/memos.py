@@ -424,14 +424,14 @@ def main() -> int:
         # --- the page: rows keyed by slug, and an answer that is matched whole before anything moves ----
         b = Backlog(stack)
         b.fill(4)
-        block = memos.page_spec(memos.open_memos(b.root), True, "Memos")["blocks"][0]
+        block = memos._page_spec(memos.open_memos(b.root), True, "Memos")["blocks"][0]
         check("a page row is keyed by slug and labelled with the listing's number",
               [(row["id"], row["label"]) for row in block["rows"]], [("memo-4", "1"), ("memo-3", "2"), ("memo-2", "3"), ("memo-1", "4")])
         check("every row is preset to change nothing, and start is held by one row at a time",
               ({row["choice"] for row in block["rows"]}, block["single"]), ({"leave"}, "start"))
         check("a memo's body is its row's detail, and its capture time the row's age",
               (block["rows"][0]["detail"], block["rows"][0]["captured"] > 0), ("PRECIOUS BODY", True))
-        shown = memos.page_spec(memos.open_memos(b.root), False, "Memos")["blocks"][0]
+        shown = memos._page_spec(memos.open_memos(b.root), False, "Memos")["blocks"][0]
         check("the page that only shows offers no choices", (shown["kind"], any("choices" in row for row in shown["rows"])), ("entries", False))
 
         rc, out, err = b.answer({"choices": {"memo-4": "leave", "memo-3": "start", "memo-2": "done", "memo-1": "done"},
