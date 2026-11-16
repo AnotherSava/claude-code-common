@@ -40,16 +40,17 @@ coordinate is a project *and* a config, and under the shard rule the config carr
   inherits its root's secrets *including values*, so anything left in `local/prd` is readable by every
   app sharing that environment, and a `-c prd` typed where `-c prd_<app>` was meant writes into the
   root and silently propagates that value to every co-resident app. Always name the full config.
-- The nine projects that predate the shard rule — `claude-code-dashboard`, `greenmur`, `landlord`,
-  `printlab`, `scheduler`, `tools`, `travel-map`, `trips`, `whats-next` — keep their existing
-  `dev`/`prd` layout; live systems read those values and migrating them would be risk for no benefit.
-  The shard rule governs new apps, and apps that move for some other reason.
+- The projects that predate the shard rule — `greenmur`, `landlord`, `printlab`, `scheduler`,
+  `tools`, `travel-map`, `trips`, `whats-next` — keep their existing `dev`/`prd` layout; live systems
+  read those values and migrating them would be risk for no benefit. The shard rule governs new apps,
+  and apps that move for some other reason.
 - Two stores, and they don't mix:
   - **The app's own config inside a shard project** — `dev_<app>` / `prd_<app>`, the app name
     kebab-case after the env-slug prefix — secrets the app consumes at runtime. Shards are divided by
-    trust boundary, by where the secret is materialized. `local` (workstation-only apps) is the only
-    shard so far, because every app on the shared box predates the shard rule and keeps its own
-    project — so **a new box-hosted app has no shard to join yet**. Creating one spends a project slot;
+    trust boundary, by where the secret is materialized: `local` holds workstation-only apps, and a
+    second shard holds apps hosted on the shared box. That one is left unnamed here because this repo
+    is public: it is the project in **Existing projects** that this section names nowhere. An app that
+    fits neither has no shard to join. A new shard needs a project slot and the cap is reached, so
     raise it with the user rather than picking a home for it.
   - **`tools` / `prd`** — credentials *Claude* uses ad hoc across projects (Porkbun, Resend,
     Tailscale, Backblaze, `TRANSCRYPT_KEY`). The inventory lives in the `refs-private` memory. Read
@@ -70,7 +71,7 @@ and corrupts it). Fill in every part you already know (the key name, `-p`, `-c`)
 user must supply with a `{{kebab-case-hint}}` placeholder, never a plausible-looking fake value.
 
 The templates below write `-c <cfg>`. Substitute the app's own config — `dev_<app>` / `prd_<app>` in a
-shard, or the legacy `dev` / `prd` in one of the nine pre-shard projects. Never leave a bare `dev`,
+shard, or the legacy `dev` / `prd` in a pre-shard project. Never leave a bare `dev`,
 `stg` or `prd` in a shard command: those are root configs, every branch config inherits their values,
 and the write is visible to every co-resident app.
 
@@ -171,8 +172,8 @@ When the same value belongs in more than one config (or project), store it **onc
 others at it — one source of truth, no drift, editing the origin propagates. One config holds the real
 secret; the others hold a `${...}` reference Doppler resolves on read.
 
-**Which config holds the real value: the production one** — `prd_<app>` in a shard, `prd` in one of the
-nine pre-shard projects. Production is the source of truth; the dev config holds a `${prd_<app>.<KEY>}`
+**Which config holds the real value: the production one** — `prd_<app>` in a shard, `prd` in a pre-shard
+project. Production is the source of truth; the dev config holds a `${prd_<app>.<KEY>}`
 reference. A value that already lives in the dev config and is later needed in production gets **moved**,
 not copied — write it to the production config, then replace the dev value with a reference. Copying
 leaves two originals free to drift, and the one you'd edit by habit is the wrong one. (This is only for values that are

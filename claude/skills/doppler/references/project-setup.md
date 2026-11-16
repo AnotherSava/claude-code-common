@@ -18,9 +18,10 @@ cap means the Team plan at $21/user/month. A new app therefore gets a *config* i
 it shares with other apps — the axis with room, since each project allows 4 environments × 10 configs.
 
 1. Pick the shard by trust boundary — by where the secret is materialized. `local` holds
-   workstation-only apps; a repo that predates the shard rule keeps its own project; `tools` is
-   Claude's ad-hoc cross-project credential store, not a home for an app's runtime secrets. List what
-   is already there, so the name is free and the shard still has room:
+   workstation-only apps; a second shard, which the skill's first section says how to find, holds apps
+   hosted on the shared box; a repo that predates the shard rule keeps its own project; `tools` is Claude's ad-hoc cross-project credential store, not a home
+   for an app's runtime secrets. List what is already there, so the name is free and the shard still
+   has room:
 
    ```
    doppler configs -p <shard>
