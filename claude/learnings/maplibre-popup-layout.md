@@ -102,7 +102,12 @@ wrapper so hovering the panel keeps `:hover` alive on the wrapper.
 
 Use `visibility: hidden/visible` rather than `display: none` or opacity: it hides the
 panel *and* takes its links out of the tab order, and restores both together. Reveal
-with `.wrap:hover > .panel, .wrap:focus-within > .panel`.
+with `.wrap:hover > .panel, .wrap:focus-within > .panel`. In Chrome, which focuses a
+button or link when it is clicked, `:focus-within` leaves the panel open after a mouse
+click on the trigger or a credit link, until something else takes focus. Keep it all
+the same: `:has(:focus-visible)`, the fix for that on controls hidden with opacity,
+keeps keyboard users out of a panel hidden this way. `css-layout-gotchas.md` measures
+both, in its section on controls revealed by `focus-within`.
 
 `role="note"`, not `role="tooltip"` — a tooltip may not contain interactive content, and
 a credits panel usually holds links. Omit `aria-expanded` entirely when CSS can open the

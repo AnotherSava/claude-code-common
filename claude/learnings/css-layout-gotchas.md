@@ -543,3 +543,15 @@ a button. The controls were hidden by `pointer-fine:opacity-0`, revealed on hove
 | the same, then a click on an empty part of the page | hidden | hidden |
 | the button clicked, the pointer moved away | shown | hidden |
 | Tab onto the link, the pointer away | shown | shown |
+
+The switch to `:has(:focus-visible)` holds for controls hidden with `opacity`, which stay focusable while hidden.
+Content hidden with `visibility` or `display` and reached by tabbing from a trigger outside it keeps `:focus-within`.
+Under `:has(:focus-visible)`, Tab takes focus off the trigger before the content's first link has it, so for that
+moment nothing inside matches, the content hides, and focus drops to the body. The next Tab passes the content by, so
+no keyboard user reaches its links. `maplibre-popup-layout.md` builds a credits panel on this rule.
+
+Measured 2026-11-15 in headless Chrome 157.0.8103.50, on a credits button and a panel holding two links inside one
+wrapper, with a button after the wrapper. With the panel hidden by `visibility: hidden` or by `display: none` and
+shown on the wrapper's `:focus-within`, Tab from the credits button reached both links and then the button after.
+Shown on `:has(:focus-visible)` instead, the first Tab hid the panel and left focus on the body, and the next went
+to the button after. Hidden by `opacity: 0`, the panel kept both links in reach under `:has(:focus-visible)`.
