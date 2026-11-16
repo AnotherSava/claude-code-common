@@ -14,3 +14,5 @@ Observed cases, each of which swapped `timeout` and `async` in the `workflow-rea
 **Press `s` rather than Enter in the `/effort` slider.** That applies the level to the session and writes nothing, which is what keeps the keys out of the tree. It needs Claude Code 2.1.257 or later, and this machine was upgraded from 2.1.251 to 2.1.295 on 2026-10-09 for exactly that.
 
 Enter instead saves a default, which writes user settings and so recreates `modelSettings` here — the one key that returns on its own. No interactive toggle ever persists `ultracode`, so its absence holds without anyone maintaining it. The launch-time routes are `claude --effort <level>` and `CLAUDE_CODE_EFFORT_LEVEL`, and the env var makes `/effort` refuse to change the level at all while it is set. Mechanics in [[claude-code-effort-and-ultracode]].
+
+**The model key stays out too.** On 2026-11-15 `/model`, saving Opus 5.5 as the default for new sessions, wrote `"model": "opus"` here, and the user chose to restore the committed file rather than keep it, as with the effort keys.
