@@ -156,6 +156,16 @@ before believing it.
 This section accumulates. When a hook surprises you — a cost, a silent failure, a semantic — add a
 dated line here rather than leaving it in a session transcript.
 
+- **2026-11-15** — **Auto mode refuses a call whose input a `PreToolUse` hook changed, and passes the same input
+  sent back once, provided the hook then changes nothing.** Measured on Claude Code 2.1.322 with a `review-auto`
+  launch that `review-scope.py` rewrites. The server-side classifier reviews a call before the hook runs, so the
+  refusal reads "gave no verdict for Workflow: a hook changed this call's input after auto mode reviewed it", quotes
+  the hook's output, and tells the model to issue the call once more with exactly that input, alone in its next
+  response, and not to retry if it is refused again. The resend is reviewed as written and runs the hook again, so
+  a hook that appends unconditionally grows the input on the resend and is refused for good. A rewriting hook has to
+  pass its own output through unchanged: the one in `review-scope.py` keeps a single copy of the scope text it
+  appends and leaves alone a call that already carries everything it would write. The 2026-10-12 entry below, and a
+  launch the same hook rewrote on 2026-11-14, went through with no refusal; what changed in between is not known.
 - **2026-10-16** — **A Bash `tool_response` carries the diff of every file the command edited**, under
   `bashEditDiff` (`files[].hunks[].lines`), beside `stdout` and `stderr`. Measured with a payload dump from
   `local-time.py`: a command that only appended to a tracked file returned `stdout: "edited"` and the file's hunks.

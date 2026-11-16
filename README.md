@@ -779,7 +779,7 @@ Collects what a skill actually printed across every project's sessions since a g
 **Command:** `/skill-outputs`
 
 **Features:**
-- Lists one tab per run, labelled with its project and local time, and renders the selected run's markdown beside it; a summary shown as a page, which never reaches chat as text, is found by the write of its `wrap-up-summary.json` and rendered back into the same markdown, its recommended choices in bold
+- Lists one tab per run, labelled with its project and local time, and renders the selected run's markdown beside it; a summary shown as a page, which never reaches chat as text, is found by the write of its `wrap-up-summary.json` and rendered back into the same markdown, its recommended choices in bold and each row's folded detail after its table
 - Builds a toggle for each section from the headings the runs actually use, so hiding one section hides it in every run, and summaries written before and after a format change both split correctly
 - Takes the moment from the skill's own history when the user names a change rather than a time
 - Recognises `/wrap-up`'s summary only; the script is generalised against the next skill when one is asked for, not ahead of it
@@ -1034,7 +1034,7 @@ It is synchronous because a backgrounded hook cannot deliver context, which is a
 
 **Files:** `claude/hooks/review-scope.py`, `claude/scripts/review_scope.py`
 
-Small changes get pushed without a review, and a review scoped to the uncommitted diff would never see them. Each repo therefore carries a **review bookmark**: the ref `refs/review/last`, pushed to origin so both machines share it, pointing at the last commit whose content a review covered. This `PreToolUse` on `Workflow` fires when a call names the [saved `review-auto` workflow](#saved-workflows). It brings the local bookmark up to origin's, appends every commit after it to `args.scope`, and passes the base and the tree at launch as `args.review_bookmark`. The rewrite goes back as `updatedInput`, so the range is in the review whatever scope the model wrote. The repo is `args.repo` when the call names one, else the project directory.
+Small changes get pushed without a review, and a review scoped to the uncommitted diff would never see them. Each repo therefore carries a **review bookmark**: the ref `refs/review/last`, pushed to origin so both machines share it, pointing at the last commit whose content a review covered. This `PreToolUse` on `Workflow` fires when a call names the [saved `review-auto` workflow](#saved-workflows). It brings the local bookmark up to origin's, appends every commit after it to `args.scope`, and passes the base and the tree at launch as `args.review_bookmark`. The rewrite goes back as `updatedInput`, so the range is in the review whatever scope the model wrote. A call that already carries the hook's own rewrite passes through unchanged, and one whose scope already ends in the commit list keeps a single copy of it: auto mode reviews a call before the hook runs and has the model resend a rewritten one as written, and that resend runs only if the hook changes nothing (the dated entry in the [Hooks](#hooks) skill's findings log has the mechanics). The repo is `args.repo` when the call names one, else the project directory.
 
 The bookmark moves in two later steps, and only forward over code a review saw:
 

@@ -163,6 +163,14 @@ This matters when reconciling state afterwards. If the thing you were denied app
 happened by another route — the user ran it, or a colleague did — and saying "my denied command must have
 slipped through" plants a belief that denials are porous. They are not. Check who actually did it.
 
+## A call a hook rewrote gets no verdict, and one exact resend can pass
+
+"The server-side auto mode classifier gave no verdict for Workflow: a hook changed this call's input after auto
+mode reviewed it" judges nothing about the action, and says so. Issue the call once more with exactly the input it
+quotes, and nothing else in that response; a second refusal is final, and the user decides from there. The resend
+passes only when the hook leaves its own rewrite unchanged. The mechanics, measured 2026-11-15, are in the
+findings log of `~/.claude/skills/hooks/SKILL.md`.
+
 ## `dangerouslyDisableSandbox: true` is not a skeleton key
 
 The Bash tool's `dangerouslyDisableSandbox` runs the command unsandboxed, and it does change the outcome for
