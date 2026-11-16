@@ -110,6 +110,14 @@ drop_typed_input() {
 # right for one a person is watching and wrong for every other ssh to this host.
 ssh_opts="-o ServerAliveInterval=15 -o ServerAliveCountMax=4 -o ConnectTimeout=10"
 
+# The checkout is the same repo on both machines, so the far side runs its own copy of this
+# script's sibling. Keeping the remote command to bare tokens is what makes it survive cmd.exe,
+# which is the Windows sshd's default shell.
+# The `mac` is the origin: this script only ever runs on the Mac, so it is the one place that
+# knows the person is not at the Windows keyboard. `claude` over there reads it back off the
+# client and attaches alongside rather than refusing.
+cc_session="wsl -d $WSL_DISTRO -- $REPO_WSL_PATH/claude/remote-session/wsl/cc-session.sh $project mac"
+
 # Tints this tab's agterm sidebar row so a remote session reads as one at a glance. The tab tints
 # itself because every route to it runs this script, pick-session.py and the dashboard's attach
 # alike; the ⇄ badge stays in the title for terminals with no row colours, agwinterm among them.
@@ -136,8 +144,10 @@ if [ -n "${AGTERM_SESSION_ID:-}" ]; then
     # cmd+d in this tab opens a shell on the same machine in the project's directory, rather than a
     # local one. agterm runs the line as argv with no shell, which the project check above keeps safe;
     # the split's ssh ends with the split, so it gets the attach's deadline but not its reconnect loop.
+    # cc-session.sh opens that shell, so a directory that is gone is refused as it is for the session;
+    # `wsl --cd` would open the shell in `/` instead and still exit 0.
     # An agterm too old for the command only loses that, so it is reported and the attach goes on.
-    agtermctl session split command "/usr/bin/ssh -t $ssh_opts $REMOTE_USER@$REMOTE_HOST wsl -d $WSL_DISTRO --cd $WSL_PROJECT_ROOT/$project" \
+    agtermctl session split command "/usr/bin/ssh -t $ssh_opts $REMOTE_USER@$REMOTE_HOST $cc_session resume shell" \
         --target "$AGTERM_SESSION_ID" ${AGTERM_SOCKET:+--socket "$AGTERM_SOCKET"} >/dev/null \
         || echo "attach: could not point this tab's cmd+d at $REMOTE_HOST" >&2
 fi
@@ -162,13 +172,7 @@ while [ "$stop" -eq 0 ]; do
     # outlives a reboot of the far machine comes back resuming the directory's conversation. Only
     # a session whose agent exited 0 stays ended on a resume; cc-session.sh then exits 5 and the
     # tab closes below.
-    # The checkout is the same repo on both machines, so the far side runs its own copy of this
-    # script's sibling. Keeping the remote command to bare tokens is what makes it survive cmd.exe,
-    # which is the Windows sshd's default shell.
-    # The `mac` is the origin: this script only ever runs on the Mac, so it is the one place that
-    # knows the person is not at the Windows keyboard. `claude` over there reads it back off the
-    # client and attaches alongside rather than refusing.
-    remote="wsl -d $WSL_DISTRO -- $REPO_WSL_PATH/claude/remote-session/wsl/cc-session.sh $project mac $mode"
+    remote="$cc_session $mode"
 
     # Asked first without a terminal, because the Windows sshd returns 0 for every remote exit once
     # ssh allocates one (cc-session.sh's header has the measurement). This run's status is the only

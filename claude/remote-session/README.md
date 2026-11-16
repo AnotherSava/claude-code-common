@@ -112,6 +112,18 @@ if a tab closes after a reboot instead, cmd+shift+r brings the conversation back
 while the holder is down stays a pick through its retries, so it creates the session once the
 holder is back.
 
+**cmd+d** in a remote tab opens a split holding a shell on the Windows machine, in that project's
+directory under WSL, in place of a shell on the Mac. The shell is started by `wsl/cc-session.sh`,
+so a project whose directory is gone gets the same refusal as its session rather than a shell in
+`/`. The split is a plain ssh with the attach's connection deadline and none of its retries: a
+connection that drops closes the split while the main pane reconnects, and cmd+d opens a new one.
+If the main pane stops while a split is open and you press a key in the stopped pane, agterm moves
+the split into its place; the split's command names the project after `cc-session.sh`, so
+cmd+shift+r takes that tab for the project's attached one until you close it, leaving the project
+out of the first list and raising the shell when you type or browse to it.
+An agterm build older than agtermctl's `session split command` keeps cmd+d local, and every attach
+then prints `attach: could not point this tab's cmd+d at <host>` among the lines above the session.
+
 ### The keystroke, and why it is not the attach command
 
 The keymap line runs `mac/pick-session.sh`, not the attach directly. agterm runs a keymap command
@@ -329,7 +341,8 @@ Every piece below exists because something simpler was measured not to work; the
   from a `/mnt/d` working directory so the Windows child gets a real `D:\...` path. With a trailing
   `detach` it creates the session and stops before attaching, which is how the Windows dashboard
   starts a session for a project it has a message for and nothing running in; that caller names the
-  project by its Windows path, which must lie under `WSL_PROJECT_ROOT`.
+  project by its Windows path, which must lie under `WSL_PROJECT_ROOT`. With a trailing `shell` it
+  opens a login shell in the project's directory and touches no session, which is what cmd+d runs.
 - **`wsl/start-here.sh`** is what the Windows machine's `claude` function runs. It does the same for
   whatever directory you are standing in, which is what makes every session started there
   attachable. Every shell on that machine calls it and nothing else, so no profile carries behaviour

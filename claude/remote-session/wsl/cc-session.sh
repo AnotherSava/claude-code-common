@@ -7,7 +7,7 @@
 # and the interactive desktop both work. Starting it from an ext4 directory instead gets the
 # cmd.exe "UNC paths are not supported" failure.
 #
-# Usage: cc-session.sh <project> <origin> [<start|resume> [check|detach]]
+# Usage: cc-session.sh <project> <origin> [<start|resume> [check|detach|shell]]
 #
 # <project> is a directory name under WSL_PROJECT_ROOT, or the project's Windows path (`D:\...`),
 # which must lie under it; the Claude Code Dashboard passes the path, being the one caller that knows
@@ -35,6 +35,11 @@
 # opened a terminal for, and an attach with no terminal fails after the session already exists.
 # The origin is then recorded nowhere, there being no client.
 #
+# A trailing `shell` opens a login shell in the project's directory and touches no session, so the
+# holder need not be up and the third word changes nothing. It is what cmd+d runs in a Mac tab
+# (mac/attach.sh), sent here so the directory is derived and refused in one place: `wsl --cd` handed
+# a path that does not exist opens its shell in `/` and still exits 0.
+#
 # The exit codes: 2 usage, 1 no such project directory, 4 the holder is down, 5 the session was
 # ended on purpose. A failing `tmux attach-session` also exits 1, its status being this script's
 # last — `kill-server`, and a session killed between the check below and the attach, both produce
@@ -60,11 +65,11 @@ case $mode in
 esac
 check=${4:-}
 case $check in
-    ''|check|detach) ;;
+    ''|check|detach|shell) ;;
     *) mode= ;;
 esac
 if [ -z "$project" ] || [ -z "$origin" ] || [ -z "$mode" ]; then
-    echo "usage: cc-session.sh <project> <origin> [<start|resume> [check|detach]]" >&2
+    echo "usage: cc-session.sh <project> <origin> [<start|resume> [check|detach|shell]]" >&2
     exit 2
 fi
 
@@ -91,6 +96,10 @@ directory="$WSL_PROJECT_ROOT/$project"
 if [ ! -d "$directory" ]; then
     echo "cc-session: no such project directory: $directory" >&2
     exit 1
+fi
+if [ "$check" = shell ]; then
+    cd "$directory"
+    exec "${SHELL:-/bin/sh}" -l
 fi
 
 # Derived through the shared helper so this agrees with start-here.sh, which names the session from
