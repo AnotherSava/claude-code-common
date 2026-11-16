@@ -95,7 +95,7 @@ Runs a read-only review of the current change and lets the user choose what gets
 - After fixes, says the tree changed: the next [`/wrap-up`](#wrap-up) or [`/yolo`](#yolo) then commits the reviewed tree first and the fixes as follow-up commits, which the next review covers, unless HEAD has moved since the review (see [Review Scope](#review-scope))
 - With nothing set to fix, shows the commit plan and on your yes commits exactly the reviewed tree through `claude/skills/shared/commit.py --reviewed`, which stages it from the recorded review tree, then moves the bookmark. It never pushes: the next `/wrap-up` or `/yolo` pushes those commits
 
-**Tests:** `python claude/tests/review-picker.py` — exit 0 when every case behaves, 1 otherwise. It stubs `agtermctl` on PATH and pins the picker's exit statuses and printed answer, including that a closed page is never read as taking the recommendations, and that a malformed spec is refused with a reason rather than a traceback. The publish outside agterm prints `NOT COVERED`, since a test must not publish on the tailnet. On Windows the cases inside agterm print `NOT COVERED`, since an extensionless stub is invisible to a Windows PATH lookup and agterm does not run there.
+**Tests:** `python claude/tests/review-picker.py` — exit 0 when every case behaves, 1 otherwise. It stubs `agtermctl` on PATH and pins the picker's exit statuses and printed answer, including that a closed page is never read as taking the recommendations, and that a malformed spec is refused with a reason rather than a traceback. The publish outside agterm prints `NOT COVERED`, since a test must not publish on the tailnet, and so does the page's own script — the detail button, the single choice and the clock — which was run by hand in a browser. On Windows the cases inside agterm print `NOT COVERED`, since an extensionless stub is invisible to a Windows PATH lookup and agterm does not run there. The stub, and the replies it gives, live in `claude/tests/agterm_stub.py`, which the memo suite drives the same way.
 
 ---
 
@@ -478,6 +478,24 @@ Gives a scheduled job a dead-man's switch, so its silence is noticed. A schedule
 
 ---
 
+### Auth
+
+Gives a web app sign-in through a shared, self-hosted OpenID Connect service, in place of an edge password, a stubbed user or a password in the environment. A person proves who they are once, with a passkey or an emailed code, and each app keeps its own session and decides what that person may do. The skill carries the method, the sign-in module every app installs unchanged, and the test that proves the module against a real identity provider.
+
+**Command:** `/auth`
+
+**Features:**
+- One module, `module/signin.ts`, for every app: the three `/auth` routes, a signed session cookie and a deny-by-default gate, written against web-standard `Request` and `Response` so `proxy.ts`, a route handler and the test harness call the same functions
+- An end-to-end test, `scripts/e2e.mjs`, that starts a throwaway Pocket ID in Docker and drives every path over HTTP: the sign-in round trip, replayed and forged callbacks, an unverified address, a user outside the app's group, forged and expired session cookies, open-redirect attempts, sign-out, and the development user
+- Refuses the sign-ins that matter: a callback is accepted only with the flow cookie of the sign-in that started it, an address nobody vouched for gets no session, and `next` can only be a path on the app itself
+- Signs out of the service as well as the app, by handing back the ID token it issued, since an app-only sign-out would let the next visitor on that browser straight back in
+- Registers an app with one command whose stdout is the client secret and nothing else, piped into the secret store, so the secret never reaches a terminal or a transcript
+- Settles whose data it is before any code, with one recipe per case the user's apps present: everyone admitted shares the records; records a stand-in user owns today pass to the first person who signs in, and each person after gets a row of their own, with a role where not everyone may change the shared records; public pages show the owner's records to everyone. A case no recipe covers stops the adoption until its design is settled with the user
+- A development user for local work, which the module refuses outright in production
+- Keeps the service's address and where its admin credential is stored out of this public repo: the skill reads them from the private repo that owns the service and stops when that checkout is absent. The registration script carries the two names it needs in the open: it names each app's group after the app's compose project, and reads the admin key from `AUTH_ADMIN_API_KEY`
+
+---
+
 ### Document Data Flow
 
 Generates or updates a data-flow architecture document (`docs/data-flow.md`).
@@ -516,7 +534,7 @@ Parks an off-task idea in the project's memo backlog so it isn't lost — withou
 **Command:** `/memo [idea]`
 
 **Features:**
-- `/memo <text>` writes one markdown file to `<repo>/.claude/memos/` (created on first use); `/memo` with no args lists the open backlog and offers to address one
+- `/memo <text>` writes one markdown file to `<repo>/.claude/memos/` (created on first use); `/memo` with no args shows the open backlog as a page whose rows can be set to start or done, as an overlay inside agterm and as a tailnet link anywhere else
 - Files an idea whose every change lives in a sibling project with that project's live session, through the `peer` skill, instead of this repo's backlog
 - One memo is one file — a frontmatter block carrying `created:` and optionally `platform:`, an `# H1` title, and a body as long as the idea needs; open versus addressed is `memos/` versus `memos/done/`, so nothing parses a status marker
 - An addressed memo is named `<close-date>-<slug>.md` and is kept for good — there is no command that clears `done/`. That directory is the one place the sort key sits in the filename rather than in frontmatter, because nothing lists it: `list` and `show` both resolve against the open backlog, leaving `ls` and `git status` as its only readers, and a name is all either sorts by
@@ -528,7 +546,7 @@ Parks an off-task idea in the project's memo backlog so it isn't lost — withou
 - Capturing a memo never starts the work — that's the point; addressing one is always an explicit, separate choice
 - Every command refuses in a repo that has not adopted this layout, naming the version and pointing at [`/adopt`](#adopt) — otherwise a listing reports an empty backlog while the old file holds items, and an `add` writes a memo beside it and leaves the migration half done. It asks the adopted version rather than looking for the old file, so the next format change needs no edit here. Where no version can be asked — a clone of someone else's project, an exempt repo, a directory outside git, or a version check that fails outright with a note on stderr — it refuses instead when a `.claude/memos.md` is present, since nothing will ever split that file and a listing would otherwise read as an empty backlog
 
-**Tests:** `python claude/tests/memos.py` — exit 0 all cases behave, 1 otherwise. It pins the numbering (one snapshot per command, and that two commands cannot share one), the case folding that keeps a generated filename off an existing memo on a case-insensitive filesystem, the undo hint naming where a memo went rather than where it came from, the close date riding in the name and nowhere else — uniqueness tested on the prefixed form, the `-2` suffix kept behind the date, and a reopen dropping the prefix by deriving from the title rather than by recognising a date — that `add` refuses a leading flag nothing takes, such as `--help` or a mistyped `--titel`, rather than filing it as a memo — that a clone holding a hand-written `.claude/memos.md` is refused rather than counted as empty, including when the version check itself fails — and the platform binding — that it marks without filtering, that an unbound memo still writes the bytes it did before the field existed, and that a value reaching the file by hand renders rather than reading as "either machine". Its platform cases are written against `memos.THIS_PLATFORM`, so the suite asserts the same thing on the mac and on the Windows box.
+**Tests:** `python claude/tests/memos.py` — exit 0 all cases behave, 1 otherwise. It pins the numbering (one snapshot per command, and that two commands cannot share one), the case folding that keeps a generated filename off an existing memo on a case-insensitive filesystem, the undo hint naming where a memo went rather than where it came from, the close date riding in the name and nowhere else — uniqueness tested on the prefixed form, the `-2` suffix kept behind the date, and a reopen dropping the prefix by deriving from the title rather than by recognising a date — that `add` refuses a leading flag nothing takes, such as `--help` or a mistyped `--titel`, rather than filing it as a memo — that a clone holding a hand-written `.claude/memos.md` is refused rather than counted as empty, including when the version check itself fails — and the platform binding — that it marks without filtering, that an unbound memo still writes the bytes it did before the field existed, and that a value reaching the file by hand renders rather than reading as "either machine". Its platform cases are written against `memos.THIS_PLATFORM`, so the suite asserts the same thing on the mac and on the Windows box. It pins the page as well — rows keyed by slug and labelled with the listing's number, an answer matched exactly and whole before anything moves, and a stale answer moving nothing — and `page-or-add`, the one entry every `memo` wrapper runs, which files every word it is given, a first `add` or `count` included. The listing and link `page` prints outside agterm print `NOT COVERED`, since showing a page publishes it on the tailnet, and on Windows so does `page` over an agterm session.
 
 ---
 

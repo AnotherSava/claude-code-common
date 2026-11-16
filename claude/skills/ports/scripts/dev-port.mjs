@@ -16,7 +16,8 @@
 //
 // The use case comes from `ports.py dev-use-case`, which deploy-dev-server.sh asks too, so `npm run dev` by
 // hand and `deploy` ask the registry for the same claim. A repo that still carries a `scripts/dev.mjs`
-// imports `run` from here with the two names spelled out instead.
+// imports `run` from here with the two names spelled out instead, and a Node script that needs a port of
+// its own imports `resolvePort` and `devClaim`, so there is one way from Node into the registry.
 //
 // Next reads PORT from the environment, and classifies an env-supplied port as source `env` rather than
 // `default`, which keeps its retry-on-collision path off — so the server binds the allocated number or
@@ -79,8 +80,12 @@ function requireRegistry() {
   }
 }
 
-/** The port the registry holds for `useCase`, assigning one on the first call. */
-function resolvePort({ useCase, owner, notes }) {
+/**
+ * The port the registry holds for `useCase`, assigning one on the first call. Exits the process with the reason
+ * when it cannot, which the auth skill's scripts/e2e.mjs relies on too: it takes its two test ports from here
+ * before it starts anything.
+ */
+export function resolvePort({ useCase, owner, notes }) {
   requireRegistry()
   const result = spawnSync(PYTHON, [
     PORTS_PY, 'allocate',
@@ -105,7 +110,7 @@ function windowsCommandLine(argv) {
 }
 
 /** What ports.py records a dev server launched from `start` under: its use case, or with `--owner` its owner. */
-function devClaim(start, ...flags) {
+export function devClaim(start, ...flags) {
   const result = spawnSync(PYTHON, [PORTS_PY, 'dev-use-case', '--from', start, ...flags], { encoding: 'utf-8', stdio: ['ignore', 'pipe', 'inherit'] })
   if (result.error) fail(`could not run ${PYTHON}: ${result.error.message}`)
   const answer = (result.stdout || '').trim()

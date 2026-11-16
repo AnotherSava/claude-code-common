@@ -17,6 +17,7 @@ claude/untracked-skills.local.txt
 claude/skills/*
 !claude/skills/adopt/
 !claude/skills/annotate/
+!claude/skills/auth/
 !claude/skills/backup/
 !claude/skills/broom/
 !claude/skills/build/

@@ -18,3 +18,4 @@
 - [wrap-up may publish unprompted](wrap-up-may-publish-unprompted.md) — pre-authorizes `bash scripts/publish.sh` in allowed-tools; kept on purpose 2026-10-09, the skill's own prose is the only gate
 - [Tailnet id stays in history](tailnet-id-history-stays.md) — the real id is in pre-2026-09-12 commits; a rewrite was declined 2026-10-09, don't re-propose it
 - [Remote tabs always recreate](remote-tabs-always-recreate.md) — decided 2026-10-13, no confirmation, except a session ended by a clean exit (2026-10-20); attach-only reconnects, an Enter prompt and picker-side creation were rejected
+- [Auth module is vendored, not packaged](auth-module-vendored-not-packaged.md) — the sign-in module is copied into each app from the skill; a package needs a registry or git and credentials in every Docker build, accepted 2026-11-12
