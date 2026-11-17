@@ -70,7 +70,6 @@ sys.path.append(os.path.join(os.path.dirname(HERE), "tests"))
 from git_scratch import seal  # noqa: E402 — needs the sys.path line above
 
 RULES_DIR = os.path.join(HERE, "rules")
-UNIVERSAL_DIR = os.path.join(HERE, "universal")
 REQUIREMENTS_PAGE = os.path.join(os.path.dirname(os.path.dirname(HERE)), "docs", "convention-requirements.md")
 # The script a universal rule recommends, in this checkout rather than through `~/.claude`: the gate
 # has to exercise the copy being committed, not whatever the machine currently has installed.
