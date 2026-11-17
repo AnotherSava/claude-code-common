@@ -4,6 +4,11 @@
 One module because every suite here that runs git for real owes the same seal, and a fix made to one copy of it (a
 new config key, a timeout) would leave the others reading this machine's config, signing key included. A suite that
 runs no git imports `check` and `report` alone, which touch nothing until a seal is asked for.
+
+Git writes loose objects and packs read-only, which Windows refuses to delete, so a scratch repo that holds any goes
+in a `tempfile.TemporaryDirectory`: its exit makes such a file writable and deletes it again, raising if that fails
+too. On Windows, a `mkdtemp` removed with `shutil.rmtree(..., ignore_errors=True)` leaves those files and every
+directory above them in the temp directory on every run, with nothing reporting it.
 """
 
 from __future__ import annotations
@@ -17,12 +22,17 @@ uncovered: list[str] = []
 SEALED_CONFIG = "[user]\n\tname = t\n\temail = t@example.invalid\n[commit]\n\tgpgsign = false\n[init]\n\tdefaultBranch = main\n"
 
 
-def seal(scratch: str, extra_config: str = "") -> None:
-    """Point every git this process starts at a config written under `scratch`, and at no system config."""
+def seal(scratch: str, extra_config: str = "") -> dict[str, str | None]:
+    """Point every git this process starts at a config written under `scratch`, and at no system config.
+
+    -> what the two variables held before, for a suite that has to hand one step this machine's own config back.
+    """
     path = os.path.join(scratch, "gitconfig")
+    before = {name: os.environ.get(name) for name in ("GIT_CONFIG_GLOBAL", "GIT_CONFIG_NOSYSTEM")}
     os.environ.update({"GIT_CONFIG_GLOBAL": path, "GIT_CONFIG_NOSYSTEM": "1"})
-    with open(path, "w", encoding="utf-8") as handle:
+    with open(path, "w", encoding="utf-8", newline="\n") as handle:
         handle.write(SEALED_CONFIG + extra_config)
+    return before
 
 
 def check(label: str, got: object, want: object) -> None:

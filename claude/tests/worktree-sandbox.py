@@ -11,15 +11,15 @@ inside the repo, where it would appear in the very change set being reviewed.
 from __future__ import annotations
 
 import os
-import shutil
 import subprocess
 import sys
 import tempfile
 
+from git_scratch import check, report, seal, sh, write
+
 ROOT = os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 SCRIPT = os.path.join(ROOT, "claude", "scripts", "worktree-sandbox.py")
-
-failures: list[str] = []
+SUITE = "worktree-sandbox tests"
 
 
 def same_path(path: str) -> str:
@@ -28,66 +28,47 @@ def same_path(path: str) -> str:
 
 
 def listed(repo: str) -> list[str]:
-    return [same_path(l.removeprefix("worktree ")) for l in git(["worktree", "list", "--porcelain"], repo).split("\n") if l.startswith("worktree ")]
+    return [same_path(l.removeprefix("worktree ")) for l in sh(repo, "worktree", "list", "--porcelain").split("\n") if l.startswith("worktree ")]
 
 
 def run(args: list[str], cwd: str) -> subprocess.CompletedProcess[str]:
     return subprocess.run(args, cwd=cwd, capture_output=True, text=True)
 
 
-def git(args: list[str], cwd: str) -> str:
-    done = subprocess.run(["git"] + args, cwd=cwd, capture_output=True, text=True, check=True)
-    return done.stdout
-
-
-def check(label: str, got: object, want: object) -> None:
-    if got != want:
-        failures.append(f"  FAIL {label}: got {got!r}, want {want!r}")
-
-
 def build_repo(root: str) -> None:
-    git(["init", "-q", "."], root)
-    git(["config", "user.email", "a@b.c"], root)
-    git(["config", "user.name", "A"], root)
+    sh(root, "init", "-q", ".")
     os.makedirs(os.path.join(root, "docs"))
     os.makedirs(os.path.join(root, "build"))
     write(root, "docs/page.md", "base\n")
     write(root, "keep.md", "keep\n")
     write(root, "docs/old.md", "moved\n")
     write(root, ".gitignore", "/build/\n")
-    git(["add", "-A"], root)
-    git(["commit", "-q", "--no-gpg-sign", "-m", "chore: base"], root)
+    sh(root, "add", "-A")
+    sh(root, "commit", "-q", "-m", "chore: base")
     # The dirty state a review has to see: an edit, a new file, a deletion — plus an ignored blob
     # that must stay out, since carrying the working tree rather than the change set is what makes
     # this unusable on a repo whose bulk is build output.
     write(root, "docs/page.md", "base\nedited\n")
     write(root, "docs/new.md", "new\n")
     os.remove(os.path.join(root, "keep.md"))
-    git(["mv", "docs/old.md", "docs/moved.md"], root)
+    sh(root, "mv", "docs/old.md", "docs/moved.md")
     write(root, "build/blob", "x" * 200_000)
 
 
-def write(root: str, rel: str, text: str) -> None:
-    path = os.path.join(root, rel)
-    os.makedirs(os.path.dirname(path) or root, exist_ok=True)
-    with open(path, "w") as handle:
-        handle.write(text)
-
-
 def main() -> None:
-    work = tempfile.mkdtemp(prefix="wt-sandbox-test-")
-    repo = os.path.join(work, "repo")
-    os.makedirs(repo)
-    try:
+    with tempfile.TemporaryDirectory(prefix="wt-sandbox-test-") as work:
+        repo = os.path.join(work, "repo")
+        os.makedirs(repo)
+        seal(work)
         build_repo(repo)
-        before = git(["status", "--porcelain"], repo)
+        before = sh(repo, "status", "--porcelain")
 
         made = run([sys.executable, SCRIPT, "create", "--name", "probe"], repo)
         check("create exits 0", made.returncode, 0)
         sandbox = made.stdout.strip().split("\n")[-1] if made.returncode == 0 else ""
         if not sandbox or not os.path.isdir(sandbox):
-            failures.append(f"  FAIL create produced no sandbox: {made.stdout!r} {made.stderr!r}")
-            raise SystemExit(report())
+            check("create produced a sandbox", (made.stdout, made.stderr), "a directory named on its last line")
+            raise SystemExit(report(SUITE))
 
         check("sandbox is outside the repo", os.path.commonpath([os.path.realpath(sandbox),
               os.path.realpath(repo)]) == os.path.realpath(repo), False)
@@ -97,8 +78,8 @@ def main() -> None:
         check("a staged rename's destination arrived", os.path.exists(os.path.join(sandbox, "docs/moved.md")), True)
         check("and its source is gone", os.path.exists(os.path.join(sandbox, "docs/old.md")), False)
         check("the ignored blob stayed out", os.path.exists(os.path.join(sandbox, "build/blob")), False)
-        check("sandbox is clean after carry-in", git(["status", "--porcelain"], sandbox).strip(), "")
-        check("the user's tree is untouched", git(["status", "--porcelain"], repo), before)
+        check("sandbox is clean after carry-in", sh(sandbox, "status", "--porcelain"), "")
+        check("the user's tree is untouched", sh(repo, "status", "--porcelain"), before)
 
         # A sub-skill's edit must be the only thing the patch carries.
         write(sandbox, "docs/page.md", "base\nedited\nby the sub-skill\n")
@@ -111,8 +92,7 @@ def main() -> None:
 
         # The patch must apply to the user's tree, which is what makes the sandbox useful at all.
         patch_file = os.path.join(work, "p.diff")
-        with open(patch_file, "w") as handle:
-            handle.write(got.stdout)
+        write(work, "p.diff", got.stdout)
         applied = run(["git", "apply", patch_file], repo)
         check("the patch applies to the real tree", applied.returncode, 0)
         check("and lands the sub-skill's line", "by the sub-skill" in open(os.path.join(repo, "docs/page.md")).read(), True)
@@ -141,7 +121,7 @@ def main() -> None:
         os.makedirs(hooks)
         write(hooks, "pre-commit", "#!/bin/sh\necho refusing >&2\nexit 1\n")
         os.chmod(os.path.join(hooks, "pre-commit"), 0o755)
-        git(["config", "core.hooksPath", hooks], repo)
+        sh(repo, "config", "core.hooksPath", hooks)
         write(repo, "config/deploy.env", "X=1\n")
         refused = run([sys.executable, SCRIPT, "create"], repo)
         check("create survives a pre-commit hook that refuses", refused.returncode, 0)
@@ -149,16 +129,7 @@ def main() -> None:
         check("and the refused file arrived", bool(guarded) and os.path.exists(os.path.join(guarded, "config/deploy.env")), True)
         if guarded:
             run([sys.executable, SCRIPT, "remove", guarded], repo)
-    finally:
-        shutil.rmtree(work, ignore_errors=True)
-    raise SystemExit(report())
-
-
-def report() -> int:
-    for line in failures:
-        print(line)
-    print(f"worktree-sandbox tests: {'all cases behave' if not failures else f'{len(failures)} failure(s)'}")
-    return 1 if failures else 0
+    raise SystemExit(report(SUITE))
 
 
 if __name__ == "__main__":

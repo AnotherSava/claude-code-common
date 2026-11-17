@@ -9,7 +9,6 @@ the script for real against a scratch repo sealed from this machine's git config
 from __future__ import annotations
 
 import os
-import shutil
 import subprocess
 import sys
 import tempfile
@@ -48,8 +47,7 @@ def fresh(scratch: str, name: str) -> str:
 
 
 def main() -> int:
-    scratch = tempfile.mkdtemp(prefix="commit-test-")
-    try:
+    with tempfile.TemporaryDirectory(prefix="commit-test-") as scratch:
         seal(scratch)
 
         repo = fresh(scratch, "plain")
@@ -144,8 +142,6 @@ def main() -> int:
         write(globbed, "a1.txt", "plain\n")
         code, out = run(globbed, "feat: add the bracketed file\n", "a[1].txt")
         check("a path with glob characters names only that file", (code, held(globbed)), (0, ["a[1].txt"]))
-    finally:
-        shutil.rmtree(scratch, ignore_errors=True)
 
     return report("commit tests")
 

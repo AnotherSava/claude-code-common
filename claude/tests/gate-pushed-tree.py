@@ -10,7 +10,6 @@ against a real clone of a bare origin, sealed from this machine's git config, wi
 from __future__ import annotations
 
 import os
-import shutil
 import subprocess
 import sys
 import tempfile
@@ -66,10 +65,9 @@ def fresh(scratch: str, name: str) -> str:
 
 
 def main() -> int:
-    scratch = tempfile.mkdtemp(prefix="gate-pushed-tree-test-")
-    seal(scratch)
-    os.environ.update({"GATE_COUNT": os.path.join(scratch, "count")})
-    try:
+    with tempfile.TemporaryDirectory(prefix="gate-pushed-tree-test-") as scratch:
+        seal(scratch)
+        os.environ.update({"GATE_COUNT": os.path.join(scratch, "count")})
         repo = fresh(scratch, "skip")
         code, out = gate(repo, "--record")
         check("the pre-commit run passes and records", (code, "recorded tree" in out), (0, True))
@@ -141,8 +139,6 @@ def main() -> int:
         commit_all(repo)
         code, out = gate(repo)
         check("with no pre-commit run at all, the pre-push run gates", (code, "SKIPPED" in out, runs()), (0, False, 1))
-    finally:
-        shutil.rmtree(scratch, ignore_errors=True)
 
     return report("gate-pushed-tree tests")
 

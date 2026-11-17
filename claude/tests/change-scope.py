@@ -10,7 +10,6 @@ sealed from this machine's git config.
 from __future__ import annotations
 
 import os
-import shutil
 import subprocess
 import sys
 import tempfile
@@ -36,9 +35,8 @@ def polish(repo: str) -> None:
 
 
 def main() -> int:
-    scratch = tempfile.mkdtemp(prefix="change-scope-test-")
-    seal(scratch)
-    try:
+    with tempfile.TemporaryDirectory(prefix="change-scope-test-") as scratch:
+        seal(scratch)
         origin, repo = os.path.join(scratch, "origin.git"), os.path.join(scratch, "repo")
         subprocess.run(["git", "init", "-q", "--bare", origin], check=True)
         subprocess.run(["git", "clone", "-q", origin, repo], check=True, capture_output=True)
@@ -85,8 +83,6 @@ def main() -> int:
         write(repo, "docs/raw/shot.png", "png\n")
         os.remove(os.path.join(repo, "docs", "shot.png"))
         check("an image under raw/ is not documentation", verdicts(repo)["screenshot-relevance"], "SKIP (the docs hold no images)")
-    finally:
-        shutil.rmtree(scratch, ignore_errors=True)
 
     return report("change-scope tests")
 

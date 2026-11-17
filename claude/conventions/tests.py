@@ -64,6 +64,11 @@ sys.path.insert(0, HERE)
 import check  # noqa: E402 — needs the sys.path line above
 import engine  # noqa: E402 — likewise
 
+# Last on the path, behind the rule directories `check` appends, so a rule's name never resolves to a test suite.
+sys.path.append(os.path.join(os.path.dirname(HERE), "tests"))
+
+from git_scratch import seal  # noqa: E402 — needs the sys.path line above
+
 RULES_DIR = os.path.join(HERE, "rules")
 UNIVERSAL_DIR = os.path.join(HERE, "universal")
 REQUIREMENTS_PAGE = os.path.join(os.path.dirname(os.path.dirname(HERE)), "docs", "convention-requirements.md")
@@ -309,14 +314,10 @@ class Gate:
 def run_git(root: str, argv: list[str]) -> tuple[int, str]:
     """One git command in a scratch tree. A failure to start git comes back as a code, not a raise.
 
-    The flags are what makes a scratch repo this test's own rather than this machine's: no signing
-    key, an identity that does not depend on the global config `sandbox_git` has already taken away,
-    and a hooks path pointing at nothing, so the user's own pre-commit hook cannot reach into a tree
-    built here.
+    The identity and the unsigned commit come from the config `sandbox_git` seals git into; the hooks
+    path pointing at nothing keeps any pre-commit hook out of a tree built here.
     """
-    command = ["git", "-C", root, "-c", "commit.gpgsign=false", "-c", "user.name=conventions tests",
-               "-c", "user.email=tests@localhost", "-c", f"core.hooksPath={os.path.join(root, 'no-hooks')}",
-               *argv]
+    command = ["git", "-C", root, "-c", f"core.hooksPath={os.path.join(root, 'no-hooks')}", *argv]
     try:
         done = subprocess.run(command, capture_output=True, encoding="utf-8", errors="replace",
                               timeout=GIT_TIMEOUT)
@@ -356,24 +357,8 @@ def build(base: str, name: str, tree: Tree) -> tuple[str, str]:
     return root, ""
 
 
-def remove_tree(path: str) -> None:
-    """Remove a scratch tree, including the read-only files `git init` leaves in it.
-
-    Loose objects are written mode 444, which on Windows is the read-only attribute and makes the
-    delete refuse; `ignore_errors=True` alone would then leave a whole `.git` in the temp directory
-    once per tree per run, silently.
-    """
-    for base, dirs, files in os.walk(path):
-        for name in dirs + files:
-            try:
-                os.chmod(os.path.join(base, name), 0o700)
-            except OSError:
-                pass
-    shutil.rmtree(path, ignore_errors=True)
-
-
 def sandbox_git(base: str) -> dict[str, str | None]:
-    """Point git's global and system config at this run's own files. -> what was there before.
+    """Seal git from this machine, with a global excludes file of this run's own. -> what was there before.
 
     Two rules read a machine rather than a repo — `gitignore-scope-global` compares against the
     global excludes file, and every `check-ignore` call consults it — so without this the answers
@@ -381,17 +366,12 @@ def sandbox_git(base: str) -> dict[str, str | None]:
     line of the user's own global file would decide whether this passes. The global file written here
     carries the entries the violating tree for that rule is built to duplicate.
     """
-    config, excludes = os.path.join(base, "gitconfig"), os.path.join(base, "global-excludes")
-    # Forward slashes: a backslash opens an escape inside a git config value, so a Windows path
-    # written literally here resolves to a file name nothing on disk has.
-    with open(config, "w", encoding="utf-8", newline="\n") as handle:
-        handle.write("[core]\n\texcludesfile = " + excludes.replace("\\", "/") + "\n")
+    excludes = os.path.join(base, "global-excludes")
     with open(excludes, "w", encoding="utf-8", newline="\n") as handle:
         handle.write(".idea/\nThumbs.db\nconfig/deploy.local.env\n/local.env\n")
-    before = {name: os.environ.get(name) for name in ("GIT_CONFIG_GLOBAL", "GIT_CONFIG_NOSYSTEM")}
-    os.environ["GIT_CONFIG_GLOBAL"] = config
-    os.environ["GIT_CONFIG_NOSYSTEM"] = "1"
-    return before
+    # Forward slashes: a backslash opens an escape inside a git config value, so a Windows path
+    # written literally here resolves to a file name nothing on disk has.
+    return seal(base, "[core]\n\texcludesfile = " + excludes.replace("\\", "/") + "\n")
 
 
 def restore_env(before: dict[str, str | None]) -> None:
@@ -1146,24 +1126,23 @@ def main() -> int:
     except engine.VersionError as exc:
         gate.ok(False, "the version set loads", str(exc))
         return report(gate)
-    base = tempfile.mkdtemp(prefix="conventions-tests-")
-    before = sandbox_git(base)
-    try:
-        # Asked once, of the temp directory itself: a rule whose git call is meant to go unanswered
-        # is pointed at a plain directory, and a plain directory inside somebody's checkout is
-        # answered by that checkout's rules rather than refused.
-        outside_repo = run_git(base, ["rev-parse", "--show-toplevel"])[0] != 0
-        version_shape(gate, versions)
-        rule_wiring(gate, versions)
-        requirements_page(gate, versions)
-        rule_behaviour(gate, base, outside_repo)
-        universal_behaviour(gate, base, outside_repo, before)
-        record_round_trip(gate, base, versions)
-        fork_cases(gate, base, versions)
-        behind_cases(gate, base)
-    finally:
-        restore_env(before)
-        remove_tree(base)
+    with tempfile.TemporaryDirectory(prefix="conventions-tests-") as base:
+        before = sandbox_git(base)
+        try:
+            # Asked once, of the temp directory itself: a rule whose git call is meant to go unanswered
+            # is pointed at a plain directory, and a plain directory inside somebody's checkout is
+            # answered by that checkout's rules rather than refused.
+            outside_repo = run_git(base, ["rev-parse", "--show-toplevel"])[0] != 0
+            version_shape(gate, versions)
+            rule_wiring(gate, versions)
+            requirements_page(gate, versions)
+            rule_behaviour(gate, base, outside_repo)
+            universal_behaviour(gate, base, outside_repo, before)
+            record_round_trip(gate, base, versions)
+            fork_cases(gate, base, versions)
+            behind_cases(gate, base)
+        finally:
+            restore_env(before)
     return report(gate)
 
 

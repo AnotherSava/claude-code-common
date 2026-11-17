@@ -30,6 +30,8 @@ import sys
 import tempfile
 from pathlib import Path
 
+from git_scratch import check, report, seal, sh
+
 REPO = Path(__file__).resolve().parents[2]
 PORTS_PATH = REPO / "claude" / "skills" / "ports" / "scripts" / "ports.py"
 
@@ -39,7 +41,6 @@ _spec.loader.exec_module(ports)
 
 REAL_REGISTRY = ports.REGISTRY
 REAL_PROBE = ports.port_probe
-FAILURES: list[str] = []
 
 
 class FakeProbe:
@@ -60,11 +61,6 @@ class FakeProbe:
 
     def port_of(self, holder):
         return REAL_PROBE.port_of(holder)
-
-
-def check(label: str, got: object, want: object) -> None:
-    if got != want:
-        FAILURES.append(f"{label}: got {got!r}, want {want!r}")
 
 
 def run(argv: list, registry: Path) -> tuple:
@@ -109,6 +105,7 @@ def main() -> int:
     check("the committed registry is version 1", real["version"], ports.VERSION)
 
     with tempfile.TemporaryDirectory() as directory:
+        seal(directory)
         # ---- allocation ------------------------------------------------------------------------------
         registry = seed(directory, [dict(MACHINE, port=ports.POOL_LOW, use_case="taken", owner="x")])
         code, out, _ = run(["allocate", "--use-case", "fresh", "--owner", "repo", "--notes", "why"], registry)
@@ -239,16 +236,14 @@ def main() -> int:
                              "status": "assigned", "notes": "n"}])), 1)
 
         # ---- the launch-path literal scan, which is what the v15 rule reports ------------------------
-        import subprocess
-
         scan = Path(directory) / "scanned"
         (scan / "web").mkdir(parents=True)
         (scan / "scripts").mkdir()
-        subprocess.run(["git", "-C", str(scan), "init", "-q"], check=True)
+        sh(str(scan), "init", "-q")
 
         def track(rel: str, body: str) -> None:
             (scan / rel).write_text(body, encoding="utf-8")
-            subprocess.run(["git", "-C", str(scan), "add", "--", rel], check=True)
+            sh(str(scan), "add", "--", rel)
 
         pinned = {"version": 1, "claims": [dict(MACHINE, port=8000, use_case="scanned-dev-server",
                                                 owner="scanned", pinned="a URL-restricted token")]}
@@ -294,14 +289,14 @@ def main() -> int:
         (scan / "web" / "package.json").write_bytes(b"\xff\xfe\x00{ not text\n")
         try:
             ports.check_repo(pinned, scan)
-            FAILURES.append("an unreadable tracked launch file: no raise")
+            check("an unreadable tracked launch file raises", "no raise", "a RuntimeError")
         except RuntimeError as exc:
             check("an unreadable tracked launch file raises", "will not read as text" in str(exc), True)
 
         # ---- the other half: a port assigned to the repo that nothing here asks for -------------------
         # A literal-free tree, so the half under test is the only thing that can speak. That is the state
         # the first version of this rule called conforming while the port resolved nowhere.
-        subprocess.run(["git", "-C", str(scan), "rm", "-q", "--cached", "scripts/dev.sh"], check=True)
+        sh(str(scan), "rm", "-q", "--cached", "scripts/dev.sh")
         (scan / "scripts" / "dev.sh").unlink()
         track("web/package.json", '{"scripts": {"dev": "next dev"}}\n')
         check("the tree now holds no literal at all", ports.launch_path_literals(scan), [])
@@ -345,7 +340,7 @@ def main() -> int:
 
         # The command form: a dev script started through `dev-port` resolves the port with no file of its own.
         # The marker is a whole word, so a name that merely begins with it is still no resolver.
-        subprocess.run(["git", "-C", str(scan), "rm", "-q", "--cached", "--", "scripts/dev.mjs"], check=True)
+        sh(str(scan), "rm", "-q", "--cached", "--", "scripts/dev.mjs")
         (scan / "scripts" / "dev.mjs").unlink()
         track("web/package.json", '{"scripts": {"dev": "doppler run -- dev-portal next dev"}}\n')
         found, _ = ports.check_repo(unpinned, scan)
@@ -393,12 +388,10 @@ def main() -> int:
 
         ident = Path(directory) / "identity"
         (ident / "scripts").mkdir(parents=True)
-        subprocess.run(["git", "-C", str(ident), "init", "-q"], check=True)
-        for setting, value in (("user.email", "t@t"), ("user.name", "t")):
-            subprocess.run(["git", "-C", str(ident), "config", setting, value], check=True)
+        sh(str(ident), "init", "-q")
         (ident / "scripts" / "dev.sh").write_text("PORT=8000\n", encoding="utf-8")
-        subprocess.run(["git", "-C", str(ident), "add", "-A"], check=True)
-        subprocess.run(["git", "-C", str(ident), "commit", "-qm", "base"], check=True)
+        sh(str(ident), "add", "-A")
+        sh(str(ident), "commit", "-qm", "base")
         owned = {"version": 1, "claims": [dict(MACHINE, port=8000, use_case="identity-dev-server",
                                                owner="identity", pinned="an outside party")]}
         check("a pinned literal is allowed in the repo that owns it",
@@ -406,25 +399,22 @@ def main() -> int:
 
         # The case a forked sub-skill hits on every run: same repo, basename no owner matches.
         linked = Path(directory) / "identity-sandbox"
-        subprocess.run(["git", "-C", str(ident), "worktree", "add", "--detach", "-q",
-                        str(linked), "HEAD"], check=True)
+        sh(str(ident), "worktree", "add", "--detach", "-q", str(linked), "HEAD")
         check("and from a linked worktree, whose own basename matches no owner",
               ports.check_repo(owned, linked), ([], []))
         check("the name comes from the main worktree, not the path given",
               ports._repo_name(linked), "identity")
-        subprocess.run(["git", "-C", str(ident), "worktree", "remove", "--force", str(linked)], check=True)
+        sh(str(ident), "worktree", "remove", "--force", str(linked))
 
         # A GitHub origin names the repo whatever its folder is called, so two clones in differently named
         # folders are one owner — the Windows clone of trips, in `trips`, failed this rule against owners
         # written for the macOS clone's `tripit`. Without an origin the folder name above still answers.
-        subprocess.run(["git", "-C", str(ident), "remote", "add", "origin",
-                        "git@github.com:someone/identity-on-github.git"], check=True)
+        sh(str(ident), "remote", "add", "origin", "git@github.com:someone/identity-on-github.git")
         check("with a GitHub origin the name is the repository's, not the folder's",
               ports._repo_name(ident), "identity-on-github")
         check("and from a subdirectory too",
               ports._repo_name(ident / "scripts"), "identity-on-github")
-        subprocess.run(["git", "-C", str(ident), "remote", "set-url", "origin",
-                        "https://github.com/someone/identity-on-github"], check=True)
+        sh(str(ident), "remote", "set-url", "origin", "https://github.com/someone/identity-on-github")
         check("an https origin without .git names it the same way",
               ports._repo_name(ident), "identity-on-github")
         check("a claim owned by the folder name then reads as another repo's",
@@ -432,32 +422,26 @@ def main() -> int:
         renamed = {"version": 1, "claims": [dict(owned["claims"][0], owner="identity-on-github")]}
         check("and one owned by the GitHub name is this repo's",
               ports.check_repo(renamed, ident), ([], []))
-        subprocess.run(["git", "-C", str(ident), "remote", "remove", "origin"], check=True)
+        sh(str(ident), "remote", "remove", "origin")
 
         # A subdirectory is not a repo. Scoping the scan to it misses a resolver sitting above it, so the
         # repo's port reads as one nothing asks for — measured in tripit/web, whose scripts/dev.mjs is at
         # the root. The name alone being right does not fix this; the scan root has to move too.
-        subprocess.run(["git", "-C", str(ident), "rm", "-q", "--cached", "scripts/dev.sh"], check=True)
+        sh(str(ident), "rm", "-q", "--cached", "scripts/dev.sh")
         (ident / "scripts" / "dev.sh").unlink()
         (ident / "web").mkdir()
         (ident / "web" / "package.json").write_text(
             '{"scripts": {"dev": "node ../scripts/dev.mjs next dev"}}\n', encoding="utf-8")
         (ident / "scripts" / "dev.mjs").write_text(
             "import { run } from '.../ports/scripts/dev-port.mjs'\n", encoding="utf-8")
-        subprocess.run(["git", "-C", str(ident), "add", "-A"], check=True)
+        sh(str(ident), "add", "-A")
         resolved = {"version": 1, "claims": [dict(MACHINE, port=3951, use_case="identity-dev-server",
                                                   owner="identity")]}
         check("the repo resolves its port at launch", ports.check_repo(resolved, ident), ([], []))
         check("and a subdirectory is judged as the repo containing it",
               ports.check_repo(resolved, ident / "web"), ([], []))
 
-    if FAILURES:
-        print(f"ports tests: {len(FAILURES)} case(s) failed\n")
-        for failure in FAILURES:
-            print(f"  {failure}\n")
-        return 1
-    print("ports tests: all cases behave")
-    return 0
+    return report("ports tests")
 
 
 if __name__ == "__main__":

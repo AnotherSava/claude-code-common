@@ -12,8 +12,6 @@ from __future__ import annotations
 import json
 import os
 import re
-import shutil
-import stat
 import subprocess
 import sys
 import tempfile
@@ -49,9 +47,8 @@ def main() -> int:
         name = re.search(r"^\s*name:\s*'([^']+)'", handle.read(), re.MULTILINE)
     check("the saved workflow's meta.name is the name the hooks match", name and name.group(1), review_scope.WORKFLOW)
 
-    scratch = tempfile.mkdtemp(prefix="review-scope-test-")
-    seal(scratch)
-    try:
+    with tempfile.TemporaryDirectory(prefix="review-scope-test-") as scratch:
+        seal(scratch)
         origin, a, b = (os.path.join(scratch, n) for n in ("origin.git", "a", "b"))
         subprocess.run(["git", "init", "-q", "--bare", origin], check=True)
         subprocess.run(["git", "clone", "-q", origin, a], check=True, capture_output=True)
@@ -308,12 +305,6 @@ def main() -> int:
         sh(r, "add", "app.txt")
         sh(r, "commit", "-qm", "reviewed, redacted")
         check("a reviewed commit carrying a later fix does not advance", review_scope.advance(r).startswith("not advanced: no commit since the review's base holds the reviewed tree"), True)
-    finally:
-        # git leaves its object files read-only, which Windows refuses to delete, so the bit goes first.
-        for parent, _, files in os.walk(scratch):
-            for name in files:
-                os.chmod(os.path.join(parent, name), stat.S_IREAD | stat.S_IWRITE)
-        shutil.rmtree(scratch)
 
     return report("review-scope tests")
 

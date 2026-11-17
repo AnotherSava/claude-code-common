@@ -11,7 +11,6 @@ The fork case stubs `gh` on PATH, which Windows cannot run, so there it is repor
 from __future__ import annotations
 
 import os
-import shutil
 import subprocess
 import sys
 import tempfile
@@ -55,8 +54,7 @@ def main() -> int:
                      ("C:/work/fork.git", "C:/work/fork.git")):
         check(f"the pushed-to URL {to} reaches gh as {want}", _pushed_to(f"To {to}\n=\trefs/heads/main:refs/heads/main\t[up to date]\nDone\n"), want)
 
-    scratch = tempfile.mkdtemp(prefix="push-test-")
-    try:
+    with tempfile.TemporaryDirectory(prefix="push-test-") as scratch:
         seal(scratch, "[push]\n\tdefault = current\n")
         os.environ.update({"TAURI_DASHBOARD_URL": "http://127.0.0.1:9"})
 
@@ -108,8 +106,6 @@ def main() -> int:
             named = args[args.index("--repo") + 1] if "--repo" in args else None
             check("in a fork the CI lookup names the remote the push went to", (code, named), (0, origin))
             check("and so does the re-query it prints", any(f"--repo {origin}" in line for line in lines if line.startswith("ci:")), True)
-    finally:
-        shutil.rmtree(scratch, ignore_errors=True)
 
     return report("push tests")
 
