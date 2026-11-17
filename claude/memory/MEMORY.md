@@ -283,3 +283,5 @@
 - [Wide tables go to an HTML page](feedback_wide_tables_as_html.md) — a findings/choice table too wide for the terminal is published as an HTML page with a Copy answer button
 - [Sort by what you show](feedback_sort_by_what_you_show.md) — a view that displays an override must order and pick "next" by it too; grep every comparator over the stored field
 - [Label example output](feedback_label_example_output.md) — illustrative output comes from the user's real data or says it is an example; a fixture's sentence shown bare reads as a finding
+- [Control names its reach](feedback_list_control_reach.md) — a multi-row action says its extent ("Copy to days below"), sits under the list it edits; cheap undo means overwrite, not guard
+- [Existing component first](feedback_existing_component_first.md) — survey existing components before hand-building a common widget; compose from the library already in use, with evidence
