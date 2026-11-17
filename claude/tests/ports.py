@@ -1,8 +1,8 @@
 #!/usr/bin/env python3
 """Pin the behaviour of claude/skills/ports/scripts/ports.py, and of the registry it hands out from.
 
-Two things are asserted, and the second is the reason this runs at every commit here rather than only
-when the allocator changes:
+The registry entry is the reason this runs at every commit here rather than only when the allocator
+changes:
 
   the allocator   that it never hands out a number already claimed, already held on this machine, or
                   unusable (the WHATWG blocked set, the privileged range, the ephemeral range), and
@@ -11,6 +11,11 @@ when the allocator changes:
   the registry    that the committed `registry.json` passes its own checker. A duplicate claim there is
                   a port handed to two projects, and the file is edited by hand as often as by the
                   allocator.
+  the repo check  that `check_repo`, what the v15 convention rule reports, finds a port written into a
+                  launch path unless the registry pins it to this repo, a port assigned to the repo that
+                  nothing in it resolves at launch, and a DEV_PORT still set in deploy.env, and that it
+                  names the repo from its GitHub origin or its main worktree rather than the directory
+                  it was handed.
 
 The live probe is stubbed. Allocation reads the machine as well as the record, so leaving it real would
 make these cases pass or fail on which servers happen to be running.
@@ -25,7 +30,6 @@ import contextlib
 import importlib.util
 import io
 import json
-import os
 import sys
 import tempfile
 from pathlib import Path
