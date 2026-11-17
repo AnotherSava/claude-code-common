@@ -16,7 +16,7 @@ Measured 2026-10-01 on macOS, two generated trees of 100 files per directory, ti
 ceiling arrives near **14,500 files** — well under the size of a `node_modules` or a build tree.
 
 On Windows a far lower ceiling comes first. The Bash tool cuts any command longer than about 7,700 characters, so
-at the same 72 bytes a path a named list stops fitting near 100 files. `bash-portability.md` has the measurement,
+at the same 72 bytes per path, a named list stops fitting near 100 files. `bash-portability.md` has the measurement,
 under "A Bash tool command over about 7,700 characters is cut short".
 
 **Performance is not the objection.** The `find` traversal plus the longer command line cost 35 ms at
