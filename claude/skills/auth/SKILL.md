@@ -63,10 +63,17 @@ Three things hold the pieces, and each fact has one home:
 1. List what the app serves without any credential today: the vhost's carve-outs, what `proxy.ts` lets
    through, feeds whose token is in the path, the identity route, and any route that takes a write from
    anyone (an order form, a webhook).
-2. Ask the user, in one question that shows the list, which of two shapes the app takes:
+2. List what calls the app with no person behind it: the container's healthcheck, which reaches the app
+   directly and so never met the vhost's password, and each URL the project's publish verification
+   expects a 200 from. In the gated shape a gated path answers both with a 401, or with a 302 to sign-in
+   when the request asks for HTML, so the container never turns healthy and the publish fails its check.
+   Give each a public path to call: a route already on the list, or a health route added to it whose
+   body says only whether the app is up, with no error text and no data.
+3. Ask the user, in one question that shows the list, which of two shapes the app takes:
    - **gated**: every request needs a session, except a GET of a path on the list;
    - **open**: pages stay readable by anyone and a session adds identity.
-3. Never widen. A path that needs a password today is not public after adoption, whatever the list says.
+4. Never widen. A path that needs a password today is not public after adoption, whatever the list says.
+   The status-only health route of item 2 is the one addition.
 
 ## 3. Settle whose data it is
 
