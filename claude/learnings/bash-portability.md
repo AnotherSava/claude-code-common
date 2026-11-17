@@ -437,13 +437,35 @@ The collapse can also kill the whole command before anything runs. A body holdin
 that leaves the rest of the command unbalanced, and bash refuses it with `unexpected EOF while looking
 for matching `''`. Nothing executes, so a multi-file write in that heredoc writes none of its files.
 
-The same message also comes from a command that is merely long. On 2026-11-14 two Bash-tool commands of
-8,201 and 9,759 characters, each a quoted heredoc feeding Python with no quoted backslash anywhere in it,
-failed with it; the same scripts ran once written to a file, and heredocs of a few kilobytes ran all through
-that session. Where between those sizes the failure starts was not measured.
+The same message also comes from a command that is merely long. Measured 2026-11-14 with plain
+`cat <<'EOF' | wc -c` commands whose bodies held no backslash and no quote: those of 5,303 and 6,535 characters
+ran, and those of 7,767 and 10,789 failed with it. Two real scripts of 8,201 and 9,759 characters failed the same
+way that day. One was `cat > patch.py <<'PATCH'`, so a heredoc that only writes the script to a file is refused
+just the same. Both ran once the Write tool had put them in a file.
 
-Fix: write the script to a real file and run it (`python script.py`, `powershell -File script.ps1`).
-Reserve heredocs for short bodies with no backslashes.
+Git Bash started by a native Windows process, as the Bash tool starts it, runs at most 8,186 characters of a `-c`
+script and silently drops the rest. The tool spends about 500 of those characters on its own wrapper, which puts the
+command inside `eval '…'` and ends with `&& pwd -P >| <cwd file>`, and it sends every `'` in the command as the five
+characters `'"'"'`. So any Bash tool command longer than about 7,700 characters, less 4 for each `'`, is cut short,
+heredoc or not. Measured 2026-11-16 through both of Git for Windows' `bash.exe` binaries, which cut at the same
+length whether the script was ASCII or held `é` or `—`.
+
+**Only an error reported from `-c:` means a cut command ran nothing; after any other outcome, look for a partial
+file before running the command again.** Most cuts leave a quote open and get
+``unexpected EOF while looking for matching`` from `-c:`, naming `"` instead of `'` when the cut falls two or three
+characters into an escaped `'`. A cut one or four characters into an escaped `'` closes the wrapper's quote, and
+bash runs every complete line before it. A `cat > file <<'EOF'` heredoc then writes a truncated file and exits 0,
+with nothing on stderr but ``warning: here-document at line N delimited by end-of-file (wanted `EOF')``, and a
+`python - <<'EOF'` runs a truncated script, which usually dies on a `SyntaxError`. Where the cut leaves one of the
+command's own quotes open, the same unexpected-EOF error comes from `eval:` instead, after the complete lines have
+run. A command that overruns by less than the wrapper's tail, about 70 characters, usually runs whole, and the cut
+tail then exits 0, writes the working directory into a stray file named after a prefix of the cwd file's path, or
+fails with `Is a directory`. Measured the same day through the tool itself and through `bash.exe` started from
+Python.
+
+Fix: write the script to a real file with the Write tool and run it (`python script.py`,
+`powershell -File script.ps1`), and hand a command long data in a file rather than on its command line. Reserve
+heredocs for bodies with no backslashes, and keep every command under about 6,500 characters, heredoc or not.
 
 **`/tmp` is not the same directory for bash and for a Windows-native interpreter.** MSYS maps `/tmp`
 into the user's temp dir; Python on Windows resolves `/tmp` against the *current drive*, so a file bash
