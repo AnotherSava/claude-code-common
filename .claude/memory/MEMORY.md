@@ -15,7 +15,7 @@
 - [Port uniqueness is not a rule](port-uniqueness-not-a-rule.md) — it lives in this repo's gate because three port-claiming repos have no gate at all; v15 does the per-repo replacement instead
 - [Registry prose audited against repos](registry-prose-audited-against-repos.md) — 2026-10-05: 29 claims read against their owning repos, numbers all held; a v15 adoption falsifies a note and nothing here reports it
 - [Memo surfacing is session start only](memo-surfacing-session-start-only.md) — decided 2026-10-06; a count in place of the list and keeping the task-completion listing were both declined, don't re-propose either
-- [wrap-up may publish unprompted](wrap-up-may-publish-unprompted.md) — pre-authorizes `bash scripts/publish.sh` in allowed-tools; kept on purpose 2026-10-09, the skill's own prose is the only gate
+- [wrap-up keeps its deploy and publish entries](wrap-up-keeps-deploy-publish-entries.md) — `bash scripts/publish.sh` and the deploy run.sh stay in allowed-tools, kept 2026-10-09; the grant ends with the invoking turn, so step 9's runs after the gate's answer are checked like any other call
 - [Tailnet id stays in history](tailnet-id-history-stays.md) — the real id is in pre-2026-09-12 commits; a rewrite was declined 2026-10-09, don't re-propose it
 - [Remote tabs always recreate](remote-tabs-always-recreate.md) — decided 2026-10-13, no confirmation, except a session ended by a clean exit (2026-10-20); attach-only reconnects, an Enter prompt and picker-side creation were rejected
 - [Auth module is vendored, not packaged](auth-module-vendored-not-packaged.md) — the sign-in module is copied into each app from the skill; a package needs a registry or git and credentials in every Docker build, accepted 2026-11-12

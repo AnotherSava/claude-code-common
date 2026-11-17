@@ -163,13 +163,63 @@ This matters when reconciling state afterwards. If the thing you were denied app
 happened by another route — the user ran it, or a colleague did — and saying "my denied command must have
 slipped through" plants a belief that denials are porous. They are not. Check who actually did it.
 
-## A call a hook rewrote gets no verdict, and one exact resend can pass
+## A skill's `allowed-tools` grant lasts one turn
+
+A skill's `allowed-tools` pre-approves the tools it lists only during the turn that invoked the skill. The skills
+docs (`code.claude.com/docs/en/skills`) say the user's next message clears the grant. An answer given through
+`AskUserQuestion` does not clear it, since the answer comes back as that tool's result inside the running turn.
+Measured on Claude Code 2.1.322 in a `/wrap-up` on 2026-11-15 UTC: the skill asked through `AskUserQuestion`, the
+user answered with no message typed since `/wrap-up` was invoked, and the `Workflow` call after the answer, which
+the skill lists, was decided by `reasonType: "rule"` with `ruleSource: "command"`. A background task's notification
+clears the grant when the notification opens a turn of its own, which is how one reaches a session that is waiting;
+one that arrives while the model is still working is queued into the running turn, and the grant survives it.
+Measured on Claude Code 2.1.322 in a `/wrap-up` on 2026-11-16: a forked skill's notification arrived mid-turn as a
+`queued_command` attachment, and the Read, Write and Edit calls after it in the same turn were still decided by
+`reasonType: "rule"` with `ruleSource: "command"`.
+
+So a step that runs after the user types a reply, or after the skill has stopped to wait for a background run, gets
+no pre-approval from the list, and adding to the list a tool the skill calls only at that point changes nothing. A
+step that runs after an `AskUserQuestion` answer in the invoking turn keeps the pre-approval.
+
+Inside that turn, too, the list cannot admit a call that no allow rule admits. The permission-modes docs
+(`code.claude.com/docs/en/permission-modes`, under "How auto mode evaluates actions" and "Protected paths") list such
+calls, including these:
+
+- **A write to a protected path** gets a prompt in default mode and goes to the classifier in auto mode, whatever allow
+  rule matches. The protected directories include `.claude`, `.git`, `.idea` and `.vscode`, and the exceptions under
+  `.claude`, such as auto memory in `~/.claude/projects/`, do not cover a repo's own `.claude/memory/`. The protected
+  files include shell rc files such as `.bashrc` and `.zshrc`, and the file a symlinked settings file points to, which
+  for `~/.claude/settings.json` is the dotfiles repo's `claude/settings.json`. A write to that file prompts in auto
+  mode as well, whatever allow rule matches, and so does a write to an unprotected path that the symlink check
+  resolves to a protected one.
+- **A call under a bare `Bash` entry** is decided in auto mode as if the skill had not listed it, since entering auto
+  mode drops the broad allow rules that grant arbitrary code execution. The same goes for a bare `PowerShell` entry, a
+  wildcarded interpreter such as `Bash(python:*)`, a package-manager run command, and `Agent` and `Monitor` entries; a
+  narrow entry such as `Bash(npm test)` stays in effect.
+- **An `rm` of a critical path** gets a prompt or a denial whatever rule matches (see "The removal check is a separate
+  gate, and no rule lifts it").
+
+The protected-path and bare-`Bash` cases are measured inside a skill's turn. On Claude Code 2.1.295 in auto mode on
+2026-10-30 UTC, after an `AskUserQuestion` answer in the turn that invoked a project skill listing `Read, Write, Bash,
+Edit`, the skill's Write and Edit calls under `src/` were decided by `reasonType: "rule"`, while its Edits of a file
+under `.claude/skills/` and of `.idea/workspace.xml`, and every Bash call, were decided by `reasonType: "classifier"`.
+On 2.1.322 on 2026-11-17 UTC, all 39 Bash calls `/auth` made after an answer in its invoking turn went to the
+classifier although it lists `Bash`, while its Write and Edit calls in the same stretch recorded `ruleSource:
+"command"`. So a classifier verdict on one of these calls does not show that the grant has ended; judge that from a
+call the list can admit, such as an Edit outside the protected paths.
+
+## A call a hook rewrote gets no verdict when the classifier decides it, and one exact resend can pass
 
 "The server-side auto mode classifier gave no verdict for Workflow: a hook changed this call's input after auto
 mode reviewed it" judges nothing about the action, and says so. Issue the call once more with exactly the input it
 quotes, and nothing else in that response; a second refusal is final, and the user decides from there. The resend
-passes only when the hook leaves its own rewrite unchanged. The mechanics, measured 2026-11-15, are in the
-findings log of `~/.claude/skills/hooks/SKILL.md`.
+passes only when the hook leaves its own rewrite unchanged. The refusal comes only where the classifier is what
+decides the call; one an allow rule admits runs rewritten with no refusal. A skill's `allowed-tools` is such a rule
+for as long as its grant lasts (see "A skill's `allowed-tools` grant lasts one turn"), so a Workflow call a skill
+makes in a later turn, such as a relaunch after its run has reported back to a waiting session, goes to the
+classifier, and is refused once when a hook rewrites it. The mechanics, measured on Claude Code 2.1.322 from
+2026-11-13 to 2026-11-16, are in the findings log of `~/.claude/skills/hooks/SKILL.md`, which also records 2.1.318
+and earlier running such calls rewritten with no refusal.
 
 ## `dangerouslyDisableSandbox: true` is not a skeleton key
 

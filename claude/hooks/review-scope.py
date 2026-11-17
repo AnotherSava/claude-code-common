@@ -56,9 +56,10 @@ def main() -> int:
             f"The review-scope hook failed ({error}), so this review covers only the scope its call names and will not be "
             f"recorded. Commits pushed since the last review are not in it; tell the user.")}}))
         return 0
-    # Auto mode reviews a call before this hook runs, gives a rewritten call no verdict, and has the model send the
-    # rewrite back as written. That resend has to come through unchanged for the review to cover what runs, so a scope
-    # already ending in this text keeps one copy of it, and a call carrying everything this hook would write is let be.
+    # A call auto mode's classifier decides, which is one no allow rule admits, gets no verdict once this hook has
+    # rewritten it, and the model is told to send the rewrite back as written. That resend has to come through
+    # unchanged for the review to cover what runs, so a scope already ending in this text keeps one copy of it, and a
+    # call carrying everything this hook would write is let be.
     text = review_scope.scope_text(found)
     widened = {**args, "scope": args["scope"].removesuffix(text) + text}
     widened.pop("review_bookmark", None)

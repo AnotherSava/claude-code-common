@@ -244,8 +244,9 @@ from then on, and anyone holding the old key can still read what history holds.
    too. It skips the helper hooks, so it needs no `core.hooksPath` bracket. It re-encrypts every encrypted file and stages it, so each one reads `M `. Auto mode can refuse
    `transcrypt --rekey` outright, with no prompt. In the 2026-09-29 rotation it refused in some clones and ran
    in others, and in one clone ran after earlier refusals, with nothing written to any settings file. This
-   skill's own `allowed-tools` lists `Bash(transcrypt:*)` while it is loaded, but the sequence also runs
-   `sh`, which that list does not cover. No grant was found, so the verdict on an unchanged command is not stable,
+   skill's own `allowed-tools` lists `Bash(transcrypt:*)`, a grant that ends with the turn that invoked the
+   skill (`~/.claude/learnings/claude-code-auto-mode-permissions.md`), and the sequence also runs `sh`, which
+   that list does not cover. No other grant was found, so the verdict on an unchanged command is not stable,
    and a refusal in one clone predicts nothing about another. Take the refusal to the user and do not route
    around it. An allow rule such as `Bash(transcrypt:*)` is not a verified remedy.
 4. **Verify from the index, not from a diff:**

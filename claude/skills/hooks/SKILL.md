@@ -156,16 +156,27 @@ before believing it.
 This section accumulates. When a hook surprises you — a cost, a silent failure, a semantic — add a
 dated line here rather than leaving it in a session transcript.
 
-- **2026-11-15** — **Auto mode refuses a call whose input a `PreToolUse` hook changed, and passes the same input
-  sent back once, provided the hook then changes nothing.** Measured on Claude Code 2.1.322 with a `review-auto`
-  launch that `review-scope.py` rewrites. The server-side classifier reviews a call before the hook runs, so the
-  refusal reads "gave no verdict for Workflow: a hook changed this call's input after auto mode reviewed it", quotes
-  the hook's output, and tells the model to issue the call once more with exactly that input, alone in its next
-  response, and not to retry if it is refused again. The resend is reviewed as written and runs the hook again, so
-  a hook that appends unconditionally grows the input on the resend and is refused for good. A rewriting hook has to
-  pass its own output through unchanged: the one in `review-scope.py` keeps a single copy of the scope text it
-  appends and leaves alone a call that already carries everything it would write. The 2026-10-12 entry below, and a
-  launch the same hook rewrote on 2026-11-14, went through with no refusal; what changed in between is not known.
+- **2026-11-15** — **Auto mode refuses a call whose input a `PreToolUse` hook changed when its classifier is what
+  decides the call, and passes the same input sent back once, provided the hook then changes nothing. A call an
+  allow rule admits runs rewritten, with no refusal.** Measured on Claude Code 2.1.322 over the nine `review-auto`
+  calls `review-scope.py` changed in three sessions between 2026-11-13 and 2026-11-16; the transcript record of each
+  call's tool result holds what decided it, under `permissionDecision`. The five that `/wrap-up` launched in the turn
+  that invoked it, whose `allowed-tools` lists Workflow, recorded `reasonType: "rule"` with `ruleSource: "command"`
+  and ran. The four made after such a turn had ended recorded `reasonType: "classifier"` with
+  `reasonCode: "classifier:auto-mode:unavailable"` and were refused: two relaunches by name that `/wrap-up` made once
+  a background run's task notification had opened a new turn, and two `resumeFromRunId` resumes of a `/wrap-up` run
+  after a typed prompt. Why the grant reached the five and not the four is in
+  `~/.claude/learnings/claude-code-auto-mode-permissions.md`, under "A skill's `allowed-tools` grant lasts one turn".
+  The refusal reads "gave no verdict for Workflow: a hook changed this call's input after auto mode
+  reviewed it", quotes the hook's output, and tells the model to issue the call once more with exactly that input,
+  alone in its next response, and not to retry if it is refused again; it ends by noting that read-only operations
+  do not require the classifier. The resend is reviewed as written and runs the hook again, so a hook that appends
+  unconditionally grows the input on the resend and is refused for good. A rewriting hook has to pass its own output
+  through unchanged, since a skill's grant does not reach a relaunch or resume it makes in a later turn: the hook in
+  `review-scope.py` keeps a single copy of the scope text it appends and leaves alone a call that already carries
+  everything it would write. The refusal first shows on 2.1.322. On 2.1.295, 2.1.316 and 2.1.318 the Windows
+  machine's transcripts hold 35, 4 and 7 calls the classifier decided after `review-scope.py` had changed them, the
+  last on 2026-11-08, and every one ran, as the 2026-10-12 entry's probe did.
 - **2026-10-16** — **A Bash `tool_response` carries the diff of every file the command edited**, under
   `bashEditDiff` (`files[].hunks[].lines`), beside `stdout` and `stderr`. Measured with a payload dump from
   `local-time.py`: a command that only appended to a tracked file returned `stdout: "edited"` and the file's hunks.
@@ -176,7 +187,8 @@ dated line here rather than leaving it in a session transcript.
   `echo` was replaced by the hook's command, and a Workflow call sent `args: {"a": 1}` reached the script as the
   hook's object. The rewrite replaces the whole input, so copy every field you are not changing. Adding `allow`
   to make it work would silently skip the user's permission prompt for that tool, and it is not needed.
-  `review-scope.py` relies on this to widen every `review-auto` scope.
+  `review-scope.py` relies on this to widen every `review-auto` scope. The probe ran on a build before 2.1.322, the
+  first build seen refusing a rewritten call that its classifier decides (the 2026-11-15 entry).
 
 - **2026-09-30** — **Counting registrations is not counting spawns, and the arithmetic that treats
   them as equal overstates the cost badly.** `settings.json` registers one `^Bash$` entry per `if`

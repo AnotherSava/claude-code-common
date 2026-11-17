@@ -7,6 +7,7 @@ description: >-
   TRIGGER when: the user runs /review-manual, or asks for a read-only review where they choose what gets fixed.
   DO NOT TRIGGER when: the user wants the review to fix what it finds on its own — that is `review-auto` in its
   default fix mode.
+allowed-tools: Workflow
 ---
 
 # Review manual

@@ -167,8 +167,9 @@ Nothing here asks the user anything; each sub-step's question, if it has one, be
 - **The review's result.** Collect the `review-auto` triage table: what it fixed, what it left and why, whether the
   bookmark was recorded. A recorded bookmark is what this skill exists to produce — the push it makes is of a tree a
   review passed — so an unrecorded one is never a summary line beside a commit plan:
-  - **A lens that returned nothing, or a finding left unverified:** transport, not judgement. Relaunch the run with
-    `Workflow({scriptPath, resumeFromRunId})` so only the dead calls run again, up to three times.
+  - **A lens that returned nothing, or a finding left unverified:** transport, not judgement. Resume the run with
+    `resumeFromRunId` and the `args` it received, copied as `~/.claude/learnings/claude-code-workflow-recovery.md`
+    describes, so only the dead calls run again, up to three times.
   - **The cap reached with fix-class work still found:** the fixer and the reviewers are undoing each other, since
     later rounds review only what the previous fixes changed. Stop before the summary and show the findings that keep
     returning; the user decides how to settle them. Nothing is committed or pushed until a run records the bookmark,
@@ -363,7 +364,9 @@ what the gate could not see.
   without the session it came from, so a memo that only gestures at the conversation
   ("fix the thing we discussed") will be unreadable in three weeks. Title it as a sentence that
   names the thing and the change — it is the only line that shows up in every later listing —
-  and put the evidence, the reproduction and the reasoning in the body, which has no length limit.
+  and put the evidence, the reproduction and the reasoning in the body, which has no length limit
+  in the file. On Windows a long body may not fit in one Bash command: the length at which it
+  stops fitting, and the route for one that long, are in `~/.claude/skills/memo/SKILL.md`.
 - **ping** sends the item to the session that owns it, found and reached as the `peer` skill
   describes — `SendMessage` on this machine, `peer_relay.py send --project <project>` for the
   other one. Write the message to stand on its own under that skill's "What goes in the message".
@@ -534,7 +537,13 @@ dashboard, so a run it drove leaves the clear to the user, as after any other ru
   because a file already answers it costs more trust than the item was worth.
 - Quote the user and yourself accurately from the digest, with the reference so either can be
   located. Do not paraphrase a concern into something sharper than what was actually said.
-- The `allowed-tools` list above deliberately covers only this skill's own machinery, sending a
-  ping included. Answering
-  a finding in step 8 is arbitrary work and goes through the normal permission flow; do not
-  narrow the step to fit the list.
+- The `allowed-tools` list above deliberately names only this skill's own machinery, sending a
+  ping included, and pre-approves it only in the turn that invoked the skill;
+  `~/.claude/learnings/claude-code-auto-mode-permissions.md`, under "A skill's `allowed-tools`
+  grant lasts one turn", says what ends that turn and which calls the list cannot pre-approve
+  even inside it. The skill stops at the gate, so whatever answers it starts a later turn, and
+  `commit.py`, `push.py`, a ping and step 9's runs go through the normal permission flow like
+  any other call. The all-empty summary step 7 defines has no gate, so when no review ran, that
+  run's step 8, pings included, and its step 9 can still be inside the invoking turn, and what
+  they run before that turn ends falls under the list. Answering a finding in step 8 is arbitrary
+  work and goes through the normal permission flow too; do not narrow the step to fit the list.

@@ -60,7 +60,7 @@ name: <skill-name>           # kebab-case, matches directory name
 description: >-              # one-line summary for the skill list + trigger rules
   What the skill does.
   TRIGGER when: <conditions>.
-allowed-tools: <tool-list>   # optional — restricts which tools the skill can use
+allowed-tools: <tool-list>   # optional — pre-approves these tools; see the allowed-tools section
 ---
 ```
 
@@ -76,7 +76,7 @@ The `description` field serves double duty: it appears in the skill list shown t
 
 ### allowed-tools
 
-Whitelist the minimum set of tools the skill needs. Use glob patterns for Bash:
+List the tools the skill's own steps call, and no more, since the list pre-approves them. It never restricts: every other tool stays callable through the normal permission check, and `disallowed-tools` is the field that removes one. The grant lasts only the turn that invokes the skill; what ends that turn, and which calls the list cannot pre-approve even inside it, are in `~/.claude/learnings/claude-code-auto-mode-permissions.md`, under "A skill's `allowed-tools` grant lasts one turn". Use glob patterns for Bash:
 ```yaml
 allowed-tools: Bash(git diff:*), Bash(git add:*), Read, Glob
 ```
@@ -97,7 +97,6 @@ Those three fields describe what a skill *is*. A further set decides where it ex
 | `paths` | Globs limiting when the skill activates at all |
 
 Read the official field reference before designing anything around a skill's execution, rather than inferring the list from what other skills in this repo happen to use. Two traps measured the same day: a backgrounded fork runs with a narrower tool set that excludes `Grep` and `Glob`, so a step written around them loses itself silently; and a fork's edits land outside the session's checkpoints, so `/rewind` cannot undo them. `~/.claude/learnings/claude-code-skill-profiling.md` carries both, with what each costs.
-Omit `allowed-tools` only if the skill genuinely needs unrestricted access.
 
 ## Writing the skill body
 
