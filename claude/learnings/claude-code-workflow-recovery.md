@@ -7,6 +7,8 @@ A subagent occasionally fetches its answer but freezes **before emitting its str
 
 Detect it: the run's `journal.jsonl` shows one `started` with no matching `result`, and that agent's `agent-<id>.jsonl` file hasn't been written to in a long time (`stat`/mtime).
 
+A call that failed outright looks the same from its transcript, which simply stops, so check the journal for a `{"type": "failed", "key", "agentId"}` row naming that agent before calling it hung. Measured 2026-11-16 on a `review-auto` run: two calls failed with `API Error: Output blocked by content filtering policy`, and one of them, a reviewer, was taken for a hung agent from its file's mtime. The script had already retried it under the same label with `:retry` appended (`readOnlyCall` in `~/.claude/workflows/review-auto.js` retries each reviewer and verifier once), and the retry returned. The finished run's task notification still listed both calls under `<failures>`, while the result's `silent_lenses` was empty. A failed call with a `:retry` row that has a `result` needs no resume.
+
 ## Recovery, in order
 1. `TaskStop` the workflow (it won't finish on its own).
 2. **Resume** with `Workflow({scriptPath, resumeFromRunId, args})` — completed agents replay from cache, only the hung one re-runs. **You MUST re-pass the same `args`** on resume; omitting `args` crashes the script immediately (`args` is `undefined` → e.g. `convs.length` throws) with **zero** agents run. Resuming without args is the #1 self-inflicted failure.
