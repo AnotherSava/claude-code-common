@@ -141,10 +141,6 @@ flush_check_err() {
     check_err=
 }
 
-span() {  # <seconds> — as the countdown shows it
-    if [ "$1" -ge 60 ]; then printf '%dm %02ds' $(($1 / 60)) $(($1 % 60)); else printf '%ds' "$1"; fi
-}
-
 # Everything typed while there was nothing to type into. The tty queued it and the next attempt's
 # raw mode does not discard it, so it would be delivered into the agent on reconnect — into a
 # session that, on 2026-10-03, had been parked on an unanswered question since 08:24. There is no
@@ -321,7 +317,7 @@ while [ "$stop" -eq 0 ]; do
     while [ "$stop" -eq 0 ]; do
         left=$(( deadline - $(date +%s) ))
         [ "$left" -gt 0 ] || break
-        printf '\r\033[K  attempt %d in %s · Ctrl-C to stop' $((fails + 1)) "$(span "$left")" >&2
+        printf '\r\033[K  attempt %d in %ds · Ctrl-C to stop' $((fails + 1)) "$left" >&2
         sleep 1 || true
     done
     # The attempt itself can take ConnectTimeout, which a countdown frozen at 1s would misreport.
