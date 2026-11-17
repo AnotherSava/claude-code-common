@@ -6,7 +6,8 @@ calling session builds. Build the whole object from the conversation before call
 `Workflow({name: "review-auto", args})`.
 
 - `scope`: what to review, by default "the uncommitted diff in <repo>". The review scope hook adds the commits pushed
-  since the last review, so do not list them.
+  since the last review to a call by name, so do not list them. Build nothing for a resume: it passes the `args` the
+  run received, copied as `~/.claude/learnings/claude-code-workflow-recovery.md` describes.
 - `lenses`: one `{key, prompt}` per concern the user named or the change plainly needs. With nothing named, cover
   correctness, duplicated logic, and documentation that the change made stale, keying that last one `docs`, the
   lens the workflow's docs clean-up pass gives its rows too.
