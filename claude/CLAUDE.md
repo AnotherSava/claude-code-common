@@ -41,7 +41,7 @@ Don't give up on an explicit instruction the moment it hits a minor difficulty (
 
 Exclude `node_modules/` from all file and content search patterns — it clogs results with false positives.
 
-Do not inline Python scripts into Bash commands via `python -c`. Instead, use a heredoc: `python <<'EOF' ... EOF`.
+Do not inline Python scripts into Bash commands via `python -c`. Instead, use a heredoc: `python <<'EOF' ... EOF`. On Windows keep the whole command under about 6,500 characters (`~/.claude/learnings/bash-portability.md`).
 
 Do not add logic, data structures, classes, or exports to production code that exist only to support tests. Tests should exercise the public API and real behavior — not rely on test-only hooks, flags, exports, or types in production modules.
 
