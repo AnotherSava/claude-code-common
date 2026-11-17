@@ -72,9 +72,7 @@ esac
 # be mistaken for each other.
 LIVE_SECS=25
 FIRST_WAIT=5    # seconds before the first retry
-MAX_WAIT=300    # the backoff stops doubling here; the far machine can be away for days
-SLICE=5         # the wait is counted in these, so Ctrl-C lands within one of them
-NOISY_AFTER=5   # consecutive failures before the message stops calling it a lost connection
+MAX_WAIT=60     # the backoff stops doubling here; an attempt is one ssh connect, cheap even for days
 
 # The tab's title is the far machine's, forwarded by tmux (see remote_session_attach in lib.sh). A
 # dead transport stops that forwarding and leaves the last status sitting on the tab — a question
@@ -88,16 +86,72 @@ tab_title() {
 
 # ssh restores the termios settings it changed but never leaves tmux's alternate screen, so without
 # this the tab keeps the agent's last frame and every line below lands inside it, where it reads as
-# live output from the session.
+# live output from the session. Focus reporting is left on the same way, and the terminal then sends
+# a focus-in sequence on every return to the tab, which the tty echoes as `^[[I` under the status.
 plain_screen() {
-    printf '\033[?1049l'
+    printf '\033[?1049l\033[?1004l'
+}
+
+# The reconnect status is one block redrawn in place on every attempt, its last line a countdown, so
+# what matters is always the bottom of the tab rather than scrolled away under repeats of itself.
+# status_rows is how many rows the header and detail took on screen, for the cursor to climb back
+# over; 0 means nothing is drawn, and anything printed after a drawing must call status_end first so
+# the next drawing cannot overwrite it.
+status_rows=0
+if [ -t 2 ]; then
+    c_head=$(printf '\033[33m') c_dim=$(printf '\033[2m') c_off=$(printf '\033[0m')
+else
+    c_head= c_dim= c_off=
+fi
+
+rows_of() {  # <text> — the rows it fills at the tab's current width
+    n=${#1}
+    [ "$n" -gt 0 ] || n=1
+    echo $(( (n + cols - 1) / cols ))
+}
+
+status_draw() {  # <header> <detail, possibly several lines or empty>
+    # tput finds the terminal through stderr, the only one of its outputs a command substitution
+    # leaves on the tab; pointed anywhere else it answers terminfo's 80 whatever the width.
+    cols=$(tput cols 2>/dev/tty) || cols=80
+    [ "$status_rows" -eq 0 ] || printf '\r\033[%dA\033[J' "$status_rows" >&2
+    printf '%s%s%s\n' "$c_head" "$1" "$c_off" >&2
+    status_rows=$(rows_of "$1")
+    if [ -n "$2" ]; then
+        while IFS= read -r line; do
+            printf '%s  %s%s\n' "$c_dim" "$line" "$c_off" >&2
+            status_rows=$((status_rows + $(rows_of "  $line")))
+        done <<EOF
+$2
+EOF
+    fi
+}
+
+status_end() {
+    [ "$status_rows" -eq 0 ] || printf '\n' >&2
+    status_rows=0
+}
+
+# What the check wrote to stderr that nothing has shown yet. A retried failure shows it inside the
+# status block instead, so this runs only where the loop goes on to attach or stops, which the
+# `case $status` below decides and nothing else re-derives.
+flush_check_err() {
+    status_end
+    [ -z "$check_err" ] || printf '%s\n' "$check_err" >&2
+    check_err=
+}
+
+span() {  # <seconds> — as the countdown shows it
+    if [ "$1" -ge 60 ]; then printf '%dm %02ds' $(($1 / 60)) $(($1 % 60)); else printf '%ds' "$1"; fi
 }
 
 # Everything typed while there was nothing to type into. The tty queued it and the next attempt's
 # raw mode does not discard it, so it would be delivered into the agent on reconnect — into a
 # session that, on 2026-10-03, had been parked on an unanswered question since 08:24. There is no
 # POSIX shell verb for TCIFLUSH; a failure here only means those keystrokes arrive, which is what
-# happens today, so it is tolerated rather than fatal.
+# happens today, so it is tolerated rather than fatal. It runs before the next check, so keys typed
+# while that check waits out its connect timeout are not dropped: echo is off then, and they reach
+# the agent unseen if the attach that follows succeeds.
 drop_typed_input() {
     /usr/bin/python3 -c 'import sys, termios; termios.tcflush(sys.stdin.fileno(), termios.TCIFLUSH)' 2>/dev/null || true
 }
@@ -154,6 +208,7 @@ fi
 
 stop=0
 trap 'stop=1' INT TERM
+exec 3>&1  # the check's stdout, kept on the terminal while its stderr is captured
 
 # No lost connection is retried until this tab has held a live session (a holder that is down is,
 # from the first pass, since it clears by itself). After a pick, the picker's own inventory
@@ -180,11 +235,18 @@ while [ "$stop" -eq 0 ]; do
     status=0
     # -T for the same reason, against a config that asks for a terminal; the ServerAlive deadline so a
     # transport that dies mid-check is noticed as it would be under the attach.
-    ssh -n -T $ssh_opts "$REMOTE_USER@$REMOTE_HOST" "$remote check" || status=$?
+    # Its stderr is captured so that a failure the loop will retry shows inside the status block
+    # instead of piling up above it; flush_check_err prints it everywhere else.
+    check_err=$(ssh -n -T $ssh_opts "$REMOTE_USER@$REMOTE_HOST" "$remote check" 2>&1 1>&3) || status=$?
+    # Echo has been off since the countdown, so keys typed while this check waited out its connect
+    # timeout could not move the cursor off the block. It comes back on before the attach, whose ssh
+    # restores whatever it found on the way out.
+    stty echo 2>/dev/null || true
 
     # A pick stays a start until a pass gets as far as the attach: one that waited out a down holder
     # has still created nothing, so the person's pick must not turn into a resume behind it.
     if [ "$status" -eq 0 ]; then
+        flush_check_err
         began=$(date +%s)
         ssh -t $ssh_opts "$REMOTE_USER@$REMOTE_HOST" "$remote" || status=$?
         [ $(( $(date +%s) - began )) -lt "$LIVE_SECS" ] || { settled=1; fails=0; wait_secs=$FIRST_WAIT; }
@@ -209,6 +271,7 @@ while [ "$stop" -eq 0 ]; do
             # kills this script before agtermctl returns — measured 2026-10-15 — so nothing placed
             # after it runs inside agterm; the exit only covers a run outside agterm, where there
             # is no session to close.
+            flush_check_err
             [ -z "${AGTERM_SESSION_ID:-}" ] || agtermctl session close --target "$AGTERM_SESSION_ID" >/dev/null 2>&1 || true
             exit 0
             ;;
@@ -217,6 +280,7 @@ while [ "$stop" -eq 0 ]; do
             ;;
         255)
             if [ "$settled" -eq 0 ]; then
+                flush_check_err
                 tab_title "not connected"
                 printf '\nattach: could not open %s on %s — the lines above say why. Close this tab,\n' "$project" "$REMOTE_HOST" >&2
                 printf 'attach: then cmd+shift+r to try again.\n' >&2
@@ -224,6 +288,7 @@ while [ "$stop" -eq 0 ]; do
             fi
             ;;
         *)
+            flush_check_err
             tab_title "refused"
             printf '\nattach: the far side refused with status %s — the lines above say why. Close\n' "$status" >&2
             printf 'attach: this tab, then cmd+shift+r.\n' >&2
@@ -232,34 +297,43 @@ while [ "$stop" -eq 0 ]; do
     esac
 
     fails=$((fails + 1))
+    [ "$fails" -gt 1 ] || since=$(date +%H:%M)
     tab_title "reconnecting"
+    where="$REMOTE_SESSION_BADGE $project @ $REMOTE_HOST"
     if [ "$status" -eq 4 ]; then
-        printf '\nattach: the session holder on %s is down — the lines above say how to start it.\n' "$REMOTE_HOST" >&2
-        printf 'attach: Retrying in %ds; Ctrl-C to stop.\n' "$wait_secs" >&2
-    elif [ "$fails" -lt "$NOISY_AFTER" ]; then
-        printf '\nattach: lost the connection to %s. Reconnecting in %ds — Ctrl-C to stop.\n' "$REMOTE_HOST" "$wait_secs" >&2
+        status_draw "$where — its session holder is down" "$check_err"
+    elif [ "$fails" -eq 1 ]; then
+        status_draw "$where is unreachable" "$check_err"
     else
-        # Worded differently on purpose. A machine that is away and a fault that will never clear
-        # both exit 255, and neither this script nor ssh can separate them, so after a few rounds the
-        # message stops asserting which one it is and points at the only thing that can tell them
+        # A machine that is away and a fault that will never clear (a changed host key, a renamed
+        # WSL distro) both exit 255, so the header claims neither; the ssh line under it tells them
         # apart.
-        printf '\nattach: %s has refused %d times in a row. If it is not simply away, the ssh lines\n' "$REMOTE_HOST" "$fails" >&2
-        printf 'attach: above say why — a changed host key and a renamed WSL distro end the same way.\n' >&2
-        printf 'attach: Retrying in %ds; Ctrl-C to stop.\n' "$wait_secs" >&2
+        status_draw "$where — unreachable since $since" "$check_err"
     fi
 
-    # Counted in slices so Ctrl-C lands within one of them, and so a wait straddling a system sleep
-    # cannot overshoot by more than the wait itself, however Darwin treats a relative timer.
-    waited=0
-    while [ "$waited" -lt "$wait_secs" ] && [ "$stop" -eq 0 ]; do
-        sleep "$SLICE"
-        waited=$((waited + SLICE))
+    # Ticked against a wall-clock deadline, so Ctrl-C lands within a second and a wait straddling a
+    # system sleep ends on waking, however Darwin treats a relative timer. Echo is off from here
+    # through the next check, so a key pressed now cannot push the block off the rows the next
+    # drawing climbs back over. A Ctrl-C interrupts the sleep, which then fails, so its status is
+    # dropped or `set -e` would end the script before the loop reads stop.
+    deadline=$(( $(date +%s) + wait_secs ))
+    stty -echo 2>/dev/null || true
+    while [ "$stop" -eq 0 ]; do
+        left=$(( deadline - $(date +%s) ))
+        [ "$left" -gt 0 ] || break
+        printf '\r\033[K  attempt %d in %s · Ctrl-C to stop' $((fails + 1)) "$(span "$left")" >&2
+        sleep 1 || true
     done
+    # The attempt itself can take ConnectTimeout, which a countdown frozen at 1s would misreport.
+    [ "$stop" -ne 0 ] || printf '\r\033[K  attempt %d…' $((fails + 1)) >&2
     wait_secs=$((wait_secs * 2))
     [ "$wait_secs" -le "$MAX_WAIT" ] || wait_secs=$MAX_WAIT
     drop_typed_input
 done
 
+# The countdown is no longer true once stopped, so it goes rather than stays above the notice.
+stty echo 2>/dev/null || true
+[ "$status_rows" -eq 0 ] || printf '\r\033[K' >&2
 tab_title "stopped"
 printf '\nattach: stopped reconnecting. Close this tab, then cmd+shift+r to open %s again.\n' "$project" >&2
 exit 130

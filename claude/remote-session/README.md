@@ -93,7 +93,7 @@ and 6h34m, every one while the laptop was still asleep. Nothing on the Windows m
 by that, tmux keeping both the session and the agent in it, so the tab reattaches to the same
 conversation about a minute and a half after the Mac wakes — ssh takes up to 75 seconds to notice
 a transport that died during the sleep, and the first retry follows five seconds later — retrying
-from there out to every five minutes for as long as that machine is away. Ctrl-C in the tab stops
+from there out to once a minute for as long as that machine is away. Ctrl-C in the tab stops
 it. A reconnect creates the session when it is gone, the same as the picker does, so a tab that
 outlives a reboot of the Windows machine comes back resuming that directory's conversation. A
 reconnect is an attach like any other, so the Windows terminal's window takes this Mac's size again
@@ -239,14 +239,17 @@ says so instead of surfacing as a missing setting.
 ## When something is wrong
 
 **A tab says `reconnecting` and stays there.** The Mac cannot reach the Windows machine, or the
-session holder there is down, which the tab says in its own line. Nothing is lost while the machine
+session holder there is down, which the tab's status block names. Nothing is lost while the machine
 is away — tmux over there holds the session and the agent in it — and the tab attaches itself as
 soon as that machine answers. Apart from a holder that is down, which a new tab waits on too, only a
 tab that has already held a session waits like this; a tab saying `not connected` or `refused` does
-not come back on its own. When the machine is unreachable, after a few rounds the message changes
-to point at ssh's own lines above it: a changed host key and a renamed WSL distro end in the same
-exit code an absent machine does, and only those lines separate them. A holder that is down keeps
-its own line every round. Ctrl-C stops it trying.
+not come back on its own. The tab shows one status block, redrawn on every attempt: which machine
+is unreachable and since when, ssh's latest error under it, and a countdown to the next attempt. On
+the first failure after a held session drops, the block shows only its header, with no time yet:
+the dropped attach printed its error on tmux's screen, which the tab leaves, so ssh's line arrives
+with the next attempt. That ssh line is what separates an absent machine from a changed host key or
+a renamed WSL distro, which end in the same exit code. A holder that is down shows how to start it
+in the same place. Ctrl-C stops it trying.
 
 **A tab says it stopped reconnecting.** That tab is finished with. Close it, then cmd+shift+r, which
 lists the project again and resumes that directory's conversation. Reaching for the chord without
