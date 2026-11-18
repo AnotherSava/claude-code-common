@@ -197,21 +197,17 @@ the one you filtered for.
 
 ## Running the mutations at all
 
-Two mechanical prerequisites, both of which have silently invalidated whole runs:
+Mechanical prerequisites, each of which has silently invalidated a run:
 
 - **Clear `__pycache__` between mutations.** CPython validates cached bytecode on source mtime *and
   size*, so a same-length edit — `0`→`1`, `>`→`<`, `hours=24`→`hours=48` — leaves a `.pyc` it happily
   reuses. Same-length edits are the most common mutations there are. `PYTHONDONTWRITEBYTECODE` stops
   bytecode being *written*, never *read*, so it is not sufficient on its own. See
   `python-stale-bytecode-cache.md`.
-- **Assert the mutation applied.** Patch with a script that fails loudly when the target string is
-  absent, rather than a `replace()` that silently no-ops after the source is reworded:
-
-  ```python
-  s = open(p).read()
-  assert TARGET in s          # a survived mutant and an unapplied one look identical without this
-  open(p, 'w').write(s.replace(TARGET, MUTANT))
-  ```
+- **Assert the mutation applied, at exactly one site.** A `replace()` alone silently no-ops once the
+  source is reworded, so a survived mutant and an unapplied one look identical. It also rewrites every
+  site of a target that occurs twice, so the run scores a double mutant under the single one's name.
+  Write the patch script as `patch-script-partial-edits.md` says.
 
   Keep a pristine copy (`cp file /tmp/file.bak`) and restore from it rather than reversing the edit —
   an inverse `replace()` fails the same silent way.
@@ -224,8 +220,9 @@ Two mechanical prerequisites, both of which have silently invalidated whole runs
   `git diff` showed a clean file — the contradiction is the tell. `touch src/File.cs` and re-run, and
   it goes green.
 
-  This is the mirror of the two lies above: those report a mutant *killed* that was not, this reports
-  the tree *broken* when it is clean, and it arrives at the end of the run, when the conclusion being
+  This is the mirror of the stale-bytecode and misapplied-mutation lies: those run other code in the
+  mutant's place, this runs the mutant in the restored source's place. It reports the tree *broken*
+  when it is clean, and it arrives at the end of the run, when the conclusion being
   drawn is "the revert failed" or "the code really is wrong". Before believing a failure that follows a
   restore, check that the source on disk disagrees with the result — and prefer a build flag that
   refuses the cache outright (`--no-incremental`, `-a`, `-B`) for the verification run, since it needs

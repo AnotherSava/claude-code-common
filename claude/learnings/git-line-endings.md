@@ -181,7 +181,9 @@ So the cost is a false finding from anything that asks `check-ignore` about a di
 
 ## Python scripts that edit files write CRLF
 
-Write edited text back with `Path.write_bytes(text.encode("utf-8"))` or `open(path, "w", newline="\n")`, never plain `write_text` — on Windows, text mode translates every `\n` to `\r\n`. A read-replace-write edit script therefore turns an LF file into an all-CRLF one while changing nothing visible, and nothing warns until `git diff` does. One change set on 2026-09-25 converted 14 files this way; under `core.autocrlf=input` the commit is still LF, but every diff floods with the CRLF warning and the working copies stay converted.
+Read the file with `Path.read_text(encoding="utf-8")` and write the edited text back with `Path.write_bytes(text.encode("utf-8"))` or `open(path, "w", encoding="utf-8", newline="\n")`, never plain `write_text` — on Windows, text mode translates every `\n` to `\r\n`. A read-replace-write edit script therefore turns an LF file into an all-CRLF one while changing nothing visible, and nothing warns until `git diff` does. One change set on 2026-09-25 converted 14 files this way; under `core.autocrlf=input` the commit is still LF, but every diff floods with the CRLF warning and the working copies stay converted.
+
+Without `encoding="utf-8"`, Python reads and writes text in the ANSI code page (cp1251 on the Windows box) whenever UTF-8 mode is off, and the `PYTHONUTF8=1` in `settings.json` does not reach every Python; `python-windows-console-encoding.md` names the ones it misses, under "Turning it on changes more than output". A bare `read_text()` before a UTF-8 write then double-encodes the file's non-ASCII text without raising: measured 2026-11-17 on CPython 3.13.5 under `python -I`, an em dash (`E2 80 94`) was written back as `D0 B2 D0 82 E2 80 9D`. A file holding byte `0x98`, which cp1251 leaves undefined, fails the read instead.
 
 To find and undo it, count per file and rewrite as bytes:
 

@@ -1,17 +1,29 @@
 # A patch script that asserts mid-way writes nothing, and re-running the remainder ships half an edit
 
-Editing a file through a short script — a python heredoc doing several `s.replace(old, new)` with an
-`assert old in s` before each, then one `write_text(s)` at the end — is the right shape for a multi-part edit.
-It has one failure mode, and the expensive part is not the failure itself.
+Editing a file through a short script — several `s.replace(old, new)`, each after an assert on its anchor,
+then one write at the end — is the right shape for a multi-part edit. These rules decide whether the script
+makes the edit it claims, and each is kept in the file it cites:
+
+- **Assert that each anchor occurs once**, with `assert s.count(old) == 1`. An `assert old in s` also passes an
+  anchor that occurs twice, which `replace` then rewrites at both sites, and an empty one, for which `replace`
+  inserts `new` at every position in the file (`~/.claude/memory/feedback_no_blind_splice.md`).
+- **Use a python heredoc only within the limits `bash-portability.md` sets on one**, and otherwise run a file the
+  Write tool wrote.
+- **Type no backslash into the script's strings**, and make an edit whose text holds one as
+  `unicode-escapes-in-tool-input.md` says under "Backslash-heavy code through a Python heredoc".
+- **Read and write the file** as `git-line-endings.md` says under "Python scripts that edit files write CRLF".
+
+Done that way, the script can still fail as the rest of this file describes, and the expensive part is not the
+failure itself.
 
 ## What happens
 
 ```python
-s = p.read_text()
-s = s.replace(FIRST_OLD, FIRST_NEW)      # applied, in memory
-assert SECOND_OLD in s                    # fires: the anchor had a stray character
+s = p.read_text(encoding="utf-8")
+s = s.replace(FIRST_OLD, FIRST_NEW)       # applied, in memory
+assert s.count(SECOND_OLD) == 1           # fires: the anchor had a stray character
 s = s.replace(SECOND_OLD, SECOND_NEW)
-p.write_text(s)                           # never reached
+p.write_bytes(s.encode("utf-8"))          # never reached
 ```
 
 The traceback names the *second* anchor, so it reads as "one of two edits failed". Nothing was written at all,

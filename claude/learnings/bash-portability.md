@@ -422,12 +422,12 @@ arrive collapsed. A regex character class is where this bites, because the damag
 valid right up until it isn't:
 
 ```python
-re.compile(r'[^:@/\s"\]+')   # authored
+re.compile(r'[^:@/\s"\\]+')   # authored
 re.compile(r'[^:@/\s"\]+')    # received -> the \] escapes the bracket
-# re.PatternError: unterminated character set at position 55
+# re.PatternError: unterminated character set at position 0
 ```
 
-The position in the error points into the mangled class, not at anything you wrote, so it reads as a
+The error names position 0, the `[` that opens the class, and the class you wrote is closed, so it reads as a
 typo you cannot find. Same failure invoking PowerShell: `"$env:USERDOMAIN\$env:USERNAME"` arrives
 without its separator and account lookups fail with `No mapping between account names and security IDs
 was done`.
