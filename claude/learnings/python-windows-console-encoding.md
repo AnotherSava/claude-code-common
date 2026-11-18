@@ -123,6 +123,12 @@ launcher than it does when the user runs it by hand, and a cp1251 CSV that opens
 terminal raises `UnicodeDecodeError` under the tool. `env | grep PYTHONUTF8` in the ambient shell is
 the check.
 
+Even under the launcher, a Python started with `-I` or `-E` ignores the variable, since both flags
+make the interpreter ignore every `PYTHON*` variable; `-S` does not. `-X utf8` survives both, being
+an argument. Measured 2026-11-17 on CPython 3.13.5 with `PYTHONUTF8=1` inherited from Claude Code's
+`settings.json`: `sys.flags.utf8_mode` was 1 under `python` and `python -S`, 0 under `python -I` and
+`python -E`, which then defaulted to cp1251, and 1 under `python -X utf8 -I`.
+
 ## Worth catching before shipping
 
 Non-ASCII output is easy to miss in testing when the fixtures are ASCII. Unit tests over canned

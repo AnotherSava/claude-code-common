@@ -1254,17 +1254,17 @@ ln -s /opt/homebrew/bin/python3 ~/.local/bin/python
 
 Point the symlink at `/opt/homebrew/bin/python3`, not at the versioned `libexec/bin/python`, so it follows future upgrades. Make sure `~/.local/bin` is on `PATH`, then confirm with `python -V`.
 
+Because the symlink lives outside the repo, no `git clone` restores it. A machine missing it fails silently — hooks simply never fire.
+
+Every invocation also passes `-S`, which skips `site` — the single largest slice of interpreter startup. **The cost is that `site-packages` is off `sys.path`, so every hook must stay stdlib-only.** All of them currently are. A hook needing a third-party package must drop `-S` on its own command line rather than for all of them.
+
 The `/memo` skill and the memo commands inside `/yolo` and `/wrap-up` use the bare `python` too, allowlist strings included — an allowlist that names a different interpreter than its command makes every call prompt for permission.
 
 ### UTF-8 mode
 
-The `env` block of `claude/settings.json` sets `PYTHONUTF8=1`, which puts every Python process Claude Code spawns into UTF-8 mode. It is there for a failure that is invisible on macOS and silent on Windows: Claude Code writes each hook's JSON payload to stdin as UTF-8 bytes, but Python on Windows decodes stdin with the system ANSI codepage. **It does not raise** — CPython opens stdio with `errors="surrogateescape"`, so the bytes come through *mangled into mojibake* rather than rejected, `json.load` succeeds because JSON's own punctuation is ASCII, and the hook runs happily on a populated but corrupted payload. Nothing reaches the never-raise `except`; there is no crash and no log line, which is exactly why it went unnoticed.
+The `env` block of `claude/settings.json` sets `PYTHONUTF8=1`, which puts the Python processes Claude Code spawns into UTF-8 mode (`claude/learnings/python-windows-console-encoding.md` names the ones it misses, under "Turning it on changes more than output"). It is there for a failure that is invisible on macOS and silent on Windows: Claude Code writes each hook's JSON payload to stdin as UTF-8 bytes, but Python on Windows decodes stdin with the system ANSI codepage. **It does not raise** — CPython opens stdio with `errors="surrogateescape"`, so the bytes come through *mangled into mojibake* rather than rejected, `json.load` succeeds because JSON's own punctuation is ASCII, and the hook runs happily on a populated but corrupted payload. Nothing reaches the never-raise `except`; there is no crash and no log line, which is exactly why it went unnoticed.
 
-What that actually costs, measured on the Windows machine: under a non-ASCII repo path `memos.py` decodes `git rev-parse --show-toplevel` with the locale codec and writes the whole backlog into a garbage sibling directory *outside* the repo while printing a plausible in-repo path, and `skill-tracked.py` takes its early return because the mangled path fails `os.path.isdir`, so its warning never fires. One env var closes both, survives `python -S`, and reaches hook scripts living in repos this one cannot edit. It is process-wide rather than hook-scoped, so it also changes the default encoding of every bare `open()` and of `subprocess.run(..., text=True)` — a script reading a codepage-encoded file now raises under Claude Code while still working in a plain terminal.
-
-Because the symlink lives outside the repo, it is the one setup step no `git clone` restores. A machine missing it fails silently — hooks simply never fire.
-
-Every invocation also passes `-S`, which skips `site` — the single largest slice of interpreter startup. **The cost is that `site-packages` is off `sys.path`, so every hook must stay stdlib-only.** All of them currently are. A hook needing a third-party package must drop `-S` on its own command line rather than for all of them.
+What that actually costs, measured on the Windows machine: under a non-ASCII repo path `memos.py` decodes `git rev-parse --show-toplevel` with the locale codec and writes the whole backlog into a garbage sibling directory *outside* the repo while printing a plausible in-repo path, and `skill-tracked.py` takes its early return because the mangled path fails `os.path.isdir`, so its warning never fires. One env var closes both. It is process-wide rather than hook-scoped, so it also changes the default encoding of every bare `open()` and of `subprocess.run(..., text=True)` — a script reading a codepage-encoded file now raises under Claude Code while still working in a plain terminal.
 
 ### Mouse reporting
 
