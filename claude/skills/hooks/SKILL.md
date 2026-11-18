@@ -102,11 +102,12 @@ its log is what made a misfire diagnosable after the fact.
   `json.load` still succeeds (JSON punctuation is ASCII), and the hook runs on a populated but
   corrupted payload. Nothing reaches the never-raise `except`, which is why it is so quiet. The
   damage lands wherever a mangled *value* is used: a non-ASCII repo path sent a whole memo backlog
-  into a directory outside the repo, and made `skill-tracked.py` early-return on a failed
-  `os.path.isdir`. `"PYTHONUTF8": "1"` in the `env` block of `settings.json` closes it for every
-  hook at once, hooks in repos this one cannot edit included, unless the hook's command starts
-  Python with a flag that ignores the variable; `~/.claude/learnings/python-windows-console-encoding.md`
-  names those flags, under "Turning it on changes more than output". A per-file
+  into a directory outside the repo, and made `skill-tracked.py` early-return on a failed check
+  of `os.path.isdir`. Setting `"PYTHONUTF8": "1"` in the `env` block of `settings.json` closes
+  it for every hook at once, hooks in repos this one cannot edit included, unless the hook's
+  command starts Python with a flag that ignores the variable; those flags are named in the
+  learning `~/.claude/learnings/python-windows-console-encoding.md`, under "Turning it on
+  changes more than output". A per-file
   `sys.stdin.reconfigure(...)` is a second mechanism for the same job, so leave it out. Keep
   `sys.stdout.reconfigure(encoding="utf-8")` where a hook already has one. Note the variable is
   process-wide: it also sets the default encoding for `open()` and `subprocess.run(text=True)`,
