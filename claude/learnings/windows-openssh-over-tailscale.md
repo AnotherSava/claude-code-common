@@ -120,13 +120,14 @@ Build the program with every variable inlined as a literal, so nothing variable 
 program = ("import pathlib\n"
            f"p = pathlib.Path({json.dumps(dest)})\n"
            "p.parent.mkdir(parents=True, exist_ok=True)\n"
-           f"p.write_text({json.dumps(payload)}, encoding='utf-8')\n")
+           f"p.write_bytes({json.dumps(payload)}.encode('utf-8'))\n")
 ```
 
 Any string put through `json.dumps` is also a valid Python string literal, and it escapes every
 non-ASCII character, so the program stays pure ASCII whatever the payload holds. The bare
 `python -` tokenizes the same under cmd.exe and sh, so the command string parses identically on
-either side.
+either side. It writes bytes because `write_text` on a Windows peer turns every `\n` into `\r\n`
+(`git-line-endings.md`, under "Python scripts that edit files write CRLF").
 
 What the obvious alternatives do instead, measured against a Windows peer 2026-09-18–19:
 
