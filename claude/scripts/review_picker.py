@@ -435,8 +435,12 @@ def main() -> int:
 
     # agterm refuses an open while the session's overlay slot is taken, a hidden page included (`overlay hidden`),
     # so whatever the session holds is closed first. Its answer is ignored: an empty slot answers `no overlay`.
-    subprocess.run(["agtermctl", "session", "overlay", "close", "--target", session], capture_output=True, text=True)
-    shown = subprocess.run(["agtermctl", "session", "overlay", "open", "--html", out, "--js", "--block", "--target", session],
+    # agtermctl never reads AGTERM_SOCKET, so without --socket a second agterm instance's session id would be looked
+    # up in the default instance (learnings/agterm.md).
+    socket = os.environ.get("AGTERM_SOCKET")
+    address = ["--target", session, *(["--socket", socket] if socket else [])]
+    subprocess.run(["agtermctl", "session", "overlay", "close", *address], capture_output=True, text=True)
+    shown = subprocess.run(["agtermctl", "session", "overlay", "open", "--html", out, "--js", "--block", *address],
                            capture_output=True, text=True)
     if shown.returncode == 2:
         print(json.dumps({"outcome": "dismissed"}))

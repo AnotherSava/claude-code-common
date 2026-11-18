@@ -55,7 +55,7 @@ START_TOKENS = os.path.join(os.environ.get("XDG_STATE_HOME") or os.path.expandus
 
 
 def notify(body: str) -> None:
-    subprocess.run(["agtermctl", "notify", body, "--title", "Remote session"], capture_output=True)
+    agtermctl("notify", body, "--title", "Remote session")
 
 
 def fail(message: str) -> int:
@@ -64,8 +64,14 @@ def fail(message: str) -> int:
     return 1
 
 
-def agtermctl(*args: str) -> subprocess.CompletedProcess:
-    return subprocess.run(["agtermctl", *args], capture_output=True, text=True)
+# agtermctl never reads AGTERM_SOCKET, so the socket is passed as --socket (learnings/agterm.md). The
+# picker runs as a keymap child, which agterm gives AGT_SOCKET rather than AGTERM_SOCKET, so a picker fired
+# from a second agterm instance still drives the default one, or the instance the app was launched from.
+# The option goes last because a nested subcommand only takes its options after its own name; agterm_tab
+# in attach.sh does the same.
+def agtermctl(*args: str, stdin: "str | None" = None) -> subprocess.CompletedProcess:
+    socket = os.environ.get("AGTERM_SOCKET")
+    return subprocess.run(["agtermctl", *args, *(["--socket", socket] if socket else [])], input=stdin, capture_output=True, text=True)
 
 
 # A folder is offered when it holds a `.claude` directory, which Claude Code creates the first time
@@ -173,12 +179,7 @@ def age(milliseconds: "int | None") -> str:
 def pick(rows: "list[dict]", prompt: str) -> "str | None":
     # --allow-custom is what makes a directory the scan did not reach still reachable: it is not in
     # the list, and typing it returns as a custom result.
-    result = subprocess.run(
-        ["agtermctl", "pick", "open", "--prompt", prompt, "--allow-custom"],
-        input=json.dumps(rows) if rows else "",
-        capture_output=True,
-        text=True,
-    )
+    result = agtermctl("pick", "open", "--prompt", prompt, "--allow-custom", stdin=json.dumps(rows) if rows else "")
     if result.returncode == 2:
         return None
     if result.returncode != 0:

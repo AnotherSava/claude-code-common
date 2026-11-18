@@ -493,3 +493,27 @@ at close, its `initialCommand` and its workspace. `closedAt` counts seconds from
 978307200 to get Unix time. No log carries this. A tab that closed itself and one the user closed look the
 same here, but the title at close usually says which: a remote tab that dropped back to the far machine's
 console title, rather than its session's, had exited on its own.
+
+## agtermctl ignores `AGTERM_SOCKET`; pass `--socket` from a script that may run in another instance
+
+Append `${AGTERM_SOCKET:+--socket "$AGTERM_SOCKET"}` to every agtermctl call a script makes from inside a pane,
+or the call can reach a different agterm instance from the one the pane belongs to. A script agterm launches
+outside any pane (a keymap or palette command, a `hooks.conf` line) has no `AGTERM_SOCKET` of its own and gets
+its instance's socket as `AGT_SOCKET` instead, so it passes `--socket "$AGT_SOCKET"`. Whatever `AGTERM_SOCKET`
+such a child holds was inherited from wherever the app was launched, which for a dev build started from a pane
+is the other instance's socket.
+
+agterm sets `AGTERM_SOCKET` in each pane to the socket its own instance binds, but agtermctl resolves the
+socket from `--socket`, then `$AGTERM_STATE_DIR/agterm.sock`, then
+`~/Library/Application Support/agterm/agterm.sock`, and never consults `AGTERM_SOCKET`
+(`BasicOptions.socketPath` in the agterm repo's `agtermctlKit/Commands.swift`). Measured on 0.40.0:
+`AGTERM_SOCKET=/nonexistent/agterm.sock agtermctl tree --json` exits 0 against the default instance, while
+the same path passed as `--socket` exits 1. The instance that pays is a second one: finding the default
+path held, it points its panes' `AGTERM_SOCKET` at a suffixed path (`ControlServer.resolvedSocketPath`),
+and a bare agtermctl call from there addresses the first instance with the second one's session ids.
+
+Put `--socket` and `--target` after the full subcommand path. The options belong to the leaf subcommand,
+so `agtermctl session --target X split command …` fails with `Unknown option '--target'`. The repo's
+pane callers that do this are `agterm_tab` in `remote-session/mac/attach.sh` and the overlay calls in
+`scripts/review_picker.py`. The keymap-launched picker, `agtermctl()` in `remote-session/mac/pick-session.py`,
+reads `AGTERM_SOCKET`, so a picker fired from a second instance still addresses the default one.
