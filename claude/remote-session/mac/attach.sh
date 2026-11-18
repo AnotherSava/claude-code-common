@@ -168,6 +168,15 @@ ssh_opts="-o ServerAliveInterval=15 -o ServerAliveCountMax=4 -o ConnectTimeout=1
 # client and attaches alongside rather than refusing.
 cc_session="wsl -d $WSL_DISTRO -- $REPO_WSL_PATH/claude/remote-session/wsl/cc-session.sh $project mac"
 
+# Every agtermctl call aimed at this tab goes through here, so all of them reach the same instance.
+# agterm gives each pane its instance's socket in AGTERM_SOCKET, which agtermctl never reads: left
+# to itself it resolves a default path that can belong to another instance. The addressing goes
+# after the caller's arguments because `split command` is a subcommand of `split` and takes its
+# options after its own name.
+agterm_tab() {  # <session subcommand> [<argument>...]
+    agtermctl session "$@" --target "$AGTERM_SESSION_ID" ${AGTERM_SOCKET:+--socket "$AGTERM_SOCKET"}
+}
+
 # Tints this tab's agterm sidebar row so a remote session reads as one at a glance. The tab tints
 # itself because every route to it runs this script, pick-session.py and the dashboard's attach
 # alike; the ⇄ badge stays in the title for terminals with no row colours, agwinterm among them.
@@ -188,7 +197,7 @@ if [ -n "${AGTERM_SESSION_ID:-}" ]; then
     [ -n "$tint_parts" ] || tint=clear
     # agterm refuses a placement beside `clear`.
     [ "$tint" = clear ] && tint_parts=
-    agtermctl session tint "$tint" ${tint_parts:+--on "$tint_parts"} --target "$AGTERM_SESSION_ID" ${AGTERM_SOCKET:+--socket "$AGTERM_SOCKET"} >/dev/null \
+    agterm_tab tint "$tint" ${tint_parts:+--on "$tint_parts"} >/dev/null \
         || echo "attach: could not tint this tab $tint" >&2
 
     # cmd+d in this tab opens a shell on the same machine in the project's directory, rather than a
@@ -197,8 +206,7 @@ if [ -n "${AGTERM_SESSION_ID:-}" ]; then
     # cc-session.sh opens that shell, so a directory that is gone is refused as it is for the session;
     # `wsl --cd` would open the shell in `/` instead and still exit 0.
     # An agterm too old for the command only loses that, so it is reported and the attach goes on.
-    agtermctl session split command "/usr/bin/ssh -t $ssh_opts $REMOTE_USER@$REMOTE_HOST $cc_session resume shell" \
-        --target "$AGTERM_SESSION_ID" ${AGTERM_SOCKET:+--socket "$AGTERM_SOCKET"} >/dev/null \
+    agterm_tab split command "/usr/bin/ssh -t $ssh_opts $REMOTE_USER@$REMOTE_HOST $cc_session resume shell" >/dev/null \
         || echo "attach: could not point this tab's cmd+d at $REMOTE_HOST" >&2
 fi
 
@@ -268,7 +276,7 @@ while [ "$stop" -eq 0 ]; do
             # after it runs inside agterm; the exit only covers a run outside agterm, where there
             # is no session to close.
             flush_check_err
-            [ -z "${AGTERM_SESSION_ID:-}" ] || agtermctl session close --target "$AGTERM_SESSION_ID" >/dev/null 2>&1 || true
+            [ -z "${AGTERM_SESSION_ID:-}" ] || agterm_tab close >/dev/null 2>&1 || true
             exit 0
             ;;
         4)
