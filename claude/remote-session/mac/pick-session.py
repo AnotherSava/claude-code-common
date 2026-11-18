@@ -64,13 +64,13 @@ def fail(message: str) -> int:
     return 1
 
 
-# agtermctl never reads AGTERM_SOCKET, so the socket is passed as --socket (learnings/agterm.md). The
-# picker runs as a keymap child, which agterm gives AGT_SOCKET rather than AGTERM_SOCKET, so a picker fired
-# from a second agterm instance still drives the default one, or the instance the app was launched from.
+# agtermctl reads no socket variable, so the socket is passed as --socket (learnings/agterm.md). The
+# picker runs as a keymap child, which agterm gives its own instance's socket as AGT_SOCKET; any
+# AGTERM_SOCKET it holds was inherited from wherever the app was launched, so it is never read here.
 # The option goes last because a nested subcommand only takes its options after its own name; agterm_tab
 # in attach.sh does the same.
 def agtermctl(*args: str, stdin: "str | None" = None) -> subprocess.CompletedProcess:
-    socket = os.environ.get("AGTERM_SOCKET")
+    socket = os.environ.get("AGT_SOCKET")
     return subprocess.run(["agtermctl", *args, *(["--socket", socket] if socket else [])], input=stdin, capture_output=True, text=True)
 
 

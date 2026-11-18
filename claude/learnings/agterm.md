@@ -515,5 +515,5 @@ and a bare agtermctl call from there addresses the first instance with the secon
 Put `--socket` and `--target` after the full subcommand path. The options belong to the leaf subcommand,
 so `agtermctl session --target X split command …` fails with `Unknown option '--target'`. The repo's
 pane callers that do this are `agterm_tab` in `remote-session/mac/attach.sh` and the overlay calls in
-`scripts/review_picker.py`. The keymap-launched picker, `agtermctl()` in `remote-session/mac/pick-session.py`,
-reads `AGTERM_SOCKET`, so a picker fired from a second instance still addresses the default one.
+`scripts/review_picker.py`; the keymap-launched picker, `agtermctl()` in `remote-session/mac/pick-session.py`,
+passes `AGT_SOCKET`.
