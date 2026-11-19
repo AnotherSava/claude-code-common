@@ -216,6 +216,17 @@ run "push notifies peer" python3 claude/tests/push-notifies-peer.py
 # and an entry whose file is gone is a link to nothing — neither shows up in `git status`.
 run "memory index" python3 claude/scripts/render-memory-index.py --check
 
+# Every session and every workflow subagent loads claude/CLAUDE.md before its first turn, so its size is paid
+# once per agent: at 97 KB it was about a third of each review-auto agent's context. A topic-specific rule
+# belongs in the learning or skill that fires for that topic; the ceiling makes adding one here a decision.
+claude_md_size() {
+  local size ceiling=32768
+  size=$(wc -c < claude/CLAUDE.md | tr -d ' ')
+  [ "$size" -le "$ceiling" ] || { echo "claude/CLAUDE.md is $size bytes, over the $ceiling-byte ceiling"; return 1; }
+  echo "claude/CLAUDE.md: $size of $ceiling bytes"
+}
+run "CLAUDE.md size" claude_md_size
+
 # Reported, never fatal. A skill git is ignoring is a real problem — the only copy stays on the
 # machine that made it — but it is a state of the repo rather than a defect in the change set, and
 # blocking an unrelated commit on it would train the gate away.

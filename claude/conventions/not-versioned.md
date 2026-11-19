@@ -63,7 +63,6 @@ session that followed one and a session that broke it, so there is nothing for a
   in neither place), but nothing on disk distinguishes a session that judged that call well from one
   that did not — an untagged memo and a memo that should have been tagged are the same file.
 - **Excluding `node_modules/`** from every file and content search.
-- **Consulting the official Anthropic plugin and skill repositories** before reinventing one.
 - **The preamble's authoring rules** — ask clarifying questions before implementing, never add
   self-promoting attribution, use a fenced code block rather than a blockquote for text meant to be
   copied, hand over anything meant to be opened as a tailnet URL rather than `file:///` or `localhost`, and mark what the user must replace with a
@@ -80,18 +79,17 @@ Properties of the source a repo contains rather than of how the repo is arranged
 generation-time hook enforces these line by line; a migration cannot, because the target shape includes
 every line not yet written.
 
-- **Python style** — type hints on every parameter and return, imports at the top in stdlib /
-  third-party / local groups, no early-return guard that changes nothing.
+- **Python style** — type hints on every parameter and return.
 - **Explicit state over an overloaded sentinel**, and removing the reason a field holds two meanings —
   splitting it, or no longer storing a derived value in it — rather than adding a discriminator whose
   only job is to say which meaning that field currently holds.
 - **Single source of logic**, and confirming the path you fix is the one that actually runs.
-- **Prose and UI style** — single-line expressions preferred, sentence case for UI strings, no backticked
-  code opening a sentence, parallel enumerations sharing grammatical form, describing the thing as it is
-  rather than the drafts it went through, no claim anchored on a current last item or a line number.
+- **Prose and UI style** — sentence case for UI strings, no backticked code opening a sentence, parallel
+  enumerations sharing grammatical form, describing the thing as it is rather than the drafts it went
+  through, no claim anchored on a current last item or a line number.
 - **Code comments** — comment only what the code cannot say (why, the constraint served, what must change
-  with it, named by identifier and file), never restate what the code does, and keep each comment readable
-  on its own; a third-party project or an upstream-bound fork follows its own comment conventions instead.
+  with it, named by identifier and file) and never restate what the code does; a third-party project
+  follows its own comment conventions instead.
 - **No logic, data structures, classes or exports in production code that exist only to support tests.**
 - **The dashboard tray icon's three machine-interaction states** — idle, request pending, interaction
   running: a feature of one app's source rather than a shape any repo can be checked for.
@@ -111,8 +109,6 @@ has one today, so each is enforced by reading rather than by measurement.
 - **`requirements.txt` or pyproject kept in sync with every third-party import.**
 - **Crash dumps are deleted, never added to any gitignore** — `*.stackdump`, `*.dmp`, `hs_err_pid*.log`,
   core dumps. Measured clean across the fleet today, and the rule governs every crash from here on.
-- **Skills live at `.claude/skills/<skill-name>/` with `SKILL.md` as the entry point** — conformant
-  across every project-local skill measured, and it governs every skill written from here on.
 
 ## Global, not per-repo
 

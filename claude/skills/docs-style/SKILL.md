@@ -1,9 +1,11 @@
 ---
 name: docs-style
 description: >-
-  How a document is written — what it opens with, how it is structured, and which sentences do not belong.
-  TRIGGER when: writing, revising, restructuring or reviewing any long-form prose this repo or a project keeps — a docs/ page, a README section, a learnings file, a convention version README, a memory file body, or a comment running past a few lines. Invoke BEFORE the first draft, not after.
-  DO NOT TRIGGER when: the question is whether a document is still true or complete (that is `docs-relevance`), the text is a commit message (`shared/commit-message-rules.md`), or the subject is how Claude's chat replies are shaped (that is the output style, tuned through `tune-output`).
+  How a document is written: its opening, its structure, and which sentences to cut.
+  TRIGGER when: writing, revising or reviewing long-form prose (a docs/ page, README section, learnings
+  file, convention README, memory file body, long comment); invoke BEFORE the first draft.
+  DO NOT TRIGGER when: checking whether a document is still true (`docs-relevance`), a commit message,
+  or Claude's chat reply style (`tune-output`).
 allowed-tools: Read, Edit, Write, Grep, Glob
 ---
 
@@ -165,11 +167,13 @@ Three rules share one shape: the sentence is **correct the day it is written**, 
 
 **Never quote a count of a set that changes.** "All three tenants", "the count must be 8", "the seven keys below" — each is wrong on a schedule. Cite the property or the command that yields the number instead: *every tenant that publishes reaches it*, *the count must agree with the manifest — read it with …*. A cutover runbook once carried a **stop** instruction keyed to the literal 8; a fourth tenant staged in the working tree would have halted the cutover for an entirely correct reason. Where an example number helps a reader recognise output, label it as an example and put the assertion on the comparison. Dated historical records are exempt — *verified on 2026-08-27, all three asserted* is a claim about a moment. Full case in `~/.claude/memory/feedback_cite_the_source_not_the_count.md`.
 
-**Anchor a range on what cannot move**, which is the `CLAUDE.md` Prose Style rule — not restated here. Read it with `~/.claude/memory/feedback_drift_proof_doc_anchors.md`, which carries the part the summary drops: a terminal *name* used as a bound rots on the same trigger as a line number and is sneakier, because it carries no digits to flag it.
+**Anchor a range on what cannot move.** A factual claim in prose must stay true as the thing it describes grows. Don't anchor a range or a count on the current last item — "APP_CONTAINER through VHOST_SRC" and "all four of them" both rot the moment someone appends. Write the open form ("APP_CONTAINER onward", "every key below it"), which costs nothing and cannot go stale. A line number is the same trap with the shortest half-life of all — one such anchor moved three lines in a single morning, from an edit to the very header that cited it — so point at a file plus a stable landmark (a heading, a key name), never `file:NN`. A heading is that landmark only inside one repo, where a single commit moves both; across repos cite the file and the fact it establishes, since whoever rewords the heading cannot see what cites it. A position inside the document is the same trap one size smaller — "the bullet above", "the section below" — and it slips past the rule as written, because it carries neither a count nor a number to notice. Point at the thing by name: "the behind-its-upstream bullet", not "the bullet above", since an item inserted between the two silently makes the reference wrong and nothing will flag it.
 
 ## Rules that live elsewhere
 
-`CLAUDE.md`'s **Prose Style** section is injected into every session, so its rules are already loaded whenever you write anything and this file does not repeat them: no sentence opening on a backticked code span, parallel enumerations sharing grammatical form, describing the thing as it is rather than its drafts, and the drift-proof anchor rule that **Anchor a range on what cannot move** points at. Treat them as in force here. Its **Code Comments** section, injected the same way, governs what a comment says at all; this skill governs how a comment running past a few lines is written.
+`CLAUDE.md`'s **Prose Style** section is injected into every session, so its two rules are already loaded whenever you write anything and this file does not repeat them: no sentence opening on a backticked code span, and describing the thing as it is rather than its drafts. Treat them as in force here. Its **Code Comments** section, injected the same way, governs what a comment says at all; this skill governs how a comment running past a few lines is written.
+
+**Parallel enumerations share one grammatical form** — list-item blurbs are all imperative verbs or all noun phrases, not a mix ("download …" / "explore …" / "build …", not "download …" alongside "a tour of …").
 
 `CLAUDE.md`'s **Overused Phrases** section governs every authored text, documents included. It is a live blocklist — read it, do not summarise it.
 

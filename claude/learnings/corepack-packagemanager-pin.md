@@ -126,3 +126,7 @@ from June 2026 in this file had said npm 12 was prerelease only.
 `^22.22.2 || ^24.15.0 || >=26.0.0`, so a project on an earlier Node 24 patch needs an npm 11 pin
 instead — and the mismatch is a warning on every command rather than a refusal, so it persists
 quietly.
+
+## Enforce `engines` too
+
+A project that declares an `engines.node` range also sets `engine-strict=true` in its `.npmrc`. The rule and its reason are in the "Make it binding" paragraph of `../conventions/versions/005-node-toolchain/README.md`, which also enforces it.

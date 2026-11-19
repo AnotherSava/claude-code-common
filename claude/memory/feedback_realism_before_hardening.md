@@ -63,8 +63,9 @@ their evidence instead of hardening against them.
 
 **An automated review-and-fix loop counts as presenting findings, so the gate goes into its prompts.**
 A workflow that verifies and fixes on its own shows its findings to nobody, which is the one moment the
-rest of this memory is written for, and its subagents see this memory only as one index line in
-`CLAUDE.md` — an explicit prompt saying "fix these confirmed defects" overrides it. So the verify
+rest of this memory is written for, and its subagents do not see this memory at all, since it is not
+an `{always}` entry rendered into `CLAUDE.md` — and an explicit prompt saying "fix these confirmed
+defects" would override it if they did. So the verify
 prompt asks for evidence that something reaches the case and rates frequency and cost, the fix prompt
 receives what earns code plus the rare cases with an instruction to add only a log line or a doc
 sentence, and the loop stops when a round finds nothing that earns code. The verify prompt also asks
