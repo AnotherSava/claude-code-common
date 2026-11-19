@@ -106,3 +106,14 @@ git -C ~/.claude/plugins/marketplaces/<name> ls-tree -r --name-only @{upstream} 
 The practical consequence: a cleanup plan built on "delete the loose copies, keep the
 plugin's" expires the moment the plugin stops shipping them. Update first, look at what
 the new version wrote, then deduplicate.
+
+## An `enabledPlugins` entry can outlive its plugin
+
+`claude plugin uninstall <plugin>` answers "not found in installed plugins" for a plugin that `enabledPlugins` in
+`settings.json` still lists but that nothing installed, and `marketplace remove` likewise finds no marketplace. The
+entry loads nothing on that machine, but it may on a machine where the plugin is installed. Removing it means deleting
+the line by hand. Measured 2026-11-18 on Claude Code's plugin CLI.
+
+`claude plugin disable` rewrites the whole `settings.json`, and it can move unrelated keys: one disable moved
+`disableAgentView` to a different place in the file. Where `settings.json` is tracked, make a one-key change with a
+targeted edit so the diff stays one line.
