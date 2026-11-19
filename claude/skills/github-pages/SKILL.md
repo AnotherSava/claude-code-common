@@ -1,17 +1,11 @@
 ---
 name: github-pages
 description: >-
-  Arrange a project's README and GitHub Pages documentation into a consistent
-  user-first layout: short README that links out, just-the-docs Jekyll site
-  with a user-facing index, one page per user-facing feature (split into
-  child pages when long), and a developer guide with technical sub-pages.
-  TRIGGER when: setting up docs/ for a new project, adding a GitHub Pages site,
-  writing or restructuring a README that will link to GH Pages, adding a new
-  user-facing feature page, or asked to align docs with this project or
-  bga-assistant.
-  DO NOT TRIGGER when: editing unrelated docs outside docs/, working on a
-  project that already has an incompatible docs framework (Docusaurus, MkDocs,
-  VitePress, etc.).
+  Lay out a project's README and GitHub Pages docs user-first: short README, just-the-docs Jekyll site,
+  a page per feature, a developer guide.
+  TRIGGER when: setting up docs/ or a GitHub Pages site, restructuring a README that links to GH Pages,
+  adding a feature page, or aligning docs with this layout or bga-assistant.
+  DO NOT TRIGGER when: docs outside docs/, or another docs framework (Docusaurus, MkDocs, VitePress).
 allowed-tools: Read, Edit, Write, Glob, Grep, Bash(git rev-parse:*)
 ---
 

@@ -1,6 +1,10 @@
 ---
 name: peer
-description: Find, message and route work to other Claude Code sessions on either machine, and handle what they send. TRIGGER when: messaging or routing work to another session, asking whether one exists or what it is doing, acting on a message from another agent, or a relay send failed. DO NOT TRIGGER for messages to people.
+description: >-
+  Find, message and route work to other Claude Code sessions on either machine, and handle what they
+  send. TRIGGER when: messaging or routing work to another session, asking whether one exists or what it
+  is doing, acting on a message from another agent, or a relay send failed. DO NOT TRIGGER for messages
+  to people.
 allowed-tools: ListAgents, ToolSearch, SendMessage, Read, Grep, Bash(python ~/.claude/skills/shared/peer_relay.py:*), Bash(python3 ~/.claude/skills/shared/peer_relay.py:*), Bash(curl -s http://127.0.0.1:9077/api/agents:*), Bash(git -C:*)
 ---
 

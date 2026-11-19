@@ -1,16 +1,12 @@
 ---
 name: backup
 description: >-
-  Give a project on the shared VPS a nightly off-box backup, or work on one it already has —
-  provision its Backblaze bucket and bucket-scoped key, write its script and systemd units, render
-  its credentials, and prove the restore by running it rather than describing it. Encodes the
-  toolkit these co-tenants share: restic to B2, one bucket per project, credentials in
-  /etc/<tenant>/backup.env, a staggered timer, and a drill.
-  TRIGGER when: a project needs a backup it does not have; an existing backup needs changing,
-  diagnosing, or restoring from; a nightly backup unit has failed; a restic repository or a
-  Backblaze bucket/key must be created; or someone asks where a project's snapshots live.
-  DO NOT TRIGGER when: the task is a one-off dump taken by hand for a migration or a schema change,
-  a git or source-code backup, or a project that is not a tenant of this box.
+  Nightly off-box backups for projects on the shared VPS (restic to Backblaze B2).
+  TRIGGER when: a project needs a backup; an existing one needs changing, diagnosing or restoring from;
+  a nightly backup unit failed; a restic repository or B2 bucket/key must be created; or someone asks
+  where a project's snapshots live.
+  DO NOT TRIGGER when: a one-off hand dump for a migration, a git or source-code backup, or a project
+  not hosted on this box.
 allowed-tools: Bash, Read, Write, Edit, Glob, Grep
 ---
 

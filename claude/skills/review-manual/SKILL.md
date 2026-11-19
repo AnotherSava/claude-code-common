@@ -1,12 +1,10 @@
 ---
 name: review-manual
 description: >-
-  Run a read-only review of the current change through the saved `review-auto` workflow, show its findings as rows
-  each preset to the session's recommendation, then fix exactly the rows the user leaves on fix, following their
-  per-row notes.
-  TRIGGER when: the user runs /review-manual, or asks for a read-only review where they choose what gets fixed.
-  DO NOT TRIGGER when: the user wants the review to fix what it finds on its own — that is `review-auto` in its
-  default fix mode.
+  Read-only review of the current change through the `review-auto` workflow, then fix only the findings
+  the user leaves on fix.
+  TRIGGER when: /review-manual, or a read-only review where the user chooses what gets fixed.
+  DO NOT TRIGGER when: the review should fix its findings on its own (`review-auto`).
 allowed-tools: Workflow
 ---
 

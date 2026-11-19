@@ -1,17 +1,13 @@
 ---
 name: transcript-history
 description: >-
-  Search and read past Claude Code conversations, this project's or any other's, and list the
-  projects worked in recently — every session the private transcripts archive has captured on
-  either machine, including sessions Claude Code's retention has already deleted from its own
-  store, plus today's.
-  TRIGGER when: the user refers to something discussed or decided in an earlier session ("what did
-  we decide about X", "the script we fixed last month", "the usual config"); you need the reasoning
-  behind a past change that the repo, its memory and git history do not record; or CLAUDE.md's
-  rule to search past conversation before asking for missing context applies; or the user asks
-  which projects they worked in recently, or when they last touched each one.
-  DO NOT TRIGGER when: the answer is in the current conversation, the repo, project memory or git
-  log; or the history wanted is Perplexity's, not Claude Code's.
+  Search and read past Claude Code conversations from either machine, deleted ones included, and list
+  recently worked projects.
+  TRIGGER when: the user refers to an earlier session ("what did we decide about X", "the script we
+  fixed last month", "the usual config"); the reasoning behind a past change is not in the repo, memory
+  or git; CLAUDE.md's search-before-asking rule applies; or which projects were worked in recently.
+  DO NOT TRIGGER when: the answer is in this conversation, the repo, memory or git log, or the history
+  wanted is Perplexity's.
 allowed-tools: Bash(readlink -f ~/.claude/skills), Bash(test -f:*), Bash(python:*), Bash(python3:*), Read
 ---
 

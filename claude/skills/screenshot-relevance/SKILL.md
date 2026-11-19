@@ -1,9 +1,11 @@
 ---
 name: screenshot-relevance
 description: >-
-  Check that a project's documentation screenshots still show the product as it is, carry an edge, and exist where a page needs one.
-  TRIGGER when: /wrap-up runs it as a clean-up pass, or the user asks whether the docs' screenshots are stale, orphaned, or missing.
-  DO NOT TRIGGER when: the task is taking, framing or filing a picture — that is `docs-screenshot`, which this skill hands its captures to — or the question is whether the docs' prose is current, which is `docs-relevance`.
+  Check that a project's docs screenshots are current, carry an edge, and exist where a page needs one.
+  TRIGGER when: /wrap-up runs it, or the user asks whether the docs' screenshots are stale, orphaned or
+  missing.
+  DO NOT TRIGGER when: taking, framing or filing a picture (`docs-screenshot`), or whether the prose is
+  current (`docs-relevance`).
 user-invocable: false
 context: fork
 effort: medium

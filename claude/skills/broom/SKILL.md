@@ -1,17 +1,12 @@
 ---
 name: broom
 description: >-
-  Reclaim disk space on this machine and keep it from filling again — run the reclaim report, decide
-  the rows that need a human, and hunt for consumers no rule covers yet. Owns
-  `claude/scripts/reclaim-disk.sh` (the deterministic sweeps and the low-space alarm) and the
-  judgment the script cannot encode: classifying a consumer nobody has seen before, and deciding
-  whether prevention beats sweeping.
-  TRIGGER when: the volume is low or a command failed with ENOSPC; a build directory, cache or VM
-  image has grown large; the low-space alarm fired; a new machine needs the alarm installed; or the
-  user asks how to stop something filling the disk again.
-  DO NOT TRIGGER when: the task is uninstalling an app and its data (that is `cleanup`), removing a
-  Docker volume for a project (that is the project's own concern), or deleting a file the user named
-  — just delete it.
+  Reclaim disk space and keep it from filling again; owns `claude/scripts/reclaim-disk.sh` and the
+  low-space alarm.
+  TRIGGER when: the volume is low or a command hit ENOSPC; a build directory, cache or VM image grew
+  large; the alarm fired or needs installing; or the user asks how to stop something refilling the disk.
+  DO NOT TRIGGER when: uninstalling an app (that is `cleanup`), a project's Docker volume, or deleting a
+  file the user named.
 allowed-tools: Bash, Read, Write, Edit, Glob, Grep
 ---
 

@@ -1,20 +1,12 @@
 ---
 name: repo-status
 description: >-
-  Cross-machine status of ONE repo — this machine's clone and the peer's, side by
-  side: uncommitted changes, unpushed and inbound commits, branch, age of the
-  oldest pending work, convention versions still to adopt, open issues, and a
-  one-line description of what each machine is mid-way through. Fetches both
-  clones and auto-pulls the clean ones. Prints a short block per machine to the
-  terminal, saying only what is not at its default.
-  TRIGGER when: user asks "/repo-status", wants to know where a single repo
-  stands, "what am I doing in this repo", "is this repo clean on the other
-  machine", "does the desktop have unpushed work here", or "is this repo behind
-  on conventions".
-  DO NOT TRIGGER when: the question is about the fleet rather than one repo (use
-  `/github-status`), or a plain `git status` on this machine answers it — this
-  skill's reason to exist is the OTHER machine's clone and the columns git has no
-  opinion about.
+  Cross-machine status of ONE repo, this clone beside the peer's: pending and inbound commits, unadopted
+  conventions, issues, and what each machine is mid-way through.
+  TRIGGER when: /repo-status, where a single repo stands, "what am I doing in this repo", "is this repo
+  clean on the other machine", "does the desktop have unpushed work here", or "is this repo behind on
+  conventions".
+  DO NOT TRIGGER when: about the fleet (`/github-status`), or a plain `git status` answers it.
 allowed-tools: Bash(python ~/.claude/skills/github-status/scripts/repos-status.py:*), Bash(python3 ~/.claude/skills/github-status/scripts/repos-status.py:*), Bash(test -f ~/.claude/skills/github-status/config/config.env:*), Bash(git -C:*), PowerShell, Read(~/.claude/skills/github-status/config/config.env)
 ---
 

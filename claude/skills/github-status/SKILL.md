@@ -1,20 +1,12 @@
 ---
 name: github-status
 description: >-
-  Cross-machine overview of your GitHub-owned local clones — every repo with
-  pending work (uncommitted changes, unpushed commits, inbound remote commits),
-  open issues, or convention versions still to adopt, merged across this machine
-  and its peer, with branch, counts, age of the oldest pending work, how far
-  behind /adopt each clone is, and a one-line summary per working machine. Prints a box
-  table and publishes a self-contained HTML report at a tailnet URL that opens on
-  either machine. Each run fetches every repo's
-  origin on both machines so the counts reflect the current remote.
-  TRIGGER when: user asks "/github-status", wants a cross-project overview of
-  their repos, "which repos have unpushed commits", "what's new on remotes",
-  "what have I been working on", "which repos are behind on conventions", or
-  "what is uncommitted on the other machine".
-  DO NOT TRIGGER when: user is asking about a single specific repo — that is
-  `/repo-status`, which runs this same scan with `--repo`.
+  Cross-machine overview of all GitHub-owned clones with pending work, open issues or unadopted
+  conventions; prints a table and publishes an HTML report.
+  TRIGGER when: /github-status, an overview across repos, "which repos have unpushed commits", "what's
+  new on remotes", "what have I been working on", "which repos are behind on conventions", or "what is
+  uncommitted on the other machine".
+  DO NOT TRIGGER when: the question is about one repo (`/repo-status`).
 allowed-tools: Bash(python ~/.claude/skills/github-status/scripts/repos-status.py:*), Bash(python3 ~/.claude/skills/github-status/scripts/repos-status.py:*), Bash(test -f ~/.claude/skills/github-status/config/config.env:*), Bash(grep -q PEER_SSH ~/.claude/skills/github-status/config/config.env:*), PowerShell, AskUserQuestion, Read(~/.claude/skills/github-status/config/config.env), Write(~/.claude/skills/github-status/config/config.env)
 ---
 

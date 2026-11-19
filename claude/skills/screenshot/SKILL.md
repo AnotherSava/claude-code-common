@@ -1,9 +1,13 @@
 ---
 name: screenshot
 description: >-
-  Take a picture of a window, a region or a menu on this machine — through DocShot on macOS, which holds the Screen Recording grant the terminal lacks, and through window-shot.ps1 on Windows — and owns the shared capture and framing scripts every project's capture code calls.
-  TRIGGER when: any screen capture is about to be taken, debugging and measurement included; `screencapture` failed with "could not create image from display"; a capture came back blank or with every window title empty; or a script under this skill's scripts/ is being changed.
-  DO NOT TRIGGER when: the picture is a documentation screenshot to be filed in a project's docs — that is `docs-screenshot`, which runs its own capture scripts and calls these tools directly — or the capture is a browser page the claude-in-chrome tools already screenshot.
+  Capture a window, region or menu on this machine (DocShot on macOS, window-shot.ps1 on Windows); owns
+  the shared capture and framing scripts.
+  TRIGGER when: any screen capture, debugging and measurement included; `screencapture` failed with
+  "could not create image from display"; a capture came back blank or with empty window titles; or a
+  script in this skill's scripts/ changes.
+  DO NOT TRIGGER when: a docs screenshot to file (`docs-screenshot`), or a browser page the
+  claude-in-chrome tools can screenshot.
 ---
 
 # Screenshot

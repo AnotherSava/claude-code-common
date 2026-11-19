@@ -1,15 +1,12 @@
 ---
 name: ports
 description: >-
-  Hand out and record the TCP ports this machine's projects take, from one committed registry keyed by use case —
-  so a port is never guessed, never silently shared, and always has an owner on record.
-  TRIGGER when: a project needs a port it does not have yet (a dev server, a sidecar, a local database, a
-  one-off probe server, a tailnet front port); a port collision or an unexplained EADDRINUSE is being
-  diagnosed; a port's owner is in question ("what is on 3942?", "can I use 8000?"); a port is being retired;
-  or the registry needs checking against this machine.
-  DO NOT TRIGGER when: the port is inside a Docker network (a container namespace is not shared — record it
-  once with `--scope container` and move on), or the task is publishing a server on the tailnet, which is
-  `shared/tailnet_publish.py` and only needs this skill for the front port number.
+  Allocate and record TCP ports from one committed registry, so none is guessed or shared.
+  TRIGGER when: a project needs a port (dev server, sidecar, database, probe server, tailnet front
+  port); a collision or EADDRINUSE is diagnosed; a port's owner is in question ("what is on 3942?", "can
+  I use 8000?"); a port is retired; or the registry needs checking.
+  DO NOT TRIGGER when: the port is inside a Docker network, or publishing on the tailnet
+  (`shared/tailnet_publish.py`) beyond picking its front port.
 allowed-tools: Bash, Read, Edit, Glob, Grep
 ---
 

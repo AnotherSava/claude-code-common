@@ -1,15 +1,12 @@
 ---
 name: tune-output
 description: >-
-  Change how Claude's replies are shaped — adopt, revise or reject a response-style rule — then record the pass
-  in a ledger so the next one starts from evidence instead of from scratch. Owns the output style file, the
-  blind A/B harness that tests a candidate before it ships, and the history of what has already been tried.
-  TRIGGER when: the user wants replies formatted or worded differently, brings a response-style idea from
-  another project or repo to evaluate, asks why a style rule exists or is missing, or says an existing style
-  rule is not working.
-  DO NOT TRIGGER when: the subject is prose inside a document or README (that is `docs-style`), commit
-  message wording (`shared/commit-message-rules.md`), a single one-off reply the user just wants rewritten, or
-  a subagent's prompt.
+  Change how Claude's replies are shaped: adopt, revise or reject a response-style rule after a blind
+  A/B test, logged in a ledger.
+  TRIGGER when: replies should be formatted or worded differently, a style idea from another project
+  needs evaluating, or a style rule is missing, questioned or not working.
+  DO NOT TRIGGER when: prose in a document or README (`docs-style`), commit message wording, a one-off
+  reply rewrite, or a subagent's prompt.
 allowed-tools: Read, Write, Edit, Glob, Grep, AskUserQuestion, Bash(bash ~/.claude/skills/tune-output/scripts/preflight.sh:*), Bash(bash ~/.claude/skills/tune-output/scripts/ab-run.sh:*), Bash(python ~/.claude/skills/tune-output/scripts/ab-sheet.py:*), Bash(git check-ignore:*), Bash(git status:*), Bash(gh repo view:*)
 ---
 

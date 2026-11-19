@@ -1,9 +1,11 @@
 ---
 name: docs-screenshot
 description: >-
-  Take, frame and file a documentation screenshot, then put it in front of the user on a contact sheet and ask for a verdict.
-  TRIGGER when: the user asks to take, re-shoot, recapture, replace or border a screenshot in a project's docs; a capture script under docs/screenshots/capture/ is about to run or be written; a user-supplied image is being filed into the docs; any turn changes an image file and has to report it; or screenshot-relevance permits a capture.
-  DO NOT TRIGGER when: the question is only whether the existing screenshots are stale or missing — that is `screenshot-relevance`, which hands its captures here.
+  Take, frame and file a documentation screenshot, and show it on a contact sheet for a verdict.
+  TRIGGER when: taking, re-shooting, replacing or bordering a docs screenshot; a script under
+  docs/screenshots/capture/ runs or is written; a user-supplied image is filed into docs; a turn changes
+  an image file; or screenshot-relevance permits a capture.
+  DO NOT TRIGGER when: only checking whether screenshots are stale or missing (`screenshot-relevance`).
 ---
 
 # Documentation screenshot

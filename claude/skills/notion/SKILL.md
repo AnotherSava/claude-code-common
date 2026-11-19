@@ -1,16 +1,12 @@
 ---
 name: notion
 description: >-
-  Work with Notion through the right API — the MCP integration by default, and the internal v3 API
-  (token_v2 cookie, /api/v3/) for the operations MCP provably cannot do: select-option recolor/removal,
-  date formats, reminders, conditional row colours, grouped views, bulk row writes, and anything
-  destructive.
+  Work with Notion through MCP, or the internal v3 API (token_v2, /api/v3/) for what MCP cannot do: select-option recolour, reminders, grouped views, bulk writes.
   TRIGGER when: reading or writing Notion pages, databases, rows, schemas or views; an
-  mcp__plugin_Notion_notion__* call failed, was rejected, or silently did nothing; or the user asks to
-  change how a Notion table looks.
-  DO NOT TRIGGER for Notion-adjacent work that never calls an API (writing prose destined for Notion),
-  or when a task-specific skill already owns the database (flightradar24, update-conventions) — start
-  there and come here only for the underlying technique.
+  mcp__plugin_Notion_notion__* call failed, was rejected or did nothing; or changing how a Notion table
+  looks.
+  DO NOT TRIGGER for Notion-bound prose with no API call, or a database a task skill owns
+  (flightradar24, update-conventions).
 ---
 
 # Notion: two APIs, one decision table

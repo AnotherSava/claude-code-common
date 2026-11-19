@@ -1,17 +1,12 @@
 ---
 name: github-create
 description: >-
-  Create a GitHub repository for a local project that already has content but no
-  remote yet. Picks a name, creates the repo (public by default), seeds a
-  LICENSE-only initial commit — MIT, or all rights reserved for a project whose
-  rights stay closed — wires origin, rebases local history onto that commit, and
-  enables email notifications for new issues. Never commits or pushes the
-  project's own files.
-  TRIGGER when: user asks to "create a github repo", "publish this to github",
-  "put this project on github", or runs /github-create in a project with no origin.
-  DO NOT TRIGGER when: the project already has an origin remote (use /yolo or /wrap-up to
-  push), the user wants to clone or fork an existing repo, or the user wants to cut
-  a release (use /release).
+  Create a GitHub repo for a local project with no remote: LICENSE-only first commit, origin wired, none
+  of the project's files pushed.
+  TRIGGER when: asked to "create a github repo", "publish this to github" or "put this project on
+  github", or /github-create in a project with no origin.
+  DO NOT TRIGGER when: an origin exists (push with /yolo or /wrap-up), cloning or forking a repo, or
+  cutting a release (/release).
 allowed-tools: AskUserQuestion, Read, Bash(git init:*), Bash(git rev-parse:*), Bash(git status:*), Bash(git log:*), Bash(git rev-list:*), Bash(git branch:*), Bash(git remote:*), Bash(git fetch:*), Bash(git pull:*), Bash(git config:*), Bash(git rm:*), Bash(gh auth status:*), Bash(gh config get:*), Bash(gh repo create:*), Bash(gh repo view:*), Bash(gh repo list:*), Bash(gh api:*), Bash(bash ~/.claude/skills/github-create/scripts/seed-license.sh:*), Bash(rm LICENSE:*)
 ---
 

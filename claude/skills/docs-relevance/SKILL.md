@@ -1,9 +1,11 @@
 ---
 name: docs-relevance
 description: >-
-  Check that a project's documentation still matches the code and that what should be documented is.
-  TRIGGER when: /wrap-up runs it as a clean-up pass, or the user asks whether the docs are stale, out of date, or missing a feature.
-  DO NOT TRIGGER when: the task is how a document is written rather than whether it is true — that is `docs-style` — or the question is whether the screenshots are current, which is `screenshot-relevance`.
+  Check that a project's docs still match the code and cover what they should.
+  TRIGGER when: /wrap-up runs it, or the user asks whether the docs are stale, out of date, or missing a
+  feature.
+  DO NOT TRIGGER when: the question is how a document is written (`docs-style`) or whether screenshots
+  are current (`screenshot-relevance`).
 user-invocable: false
 context: fork
 effort: medium

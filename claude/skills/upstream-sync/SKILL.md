@@ -1,14 +1,11 @@
 ---
 name: upstream-sync
 description: >-
-  Catch a fork up with the third-party project it tracks, then triage what upstream shipped — find where
-  incoming commits touch the fork's own patches and what each fork commit should become, integrate on the
-  user's go-ahead, and walk the new features against how the user actually uses the product, on a page the
-  discussion is recorded in.
-  TRIGGER when: the user asks to pull, merge or rebase upstream changes into a fork and analyze them; asks
-  which upstream changes affect their fork's patches; or asks what new upstream features are useful to them.
-  DO NOT TRIGGER when: the branch only lags its own remote (that is `/pull`), the repo is not a fork of
-  someone else's project, or the task is filing an issue or PR upstream.
+  Catch a fork up with the third-party project it tracks and triage what upstream shipped.
+  TRIGGER when: pulling, merging or rebasing upstream changes into a fork with analysis; which upstream
+  changes touch the fork's patches; or which new upstream features are useful.
+  DO NOT TRIGGER when: the branch only lags its own remote (`/pull`), the repo is not a fork, or filing
+  an issue or PR upstream.
 ---
 
 # Upstream sync

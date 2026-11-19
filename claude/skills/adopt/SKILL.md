@@ -1,14 +1,10 @@
 ---
 name: adopt
 description: >-
-  Bring one repo up to date with the conventions defined in the claude dotfiles repo — walk the
-  convention versions this repo has not adopted yet, perform each migration, confirm the continuing
-  rules hold, and commit the new number through the shared commit step.
-  TRIGGER when: the user runs /adopt; a session-start message says this repo is N versions behind or
-  has no convention record; or the user asks where this repo stands on the conventions.
-  DO NOT TRIGGER when: the task is authoring a NEW convention version — that is work in the dotfiles
-  repo, and `claude/conventions/authoring.md` is its contract — or the repo is a third-party clone,
-  which adopts nothing and records nothing.
+  Bring a repo up to date with the dotfiles conventions, one pending version at a time.
+  TRIGGER when: the user runs /adopt; a session-start message says this repo is N versions behind or has
+  no convention record; or the user asks where it stands on the conventions.
+  DO NOT TRIGGER when: authoring a new convention version, or in a third-party clone.
 allowed-tools: Read, Write, Edit, Glob, Grep, AskUserQuestion, Skill, Bash(echo *), Bash(git rev-parse:*), Bash(git fetch:*), Bash(git log:*), Bash(git status:*), Bash(git check-ignore:*), Bash(git show:*), Bash(git ls-files:*), Bash(git diff:*), Bash(git -C ~/.claude/skills:*), Bash(python ~/.claude/conventions/engine.py:*), Bash(python3 ~/.claude/skills/shared/commit.py:*), Bash(python ~/.claude/skills/shared/commit.py:*), Bash(python3 ~/.claude/skills/shared/gate_pushed_tree.py:*), Bash(python ~/.claude/skills/shared/gate_pushed_tree.py:*), Bash(python ~/.claude/conventions/check.py:*), Bash(python ~/.claude/conventions/versions/:*), Bash(python ~/.claude/hooks/check-install.py:*)
 ---
 

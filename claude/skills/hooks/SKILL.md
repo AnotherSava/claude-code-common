@@ -1,13 +1,10 @@
 ---
 name: hooks
 description: >-
-  Author, register, and optimize Claude Code hooks — choosing the event and matcher, keeping the
-  per-invocation cost down, and the never-raise contract every hook script owes the harness.
-  TRIGGER when: writing or editing a hook script, adding or changing a `hooks` entry in
-  `settings.json`, diagnosing a hook that never fires or fires too often, or deciding whether
-  something should be a hook at all.
-  DO NOT TRIGGER when: the subject is git hooks (pre-commit, pre-push), React hooks, or Win32
-  hooks — unrelated senses of the word.
+  Author, register and optimize Claude Code hooks.
+  TRIGGER when: writing or editing a hook script, changing a `hooks` entry in `settings.json`, a hook
+  never fires or fires too often, or deciding whether something should be a hook.
+  DO NOT TRIGGER when: git hooks (pre-commit, pre-push), React hooks or Win32 hooks.
 ---
 
 # Claude Code hook authoring

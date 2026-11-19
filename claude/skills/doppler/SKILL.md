@@ -1,13 +1,12 @@
 ---
 name: doppler
 description: >-
-  Store, read, and wire up env-style secrets in Doppler — resolve the real project/config, emit
-  copy-ready command templates, and keep plaintext values out of the transcript.
-  TRIGGER when: a task touches secrets, API keys, tokens, passwords, or `.env` files; before
-  suggesting where a key should live, handing the user a command that carries a secret value, or
-  running any `doppler` command; or the user has a secret on their clipboard.
-  DO NOT TRIGGER when: the secret is a whole document to commit encrypted (use `/transcrypt`), or the
-  project already uses a different secret manager (Vault, a cloud secret manager) — respect it.
+  Store, read and wire up env-style secrets in Doppler without leaking values into the transcript.
+  TRIGGER when: a task touches secrets, API keys, tokens, passwords or `.env` files; before deciding
+  where a key lives, handing over a command carrying a secret, or running any `doppler` command; or a
+  secret is on the clipboard.
+  DO NOT TRIGGER when: a whole document is to be committed encrypted (`/transcrypt`), or the project
+  uses another secret manager.
 allowed-tools: Bash(command -v doppler:*), Bash(doppler:*), Bash(test:*), Bash(grep:*), Bash(printf:*), Bash(node:*), Bash(python:*), Read, Write, Edit
 ---
 

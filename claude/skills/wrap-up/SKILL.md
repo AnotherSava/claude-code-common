@@ -1,15 +1,11 @@
 ---
 name: wrap-up
 description: >-
-  Close out a section of work with one approval. Runs review-auto over everything since the
-  last recorded review, reviews the session's transcript for unanswered questions, passed-over
-  concerns, memo-worthy ideas and unkept promises, drafts what /reflect would save, groups the
-  commits, then stops once on a single summary, or prints one line and goes on when there is
-  nothing to approve; one answer applies the dispositions, saves, commits and pushes. Then offers deploy, publish and release, and hands over to /clear.
-  TRIGGER when: the user runs /wrap-up, or says they are ready to finalize, close out,
-  or wrap up the current section of work.
-  DO NOT TRIGGER when: the user wants to push work as-is to test it (use /yolo), to park a
-  single idea (/memo), or to persist durable knowledge only (/reflect).
+  Close out a section of work with one approval: review, transcript check, /reflect draft, commits and
+  push, then offer deploy, publish and release.
+  TRIGGER when: /wrap-up, or the user is ready to finalize, close out or wrap up the current work.
+  DO NOT TRIGGER when: pushing work as-is to test it (/yolo), parking one idea (/memo), or only
+  persisting knowledge (/reflect).
 allowed-tools: Bash(python ~/.claude/skills/wrap-up/scripts/session_scan.py:*), Bash(bash ~/.claude/skills/wrap-up/scripts/ship_wrappers.sh), Bash(bash ~/.claude/skills/shared/project_memory.sh), Bash(bash ~/.claude/skills/wrap-up/scripts/release_candidates.sh), Bash(python ~/.claude/skills/memo/memos.py:*), Bash(git rev-parse:*), Bash(git status:*), Bash(git log:*), Bash(python ~/.claude/skills/shared/peer_relay.py:*), Bash(python3 ~/.claude/skills/shared/peer_relay.py:*), Bash(git fetch:*), Bash(git rev-list:*), Bash(git diff:*), Bash(git show:*), Bash(gh issue list:*), Bash(gh run list:*), Bash(gh run watch:*), Bash(gh run view:*), Bash(git apply:*), Bash(python3 ~/.claude/skills/shared/commit.py:*), Bash(python ~/.claude/skills/shared/commit.py:*), Bash(python3 ~/.claude/skills/shared/push.py:*), Bash(python ~/.claude/skills/shared/push.py:*), Bash(python3 ~/.claude/skills/shared/gate_pushed_tree.py:*), Bash(python ~/.claude/skills/shared/gate_pushed_tree.py:*), Bash(python3 ~/.claude/skills/shared/change_scope.py:*), Bash(python ~/.claude/skills/shared/change_scope.py:*), Bash(python3 ~/.claude/skills/shared/peer_repo_changes.py:*), Bash(python ~/.claude/skills/shared/peer_repo_changes.py:*), Bash(python3 ~/.claude/scripts/review_scope.py:*), Bash(python ~/.claude/scripts/review_scope.py:*), Bash(python3 ~/.claude/scripts/review_picker.py:*), Bash(python ~/.claude/scripts/review_picker.py:*), Bash(bash ~/.claude/scripts/audit-skill-tracking.sh), Workflow, Bash(bash ~/.claude/skills/deploy/scripts/run.sh:*), Bash(bash scripts/publish.sh), ListAgents, ToolSearch, SendMessage, Read, Edit, Write, Glob, Grep, Skill
 ---
 

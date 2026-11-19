@@ -1,6 +1,9 @@
 ---
 name: pull
-description: Bring this branch up to date with its upstream when the tree may be dirty — fast-forward, moving aside only local edits that collide. TRIGGER when: asked to pull or sync, or a session on the other machine asks for it after a push. DO NOT TRIGGER for a diverged branch or for committing.
+description: >-
+  Bring this branch up to date with its upstream when the tree may be dirty — fast-forward, moving aside
+  only local edits that collide. TRIGGER when: asked to pull or sync, or a session on the other machine
+  asks for it after a push. DO NOT TRIGGER for a diverged branch or for committing.
 allowed-tools: AskUserQuestion, Read, Grep, Bash(git fetch:*), Bash(git rev-parse:*), Bash(git rev-list:*), Bash(git log:*), Bash(git diff:*), Bash(git status:*), Bash(git show:*), Bash(git ls-files:*), Bash(git cat-file:*), Bash(git stash:*), Bash(git merge:*), Bash(git add:*), Bash(git reset:*), Bash(python3 ~/.claude/skills/shared/session_clean.py:*), Bash(python ~/.claude/skills/shared/session_clean.py:*)
 ---
 

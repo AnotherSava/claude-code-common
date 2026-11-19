@@ -1,13 +1,12 @@
 ---
 name: transcrypt
 description: >-
-  Encrypt files in a git repo with transcrypt using the shared Doppler-stored passphrase, or unlock
-  (decrypt) an already-encrypted repo after a fresh clone, or rotate the shared passphrase across repos.
-  Designated files stay plaintext in the working tree but are stored encrypted in git history.
-  TRIGGER when: the user wants to commit a file encrypted, protect a sensitive committed doc, set up
-  transcrypt in a repo, decrypt/unlock secret files after cloning, or rotate/rekey the shared key.
-  DO NOT TRIGGER when: the secret is an env-style credential (API key, token, password) that belongs in
-  Doppler/`.env`, not a committed file.
+  Encrypt committed files with transcrypt using the shared Doppler-stored passphrase, unlock a repo
+  after cloning, or rotate the passphrase.
+  TRIGGER when: committing a file or sensitive doc encrypted, setting up transcrypt,
+  decrypting/unlocking after a clone, or rotating/rekeying the shared key.
+  DO NOT TRIGGER when: an env-style credential (API key, token, password) that belongs in
+  Doppler/`.env`.
 allowed-tools: Bash(command -v transcrypt:*), Bash(transcrypt:*), Bash(curl:*), Bash(chmod:*), Bash(hash:*), Bash(git:*), Bash(doppler secrets get:*), Bash(mv:*), Bash(test:*), Bash(grep:*), Bash(printf:*), Bash(head:*), Read, Write, Edit
 ---
 

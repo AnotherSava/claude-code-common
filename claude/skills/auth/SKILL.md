@@ -1,17 +1,12 @@
 ---
 name: auth
 description: >-
-  Give a web app sign-in through the shared sign-in service: settle who sees what, install the sign-in
-  module, put the app behind it, register the app as a client of the service, and prove the round trip.
-  The module, its end-to-end test, the registration script and the recipes for an app's data live here;
-  every fact about the service itself (its address, the credential to register with) is read from a
-  checkout of the private `auth` repo beside the project.
-  TRIGGER when: an app is to get real sign-in in place of an edge password, a stubbed user or an
-  environment password; sign-in fails in an app that has the module; `module/signin.ts` is being changed
-  or re-installed; or someone asks, from inside an app, how a person is admitted to it or removed.
-  DO NOT TRIGGER when: the task is operating the sign-in service itself (its own repo's
-  `docs/operations.md`), authenticating a device or an API client with a token, or OAuth against a
-  third-party API.
+  Give a web app real sign-in through the shared sign-in service.
+  TRIGGER when: replacing an edge password, stubbed user or environment password with real sign-in;
+  sign-in fails in an app with the module; `module/signin.ts` is changed or re-installed; or someone
+  asks how a person is admitted to or removed from an app.
+  DO NOT TRIGGER when: operating the sign-in service itself, token auth for a device or API client, or
+  OAuth against a third-party API.
 allowed-tools: Bash, Read, Edit, Write, Glob, Grep, AskUserQuestion, Skill
 ---
 

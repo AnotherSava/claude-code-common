@@ -1,17 +1,12 @@
 ---
 name: heartbeat
 description: >-
-  Give a scheduled job a dead-man's switch, so its silence is noticed — derive the grace from the
-  job's own cadence, create the check through the healthchecks.io API, put the ping URL where the
-  job's other credentials live, wire the exit codes onto the right endpoints, and prove it by
-  watching the alarm fire. Also audits which scheduled jobs have no check at all.
-  TRIGGER when: a scheduled job (backup, self-check, sync, report) has nothing that would notice it
-  stopping; a heartbeat or dead-man's switch is being added, moved or diagnosed; a healthchecks.io
-  check must be created or its grace chosen; someone asks how a job's failure would be noticed, or
-  which jobs are unmonitored.
-  DO NOT TRIGGER when: the task is provisioning the backup itself (that is `backup`, which hands
-  over here at its last step); alerting for a web service's uptime rather than a scheduled job; or
-  choosing where a secret lives (that is `doppler`).
+  Give scheduled jobs a healthchecks.io dead-man's switch, and audit which jobs lack one.
+  TRIGGER when: a scheduled job (backup, sync, report) has nothing that notices it stopping; a heartbeat
+  is added, moved or diagnosed; a check's grace is chosen; or someone asks how a job's failure would be
+  noticed or which jobs are unmonitored.
+  DO NOT TRIGGER when: provisioning the backup (`backup`), uptime alerting for a web service, or where a
+  secret lives (`doppler`).
 allowed-tools: Bash, Read, Write, Edit, Glob, Grep
 ---
 

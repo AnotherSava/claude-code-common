@@ -1,14 +1,11 @@
 ---
 name: move-project
 description: >-
-  Move or rename the current project folder without losing the Claude Code data keyed to its old
-  path — session logs, memory and subagent history — by working out the new data directory name
-  and printing the moves, plus the call that carries the dashboard's data over, for the user to run
-  from outside the session.
-  TRIGGER when: the user wants to move, rename or relocate the folder of the project they are
-  working in, or asks what happens to their session history and memory if they do.
-  DO NOT TRIGGER when: renaming the GitHub repository without moving the local folder, moving
-  files around inside the project, or creating a new project (that is `github-create`).
+  Move or rename the current project folder without losing its Claude Code session logs and memory.
+  TRIGGER when: the user wants to move, rename or relocate the project folder, or asks what happens to
+  its history and memory if they do.
+  DO NOT TRIGGER when: renaming only the GitHub repo, moving files inside the project, or creating a
+  project (`github-create`).
 allowed-tools: Read, Glob, Bash(pwd:*), Bash(git rev-parse:*), Bash(test -e:*), Bash(test -d:*), Bash(test -L:*), Bash(readlink:*), Bash(ls:*), Bash(grep:*), Bash(uname:*)
 ---
 

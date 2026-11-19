@@ -1,14 +1,11 @@
 ---
 name: publish
 description: >-
-  Configure and run PUBLISH — ship a project outward to where its users are. The counterpart to `deploy`, which
-  only makes code runnable on this machine. Writes `config/publish.env` and a per-machine `scripts/publish.sh`
-  wrapper, then publishes and verifies the live result. Owns the WHOLE configuration path, including what a
-  co-tenant on a shared host must obtain from the `landlord` repo before its first publish can work (§2).
-  TRIGGER when: the user explicitly runs /publish or asks to set up publishing for a project.
-  DO NOT TRIGGER when: the user says "deploy", "ship", "redeploy" or similar in passing — publishing to production
-  is deliberate and must be named; when the task is tagging a version or cutting a GitHub Release (that is
-  `release`); or when the project publishes from CI only (see §1).
+  Configure and run PUBLISH: ship a project to its users (`deploy` only runs it on this machine),
+  including co-tenant setup from the `landlord` repo.
+  TRIGGER when: the user explicitly runs /publish or asks to set up publishing.
+  DO NOT TRIGGER when: "deploy", "ship" or "redeploy" is said in passing (publishing must be named),
+  tagging or cutting a GitHub Release (`release`), or CI-only publishing.
 allowed-tools: Bash(bash ~/.claude/skills/publish/scripts/publish-ssh-compose.sh), Bash(bash ~/.claude/skills/publish/scripts/await-publish.sh), Bash(bash scripts/publish.sh), Bash(publish), Bash(git status:*), Bash(git log:*), Bash(git rev-parse:*), Bash(git check-attr:*), Bash(git config:*), Bash(ssh:*), Bash(grep:*), Bash(test:*), Read, Write(config/publish.env), Write(scripts/publish.sh), Edit(~/.gitignore), AskUserQuestion
 ---
 

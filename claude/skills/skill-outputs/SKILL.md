@@ -1,13 +1,11 @@
 ---
 name: skill-outputs
 description: >-
-  Collect what a skill actually printed across every project's sessions since a given moment and
-  show it on one tailnet page, one tab per run and a toggle per section, so a change to a skill's
-  output format can be judged against real runs. Supports /wrap-up's summary so far.
-  TRIGGER when: the user wants to see, compare or review a skill's real outputs across sessions or
-  projects, such as "show every wrap-up summary since we changed it".
-  DO NOT TRIGGER when: the question is about one session's transcript, which is read directly, or
-  about Claude's reply style in general (that is `tune-output`).
+  Collect what a skill actually printed across all projects' sessions since a given moment onto one
+  tailnet page.
+  TRIGGER when: seeing or comparing a skill's real outputs across sessions or projects ("show every
+  wrap-up summary since we changed it").
+  DO NOT TRIGGER when: one session's transcript, or reply style in general (`tune-output`).
 allowed-tools: Bash(python3 ~/.claude/skills/skill-outputs/scripts/collect.py:*), Bash(python ~/.claude/skills/skill-outputs/scripts/collect.py:*), Bash(python3 ~/.claude/skills/shared/tailnet_publish.py:*), Bash(python ~/.claude/skills/shared/tailnet_publish.py:*), Bash(git -C ~/.claude/skills/wrap-up log:*), Read, Edit, Write
 ---
 

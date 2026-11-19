@@ -1,13 +1,11 @@
 ---
 name: publish-chrome-extension
 description: >-
-  Republish a new release of an existing Chrome extension to the Chrome Web Store: downloads the
-  release zip from GitHub, checks what changed since the version the store already holds, uploads
-  the zip via the Web Store API, and submits it for review.
-  TRIGGER when: the user wants to publish, republish, or upload a new extension version to the
-  Chrome Web Store, typically right after /release.
-  DO NOT TRIGGER when: creating a brand-new store listing, editing store listing content
-  (description, screenshots), or building/tagging a release (use /release for that).
+  Upload a new release of an existing Chrome extension to the Chrome Web Store and submit it for review.
+  TRIGGER when: publishing, republishing or uploading a new extension version to the Web Store, often
+  right after /release.
+  DO NOT TRIGGER when: creating a new store listing, editing listing content, or building/tagging a
+  release (/release).
 allowed-tools: AskUserQuestion, Read, Write, Edit, Bash(bash ~/.claude/skills/publish-chrome-extension/scripts/cws.sh:*), Bash(gh release download:*), Bash(gh release view:*), Bash(unzip -p:*), Bash(mkdir -p /tmp/cws-publish:*), Bash(ls /tmp/cws-publish:*), Bash(git diff:*), Bash(git log:*), Bash(git tag:*), Bash(git fetch --tags:*)
 ---
 
