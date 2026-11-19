@@ -428,7 +428,7 @@ async function fixerChecksItsOwnDiff() {
 const packed = changed => ({ snapshot: label => label.startsWith('pack:') ? { exit_status: 0, output: `/g/review-pack/${label.slice(5)}.diff\nchanged-lines: ${changed}\n` } : { exit_status: 0, output: `${label.includes(':before:') ? 'c'.repeat(40) : 'd'.repeat(40)}\n` } })
 const PACKED = packed(40)
 
-async function laterRoundsUseOneReviewer() {
+async function reviewerCountFollowsDiffSize() {
   const lenses = [{ key: 'bugs', prompt: 'find bugs' }, { key: 'docs', prompt: 'find stale docs' }]
   const tagged = { ...finding('second-round'), lens: 'docs' }
   const { result, calls } = await run({ ...ARGS, lenses, review_bookmark: BOOKMARK }, { 1: [FIXABLE], 2: [tagged] }, { ...FIXABLE_VERDICT, 'defect second-round': verdict(true, false, 'rare', 'cosmetic') })
@@ -498,7 +498,7 @@ async function refusesNonBooleanFix() {
 // ~/.claude/workflows, so a CRLF file breaks every run while git, normalizing to LF, shows nothing changed.
 check('the workflow file carries no carriage return', SOURCE.includes('\r'), false)
 
-for (const test of [triageAndStop, stopsAfterQuietRound, nothingFoundCallsNoFixer, capsAtDefaultRounds, laterRoundsReviewTheFixDiff, noGate, refusesBadArgs, unverifiedIsNotRefuted, verifierThatThrows, deadFixerStopsTheLoop, skippedFixIsNotReportedAsFixed, silentLensIsReported, readOnly, readOnlyGapIsNotRecorded, noBookmarkPassed, fixModeRecording, polishKept, polishNothingToDo, polishTakenBack, polishRevertIncomplete, deadPolishPass, polishOnlyAfterCleanReview, refusesNonBooleanFix, fixerChecksItsOwnDiff, laterRoundsUseOneReviewer, roundsReadOnePreparedDiff, lowPriorFindingsShareAVerifier]) {
+for (const test of [triageAndStop, stopsAfterQuietRound, nothingFoundCallsNoFixer, capsAtDefaultRounds, laterRoundsReviewTheFixDiff, noGate, refusesBadArgs, unverifiedIsNotRefuted, verifierThatThrows, deadFixerStopsTheLoop, skippedFixIsNotReportedAsFixed, silentLensIsReported, readOnly, readOnlyGapIsNotRecorded, noBookmarkPassed, fixModeRecording, polishKept, polishNothingToDo, polishTakenBack, polishRevertIncomplete, deadPolishPass, polishOnlyAfterCleanReview, refusesNonBooleanFix, fixerChecksItsOwnDiff, reviewerCountFollowsDiffSize, roundsReadOnePreparedDiff, lowPriorFindingsShareAVerifier]) {
   try { await test() } catch (error) { failures.push(`  FAIL ${test.name} threw: ${error.stack}`) }
 }
 for (const line of failures) console.log(line)
