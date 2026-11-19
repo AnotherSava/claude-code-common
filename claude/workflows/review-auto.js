@@ -1,13 +1,13 @@
 export const meta = {
   name: 'review-auto',
   description: 'Review a change through given lenses, verify each finding for truth and realism, triage in code, and fix only what earns code',
-  whenToUse: 'Any automated review loop, fixing what it finds or, with fix: false, read-only. args: {scope, lenses: [{key, prompt}], context, gate, fix, rounds}; scope and lenses are required, so before calling read ~/.claude/skills/shared/review-auto-args.md and build the whole object from the conversation, reading plain text such as "cap 6" as rounds. rounds caps the review-and-fix rounds, 10 when absent, as a runaway guard: rounds after the first review only the diff the previous fixes made, so a run converges well before it; a run that reaches the cap ends with one verify-only round over the last fixes, which fixes nothing and records the review only when it finds nothing that earns code. In fix mode a converged run then polishes the change with /clean-code and /docs-relevance, reviews the polish, and reverts it whole if anything fails, so /wrap-up has no code or prose left to polish (screenshot-relevance still runs there); a polish pass that returns nothing is the exception, left unreverted in the tree and unrecorded, since what it edited is unknown. Returns the full triage table for the user, never just "all fixed".',
+  whenToUse: 'Any automated review loop, fixing what it finds or, with fix: false, read-only. Before calling, read ~/.claude/skills/shared/review-auto-args.md and build args {scope, lenses, context, gate, fix, rounds} from the conversation, reading plain text such as "cap 6" as rounds. In fix mode a converged run also polishes with /clean-code and /docs-relevance. Returns the full triage table for the user, never just "all fixed".',
   phases: [
-    { title: 'Review', detail: 'one reviewer per lens; every finding names who reaches it, how often, and what it costs' },
-    { title: 'Verify', detail: 'one skeptic per finding, judging truth and realism' },
+    { title: 'Review', detail: 'one reviewer per lens, or one carrying every lens over a small diff; every finding names who reaches it, how often, and what it costs' },
+    { title: 'Verify', detail: 'one skeptic per finding, judging truth and realism; findings rated theoretical with nobody reaching them share one per lens' },
     { title: 'Fix', detail: 'one agent applies the fix-class findings, adds a log line or doc sentence for note-class, runs the gate' },
     { title: 'Polish', detail: 'once the review converged with no gap: /clean-code, then /docs-relevance over the polished code, then the gate' },
-    { title: 'Polish review', detail: 'every lens over the polish diff alone; a confirmed defect or a gap reverts the whole polish' },
+    { title: 'Polish review', detail: 'every lens over the polish diff alone, sized like any round; a confirmed defect or a gap reverts the whole polish' },
     { title: 'Bookmark', detail: 'one agent records which tree the review covered, when it covered all of it' },
   ],
 }
@@ -56,6 +56,13 @@ const FINDINGS = {
   required: ['findings'],
 }
 
+// The combined reviewer of a small diff carries every lens, so each finding names the one it falls under: the
+// verifier is briefed from that lens and the triage row is filed under it.
+function findingsFor(keys) {
+  const items = FINDINGS.properties.findings.items
+  return { ...FINDINGS, properties: { findings: { ...FINDINGS.properties.findings, items: { ...items, properties: { ...items.properties, lens: { type: 'string', enum: keys } }, required: [...items.required, 'lens'] } } } }
+}
+
 const VERDICT = {
   type: 'object',
   properties: {
@@ -68,6 +75,12 @@ const VERDICT = {
     reasoning: { type: 'string' },
   },
   required: ['real', 'reached', 'reached_by', 'frequency', 'cost_unhandled', 'duplicates_logic', 'reasoning'],
+}
+
+const VERDICTS = {
+  type: 'object',
+  properties: { verdicts: { type: 'array', items: { ...VERDICT, properties: { id: { type: 'integer' }, ...VERDICT.properties }, required: ['id', ...VERDICT.required] } } },
+  required: ['verdicts'],
 }
 
 const FIX_REPORT = {
@@ -134,8 +147,11 @@ const FIX = args.fix !== false
 // other. Read-only runs one round whatever this says, for the reason given above `FIX`.
 const MAX_ROUNDS = args.rounds ?? 10
 // Set by the review-scope hook (claude/hooks/review-scope.py), never by the caller: the repo, the commit the scope runs
-// from, and the tree at launch. Absent when the hook could not trust a base, and then nothing is recorded.
-const BOOKMARK = args.review_bookmark && typeof args.review_bookmark === 'object' && ['repo', 'base', 'tree'].every(k => typeof args.review_bookmark[k] === 'string') ? args.review_bookmark : null
+// from, the tree at launch, and `called`, the scope before the hook appended the unreviewed commits to it. Absent when
+// the hook could not trust a base, and then nothing is recorded. A bookmark the hook wrote before it added `called` is
+// also treated as absent: a run launched then and resumed by scriptPath reviews the whole scope every round, records
+// nothing and blames the hook. Resuming it by name lets the hook rewrite the bookmark.
+const BOOKMARK = args.review_bookmark && typeof args.review_bookmark === 'object' && ['repo', 'base', 'tree', 'called'].every(k => typeof args.review_bookmark[k] === 'string') ? args.review_bookmark : null
 
 // agent() returns null when the user skips a call or the subagent dies after its retries, and throws once a budget is
 // spent. Both become null here, with a log line naming the call, so a throw cannot reject the run and lose the table.
@@ -158,21 +174,60 @@ async function readOnlyCall(prompt, opts) {
   return call(prompt, { ...opts, label: `${opts.label}:retry` })
 }
 
+// The diff each round reads, written once by `review_scope.py pack` so no reviewer or verifier spends its first dozen
+// turns re-running the same diff commands. Null when no snapshot bounds the scope; the agents then find it themselves.
+// Above SMALL_DIFF every agent reading the whole pack would pay for files outside its lens or finding, and one pack
+// past the read limit would not fit at all, so a large pack is searched and read by file section instead.
+function packLine(pack) {
+  if (!pack) return ''
+  const read = pack.changed <= SMALL_DIFF
+    ? 'Read it whole before anything else, in as few calls as its size allows'
+    : `It is ${pack.changed} changed lines, too large to read whole: list its files by searching it for \`^diff --git\`, then read only the sections your lens or finding needs`
+  return `\n\nA prepared diff of the change is at ${pack.path}. ${read}, and use it in place of running the diff yourself; the Scope line above still decides what you review. Batch the commands you do run rather than one per turn.`
+}
+
+// The fixer's self-check reads its diff through the same lens text the combined reviewer gets, so both format it here.
+function lensList(lenses) {
+  return lenses.map(l => `- ${l.key}: ${l.prompt}`).join('\n')
+}
+
 // Later rounds see every earlier finding with its outcome, not only the fixes: a reviewer told only what was fixed
 // re-finds the dropped and rare cases in new words, and a fresh skeptic can rate them up into code.
-function reviewPrompt(lens, round, earlier, scope) {
+// `lenses` is one lens, or every lens when `reviewRound` gives a small diff a single reviewer.
+function reviewPrompt(lenses, round, earlier, scope, pack) {
   const line = r => `- [${r.outcome ? `${r.disposition}, ${r.outcome}` : r.disposition}] ${r.file}: ${r.summary}`
   const settled = earlier.filter(r => r.disposition !== 'unverified')
   const unverified = earlier.filter(r => r.disposition === 'unverified')
   const later = round > 1
     ? `\n\nRound ${round}. Earlier rounds already triaged the findings below, and the scope now also includes the code their applied fixes added. Do not re-report any of them in any wording, including the dropped and refuted ones; a finding is new only if it lies in code a fix added or is absent from this list:\n${settled.map(line).join('\n')}${unverified.length ? `\nThese were never verified, so report them again if they still hold:\n${unverified.map(r => `- ${r.file}: ${r.summary}`).join('\n')}` : ''}`
     : ''
-  return `${CONTEXT}\n\nScope: ${scope}\n\nLens (${lens.key}): ${lens.prompt}${later}\n\n${READ_ONLY} ${HANDS_OFF}\n\nReport only concrete defects. For each one say who reaches it: the writer, caller or user action that puts the code in that state, with evidence (a call site, a log line, a stored record). A case you can construct but cannot show anyone reaching gets reached_by "none found" and frequency "theoretical" — report it that way rather than leaving it out, so the triage can see it. Rate frequency (common, plausible, rare, theoretical) and the cost of leaving it unhandled (data_loss, crash, wrong_output, identity_leak, recoverable, cosmetic); ${WRONG_OUTPUT}. No style nits.`
+  const lensText = lenses.length === 1
+    ? `Lens (${lenses[0].key}): ${lenses[0].prompt}`
+    : `Review through every one of these lenses, and give each finding the key of the lens it falls under:\n${lensList(lenses)}`
+  return `${CONTEXT}\n\nScope: ${scope}${packLine(pack)}\n\n${lensText}${later}\n\n${READ_ONLY} ${HANDS_OFF}\n\nReport only concrete defects. For each one say who reaches it: the writer, caller or user action that puts the code in that state, with evidence (a call site, a log line, a stored record). A case you can construct but cannot show anyone reaching gets reached_by "none found" and frequency "theoretical" — report it that way rather than leaving it out, so the triage can see it. Rate frequency (common, plausible, rare, theoretical) and the cost of leaving it unhandled (data_loss, crash, wrong_output, identity_leak, recoverable, cosmetic); ${WRONG_OUTPUT}. No style nits.`
 }
 
-function verifyPrompt(finding, lens, scope) {
-  return `${CONTEXT}\n\nScope: ${scope}\n\n${READ_ONLY} ${HANDS_OFF}\n\nAdversarially verify this finding from the ${lens.key} lens. Judge two things separately.\n1. Truth: does the code mishandle the scenario as described? Reproduce it in scratch space or show why it cannot happen, is already handled, or is a deliberate documented limit. real=false if you cannot demonstrate it.\n2. Realism: find the evidence that something actually puts the code in this state — a call site that passes that input, a log line, a stored record, a user report. A reviewer confirming the code mishandles a case is not evidence that anyone is in it. reached=false when you find none. Then give your own frequency and cost ratings; do not copy the reviewer's.\n3. Duplication: set duplicates_logic true when the defect is that ${DUPLICATION}. Your frequency and cost ratings then describe the wrong thing, so give them as you see them and let the flag carry the rest.\n\nFinding: ${finding.summary}\nFile: ${finding.file}\nScenario: ${finding.failure_scenario}\nReviewer's reached_by: ${finding.reached_by}\nReviewer's ratings: ${finding.frequency}, ${finding.cost_unhandled}`
+// What a verifier judges, held once for the single verifier and the batched one, so the two cannot drift apart.
+const VERIFY_STEPS = `Judge two things separately.\n1. Truth: does the code mishandle the scenario as described? Reproduce it in scratch space or show why it cannot happen, is already handled, or is a deliberate documented limit. real=false if you cannot demonstrate it.\n2. Realism: find the evidence that something actually puts the code in this state — a call site that passes that input, a log line, a stored record, a user report. A reviewer confirming the code mishandles a case is not evidence that anyone is in it. reached=false when you find none. Then give your own frequency and cost ratings; do not copy the reviewer's.\n3. Duplication: set duplicates_logic true when the defect is that ${DUPLICATION}. Your frequency and cost ratings then describe the wrong thing, so give them as you see them and let the flag carry the rest.`
+
+function findingBlock(finding) {
+  return `Finding: ${finding.summary}\nFile: ${finding.file}\nScenario: ${finding.failure_scenario}\nReviewer's reached_by: ${finding.reached_by}\nReviewer's ratings: ${finding.frequency}, ${finding.cost_unhandled}`
 }
+
+function verifyPrompt(finding, lens, scope, pack) {
+  return `${CONTEXT}\n\nScope: ${scope}${packLine(pack)}\n\n${READ_ONLY} ${HANDS_OFF}\n\nAdversarially verify this finding from the ${lens.key} lens. ${VERIFY_STEPS}\n\n${findingBlock(finding)}`
+}
+
+// Findings the reviewer itself rated theoretical with nobody shown reaching them: one verifier judges all of a
+// reviewer's batch, where one each would pay a preamble apiece for findings that mostly end dropped. Each still gets
+// its own verdict, since a finding the batch shows reached can earn a fix like any other.
+function verifyBatchPrompt(findings, lens, scope, pack) {
+  return `${CONTEXT}\n\nScope: ${scope}${packLine(pack)}\n\n${READ_ONLY} ${HANDS_OFF}\n\nAdversarially verify each of these ${findings.length} findings from the ${lens.key} lens, separately: judge each as if it were the only one, and let no verdict decide another. For each, ${VERIFY_STEPS.charAt(0).toLowerCase()}${VERIFY_STEPS.slice(1)}\n\nReturn one verdict per finding, with its number as id.\n\n${findings.map((f, i) => `[${i + 1}] ${findingBlock(f)}`).join('\n\n')}`
+}
+
+// The next round's reviewers read the fixer's diff through these same lenses, so a fix that repeats a rule in four files
+// or adds its own unhandled case comes back as a new finding, round after round; checked here, it costs one re-read.
+const SELF_CHECK = `Before reporting, read your own diff through each of the review's lenses and correct what any of them would flag:\n${lensList(args.lenses)}\n`
 
 // Each item carries the skeptic's evidence rather than the reviewer's: the reviewer may have had none for a case the
 // skeptic showed reached, and the skeptic's reasoning names the case it confirmed, which can be narrower. A round with
@@ -186,7 +241,7 @@ function fixPrompt(fixes, noted) {
   const gate = GATE
     ? `When done, run the project's gate exactly as \`${GATE}\` with its output redirected to a file and no pipe after it, and report its exit status as gate_exit. A pipe would replace the gate's exit status with the last command's. Do not trim or filter what you read to decide pass or fail.`
     : 'No gate command was given: report gate_exit null and say so in gate_tail.'
-  return `${CONTEXT}\n\nScope: ${args.scope}\n\n${HANDS_OFF}\n\n${sections.join('\n\n')}\n\nTouch nothing beyond what these items need. If an item turns out not to need a change, skip it and say why. ${gate}`
+  return `${CONTEXT}\n\nScope: ${args.scope}\n\n${HANDS_OFF}\n\n${sections.join('\n\n')}\n\nTouch nothing beyond what these items need. If an item turns out not to need a change, skip it and say why. ${SELF_CHECK} ${gate}`
 }
 
 // Each fix- and note-class row records what the fixer did with it, read from its report rather than assumed.
@@ -218,42 +273,78 @@ let stopReason = `hard cap of ${MAX_ROUNDS} rounds reached`
 // items in old code. Without a snapshot to bound that diff (no bookmark, or a snapshot that failed) a round falls back
 // to the whole scope, which is slower but misses nothing.
 let scope = args.scope
+let pack = null
+// Set where the loop bounds `scope` to one round's fix diff, so `reviewRound` reads the decision instead of re-deriving it.
+let narrow = false
 // The tree the last fixer left, as its snapshot saw it: what the bookmark records after fixes. The live tree would also
 // take in anything another writer changed outside a fixer's window, which no diff-scoped round ever read.
 let lastFixed = null
 let quiet = false
 let capped = false
 
-// One reviewer per lens, one skeptic per new finding. `tag` names the round in labels and ids; the polish review passes
+// A diff this small is read in full by one reviewer carrying every lens, where one per lens would each pay the same
+// preamble and re-read the same few lines. Above it, a single reviewer's attention per lens thins, so each lens gets
+// its own. A first estimate, to be tuned against runs: lines added plus removed, as `review_scope.py pack` counts them.
+const SMALL_DIFF = 200
+
+// One reviewer per lens, or one carrying every lens over a small diff, and one skeptic per new finding. Without a pack
+// the size is unknown, and a `narrow` scope (a fix-diff round, bounded by one round's fixes, or the polish diff,
+// bounded by one clean-up pass) is taken as small. `tag` names the round in labels and ids; the polish review passes
 // its own `seen`, so a finding worded like an earlier round's is still verified against the polish diff.
-async function reviewRound({ round, tag, scope, earlier, seen, reviewPhase, verifyPhase }) {
+async function reviewRound({ round, tag, scope, pack, narrow, earlier, seen, reviewPhase, verifyPhase }) {
   const silent = []
+  const small = pack ? pack.changed <= SMALL_DIFF : narrow
+  const combined = small && args.lenses.length > 1
+  const groups = combined ? [{ key: 'all', lenses: args.lenses }] : args.lenses.map(l => ({ key: l.key, lenses: [l] }))
+  const byKey = new Map(args.lenses.map(l => [l.key, l]))
   const rows = (await pipeline(
-    args.lenses,
+    groups,
     // The silent lens is recorded here rather than in the next stage: the runtime does not run a later stage for an item
     // whose stage returned null, so a check there never sees a dead reviewer and the round reads as clean.
-    async lens => {
-      const review = await readOnlyCall(reviewPrompt(lens, round, earlier, scope), { label: `review:${lens.key}:${tag}`, phase: reviewPhase, schema: FINDINGS })
+    async group => {
+      const schema = combined ? findingsFor(args.lenses.map(l => l.key)) : FINDINGS
+      const review = await readOnlyCall(reviewPrompt(group.lenses, round, earlier, scope, pack), { label: `review:${group.key}:${tag}`, phase: reviewPhase, schema })
       if (review) return review
-      silent.push(lens.key)
-      log(`${tag}: the ${lens.key} reviewer returned nothing, so that lens went unreviewed`)
+      silent.push(...group.lenses.map(l => l.key))
+      log(`${tag}: the ${group.key} reviewer returned nothing, so ${combined ? 'no lens was' : 'that lens went'} reviewed`)
       return { findings: [] }
     },
-    (review, lens) => parallel((review.findings || [])
-      .map(f => ({ f, key: `${f.file}::${f.summary}` }))
-      .filter(({ key }) => { if (seen.has(key)) return false; seen.add(key); return true })
-      .map(({ f, key }) => () => readOnlyCall(verifyPrompt(f, lens, scope), { label: `verify:${lens.key}:${tag}`, phase: verifyPhase, schema: VERDICT })
-        .then(v => {
-          if (!v) seen.delete(key)
-          return { ...f, lens: lens.key, round: tag, verdict: v, disposition: triage(v) }
-        }))),
+    async (review, group) => {
+      const found = (review.findings || [])
+        .map(f => ({ f, lens: combined ? byKey.get(f.lens) : group.lenses[0], key: `${f.file}::${f.summary}` }))
+        .filter(({ key }) => { if (seen.has(key)) return false; seen.add(key); return true })
+      const row = ({ f, lens, key }, v) => {
+        if (!v) seen.delete(key)
+        return { ...f, lens: lens ? lens.key : f.lens, round: tag, verdict: v, disposition: triage(v) }
+      }
+      // The schema's enum should make a lens the run does not have impossible. Should one arrive anyway, the finding has
+      // no lens to brief a verifier from, so it is left unverified, which keeps the bookmark from moving.
+      const stray = found.filter(item => !item.lens)
+      stray.forEach(item => log(`${tag}: a finding named the unknown lens "${item.f.lens}", so it went unverified`))
+      const fresh = found.filter(item => item.lens)
+      const lowPrior = ({ f }) => f.frequency === 'theoretical' && /^none found/i.test(f.reached_by.trim())
+      const single = item => () => readOnlyCall(verifyPrompt(item.f, item.lens, scope, pack), { label: `verify:${item.lens.key}:${tag}`, phase: verifyPhase, schema: VERDICT }).then(v => row(item, v))
+      // Batched per lens, so each verifier is briefed from the one lens all its findings fall under.
+      const byLens = new Map()
+      for (const item of fresh.filter(lowPrior)) byLens.set(item.lens.key, [...(byLens.get(item.lens.key) || []), item])
+      const batches = [...byLens.values()]
+      const batch = items => async () => {
+        const answer = await readOnlyCall(verifyBatchPrompt(items.map(i => i.f), items[0].lens, scope, pack), { label: `verify-batch:${items[0].lens.key}:${tag}`, phase: verifyPhase, schema: VERDICTS })
+        // A finding the answer skips, or numbers twice, has no verdict of its own and goes unverified.
+        const ids = (answer?.verdicts || []).map(v => v.id)
+        return items.map((item, i) => row(item, ids.filter(id => id === i + 1).length === 1 ? answer.verdicts.find(v => v.id === i + 1) : null))
+      }
+      const thunks = [...fresh.filter(item => !lowPrior(item)).map(single), ...batches.map(items => items.length === 1 ? single(items[0]) : batch(items))]
+      return [...stray.map(item => row(item, null)), ...(await parallel(thunks)).flat()]
+    },
   )).flat().filter(Boolean)
   rows.forEach((r, i) => { r.id = `${tag}-${i + 1}` })
   return { rows, silent }
 }
 
+if (BOOKMARK) pack = await makePack(BOOKMARK.base, null, 'pack:r1')
 for (let round = 1; round <= MAX_ROUNDS; round++) {
-  const { rows, silent } = await reviewRound({ round, tag: `r${round}`, scope, earlier: table, seen, reviewPhase: 'Review', verifyPhase: 'Verify' })
+  const { rows, silent } = await reviewRound({ round, tag: `r${round}`, scope, pack, narrow, earlier: table, seen, reviewPhase: 'Review', verifyPhase: 'Verify' })
   rows.forEach(r => { r.round = round })
   silentLenses.push(...silent.map(lens => ({ round, lens })))
   table.push(...rows)
@@ -283,7 +374,9 @@ for (let round = 1; round <= MAX_ROUNDS; round++) {
   const report = await fixRound(round, fixes, noted)
   const after = before ? await snapshot(`snapshot:after:r${round}`, 'Snapshot') : null
   lastFixed = after
-  scope = before && after ? `Only the changes round ${round}'s fixes made to ${BOOKMARK.repo}, and nothing else: \`git -C "${BOOKMARK.repo}" diff ${before} ${after}\`. Everything outside that diff was already reviewed. The original scope, for context: ${args.scope}` : args.scope
+  narrow = Boolean(before && after)
+  pack = narrow ? await makePack(before, after, `pack:r${round + 1}`) : null
+  scope = narrow ? `Only the changes round ${round}'s fixes made to ${BOOKMARK.repo}, and nothing else: \`git -C "${BOOKMARK.repo}" diff ${before} ${after}\`. Everything outside that diff was already reviewed. The original scope, for context: ${BOOKMARK.called}` : args.scope
   if (!report) {
     stopReason = `round ${round}'s fixer returned nothing, so none of its fixes were applied`
     break
@@ -300,7 +393,7 @@ for (let round = 1; round <= MAX_ROUNDS; round++) {
 // exists, and the run counts as converged; what it does find stays in the table for the user, unapplied.
 if (capped) {
   const round = MAX_ROUNDS + 1
-  const { rows, silent } = await reviewRound({ round, tag: `r${round}`, scope, earlier: table, seen, reviewPhase: 'Review', verifyPhase: 'Verify' })
+  const { rows, silent } = await reviewRound({ round, tag: `r${round}`, scope, pack, narrow, earlier: table, seen, reviewPhase: 'Review', verifyPhase: 'Verify' })
   rows.forEach(r => { r.round = round })
   silentLenses.push(...silent.map(lens => ({ round, lens })))
   table.push(...rows)
@@ -330,6 +423,16 @@ function runCommand(command, label, phase) {
   return call(`${HANDS_OFF} Run this one command and nothing else (on Windows the interpreter is \`python\`, not \`python3\`), then report its exit status and its output verbatim:\n\n${command}`, { label, phase, schema: COMMAND_REPORT })
 }
 
+
+// The path and line count `review_scope.py pack` printed, or null when it failed or either is missing: a round without
+// a pack still reviews, only slower.
+async function makePack(base, tree, label) {
+  const done = await runCommand(`${SCOPE_SCRIPT} pack --repo "${BOOKMARK.repo}" --base ${base}${tree ? ` --tree ${tree}` : ''}`, label, 'Snapshot')
+  const lines = done?.exit_status === 0 ? done.output.split('\n').map(l => l.trim()) : []
+  const paths = lines.filter(l => l.endsWith('.diff'))
+  const counts = lines.map(l => l.match(/^changed-lines: (\d+)$/)).filter(Boolean)
+  return paths.length === 1 && counts.length === 1 ? { path: paths[0], changed: Number(counts[0][1]) } : null
+}
 
 async function snapshot(label, phase = 'Polish') {
   const done = await runCommand(`${SCOPE_SCRIPT} snapshot --repo "${BOOKMARK.repo}"`, label, phase)
@@ -399,7 +502,8 @@ async function polish() {
   }
 
   const scope = `Only the changes a clean-up pass just made to ${BOOKMARK.repo}, and nothing else: \`git -C "${BOOKMARK.repo}" diff ${before} ${after}\`. A clean-up must not change behaviour, so any behaviour it changed is a defect, however small.`
-  const { rows, silent } = await reviewRound({ round: 1, tag: 'polish', scope, earlier: [], seen: new Set(), reviewPhase: 'Polish review', verifyPhase: 'Polish review' })
+  const pack = await makePack(before, after, 'polish:pack')
+  const { rows, silent } = await reviewRound({ round: 1, tag: 'polish', scope, pack, narrow: true, earlier: [], seen: new Set(), reviewPhase: 'Polish review', verifyPhase: 'Polish review' })
   result.rows.push(...rows)
   if (silent.length) return takeBack(`the ${silent.join(', ')} lens returned nothing over the polish`)
   if (rows.some(r => r.disposition === 'unverified')) return takeBack('a finding in the polish went unverified')

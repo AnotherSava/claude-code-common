@@ -79,6 +79,14 @@ async function run(args, reviews, verdicts, { fixer, reviewer, verifier, polish 
       if (reviewer) { const answer = reviewer(lens, round); if (answer !== undefined) return answer }
       return { findings: reviews[round] || [] }
     }
+    if ((opts.phase === 'Verify' || opts.phase === 'Polish review') && opts.label.startsWith('verify-batch:')) {
+      const answers = [...prompt.matchAll(/^\[(\d+)\] Finding: (.*)$/gm)].map(([, id, summary]) => {
+        const answer = verifier ? verifier(summary, round) : undefined
+        const v = answer !== undefined ? answer : verdicts[summary] || null
+        return v && { id: Number(id), ...v }
+      })
+      return { verdicts: answers.filter(Boolean) }
+    }
     if (opts.phase === 'Verify' || opts.phase === 'Polish review') {
       const summary = (prompt.match(/Finding: (.*)/) || [])[1]
       if (verifier) { const answer = verifier(summary, round); if (answer !== undefined) return answer }
@@ -190,6 +198,9 @@ async function laterRoundsReviewTheFixDiff() {
   const second = fixed.calls.filter(c => c.phase === 'Review' && c.label.endsWith(':r2'))
   check('round two reviews only the diff round one\'s fixes made', second.length > 0 && second.every(c => c.prompt.includes(`diff ${'c'.repeat(40)} ${'d'.repeat(40)}`)), true)
   check('round one still reviews the whole scope', fixed.calls.filter(c => c.phase === 'Review' && c.label.endsWith(':r1')).every(c => c.prompt.includes('Scope: the diff\n')), true)
+  const widened = await run({ ...ARGS, scope: 'the diff\n\nAlso in scope: commit 1234', review_bookmark: BOOKMARK }, { 1: [FIXABLE], 2: [] }, FIXABLE_VERDICT)
+  const reviewsOf = round => widened.calls.filter(c => c.phase === 'Review' && c.label.endsWith(`:r${round}`))
+  check('round two quotes the scope as called, without the commits the hook appended', [reviewsOf(1).every(c => c.prompt.includes('Also in scope')), reviewsOf(2).length > 0 && reviewsOf(2).every(c => !c.prompt.includes('Also in scope'))], [true, true])
 
   const blind = await run({ ...ARGS, review_bookmark: BOOKMARK }, { 1: [FIXABLE], 2: [] }, FIXABLE_VERDICT, { polish: { snapshot: () => ({ exit_status: 1, output: 'failed' }) } })
   check('a failed snapshot falls back to the whole scope', blind.calls.filter(c => c.phase === 'Review' && c.label.endsWith(':r2')).every(c => c.prompt.includes('Scope: the diff\n')), true)
@@ -280,7 +291,7 @@ async function silentLensIsReported() {
 }
 
 // What the review-scope hook passes. The workflow only ever reads it, so any strings do.
-const BOOKMARK = { repo: '/scratch/repo', base: 'b45e', tree: '7ree' }
+const BOOKMARK = { repo: '/scratch/repo', base: 'b45e', tree: '7ree', called: 'the diff' }
 const bookmarkCalls = calls => calls.filter(c => c.phase === 'Bookmark')
 
 async function readOnly() {
@@ -406,6 +417,77 @@ async function polishOnlyAfterCleanReview() {
   check('without a gate the polish goes straight to its review', [polishCalls(noGate.calls, 'gate').length, noGate.result.polish.detail], [0, 'kept: 2 change(s), reviewed'])
 }
 
+async function fixerChecksItsOwnDiff() {
+  const lenses = [{ key: 'bugs', prompt: 'find bugs' }, { key: 'docs', prompt: 'find stale docs' }]
+  const { calls } = await run({ ...ARGS, lenses }, { 1: [FIXABLE], 2: [] }, FIXABLE_VERDICT)
+  const fix = calls.find(c => c.phase === 'Fix').prompt
+  check('the fixer re-reads its diff through every lens before reporting', fix.includes('read your own diff through each') && fix.includes('- bugs: find bugs') && fix.includes('- docs: find stale docs'), true)
+}
+
+// The pack is a path ending .diff; anything else the pack agent prints, or a failure, leaves the round without one.
+const packed = changed => ({ snapshot: label => label.startsWith('pack:') ? { exit_status: 0, output: `/g/review-pack/${label.slice(5)}.diff\nchanged-lines: ${changed}\n` } : { exit_status: 0, output: `${label.includes(':before:') ? 'c'.repeat(40) : 'd'.repeat(40)}\n` } })
+const PACKED = packed(40)
+
+async function laterRoundsUseOneReviewer() {
+  const lenses = [{ key: 'bugs', prompt: 'find bugs' }, { key: 'docs', prompt: 'find stale docs' }]
+  const tagged = { ...finding('second-round'), lens: 'docs' }
+  const { result, calls } = await run({ ...ARGS, lenses, review_bookmark: BOOKMARK }, { 1: [FIXABLE], 2: [tagged] }, { ...FIXABLE_VERDICT, 'defect second-round': verdict(true, false, 'rare', 'cosmetic') })
+  const r1 = calls.filter(c => c.phase === 'Review' && c.label.endsWith(':r1')).map(c => c.label).sort()
+  const r2 = calls.filter(c => c.phase === 'Review' && c.label.endsWith(':r2'))
+  check('round one runs one reviewer per lens', r1, ['review:bugs:r1', 'review:docs:r1'])
+  check('a fix-diff round runs one reviewer carrying every lens', [r2.map(c => c.label), r2.every(c => c.prompt.includes('- bugs: find bugs') && c.prompt.includes('- docs: find stale docs'))], [['review:all:r2'], true])
+  check('and its finding is verified and filed under the lens it names', [calls.some(c => c.phase === 'Verify' && c.label === 'verify:docs:r2'), result.triage.find(r => r.finding === 'defect second-round')?.lens], [true, 'docs'])
+
+  const stray = await run({ ...ARGS, lenses, review_bookmark: BOOKMARK }, { 1: [FIXABLE], 2: [{ ...finding('stray'), lens: 'perf' }] }, { ...FIXABLE_VERDICT, 'defect stray': verdict(true, true, 'common', 'crash') })
+  const strayRow = stray.result.triage.find(r => r.finding === 'defect stray')
+  check('a finding naming a lens the run lacks is left unverified, not filed under another lens', [strayRow?.disposition, strayRow?.lens, stray.result.bookmark.recorded], ['unverified', 'perf', false])
+
+  const dead = await run({ ...ARGS, lenses, review_bookmark: BOOKMARK }, { 1: [FIXABLE] }, FIXABLE_VERDICT, { reviewer: (lens, round) => round === 2 ? null : undefined })
+  check('a combined reviewer that returns nothing leaves every lens unreviewed', dead.result.silent_lenses, [{ round: 2, lens: 'bugs' }, { round: 2, lens: 'docs' }])
+
+  const unbooked = await run({ ...ARGS, lenses }, { 1: [FIXABLE], 2: [] }, FIXABLE_VERDICT)
+  check('a round that falls back to the whole scope keeps one reviewer per lens', unbooked.calls.filter(c => c.phase === 'Review' && c.label.endsWith(':r2')).length, 2)
+
+  const reviewers = (calls, round) => calls.filter(c => c.phase === 'Review' && c.label.endsWith(`:r${round}`)).map(c => c.label).sort()
+  const small = await run({ ...ARGS, lenses, review_bookmark: BOOKMARK }, { 1: [] }, {}, { polish: packed(12) })
+  check('a small first round runs one reviewer carrying every lens', reviewers(small.calls, 1), ['review:all:r1'])
+  const large = await run({ ...ARGS, lenses, review_bookmark: BOOKMARK }, { 1: [FIXABLE], 2: [] }, FIXABLE_VERDICT, { polish: packed(5000) })
+  check('a large fix diff gets one reviewer per lens again', reviewers(large.calls, 2), ['review:bugs:r2', 'review:docs:r2'])
+}
+
+async function roundsReadOnePreparedDiff() {
+  const { calls } = await run({ ...ARGS, review_bookmark: BOOKMARK }, { 1: [FIXABLE], 2: [] }, FIXABLE_VERDICT, { polish: PACKED })
+  const packCommands = calls.filter(c => c.label.startsWith('pack:')).map(c => c.prompt.split('\n').pop())
+  check('round one packs from the review base, a later round from the fix\'s two trees', [packCommands[0].endsWith('pack --repo "/scratch/repo" --base b45e'), packCommands[1].endsWith(`--base ${'c'.repeat(40)} --tree ${'d'.repeat(40)}`)], [true, true])
+  const at = round => calls.filter(c => (c.phase === 'Review' || c.phase === 'Verify') && c.label.endsWith(`:r${round}`))
+  check('every reviewer and verifier of a round is pointed at its pack', [at(1).every(c => c.prompt.includes('/g/review-pack/r1.diff')), at(2).every(c => c.prompt.includes('/g/review-pack/r2.diff'))], [true, true])
+  const failed = await run({ ...ARGS, review_bookmark: BOOKMARK }, { 1: [FIXABLE], 2: [] }, FIXABLE_VERDICT, { polish: { snapshot: label => label.startsWith('pack:') ? { exit_status: 1, output: 'boom' } : PACKED.snapshot(label) } })
+  check('a failed pack leaves the round to find the diff itself', failed.calls.filter(c => c.phase === 'Review').some(c => c.prompt.includes('A prepared diff')), false)
+}
+
+async function lowPriorFindingsShareAVerifier() {
+  const low = id => finding(id, { frequency: 'theoretical' })
+  const reviews = { 1: [low('t-crash'), low('t-skipped'), low('t-cosmetic'), finding('t-shown', { frequency: 'theoretical', reached_by: 'the cron job calls it' }), finding('rare-one')] }
+  const verdicts = {
+    'defect t-crash': verdict(true, true, 'theoretical', 'crash'),
+    'defect t-cosmetic': verdict(true, false, 'theoretical', 'cosmetic'),
+    'defect t-shown': verdict(true, true, 'rare', 'cosmetic'),
+    'defect rare-one': verdict(true, true, 'rare', 'cosmetic'),
+  }
+  const { result, calls } = await run(ARGS, reviews, verdicts)
+  const verifiers = calls.filter(c => c.phase === 'Verify' && c.label.endsWith(':r1'))
+  const batch = verifiers.filter(c => c.label.startsWith('verify-batch:'))
+  check('theoretical findings nobody was shown reaching share one verifier', [batch.length, ['t-crash', 't-cosmetic', 't-skipped'].every(id => batch[0]?.prompt.includes(`Finding: defect ${id}`))], [1, true])
+  check('which is told to judge each one separately', batch[0]?.prompt.includes('let no verdict decide another'), true)
+  check('a theoretical finding with a reacher, and a rare one, keep a verifier each', verifiers.filter(c => c.label.startsWith('verify:')).length, 2)
+  const disposition = Object.fromEntries(result.triage.filter(r => r.round === 1).map(r => [r.finding, r.disposition]))
+  check('each batched finding is triaged on its own verdict', [disposition['defect t-crash'], disposition['defect t-cosmetic']], ['fix', 'drop'])
+  check('a finding the batch answer skips goes unverified', disposition['defect t-skipped'], 'unverified')
+
+  const one = await run(ARGS, { 1: [low('alone')] }, { 'defect alone': verdict(true, false, 'theoretical', 'cosmetic') })
+  check('a lone low-prior finding gets an ordinary verifier', one.calls.filter(c => c.phase === 'Verify').map(c => c.label.split(':')[0]), ['verify'])
+}
+
 async function refusesNonBooleanFix() {
   let threw = false
   try { await run({ ...ARGS, fix: 'no' }, {}, {}) } catch { threw = true }
@@ -416,7 +498,7 @@ async function refusesNonBooleanFix() {
 // ~/.claude/workflows, so a CRLF file breaks every run while git, normalizing to LF, shows nothing changed.
 check('the workflow file carries no carriage return', SOURCE.includes('\r'), false)
 
-for (const test of [triageAndStop, stopsAfterQuietRound, nothingFoundCallsNoFixer, capsAtDefaultRounds, laterRoundsReviewTheFixDiff, noGate, refusesBadArgs, unverifiedIsNotRefuted, verifierThatThrows, deadFixerStopsTheLoop, skippedFixIsNotReportedAsFixed, silentLensIsReported, readOnly, readOnlyGapIsNotRecorded, noBookmarkPassed, fixModeRecording, polishKept, polishNothingToDo, polishTakenBack, polishRevertIncomplete, deadPolishPass, polishOnlyAfterCleanReview, refusesNonBooleanFix]) {
+for (const test of [triageAndStop, stopsAfterQuietRound, nothingFoundCallsNoFixer, capsAtDefaultRounds, laterRoundsReviewTheFixDiff, noGate, refusesBadArgs, unverifiedIsNotRefuted, verifierThatThrows, deadFixerStopsTheLoop, skippedFixIsNotReportedAsFixed, silentLensIsReported, readOnly, readOnlyGapIsNotRecorded, noBookmarkPassed, fixModeRecording, polishKept, polishNothingToDo, polishTakenBack, polishRevertIncomplete, deadPolishPass, polishOnlyAfterCleanReview, refusesNonBooleanFix, fixerChecksItsOwnDiff, laterRoundsUseOneReviewer, roundsReadOnePreparedDiff, lowPriorFindingsShareAVerifier]) {
   try { await test() } catch (error) { failures.push(`  FAIL ${test.name} threw: ${error.stack}`) }
 }
 for (const line of failures) console.log(line)

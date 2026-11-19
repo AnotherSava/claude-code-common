@@ -157,6 +157,7 @@ def main() -> int:
         check("the hook keeps the rest of the call", (updated.get("name"), args.get("lenses")), ("review-auto", []))
         check("and appends the unreviewed commit to the scope", args.get("scope", "").startswith("the uncommitted diff\n\nAlso in scope") and "edit late.txt" in args.get("scope", ""), True)
         check("and passes the base and the tree at launch", (args.get("review_bookmark") or {}).get("tree"), review_scope.worktree_tree(b))
+        check("and the scope as called, before the commits were appended", (args.get("review_bookmark") or {}).get("called"), "the uncommitted diff")
         check("and tells the model", "1 commit(s) since the last review" in out["hookSpecificOutput"].get("additionalContext", ""), True)
         check("its own rewrite sent back passes through unchanged, as auto mode needs", hook({**payload, "tool_input": updated}), None)
         moved = hook({**payload, "tool_input": {**updated, "args": {**args, "review_bookmark": {**args["review_bookmark"], "tree": "stale"}}}})
@@ -305,6 +306,23 @@ def main() -> int:
         sh(r, "add", "app.txt")
         sh(r, "commit", "-qm", "reviewed, redacted")
         check("a reviewed commit carrying a later fix does not advance", review_scope.advance(r).startswith("not advanced: no commit since the review's base holds the reviewed tree"), True)
+
+        # The pack a review round reads holds the untracked file as well as the edit, and an old pack is cleared.
+        base = sh(r, "rev-parse", "HEAD")
+        write(r, "app.txt", "edited for the pack\n")
+        write(r, "fresh.txt", "untracked for the pack\n")
+        stale = os.path.join(r, ".git", review_scope.PACK_DIR, "stale.diff")
+        os.makedirs(os.path.dirname(stale), exist_ok=True)
+        write(r, os.path.relpath(stale, r), "old\n")
+        old = os.stat(stale).st_mtime - review_scope.PACK_MAX_AGE - 60
+        os.utime(stale, (old, old))
+        path, changed = review_scope.pack(r, base, None)
+        check("the pack counts the lines the diff changes", changed, 3)
+        with open(path, encoding="utf-8") as handle:
+            body = handle.read()
+        check("the pack holds the edit and the untracked file", ("+edited for the pack" in body, "+untracked for the pack" in body), (True, True))
+        check("the pack lives under the git dir, where nothing tracks it", sh(r, "status", "--short", "--untracked-files=all").count("review-pack"), 0)
+        check("a day-old pack is removed", os.path.exists(stale), False)
 
     return report("review-scope tests")
 

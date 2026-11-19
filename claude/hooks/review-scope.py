@@ -4,8 +4,9 @@ review-scope.py — widen every `review-auto` run to the commits pushed since th
 
 A PreToolUse hook on the Workflow tool. When the call names the saved `review-auto` workflow, it reads the
 repo's review bookmark (`claude/scripts/review_scope.py`), appends the unreviewed commits to `args.scope`, and
-passes `args.review_bookmark` — the base and the tree at launch — so the workflow's last step can record what it
-covered. The rewrite goes back as `updatedInput`, so the model writing the call cannot leave the range out.
+passes `args.review_bookmark` — the base, the tree at launch and the scope as called — so the workflow's last
+step can record what it covered. The rewrite goes back as `updatedInput`, so the model writing the call cannot
+leave the range out.
 
 The repo is `args.repo` when the call names one, else the project directory. A non-git directory, an unreadable
 args object, any other workflow, and a call already carrying this hook's rewrite pass through untouched. When no
@@ -61,10 +62,13 @@ def main() -> int:
     # unchanged for the review to cover what runs, so a scope already ending in this text keeps one copy of it, and a
     # call carrying everything this hook would write is let be.
     text = review_scope.scope_text(found)
-    widened = {**args, "scope": args["scope"].removesuffix(text) + text}
+    called = args["scope"].removesuffix(text)
+    widened = {**args, "scope": called + text}
     widened.pop("review_bookmark", None)
     if tree:
-        widened["review_bookmark"] = {"repo": repo, "base": found["base"], "tree": tree}
+        # `called` is the scope before widening, which review-auto.js quotes in a fix-diff round: there the appended
+        # commit list would read as an instruction to re-review the whole range.
+        widened["review_bookmark"] = {"repo": repo, "base": found["base"], "tree": tree, "called": called}
     if widened == args:
         return 0
     note = (f"The review-scope hook widened this review: {len(found['commits'])} commit(s) since the last review were added to its scope."

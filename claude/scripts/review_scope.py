@@ -25,7 +25,7 @@ Several moments act on it, and each belongs to a different caller:
 
 Between `mark` and `advance`, `/wrap-up`'s change_scope.py reads the record through `polished_since` to skip the
 `/clean-code` and `/docs-relevance` passes the workflow already ran. `snapshot` and `revert` serve the workflow's
-polish phase, which takes back what it cannot keep.
+polish phase, which takes back what it cannot keep, and `pack` writes the diff each review round reads.
 
 Every failure leaves the bookmark behind rather than ahead: a missed move costs a re-review, a wrong one hides
 unreviewed code for good.
@@ -39,6 +39,7 @@ import os
 import shutil
 import subprocess
 import sys
+import time
 
 # The saved workflow whose runs this bookmark tracks. Both the review-scope.py and workflow-realism.py hooks match
 # Workflow calls against it, and it must equal `meta.name` in claude/workflows/review-auto.js.
@@ -47,6 +48,10 @@ REF = "refs/review/last"
 FETCHED = "refs/review/origin"
 RECORD = "review-scope-reviewed"
 SCRATCH_INDEX = "review-scope-index"
+# Under the git dir, so a pack is never tracked and needs no ignore rule in any repo.
+PACK_DIR = "review-pack"
+# A pack is read only during the round that wrote it; one a day old belongs to no running review.
+PACK_MAX_AGE = 86400
 REMOTE = "origin"
 NETWORK_TIMEOUT = 20
 
@@ -327,6 +332,31 @@ def revert(repo: str, tree: str, paths: list[str]) -> str:
     return f"reverted to {tree}: {len(restored)} restored, {len(deleted)} deleted{left}"
 
 
+def pack(repo: str, base: str, tree: str | None) -> tuple[str, int]:
+    """Write the stat and the full patch from `base` to `tree` (the working tree, untracked files included, when there
+    is none) into one file under the git dir, and return its path. Every reviewer and verifier of a workflow round
+    reads this one file instead of re-running the same diff commands one per turn. Packs older than `PACK_MAX_AGE`
+    are removed; a younger one may be another run's current round. Also returns the lines the diff adds and removes,
+    which the workflow reads to size the round's reviewers; a binary file counts as none."""
+    target = tree or worktree_tree(repo)
+    stat = _git(repo, "diff", "--stat=200", "--no-renames", base, target, timeout=60)
+    patch = _git(repo, "diff", "--no-renames", base, target, timeout=60)
+    numstat = _git(repo, "diff", "--numstat", "--no-renames", base, target, timeout=60)
+    for done in (stat, patch, numstat):
+        if done.returncode != 0:
+            raise RuntimeError(f"git diff {base} {target} failed: {done.stderr.strip()}")
+    folder = _git_path(repo, PACK_DIR)
+    os.makedirs(folder, exist_ok=True)
+    for old in os.listdir(folder):
+        if time.time() - os.path.getmtime(os.path.join(folder, old)) > PACK_MAX_AGE:
+            os.remove(os.path.join(folder, old))
+    path = os.path.join(folder, f"{base[:12]}-{target[:12]}.diff")
+    with open(path, "w", encoding="utf-8", newline="\n") as handle:
+        handle.write(f"# git diff {base} {target}\n{stat.stdout}\n{patch.stdout}")
+    changed = sum(int(n) for line in numstat.stdout.splitlines() for n in line.split("\t")[:2] if n.isdigit())
+    return path, changed
+
+
 def _reviewed_commit(repo: str, record: dict, head: str) -> str | None:
     """The newest commit on HEAD's first-parent line since the review's base whose tree is the reviewed one: the
     commit the reviewed change set ended at, with any follow-up commits after it. The base itself counts, for a
@@ -505,7 +535,7 @@ def status(repo: str) -> str:
 
 def main() -> int:
     parser = argparse.ArgumentParser(description=__doc__.splitlines()[0])
-    parser.add_argument("command", choices=["scope", "mark", "advance", "push", "status", "snapshot", "revert", "layout", "stage-reviewed"])
+    parser.add_argument("command", choices=["scope", "mark", "advance", "push", "status", "snapshot", "pack", "revert", "layout", "stage-reviewed"])
     parser.add_argument("--repo", default=".")
     parser.add_argument("--base")
     parser.add_argument("--tree")
@@ -527,6 +557,11 @@ def main() -> int:
             print(mark(repo, opts.base, opts.tree, opts.polished))
         elif opts.command == "snapshot":
             print(worktree_tree(repo))
+        elif opts.command == "pack":
+            if not opts.base:
+                parser.error("pack needs --base")
+            path, changed = pack(repo, opts.base, opts.tree)
+            print(f"{path}\nchanged-lines: {changed}")
         elif opts.command == "revert":
             if not opts.tree:
                 parser.error("revert needs --tree")
