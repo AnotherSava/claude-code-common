@@ -1,12 +1,12 @@
 ---
 name: pr-prepare
-description: Analyze progress log, commits, and optionally a plan to summarize what was done, what diverged, and what review found.
+description: Analyze commits, and optionally a plan, to summarize what was done, what diverged, and which commits fixed review findings.
 allowed-tools: Bash(git log:*), Bash(git diff:*), Bash(git status:*), Bash(git rev-parse:*), Bash(git branch:*), Bash(ls:*), Read, Glob, Grep
 ---
 
 # Preparation Summary
 
-Analyze progress logs and commits to produce a summary covering implementation, review findings, and readiness to proceed. If a related plan exists, include plan alignment analysis.
+Analyze commits to produce a summary covering implementation, review fixes, and readiness to proceed. If a related plan exists, include plan alignment analysis.
 
 ## Context
 - Repo root: !`git rev-parse --show-toplevel 2>/dev/null || pwd`
@@ -17,19 +17,16 @@ Analyze progress logs and commits to produce a summary covering implementation, 
 - Full diff: !`git diff --no-textconv @{upstream}..HEAD 2>/dev/null || git diff --no-textconv origin/main..HEAD`
 - Working tree status: !`git status --short`
 - Latest plan: !`R=$(git rev-parse --show-toplevel 2>/dev/null || pwd) && ls -t "$R/docs/plans/completed/" 2>/dev/null | head -1`
-- Progress logs: !`R=$(git rev-parse --show-toplevel 2>/dev/null || pwd) && ls -t "$R/.ralphex/progress/" 2>/dev/null | head -5`
 
 ## Working directory
 
-`docs/plans/completed/`, `.ralphex/progress/`, and any other file paths in this skill are relative to **Repo root** from Context. The cwd may be a subdirectory — prefix Repo root when calling Read/Glob/Grep/ls. Bare paths are cwd-relative.
+`docs/plans/completed/` and any other file paths in this skill are relative to **Repo root** from Context. The cwd may be a subdirectory — prefix Repo root when calling Read/Glob/Grep/ls. Bare paths are cwd-relative.
 
 ## Step 1: Gather artifacts
 
-1. **Progress log(s)**: Find the most recently modified logs in `.ralphex/progress/`. If there are variants (e.g. `-review`), read all of them. Extract what was done, issues encountered, review findings, and fixes applied.
+1. **Plan doc (optional)**: If **Latest plan** is not empty, read it — but only use it if it relates to the work described in the commits. If the plan is unrelated (different feature, old work), disregard it. Tell the user which plan was found and whether it was used or skipped.
 
-2. **Plan doc (optional)**: If **Latest plan** is not empty, read it — but only use it if it relates to the work described in the progress log. If the plan is unrelated (different feature, old work), disregard it. Tell the user which plan was found and whether it was used or skipped.
-
-3. **Commits and diff**: Use context data (**Unpushed commit details**, **Changed files**, **Full diff**).
+2. **Commits and diff**: Use context data (**Unpushed commit details**, **Changed files**, **Full diff**).
 
 ## Step 2: Analyze
 
@@ -38,11 +35,9 @@ If a related plan was found, analyze:
 - **Unplanned additions**: Files or behavior not in the original plan
 - **Design divergences**: Where implementation differs from planned approach
 
-Based on progress logs and code changes, identify:
+Based on the commits and code changes, identify:
 - **What was done**: Concrete changes implemented, grouped by area
-- **Review findings fixed**: Issues caught during review and resolved
-- **Review findings dismissed**: Findings evaluated and rejected as false positives, with reasons
-- **Unaddressed concerns**: Issues raised but neither fixed nor dismissed
+- **Review fixes**: Commits whose message says they address review findings (such as `fix: address code review findings`). Dismissed findings and open concerns are recorded in none of the artifacts this skill reads, so it does not report them.
 
 ## Step 3: Output summary
 
@@ -62,10 +57,8 @@ Based on progress logs and code changes, identify:
 {List any unplanned additions}
 {List any missing plan items}
 
-### Review findings
-- **Fixed**: {bulleted list of real issues found and resolved}
-- **Dismissed**: {bulleted list of false positives with brief reason}
-- **Unaddressed**: {bulleted list of open concerns, if any}
+### Review fixes
+{Bulleted list of the review fixes the commits record, or "None recorded in the commits"}
 
 ### Recommendation
 {Any concerns to address, or "Ready to proceed with /reset and /wrap-up"}
@@ -75,5 +68,4 @@ Based on progress logs and code changes, identify:
 
 - This skill only **analyzes and reports** — it does NOT modify any files, create commits, or push code
 - If there are no unpushed commits and no uncommitted changes, report that and stop
-- If the progress log cannot be found, proceed with just the commits and diff
 - Be concise — focus on meaningful divergences and actionable findings

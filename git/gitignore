@@ -3,7 +3,6 @@ Thumbs.db
 .idea/
 .vscode/
 .claude/settings.local.json
-.ralphex/
 .firecrawl/
 
 # A project's deploy settings are committed in config/deploy.env (convention 017). This file is the one place a

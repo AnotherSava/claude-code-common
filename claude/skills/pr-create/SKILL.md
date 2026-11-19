@@ -18,7 +18,7 @@ Read `~/.claude/skills/shared/bash-rules.md` for bash command constraints.
 
 ## Working directory
 
-`docs/plans/`, `.ralphex/progress/`, and any other file paths in this skill are relative to **Repo root** from Context. The cwd may be a subdirectory — prefix Repo root when calling Read/Glob/Grep/ls. Bare paths are cwd-relative and will silently miss plans and progress logs at the actual root.
+`docs/plans/` and any other file paths in this skill are relative to **Repo root** from Context. The cwd may be a subdirectory — prefix Repo root when calling Read/Glob/Grep/ls. Bare paths are cwd-relative and will silently miss plans at the actual root.
 
 ## Workflow
 
@@ -30,9 +30,7 @@ Read `~/.claude/skills/shared/bash-rules.md` for bash command constraints.
 
 3. Find the latest completed plan doc — look in `docs/plans/completed/` for the most recently created file whose name relates to the current branch or the work described in the commits.
 
-4. Find the matching progress log in `.ralphex/progress/`.
-
-5. Read the plan and progress log to understand the scope and intent of the changes.
+4. Read the plan to understand the scope and intent of the changes.
 
 ### Step 2: Prepare commits
 
@@ -40,7 +38,7 @@ Reset commits back to the working tree and re-commit them as clean, atomic commi
 
 1. Run `/reset` — let the user choose which commits to reset.
 
-2. Group the change set as `~/.claude/skills/shared/commit-grouping.md` describes, drawing on the plan doc and progress log for the messages, and show the plan for the user's approval. Then commit each group with `python ~/.claude/skills/shared/commit.py -F <message-file> <paths…>` (`python3` on macOS), which stages exactly those paths, checks the message, scans what they add and signs the commit.
+2. Group the change set as `~/.claude/skills/shared/commit-grouping.md` describes, drawing on the plan doc for the messages, and show the plan for the user's approval. Then commit each group with `python ~/.claude/skills/shared/commit.py -F <message-file> <paths…>` (`python3` on macOS), which stages exactly those paths, checks the message, scans what they add and signs the commit.
 
 ### Step 3: Rebase onto main
 
@@ -62,7 +60,7 @@ If the rebase produces conflicts, stop and ask the user to resolve them.
 
    A non-zero exit stops the push. The branch's commits were written here and never measured against the repo's own gate, and a reviewer reading the PR cannot see that: the gate runs on a working tree, so a branch that fails it looks the same on GitHub as one that passes.
 
-2. Draft the PR description. The PR body should be **more detailed than the commit message** — it is the primary review artifact. Build it from the plan doc, diff, and progress log:
+2. Draft the PR description. The PR body should be **more detailed than the commit message** — it is the primary review artifact. Build it from the plan doc and diff:
 
    - **Overview**: 2-3 sentences on what this PR accomplishes and why (from the plan's Overview section)
    - **What changed**: bulleted list of concrete changes grouped by area (new modules, modified behavior, structural changes, test coverage). Derive from the diff, not just the plan — if the implementation added things not in the original plan, include them here.

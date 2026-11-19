@@ -24,7 +24,7 @@ Putting a floating whole-dir pattern like `scripts/` in the **global** excludes 
 | `scripts/deploy.sh`  | ignored | safe | safe (mid-slash auto-anchors) |
 | `/scripts/` (whole dir) | ignored | **HIDDEN** | safe |
 
-Rule of thumb: **never put a floating or whole-dir pattern in the global excludes** — only narrow, root-anchored *file* patterns (or genuinely user-global dirs like `.idea/`, `.ralphex/`, and the agent's root-anchored `/tmp/` scratch folder).
+Rule of thumb: **never put a floating or whole-dir pattern in the global excludes** — only narrow, root-anchored *file* patterns (or genuinely user-global dirs like `.idea/` and the agent's root-anchored `/tmp/` scratch folder).
 
 ## A negation under an excluded directory is dead
 

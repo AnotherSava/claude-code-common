@@ -340,7 +340,7 @@ rollupOptions: {
 
 **No HMR without `crxjs/vite-plugin`.** Without it, the dev workflow is: save → build → reload extension on `chrome://extensions`.
 
-**Broken `.bin` shims after ralphex review:** ralphex runs in a Docker container on WSL, so its `npm install` installs Linux-native optional dependencies, overwriting the Windows ones in the shared `node_modules/`. Symptom: `'vite' is not recognized` or `Cannot find module @rollup/rollup-win32-x64-msvc`. Fix: `npm install @rollup/rollup-win32-x64-msvc`, then retry the build.
+**Broken `.bin` shims after an `npm install` from a Linux container:** a tool running in a Docker container on WSL over the same checkout installs Linux-native optional dependencies, overwriting the Windows ones in the shared `node_modules/`. Symptom: `'vite' is not recognized` or `Cannot find module @rollup/rollup-win32-x64-msvc`. Fix: `npm install @rollup/rollup-win32-x64-msvc`, then retry the build.
 
 **Same Linux-only deps also block new package installs.** `npm install --no-save <pkg>` fails with `EBADPLATFORM` when `@esbuild/linux-x64` or `@rollup/rollup-linux-x64-musl` is in `package.json` deps but the current platform is win32. Use `--force` to install anyway — npm skips the Linux-only deps and installs your new package fine.
 
