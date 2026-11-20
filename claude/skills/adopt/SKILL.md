@@ -26,7 +26,7 @@ never the transcript — so the gap is re-derived below rather than taken from w
 
 ## Context
 - Repo root: !`git rev-parse --show-toplevel 2>/dev/null || echo "(not a git repo)"`
-- This repo, commits it is behind its upstream: !`git fetch -q 2>/dev/null || echo "(fetch failed — what follows compares against the last fetch that worked)"; git log --oneline HEAD..@{upstream} 2>/dev/null || echo "(no upstream configured)"; echo "(end of list)"`
+- This repo, commits it is behind its upstream: !`git fetch -q 2>/dev/null || echo "(fetch failed — what follows compares against the last fetch that worked)"; git -c push.default=current log --oneline HEAD..@{push} 2>/dev/null || echo "(no push target on the remote)"; echo "(end of list)"`
 - Dotfiles checkout, commits it is behind its upstream: !`git -C ~/.claude/skills fetch -q 2>/dev/null || echo "(fetch failed — what follows compares against the last fetch that worked)"; git -C ~/.claude/skills log --oneline HEAD..@{upstream} 2>/dev/null || echo "(no upstream configured)"; echo "(end of list)"`
 - Record file ignored by: !`git check-ignore -q "$(git rev-parse --show-toplevel 2>/dev/null)/.claude/conventions" && git check-ignore -v "$(git rev-parse --show-toplevel 2>/dev/null)/.claude/conventions" || echo "(not ignored — the record will be tracked, unless Repo root above says this is not a repo at all)"`
 - Install check: !`python ~/.claude/hooks/check-install.py 2>&1 | grep FAIL || echo "(every symlink and git setting resolves)"`
@@ -44,6 +44,12 @@ the `-v` form exits **0 on a negated pattern**, printing `!.claude/conventions` 
 rule for a file it is reporting as *not* ignored, so a record correctly re-included by the fix
 below would otherwise read as still hidden and every later run would loop on a `.gitignore` that is
 already right.
+
+The repo line compares against the branch this clone pushes to, because the other machine's pushes
+are what the gate exists to catch. In a fork whose branch tracks the third-party `upstream` while
+`remote.pushDefault` is `origin`, `@{upstream}` lists every third-party commit not yet merged; agterm
+showed 242 with `origin` equal to `HEAD`. The `-c push.default=current` is there because `@{push}`
+does not resolve under `simple` in that setup, the same limit `_pushed_from` in `shared/push.py` names.
 
 ## What the number means
 
