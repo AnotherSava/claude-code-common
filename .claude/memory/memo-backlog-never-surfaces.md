@@ -1,5 +1,5 @@
 ---
-name: memo-surfacing-session-start-only
+name: memo-backlog-never-surfaces
 description: The backlog never surfaces unasked; the session-start status bar was removed 2026-11-19, and a count in place of the list and a task-completion listing were declined earlier
 metadata:
   type: project
