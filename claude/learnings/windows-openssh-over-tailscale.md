@@ -149,6 +149,13 @@ works against a POSIX peer, so a two-machine setup keeps its cache warm in one d
 in the other, with only a per-run warning to say so. Prefer stdin to `-EncodedCommand` whenever the
 payload can grow, too: base64 in argv is bounded by cmd.exe's command-line limit, and stdin is not.
 
+That preference holds for an interpreter that reads its whole program first, like `python -`. It fails
+for `powershell -Command -`, which runs stdin line by line. Measured 2026-11-19: a one-line
+`Get-Counter … | ForEach-Object { … }` fed that way printed its rows, while the same loop written over
+several lines, with its `{` block spanning them, printed nothing at all and exited 0, twice. The empty
+output looks exactly like "nothing matched". Keep a PowerShell program on stdin to one line per
+statement, or send it with `-EncodedCommand`, which ran the multi-line form correctly.
+
 ## ssh.exe as a *client*, spawned inside an sshd session, cannot forward stdin
 
 Driving a Windows box over SSH and having *it* ssh somewhere else — a peer scan, a relayed
