@@ -118,6 +118,17 @@ class Backlog:
         for i in range(1, count + 1):
             self.write(f"{prefix.lower()}-{i}.md", f"{prefix} {i}", created=f"2026-09-0{i} 10:00:00")
 
+    def open_memos(self) -> list:
+        """`memos.open_memos()` as it runs from inside this repo, with `_root`'s cache cleared either side."""
+        cwd = os.getcwd()
+        os.chdir(self.root)
+        memos._root.cache_clear()
+        try:
+            return memos.open_memos()
+        finally:
+            os.chdir(cwd)
+            memos._root.cache_clear()
+
     def run(self, *args: str, stdin: Optional[str] = None, env: Optional[dict[str, str]] = None) -> tuple[int, str, str]:
         proc = subprocess.run([sys.executable, "-S", MEMOS_PATH, *args], cwd=self.root, input=stdin, env=env,
                               capture_output=True, text=True, encoding="utf-8")
@@ -298,7 +309,7 @@ def main() -> int:
         b.write("hidden.MD", "Open two, uppercase extension", created="2026-09-02 10:00:00")
         b.write("closed.md", "Closed one", done=True)
         check("open_memos returns only the open half, newest first",
-              [m.title for m in memos.open_memos(b.root)],
+              [m.title for m in b.open_memos()],
               ["Open two, uppercase extension", "Open one"])
 
         # --- platform binding: a marker on the minority, and a filter on nothing ------------------------
@@ -362,7 +373,7 @@ def main() -> int:
         check("a memo bound to this box is not counted as elsewhere",
               b.run("count")[1], "1 open · 0 done")
         check("open_memos carries the binding through",
-              [(m.platform, m.elsewhere) for m in memos.open_memos(b.root)], [(HERE, False)])
+              [(m.platform, m.elsewhere) for m in b.open_memos()], [(HERE, False)])
 
         # --- a flag word inside a memo's own prose is not a flag ----------------------------------------
         b = Backlog(stack)
@@ -422,14 +433,14 @@ def main() -> int:
         # --- the page: rows keyed by slug, and an answer that is matched whole before anything moves ----
         b = Backlog(stack)
         b.fill(4)
-        block = memos._page_spec(memos.open_memos(b.root), True, "Memos")["blocks"][0]
+        block = memos._page_spec(b.open_memos(), True, "Memos")["blocks"][0]
         check("a page row is keyed by slug and labelled with the listing's number",
               [(row["id"], row["label"]) for row in block["rows"]], [("memo-4", "1"), ("memo-3", "2"), ("memo-2", "3"), ("memo-1", "4")])
         check("every row is preset to change nothing, and start is held by one row at a time",
               ({row["choice"] for row in block["rows"]}, block["single"]), ({"leave"}, "start"))
         check("a memo's body is its row's detail, and its capture time the row's age",
               (block["rows"][0]["detail"], block["rows"][0]["captured"] > 0), ("PRECIOUS BODY", True))
-        shown = memos._page_spec(memos.open_memos(b.root), False, "Memos")["blocks"][0]
+        shown = memos._page_spec(b.open_memos(), False, "Memos")["blocks"][0]
         check("the page that only shows offers no choices", (shown["kind"], any("choices" in row for row in shown["rows"])), ("entries", False))
 
         rc, out, err = b.answer({"choices": {"memo-4": "leave", "memo-3": "start", "memo-2": "done", "memo-1": "done"},

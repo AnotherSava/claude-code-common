@@ -153,13 +153,9 @@ def _root() -> str:
     return os.getcwd()
 
 
-def _dirs(root: str | None = None) -> tuple[str, str]:
-    """The open and done directories for `root`, defaulting to this process's repo.
-
-    Callers that already know the root pass it, so no `git` subprocess runs — the
-    status-line hook refreshes every couple of seconds and must not spawn one.
-    """
-    base = os.path.join(root or _root(), ".claude", "memos")
+def _dirs() -> tuple[str, str]:
+    """The open and done directories of this process's repo."""
+    base = os.path.join(_root(), ".claude", "memos")
     return base, os.path.join(base, "done")
 
 
@@ -191,9 +187,9 @@ def _parse(path: str, done: bool) -> Memo:
     return Memo(path, os.path.splitext(os.path.basename(path))[0], created, title, body, done, platform)
 
 
-def _load(root: str | None = None) -> list[Memo]:
+def _load() -> list[Memo]:
     memos = []
-    for directory, done in zip(_dirs(root), (False, True)):
+    for directory, done in zip(_dirs(), (False, True)):
         try:
             names = os.listdir(directory)
         except OSError:
@@ -216,9 +212,9 @@ def _newest_first(memos: list[Memo]) -> list[Memo]:
     return sorted(sorted(memos, key=lambda m: m.slug), key=lambda m: m.created, reverse=True)
 
 
-def open_memos(root: str | None = None) -> list[Memo]:
+def open_memos() -> list[Memo]:
     """The open backlog, newest first — the numbering every caller shows the user."""
-    return _newest_first([m for m in _load(root) if not m.done])
+    return _newest_first([m for m in _load() if not m.done])
 
 
 def _slug(title: str, taken: set[str], prefix: str = "") -> str:
