@@ -15,6 +15,10 @@ still be innocent. In this case the app was Claude Code, whose status line re-ru
 plus a `conhost` each time. The cadence matched, the duration matched, and it was not the cause. A
 coincidence that survives two checks is still a coincidence.
 
+That verdict covers one session's status line. Many sessions spawning one every 2 s is a different
+load: on 2026-11-19 about 10 of them slowed every process start on the machine to 0.6–1.9 s and made
+typing lag by seconds (`skills/hooks/references/performance.md`, the event-frequency tiers).
+
 ## The counters that tell you what it is *not*
 
 Sample for ~30 s and read the **maxima**, not only the averages — a 200 ms stall is invisible in a
