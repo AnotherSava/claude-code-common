@@ -30,6 +30,7 @@ TARGETS = {
     "tauri": "deploy-tauri.sh",
     "intellij-plugin": "deploy-intellij-plugin.sh",
     "dotnet": "deploy.sh",
+    "make": "deploy-make.sh",
 }
 
 

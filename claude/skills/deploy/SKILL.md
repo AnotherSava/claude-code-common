@@ -6,7 +6,7 @@ allowed-tools: Bash(bash ~/.claude/skills/deploy/scripts/run.sh:*), Bash(bash ~/
 ---
 
 **Scope — `deploy` is local only.** It makes the current code runnable *on this machine*: it
-installs the built app locally (Tauri / IntelliJ plugin / .NET) or starts the project's local
+installs the built app locally (Tauri / IntelliJ plugin / .NET / a Makefile target) or starts the project's local
 server. It never ships anywhere public. Shipping outward is a different verb:
 
 | Means | Where it lives |
@@ -58,6 +58,7 @@ that target script's header.
 - Secret config template present (config/local.template.json): !`test -f config/local.template.json && echo yes || echo no`
 - Deploy env has DOPPLER_PROJECT: !`grep -c '^DOPPLER_PROJECT=' config/deploy.env 2>/dev/null || echo 0`
 - .NET project: !`F=$(find src -maxdepth 1 -name '*.csproj' 2>/dev/null); [ -n "$F" ] && echo yes || echo no`
+- Makefile deploy target: !`grep -qE '^deploy:' Makefile 2>/dev/null && echo yes || echo no`
 - IntelliJ plugin project: !`(test -f build.gradle.kts || test -f build.gradle) && grep -lE 'org\.jetbrains\.intellij(\.platform)?' build.gradle.kts build.gradle 2>/dev/null | grep -q . && echo yes || echo no`
 - IntelliJ plugins-dir guess: !`bash ~/.claude/skills/deploy/scripts/detect-intellij-target.sh plugins-dir 2>/dev/null || echo`
 - IntelliJ IDE exe guess: !`bash ~/.claude/skills/deploy/scripts/detect-intellij-target.sh ide-exe 2>/dev/null || echo`
@@ -79,16 +80,18 @@ Pick `DEPLOY_TYPE` — and the target script it names — from the **Context** f
 - `tauri` → `deploy-tauri.sh`
 - `intellij-plugin` → `deploy-intellij-plugin.sh`
 - `dotnet` → `deploy.sh`
+- `make` → `deploy-make.sh` (§2b)
 
 Otherwise detect it:
 
 - **Tauri project** is yes → `tauri`
 - else **IntelliJ plugin project** is yes → `intellij-plugin`
 - else **.NET project** is yes → `dotnet`
+- else **Makefile deploy target** is yes (the project already scripts its own build and install, as an Xcode app does) → `make` (§2b)
 - else **Dev-server dir** is non-empty (a `package.json` with a `dev` script — Next.js, Remix, SvelteKit, Vite, a plain Node server) → `dev-server` (§2a)
 - else **Static web entry (index.html)** is yes (a static site with no `dev` script — plain HTML/JS served from a directory) → `dev-server` (§2a), configured as a static file server
 - else → **STOP**. Tell the user:
-  > The `deploy` skill recognizes Tauri (`src-tauri/tauri.conf.json`), IntelliJ plugins (`build.gradle[.kts]` using `org.jetbrains.intellij[.platform]`), .NET (`src/*.csproj`), and local web servers (a `package.json` with a `dev` script, or a static `index.html`). None was found in the current directory. If this is a different stack, add a new underlying script in `~/.claude/skills/deploy/scripts/` and extend the skill.
+  > The `deploy` skill recognizes Tauri (`src-tauri/tauri.conf.json`), IntelliJ plugins (`build.gradle[.kts]` using `org.jetbrains.intellij[.platform]`), .NET (`src/*.csproj`), a `Makefile` with a `deploy:` target, and local web servers (a `package.json` with a `dev` script, or a static `index.html`). None was found in the current directory. If this is a different stack, add a new underlying script in `~/.claude/skills/deploy/scripts/` and extend the skill.
   >
   > If you meant to ship this somewhere public, that isn't `deploy`: a site goes live through the project's CI pipeline, and a versioned artifact through the `release` skill.
 
@@ -109,7 +112,7 @@ do not guess.
 
 Every key below goes into `config/deploy.env` unless it says `config/deploy.local.env`. Write `DEPLOY_TYPE=<the type from step 1>` first, always. Ask only for keys neither **Deploy env** nor **Deploy local env** already holds.
 
-**If the type is `dev-server`, configure via §2a and skip items 2–4. (Items 2–4 are for the local-install targets.)**
+**If the type is `dev-server`, configure via §2a; if it is `make`, via §2b. Either way skip items 2–4, which are for the other local-install targets.**
 
 ### 2a. Local web server configuration
 
@@ -172,6 +175,15 @@ stack before writing a third. The stack's specifics stay in that script, never i
 
 `config/deploy.env` holds no secrets and is committed, so every clone runs the same `deploy`. The dev server writes `dev-server.log` / `dev-server.err.log` into `DEV_DIR` — ensure those are gitignored: if `<DEV_DIR>/dev-server*.log` (or a broader `dev-server*.log`) isn't already covered by `.gitignore`, add it. After writing the config, go to **step 3**.
 
+### 2b. Makefile target
+
+`deploy` runs `make <MAKE_TARGET>` at the repo root and nothing else, so the stack's build and install stay in
+the project's Makefile. Write `DEPLOY_TYPE=make` to `config/deploy.env`, and `MAKE_TARGET=<name>` only when the
+target is not `deploy`. When this machine needs a different install location from the Makefile's default, write
+`INSTALL_DIR=<path>` to `config/deploy.local.env`; it is passed to make as `INSTALL_DIR=`, so it only works where
+the Makefile reads that variable. Read the target's recipe before the first run: if it stops, starts or
+relaunches an app with a window, step 4's ask applies. Then go to **step 3**.
+
 **Local-install targets (Tauri / IntelliJ / .NET) — items 2–4:**
 
 2. **Install location.**
@@ -200,7 +212,7 @@ stack before writing a third. The stack's specifics stay in that script, never i
 If step 2 changed the shell rc, tell the user:
 > The `deploy` shortcut has been configured. **Restart Claude Code** for `! deploy` to work — the shell reads its rc file only at startup, so new functions aren't available until the next session.
 
-When the type starts, restarts or closes an app with a window — `dotnet` and `tauri` both launch the installed app, and `intellij-plugin` closes the IDE when `IDE_PROCESS` or `IDE_BUNDLE_ID` is set — ask right before running it, per CLAUDE.md's **Taking Over the Machine**: name the app that will start, restart or close, and run only on a yes. `dev-server` starts no window and needs no ask.
+When the type starts, restarts or closes an app with a window — `dotnet` and `tauri` both launch the installed app, and `intellij-plugin` closes the IDE when `IDE_PROCESS` or `IDE_BUNDLE_ID` is set — ask right before running it, per CLAUDE.md's **Taking Over the Machine**: name the app that will start, restart or close, and run only on a yes. `make` asks when its recipe does any of these. `dev-server` starts no window and needs no ask.
 
 Run the deploy now, through the same entry point the shell function uses, with output redirected to a file rather than piped (a detached dev server can hold a pipe open):
 ```

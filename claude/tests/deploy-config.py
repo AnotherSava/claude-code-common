@@ -18,6 +18,7 @@ enters through the second, so a defect in either reaches every project on both m
   dispatch        a repo at 017 reaches the target DEPLOY_TYPE names
   no-type         a missing DEPLOY_TYPE stops with a message naming the key
   unknown-type    an unknown DEPLOY_TYPE stops with a message naming the value
+  make            DEPLOY_TYPE=make runs MAKE_TARGET (deploy by default), forwarding INSTALL_DIR only when set
   unconfigured    a directory with no config/deploy.env above it is told to run /deploy
   secret-fields   secret_fields.py sets each named field from Doppler and leaves every other value as it was
   secret-empty    an empty secret fails the run and leaves the settings file untouched
@@ -186,6 +187,22 @@ def main() -> int:
         code, out = deploy(bash, current)
         if code == 0 or "rocket" not in out:
             FAILURES.append(f"unknown-type: expected a failure naming rocket, got {code}: {out.strip()}")
+
+        if shutil.which("make"):
+            write(os.path.join(current, "Makefile"),
+                  "INSTALL_DIR := default\ndeploy:\n\t@echo deploy to $(INSTALL_DIR)\nship:\n\t@echo ship $(EXTRA)\n")
+            write(os.path.join(current, "config", "deploy.env"), "DEPLOY_TYPE=make\n")
+            code, out = deploy(bash, current)
+            check("make", f"{code} {out.strip().splitlines()[-1]}", "0 deploy to default")
+            write(os.path.join(current, "config", "deploy.local.env"), "INSTALL_DIR=/opt/apps\n")
+            code, out = deploy(bash, current)
+            check("make (install-dir)", f"{code} {out.strip().splitlines()[-1]}", "0 deploy to /opt/apps")
+            write(os.path.join(current, "config", "deploy.env"), "DEPLOY_TYPE=make\nMAKE_TARGET=ship\n")
+            code, out = deploy(bash, current, "EXTRA=x")
+            check("make (target)", f"{code} {out.strip().splitlines()[-1]}", "0 ship x")
+            os.remove(os.path.join(current, "config", "deploy.local.env"))
+        else:
+            print("deploy config: make NOT COVERED — no make on PATH")
 
         bare = os.path.join(scratch, "bare")
         os.makedirs(bare)
