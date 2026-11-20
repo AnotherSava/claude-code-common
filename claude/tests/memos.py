@@ -60,8 +60,6 @@ REPO = os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__)
 MEMOS_PATH = os.path.join(REPO, "claude", "skills", "memo", "memos.py")
 
 # Loaded by path rather than through `sys.path`, as claude/tests/ingress-lint.py loads its target.
-# `memos-surface.py` imports `open_memos` from this module instead of re-parsing the tree, so that
-# function's contract is this file's to pin alongside the CLI.
 _spec = importlib.util.spec_from_file_location("memos", MEMOS_PATH)
 memos = importlib.util.module_from_spec(_spec)
 _spec.loader.exec_module(memos)
@@ -363,7 +361,7 @@ def main() -> int:
         b.write("here.md", "Actionable here", platform=HERE)
         check("a memo bound to this box is not counted as elsewhere",
               b.run("count")[1], "1 open · 0 done")
-        check("open_memos carries the binding through, which the status-bar hook reads",
+        check("open_memos carries the binding through",
               [(m.platform, m.elsewhere) for m in memos.open_memos(b.root)], [(HERE, False)])
 
         # --- a flag word inside a memo's own prose is not a flag ----------------------------------------

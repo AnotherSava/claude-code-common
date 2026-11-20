@@ -9,7 +9,7 @@ allowed-tools: Read, Edit, Bash(git rev-parse:*), Bash(python ~/.claude/skills/m
 
 Park a stray idea now so it isn't lost — without derailing the current task — or review the backlog and pick something up.
 
-A memo is lighter than a GitHub issue: a half-formed thought worth keeping, not a tracked unit of work. The backlog lives in `.claude/memos/`, one file per memo, committed with the project. Open items surface on their own in the session-start status bar and nowhere else — asking for the list is what `/memo` with no arguments is for.
+A memo is lighter than a GitHub issue: a half-formed thought worth keeping, not a tracked unit of work. The backlog lives in `.claude/memos/`, one file per memo, committed with the project. The backlog never surfaces on its own — asking for the list is what `/memo` with no arguments is for.
 
 ## Context
 - Repo root: !`git rev-parse --show-toplevel 2>/dev/null || pwd`
@@ -57,7 +57,7 @@ The `memos.py` helper owns the timestamp, the slug, the title derivation and the
 
 ### If `$ARGUMENTS` is non-empty — record a memo
 
-1. **Write the title yourself.** Run `python ~/.claude/skills/memo/memos.py add --title "<short title>" "<the rest of the idea>"`. The title is the one line that shows up in every listing and in the status bar, so make it a sentence that names the thing and the change — "Quote values when host-publish renders the per-host .env", not "quoting bug". Put everything else in the body argument; it is preserved verbatim, newlines and all.
+1. **Write the title yourself.** Run `python ~/.claude/skills/memo/memos.py add --title "<short title>" "<the rest of the idea>"`. The title is the one line that shows up in every listing, so make it a sentence that names the thing and the change — "Quote values when host-publish renders the per-host .env", not "quoting bug". Put everything else in the body argument; it is preserved verbatim, newlines and all.
    - Without `--title` the helper derives one from the first sentence. That is the fallback for the model-free `memo <text>` shell command, not for you — you have read the idea and can title it better.
    - On Windows keep the whole `memos.py add` command under about 6,500 characters. For a longer one, add the memo with a one-line body, then write the full text into the file `memos.py path <n>` names, below the title — the Editing section's route, used at capture. Past Git Bash's own limit, which sits somewhat higher, a command is cut short, and the error it usually gives, ``unexpected EOF while looking for matching``, names a quote rather than the length. A command only just past that limit can instead run, save the memo, and then fail with an error unrelated to it, such as `Is a directory`; the output then shows the saved memo's title and path, so read it before adding the memo again. `~/.claude/learnings/bash-portability.md` has the measurements, under its "A Bash tool command over about 7,700 characters is cut short" heading. The same file route clears the 32,767-character cap CreateProcess puts on any other way of passing the body, which Git Bash reports as `Argument list too long` and Python's `subprocess` as `WinError 206`.
    - Preserve the user's intent and scope. Don't expand a one-liner into a spec.
@@ -88,4 +88,4 @@ To revise one in place, get its path with `python ~/.claude/skills/memo/memos.py
 ## Out of scope
 - Don't promote a memo to a GitHub issue unless asked — memos are deliberately lighter. (When one matures, offering to file it is fine.)
 - Don't reword or reprioritize existing memos unprompted.
-- Don't add a field to the frontmatter that nothing reads yet. `created` and `platform` are the two anything reads, and `platform` was only added once five readers for it shipped in the same change — `list`, `show`, `count`, the status bar, and the context injected when a memo is picked from it. A field written but rendered nowhere is invisible to every listing and would be dropped by the first code that rewrites a memo file.
+- Don't add a field to the frontmatter that nothing reads yet. `created` and `platform` are the two anything reads, and `platform` was only added once its readers — `list`, `show` and `count` among them — shipped in the same change. A field written but rendered nowhere is invisible to every listing and would be dropped by the first code that rewrites a memo file.

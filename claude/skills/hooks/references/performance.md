@@ -59,7 +59,6 @@ Each fed a payload that hits its first early return; all verified rc=0, zero std
 | `skill-tracked.py` | 65.3 | 88.0 |
 | `plan-archive.py done` — subcommand retired since; finished plans are archived through `shared/commit-grouping.md` | 66.5 | 93.4 |
 | `plan-archive.py start` | 67.8 | 90.0 |
-| `memos-surface.py on-prompt` | 72.5 | 95.7 |
 
 Script size barely matters: 0.2 KB → 11.4 KB spans only 60.6 → 66.5 ms. **Optimize invocation form
 and spawn count, not lines of code.**
@@ -114,7 +113,7 @@ of how much a millisecond is worth:
 | Tier | Events | Budget |
 |---|---|---|
 | Per streaming chunk | `MessageDisplay` | Forks per delta with a ~10 s timeout that blocks TUI rendering. Avoid unless essential. |
-| Every ~2 s | `statusLine` (`refreshInterval`) | One small file read. No git, no transcript, no network. |
+| Every ~2 s | `statusLine` (`refreshInterval`) | Avoid on Windows. The spawn is the cost, not the script: measured 2026-11-19 with about 10 sessions each running a one-file-read status line through `bash -c` every 2 s, every process start on the machine slowed from ~25 ms to 0.6–1.9 s and typing lagged by seconds. Without the interval the status line runs only on conversation events. |
 | Every tool call | `PreToolUse` / `PostToolUse` with no matcher | Native exe or an `if` gate. Never an unnarrowed interpreter. |
 | Common tool subset | `PreToolUse` matched to `Bash\|Write\|Edit` | Synchronous cost lands on most tool calls — accept only when the condition can't be an `if` rule. |
 | Per turn | `UserPromptSubmit`, `Stop` | Async; note `UserPromptSubmit` has a 30 s timeout, not 600 s. |

@@ -211,8 +211,9 @@ dated line here rather than leaving it in a session transcript.
   fits. Budget the chain as *what actually matches this command*, never as the registration count.
   **+23 ms on every invocation** for no behaviour change. All 18 hook commands were switched to
   `python`; measured after the change, `plan-archive.py done` went 96 → 72 ms and the statusline
-  hook 108 → 84 ms. The statusline runs every 2 s, so that one alone returns ~0.7 s of CPU per
-  minute. Write `python` in new hook commands. Note the shim is also a shell *alias*, which is why
+  hook 108 → 84 ms. The statusline then ran every 2 s, so that one alone returned ~0.7 s of CPU per
+  minute; it was removed on 2026-11-19, when the spawn itself proved the cost (see the statusLine
+  row in `references/performance.md`). Write `python` in new hook commands. Note the shim is also a shell *alias*, which is why
   it looks free interactively — aliases don't expand in the non-interactive shell that spawns hooks.
 - **2026-08-19** — Nothing is free: the Windows process-spawn floor is ~29 ms, and a Python hook
   that does nothing but parse stdin and discard costs ~61 ms. Budget per *invocation*, not per

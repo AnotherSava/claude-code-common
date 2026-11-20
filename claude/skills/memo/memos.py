@@ -52,8 +52,7 @@ in the name, rather than also in a field that could disagree with it.
                                       what the `memo` shell command runs: `page` with no text,
                                       else `add` with every word of it
 
-The root is the git toplevel, else the current directory. `memos-surface.py`
-imports `open_memos()` from here rather than re-implementing the parse.
+The root is the git toplevel, else the current directory.
 """
 from __future__ import annotations
 
@@ -96,8 +95,7 @@ CREATED_RE = re.compile(r"^created:[ \t]*(.+?)[ \t]*$", re.M)
 # done from the other box. Absence means either machine, so an unbound backlog — which is most of
 # it — writes and renders byte-identical to before. `os_label()` in the github-status skill maps
 # the same two boxes and is deliberately not shared: that one returns a display label for a report
-# ("macOS"), this one a stored token that goes in a committed file, and its module is far too heavy
-# to import from the hook path `memos-surface.py` runs on.
+# ("macOS"), this one a stored token that goes in a committed file.
 #
 # A platform names a platform, not a box: the day a second mac exists, `macos` means either of
 # them. That is over-broad and visible in the listing rather than silently wrong, and the fix is
@@ -665,8 +663,7 @@ def _refuse_if_format_unadopted() -> None:
     makes the answer unknown, not bad, and a backlog helper that refuses to run because a sibling
     tool is broken is worse than one that writes a memo in a repo that turned out to be behind —
     so that path says so on stderr and continues. Being behind is also already reported once per
-    session by `conventions-check.py`, which is the surface that catches the read side: this
-    refusal covers the command line, and that notice covers the status bar.
+    session by `conventions-check.py`, so a session learns of it without running a command.
     """
     # Through realpath, because this file is reached as a symlink under ~/.claude and the engine
     # it needs sits in the dotfiles checkout the link points into, not beside the link.

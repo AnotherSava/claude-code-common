@@ -166,14 +166,6 @@
             "async": true
           }
         ]
-      },
-      {
-        "hooks": [
-          {
-            "type": "command",
-            "command": "python -S \"$HOME/.claude/hooks/memos-surface.py\" on-prompt"
-          }
-        ]
       }
     ],
     "UserPromptExpansion": [
@@ -286,15 +278,6 @@
         ]
       },
       {
-        "matcher": "startup|clear",
-        "hooks": [
-          {
-            "type": "command",
-            "command": "python -S \"$HOME/.claude/hooks/memos-surface.py\""
-          }
-        ]
-      },
-      {
         "hooks": [
           {
             "type": "command",
@@ -326,11 +309,6 @@
     ]
   },
   "respondToBashCommands": false,
-  "statusLine": {
-    "type": "command",
-    "command": "python -S \"$HOME/.claude/hooks/memos-surface.py\" statusline",
-    "refreshInterval": 2
-  },
   "enabledPlugins": {
     "frontend-design@claude-plugins-official": true,
     "plannotator@plannotator": true,

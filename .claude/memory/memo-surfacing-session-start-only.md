@@ -1,26 +1,24 @@
 ---
 name: memo-surfacing-session-start-only
-description: The backlog surfaces only at session start, decided 2026-10-06; a count in place of the list and keeping the task-completion listing were both declined
+description: The backlog never surfaces unasked; the session-start status bar was removed 2026-11-19, and a count in place of the list and a task-completion listing were declined earlier
 metadata:
   type: project
 ---
 
-The backlog surfaces only in the session-start status bar, decided 2026-10-06. CLAUDE.md's
-Memos section carries the rule; what it does not carry is the two softer versions that were on
-the table and declined, so neither is re-proposed.
+The backlog surfaces nowhere unless asked for. CLAUDE.md's Memos section carries the rule.
 
-**A count in place of the list** — "30 open memos" after a push — was ruled out before it
-reached the user: it reintroduces the same interruption at a tenth the size and tells the reader
-nothing they can act on. Shrinking the listing was never the objection.
+**The session-start status bar was removed on 2026-11-19**, at the user's request: they no longer
+wanted it, and it cost too much. It needed `statusLine.refreshInterval: 2` so the list appeared
+while the session was idle, and on the Windows machine about 10 sessions each spawning
+`bash -c` plus Python every 2 s slowed every process start there from ~25 ms to 0.6–1.9 s and made
+typing lag by seconds (`skills/hooks/references/performance.md` has the figures). The
+pick-by-number on the first prompt went with it, since it read the bar's state.
 
-**Keeping the task-completion listing** was offered as a middle option, on the argument that it
-lists only memos captured during *that* task — a short list, read while the user is still
-mid-session rather than post-push — and declined. Both moments went.
+Two softer versions were declined on 2026-10-06, so neither is re-proposed:
 
-The measurement behind it: 37 memos open on the day, so the post-push listing ran 37 lines and
-buried the notices that need reading — the push result, the CI verdict, a peer handoff. The
-step's own instruction not to invite a pick conceded the listing had nothing actionable in it.
+**A count in place of the list** — "30 open memos" after a push — reintroduces the same
+interruption at a tenth the size and tells the reader nothing they can act on.
 
-Requested by the what-is-next session. The six passages it named were accurate; three more
-asserted the retired behaviour and had to be swept, per [[feedback_sweep_the_old_wording]]'s
-"treat it as a sample rather than the set".
+**A task-completion listing** of the memos captured during that task was offered as a middle
+option and declined. 37 memos were open that day, so the post-push listing ran 37 lines and
+buried the notices that need reading — the push result, the CI verdict, a peer handoff.

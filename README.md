@@ -526,10 +526,10 @@ Parks an off-task idea in the project's memo backlog so it isn't lost — withou
 - One memo is one file — a frontmatter block carrying `created:` and optionally `platform:`, an `# H1` title, and a body as long as the idea needs; open versus addressed is `memos/` versus `memos/done/`, so nothing parses a status marker
 - An addressed memo is named `<close-date>-<slug>.md` and is kept for good — there is no command that clears `done/`. That directory is the one place the sort key sits in the filename rather than in frontmatter, because nothing lists it: `list` and `show` both resolve against the open backlog, leaving `ls` and `git status` as its only readers, and a name is all either sorts by
 - Read one in full with `show`, close it with `done`, undo that with `reopen`, and delete a redundant duplicate outright with `drop` — a listing shows titles only, with a trailing `…` marking a memo that has more to read
-- `--platform macos|windows` binds the minority of memos one box cannot act on — a codepage, a PowerShell API, a toolchain on one side only. Absent means either machine, and an unbound memo writes the bytes it always did. It **marks and never filters**: the memo keeps its place, its number and its close command, so a tag can never desync a listing from the number used to act on it. Picking a tagged memo from the status bar tells the session to do the portable part here and route the rest to the live session on that box
+- `--platform macos|windows` binds the minority of memos one box cannot act on — a codepage, a PowerShell API, a toolchain on one side only. Absent means either machine, and an unbound memo writes the bytes it always did. It **marks and never filters**: the memo keeps its place, its number and its close command, so a tag can never desync a listing from the number used to act on it.
 - The three that change the backlog — `done`, `reopen` and `drop` — each take several identifiers at once and resolve them all before acting, because a number indexes the live listing and closing one renumbers the rest
 - Memos are deliberately lighter than GitHub issues — half-formed thoughts, committed with the project
-- Open items resurface on their own at session start / `/clear`, in the status bar (via the `memos-surface.py` hook) and nowhere else — a commit and a finished task both stay quiet about the backlog, so the notices they do carry are not buried under dozens of lines nobody can act on at that moment
+- The backlog never surfaces unasked — no session start, commit or finished task lists it, so the notices those carry are not buried under dozens of lines nobody can act on at that moment
 - Capturing a memo never starts the work — that's the point; addressing one is always an explicit, separate choice
 - Every command refuses in a repo that has not adopted this layout, naming the version and pointing at [`/adopt`](#adopt) — otherwise a listing reports an empty backlog while the old file holds items, and an `add` writes a memo beside it and leaves the migration half done. It asks the adopted version rather than looking for the old file, so the next format change needs no edit here. Where no version can be asked — a clone of someone else's project, an exempt repo, a directory outside git, or a version check that fails outright with a note on stderr — it refuses instead when a `.claude/memos.md` is present, since nothing will ever split that file and a listing would otherwise read as an empty backlog
 
@@ -893,20 +893,6 @@ export CLAUDE_AI_AGENT_DASHBOARD="$HOME/projects/tauri-dashboard"
 
 ---
 
-### Memo Backlog
-
-**File:** `claude/hooks/memos-surface.py` (one script, three modes)
-
-Surfaces the open `/memo` backlog (`.claude/memos/`, resolved at the git root, numbered newest-first) as a **transient status-bar reminder** so a fresh or freshly cleared session shows "what's next" without the user typing anything — then clears it the moment they start working. It imports `memos.py` for the parse rather than re-implementing it, and only in the session-start mode — the status line refreshes every couple of seconds and stays off that path. Three wired entry points:
-
-- **`SessionStart`** (`startup`/`clear`, no arg) — writes a per-session state file with the open memos, each carrying its slug, title, platform tag and whether that platform is this machine. Those last two are resolved once, here, because this mode already forks git and imports `memos.py`. Injects **nothing** into chat, so the model never greets with or pushes the backlog — the status bar is the only reminder.
-- **`statusLine`** (`statusline` arg, `refreshInterval: 2`) — renders the compact backlog (top 3 + a `+N more` line) from the state file alone, deciding nothing; the interval makes it appear within ~2s while the session is idle. The summary line counts how many of the *hidden* memos are bound to the other platform — without it the bar would be the one surface a binding never reaches, since the backlog is newest-first and a bound memo is rarely among the newest three.
-- **`UserPromptSubmit`** (`on-prompt` arg) — clears the state (the bar reminder is done). If the message is a bare number — or `memo N` / `start N` / `do N` / `pick N` — it injects, bound to that prompt, which memo N maps to, so Claude reliably starts it instead of treating the number as noise. The injection carries the memo's **slug** and the commands to read it in full and to close it, since the bar showed only its title. Never the number: this state was written at session start while `memos.py` resolves a number against the live listing, so any `add` or `done` since then would make it name a different memo. A memo bound to the other platform gets an extra clause — do the portable part here, route the rest to the live session on that box.
-
-Stays silent when there's nothing open. Needs no environment variable. This is the only place the backlog surfaces unasked; see the [Memo](#memo) skill for how items get there and how the user asks for the full list.
-
----
-
 ### Install Check
 
 **File:** `claude/hooks/check-install.py`
@@ -1239,7 +1225,7 @@ It prints a pass/fail line per link, per git setting and per `PATH` entry, and t
 
 ### Python interpreter
 
-Every Python hook and the statusline in `claude/settings.json` invoke the interpreter as `python`, never `python3`. That is deliberate and measured: on both platforms the `python3` name resolves to an indirection rather than the real binary — a bash shim on Windows and an `xcode-select` dispatcher on macOS — and each costs a spawn on every hook. Nothing else on `PATH` may shadow it, so a machine that lacks a real `python` runs no hooks at all. Figures live in `claude/skills/hooks/references/performance.md`.
+Every Python hook in `claude/settings.json` invokes the interpreter as `python`, never `python3`. That is deliberate and measured: on both platforms the `python3` name resolves to an indirection rather than the real binary — a bash shim on Windows and an `xcode-select` dispatcher on macOS — and each costs a spawn on every hook. Nothing else on `PATH` may shadow it, so a machine that lacks a real `python` runs no hooks at all. Figures live in `claude/skills/hooks/references/performance.md`.
 
 Windows satisfies this out of the box. macOS does not — Apple ships no `python`, and the Command Line Tools `python3` is stuck on 3.9, which is old enough that ordinary annotations like `str | None` fail at import. Install a current Python and expose it under the bare name:
 

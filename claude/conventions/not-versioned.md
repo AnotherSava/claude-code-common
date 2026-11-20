@@ -57,7 +57,7 @@ session that followed one and a session that broke it, so there is nothing for a
 - **Best-practice adoption is an offer** — made once per project, and recorded in project memory when
   declined.
 - **Memo capture etiquette** — offer rather than impose, never record silently, never start the idea,
-  surface the backlog at session start and at no other moment, and tag `platform:` only when the
+  never print the backlog unasked, and tag `platform:` only when the
   memo's own body says the work needs that box rather than because of where it was captured. The
   *format* is versioned (v1 `memos-directory`, which is why widening it is not a convention sitting
   in neither place), but nothing on disk distinguishes a session that judged that call well from one

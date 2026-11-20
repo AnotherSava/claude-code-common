@@ -214,4 +214,4 @@ Cross-project memories live in `~/.claude/memory/`, indexed once in `~/.claude/m
 
 ## Memos
 
-Ideas the user drops for *other* work are offered as a memo ("Want me to memo that?") and written only on a yes, through the `/memo` skill; never start on them, and if one is plausibly "do this now", ask which. The backlog surfaces in the session-start status bar only; print it nowhere else unless asked.
+Ideas the user drops for *other* work are offered as a memo ("Want me to memo that?") and written only on a yes, through the `/memo` skill; never start on them, and if one is plausibly "do this now", ask which. Never print the backlog unless asked.
