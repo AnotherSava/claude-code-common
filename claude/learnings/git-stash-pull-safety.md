@@ -77,6 +77,21 @@ deliberate staged state, unstage the outside entries first and restage them afte
 eight unstaged files stashed by path beside three staged deletions; `--index` refused, the plain pop
 restored all eight.
 
+**A diverged branch needs the whole tracked tree stashed, because `git rebase` refuses any change at all.** Stash
+every tracked change, then rebase, then pop: unlike `merge --ff-only`, which refuses only a path the incoming commits
+touch, a rebase stops on any staged or unstaged edit, so the path-scoped stash above is not enough unless the overlap
+happens to be the only dirty path. Untracked files stay on disk, as for any stash:
+
+```bash
+git stash push -m "pre-pull local work"
+git rebase @{upstream}
+git stash pop --index
+```
+
+Verified 2026-11-19: twelve modified files and one staged deletion, three of them also changed by the four incoming
+commits. The rebase replayed the one local commit, the pop merged all three overlaps without conflict, and the staged
+deletion came back staged.
+
 **A dirty file that is *generated* from another one should be discarded, not stashed.** Where the
 overlap includes a file some script rebuilds from a source also in the tree — a rendered index block, a
 lockfile, a compiled manifest — stashing it puts a machine-written file into a three-way merge for no
