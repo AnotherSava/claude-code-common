@@ -153,6 +153,14 @@ before believing it.
 
 ## 9. Findings log
 
+- **2026-11-19** — **`PostModelSwitch` fires after the picker's save has reached disk, and not at all for an effort-only
+  change.** Measured on Claude Code 2.1.322 in a scratch `CLAUDE_CONFIG_DIR` driven through a pty: Enter in the
+  `/model` picker had already written `"model"` to `settings.json` when the hook's first instruction read the file.
+  The payload carries `from_model`, `to_model`, `requested_model` and `source` (`picker` here), with nothing saying
+  whether the pick was saved or session-only. A hook that rewrote the file left the saving session on its pick and a
+  second open session where it was. Changing only the effort, in `/effort` or with the effort control inside the
+  `/model` picker, saved `modelSettings` and fired no hook. `model-default-guard.py` is built on these results.
+
 This section accumulates. When a hook surprises you — a cost, a silent failure, a semantic — add a
 dated line here rather than leaving it in a session transcript.
 

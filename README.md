@@ -299,7 +299,7 @@ Arranges a project's README and GitHub Pages docs into a consistent user-first l
 
 ### Deploy
 
-Configures and runs the **local** deploy — it makes the current code runnable on this machine and never ships anywhere public. Either installs the built app locally (Tauri, IntelliJ plugin, .NET) or starts the project's local web server. On first use in a project, sets up the `deploy` bash function and writes the project's settings to `config/deploy.env`, which is committed, so every clone deploys the same way.
+Configures and runs the **local** deploy — it makes the current code runnable on this machine and never ships anywhere public. Either installs the built app locally (Tauri, IntelliJ plugin, .NET, or a project's own `make` target) or starts the project's local web server. On first use in a project, sets up the `deploy` bash function and writes the project's settings to `config/deploy.env`, which is committed, so every clone deploys the same way.
 
 Shipping outward is a different verb: a versioned artifact goes through the `release` skill, and a running site through the [Publish](#publish) skill or the project's own CI. Where CI already publishes on push, the push *is* the ship and the project gets no local publish script at all.
 
@@ -310,12 +310,13 @@ Shipping outward is a different verb: a versioned artifact goes through the `rel
 - One entry point for every project: `deploy` runs the skill's `run.sh`, which reads `DEPLOY_TYPE` from the committed `config/deploy.env` and calls that target. A project keeps no wrapper of its own
 - What differs between machines, such as an IDE's plugin directory, goes in the ignored `config/deploy.local.env`, whose keys override the committed file's
 - Installed apps go to `/Applications` on macOS and `C:/Programs/<binary name>` on Windows unless `INSTALL_DIR` says otherwise
+- A project whose `Makefile` already builds and installs the app, as an Xcode project's does, takes the `make` type: `deploy` runs `make deploy` at the repo root, or the target `MAKE_TARGET` names, and leaves the stack to the Makefile. `INSTALL_DIR`, when set, is passed through as the make variable of that name, so it applies only where the Makefile reads it; unset, the Makefile's own default stands
 - The Tauri target delivers secrets from Doppler two ways: it renders `config/local.template.json` into the app's config for an app whose config the project owns, and for an app that keeps settings of its own it writes only the named fields (`SECRET_FILE`, `SECRET_FIELDS`) into the existing file
 - Install targets run the full pipeline: build → stop app → clean install dir → copy → launch → verify. The build runs first, so a failed build leaves the running app untouched
 - The Tauri target asks `cargo metadata` where the build landed, so an app inside a Cargo workspace installs the binary just built rather than a stale one from `src-tauri/target`
 - The Tauri target confirms the relaunch against the process table: on macOS and Linux the stop step waits for the old process to disappear before anything overwrites its files, and the verify step polls for the new one, since macOS `open` exits 0 for a launch that only activated a dying instance and `-600` for one it went on to honour
 - The Tauri and .NET targets' verify step also requires the new process to still be running 2 s after it appears, since `Start-Process` returns once the process exists and an app that crashes a second after launch would otherwise pass
-- Asks right before a run that starts, restarts or closes an app with a window — the install targets that launch the installed app, and the IntelliJ target when it is set to close the IDE — and runs only on a yes; the dev-server target opens no window and runs without asking
+- Asks right before a run that starts, restarts or closes an app with a window — the install targets that launch the installed app, the IntelliJ target when it is set to close the IDE, and the `make` target when its recipe does either — and runs only on a yes; the dev-server target opens no window and runs without asking
 - Local web servers (a `package.json` with a `dev` script, or a plain static `index.html`) relaunch detached, and the run succeeds only once the server answers an HTTP request on its port, so a server that binds and then crashes (Next with its database down) fails the deploy and names its logs. The port is configured nowhere: the script asks the [Ports](#ports) registry for the dev-server claim `ports.py dev-use-case` names (keyed on the physical project folder, which can differ from the GitHub repo name) on every run and exports it as `PORT`, so `config/deploy.env` names no port and a `DEV_PORT` line left in an old one is read by nothing
 - Prints the tailnet URL as its last line, fronted on a **second** registry port (the tailnet claim `ports.py dev-use-case` names) rather than the one the server binds — a `tailscale serve` mapping holds the wildcard address, so fronting a server from its own number stops it rebinding at the next restart while every process listing shows that port free. `DEV_TAILNET=no` keeps the `localhost` URL for a project whose origin is pinned there
 - An optional `DEV_PRESTART_CMD` runs the project's own script — fetching a fixture, rendering a generated file — in the gap between stopping the old server and starting the new one, on every deploy
@@ -1004,6 +1005,16 @@ A `PostToolUse` on `Bash`, `Read` and `Grep`. It finds every timestamp in the to
 
 ---
 
+### Model Default Guard
+
+**File:** `claude/hooks/model-default-guard.py`
+
+Enter in the `/model` picker saves the pick as the default for new sessions, where `s` applies it to the running session only, and the two keys sit side by side. A misclick writes `model` and `modelSettings` into `~/.claude/settings.json`, which is this repo's `claude/settings.json` through the install link, so the default changes on both machines once the file is committed or synced. The model and effort keys are kept out of that file on purpose: the model is pinned by [`ANTHROPIC_MODEL`](#model-pin), and the effort level is picked per session.
+
+A `PostModelSwitch` hook, registered `async: true` since the event cannot block. After every model switch it deletes `model`, `modelSettings` and the older `effortLevel` from the settings file it reaches through the link, writes the rest back as two-space JSON with LF endings, and logs each removal to `~/.claude/model-default-guard.log`. Measured on Claude Code 2.1.322, the save is on disk before the event fires, and the rewrite leaves the saving session and any other open session on the models they already run. An effort-only change, through `/effort` or the effort control inside the picker, fires no hook, so a saved effort level stays in the file until the next model switch.
+
+---
+
 ### Workflow Realism
 
 **File:** `claude/hooks/workflow-realism.py`
@@ -1255,6 +1266,10 @@ What that actually costs, measured on the Windows machine: under a non-ASCII rep
 ### Mouse reporting
 
 The same `env` block sets `CLAUDE_CODE_DISABLE_MOUSE_CLICKS=1`, which keeps a drag in the terminal a text selection instead of an event stream while the wheel still scrolls the transcript. Claude Code 2.1.283 asks the terminal for any-event mouse tracking where 2.1.251 asked for nothing, and a terminal honouring that request delivers the drag to Claude Code rather than highlighting anything — so ⌘C copies nothing, and ⌘-hover stops underlining links. Holding shift bypasses the capture for one drag. With the variable set, Claude Code requests only click and wheel reporting (DECSET 1000 and 1006), never the motion-tracking modes, so a terminal that keeps drags for itself when no motion is tracked still selects; measured 2026-10-01 on the Windows machine. agterm on macOS is not such a terminal: libghostty forwards a press whenever the program requested any reporting, so a drag there still needs shift. `CLAUDE_CODE_DISABLE_MOUSE` must stay unset: it is tested for presence, so any value, `"0"` included, overrides this one, and `=1` turns reporting off entirely, which takes the wheel away from the transcript. The probe that reads the mode, and the terminal-side switches that also turn it off, are in `claude/learnings/terminal-mouse-reporting-vs-selection.md`.
+
+### Model pin
+
+The same `env` block sets `ANTHROPIC_MODEL=opus`, which picks the model every new session starts on and wins over a `model` key saved in the settings file. A default saved by mistake in `/model` therefore has no effect at launch, while Enter and `s` in the picker still switch the running session. The key is removed from the file after the switch by the [Model Default Guard](#model-default-guard). Changing the default model means changing this value.
 
 ### Screenshot capture helper (macOS)
 

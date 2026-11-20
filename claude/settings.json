@@ -2,7 +2,8 @@
   "env": {
     "CLAUDE_CODE_DISABLE_MOUSE_CLICKS": "1",
     "CLAUDE_CODE_DISABLE_NONESSENTIAL_TRAFFIC": "1",
-    "PYTHONUTF8": "1"
+    "PYTHONUTF8": "1",
+    "ANTHROPIC_MODEL": "opus"
   },
   "attribution": {
     "commit": ""
@@ -308,6 +309,17 @@
             "type": "command",
             "command": "python -S \"$HOME/.claude/hooks/conventions-check.py\"",
             "async": false
+          }
+        ]
+      }
+    ],
+    "PostModelSwitch": [
+      {
+        "hooks": [
+          {
+            "type": "command",
+            "async": true,
+            "command": "python -S \"$HOME/.claude/hooks/model-default-guard.py\""
           }
         ]
       }
