@@ -685,6 +685,23 @@ The `PostToolUse`/`ExitPlanMode` matcher is narrow enough that the hook doesn't 
 
 Claude Code doesn't surface hook script errors to the user by default (especially with `async: true`). If a hook isn't firing as expected, log to a disk file from the script itself — not stdout — and inspect after a test prompt. Bash/Python scripts can write a single JSON-line log.
 
+**To test a hook or a settings write against the interactive TUI, run a scratch `claude` in its own
+`CLAUDE_CONFIG_DIR` under `pty.fork()`.** Measured 2026-11-19 on 2.1.322, macOS, with no tmux installed. The scratch
+directory gets its own `settings.json` holding only the hook under test, so the user's global hooks never load: no
+dashboard row, and none of the pid confusion described under "Chat ID derivation from cwd". A `/model` save lands in the scratch
+file, not in the real settings or any open session. Two seeded files are enough:
+
+- `<dir>/.claude.json` with `hasCompletedOnboarding: true`, a `theme`, and
+  `projects["<workdir>"].hasTrustDialogAccepted: true`. That skips the theme picker, the login method screen and the
+  trust prompt, and the session starts at an empty prompt with no sign-in.
+- `<dir>/settings.json` with the hook entry, plus any `env` keys under test.
+
+Without a sign-in no prompt can be sent, but local slash commands work: `/model` and `/effort` open, save and fire
+their hooks. Render the output with `pyte` (see `terminal-in-place-status-redraw.md`), send keys as raw bytes (`\r`,
+`\x1b[B`, `\x1b[C`, `\x1b`), and give each keystroke about 0.3 s. A small loop that reads key names from a FIFO and
+writes `screen.display` to a file every half second lets a session be stepped through from separate Bash calls. With
+no window and no keystrokes reaching the real terminal, the machine-takeover ask does not apply.
+
 ## PostToolUse enforcement hooks (lint-on-edit)
 
 Pattern for running a linter/checker on every file Claude edits, with auto-fix and feedback (proven with ruff on Windows, 2026-06):
