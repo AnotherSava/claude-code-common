@@ -206,7 +206,7 @@ if [ -n "${AGTERM_SESSION_ID:-}" ]; then
     # cc-session.sh opens that shell, so a directory that is gone is refused as it is for the session;
     # `wsl --cd` would open the shell in `/` instead and still exit 0.
     # An agterm too old for the command only loses that, so it is reported and the attach goes on.
-    agterm_tab split command "/usr/bin/ssh -t $ssh_opts $REMOTE_USER@$REMOTE_HOST $cc_session resume shell" >/dev/null \
+    agterm_tab split command "/usr/bin/ssh -t $ssh_opts $REMOTE_USER@$REMOTE_HOST $cc_session resume shell" >/dev/null 2>&1 \
         || echo "attach: could not point this tab's cmd+d at $REMOTE_HOST" >&2
 fi
 
