@@ -88,3 +88,19 @@ So a command meant to be copied out of a reply:
   ran with no log and zsh tried to execute the path. The same command had also been put on the
   clipboard as one line, and which of the two the user pasted was not established, so whether a
   clipboard copy keeps a wide command whole is still unmeasured.
+
+# A long `!` command's ending is the part that drops out of view
+
+A command run with the `!` prefix streams its output while it runs (the interactive-mode docs say
+"Shows real-time progress and output"). The tools reference's "Output limits" describes what the Bash
+tool returns: a successful command past roughly 30,000 characters becomes a saved file plus a preview
+of its first 2,000, while a failed one gets a head-and-tail excerpt of about 10,000. The `!` view
+behaved like the successful case. Measured 2026-11-20: a `! deploy` of an Xcode Release build printed
+55 KB, and the user saw the xcodebuild preamble with no sign of whether it had finished or succeeded.
+So the verdict a build prints last is the part nobody sees.
+
+A script meant for `!` keeps its own output short: the tool's log goes to a file under the repo's
+`tmp/`, the terminal gets a heartbeat while it runs and a one-line verdict at the end, and on failure
+the log's tail. The deploy skill's `deploy-make.sh` is that shape. The docs do not describe what the
+live view shows mid-run (how many lines, whether a timer), so check that on the build before relying
+on it.
