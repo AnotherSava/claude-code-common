@@ -877,6 +877,25 @@ existed to *fail* — reported a complete body and read as a clean experiment. T
 status: `kill -0 "$PID"` still succeeding, or the port still accepting, is the assertion worth making,
 because `kill` reports on the process it reached and not on the one you wanted.
 
+## Ctrl-C stops a script but not the job it backgrounded
+
+Trap INT and TERM and kill the job yourself whenever a script backgrounds work and polls it (a heartbeat
+loop around a build, say). Without job control, which a non-interactive script never has, bash starts every
+`&` command with SIGINT and SIGQUIT ignored. Ctrl-C reaches the whole process group, the script dies, and the
+job keeps running with nobody watching it:
+
+```sh
+make deploy > "$log" 2>&1 &
+pid=$!
+trap 'kill "$pid" 2>/dev/null; wait "$pid"; exit 130' INT TERM
+while kill -0 "$pid" 2>/dev/null; do sleep 1; done
+```
+
+Send TERM, not INT, since the job ignores INT. GNU make passes TERM on to the recipe it is running, so
+killing make also stops the compiler it started. Measured 2026-11-20 by sending SIGINT to the process group
+of a script backgrounding `sleep`: the script exited and the `sleep` survived. With the trap, a slow
+`make` target's `sleep` was gone within a second.
+
 ## Small differences between the Mac's userland and Git Bash's
 
 Each of these made a test pass on one machine and prove nothing, or fail for a reason unrelated to its subject:
