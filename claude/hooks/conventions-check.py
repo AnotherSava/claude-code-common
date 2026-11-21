@@ -39,8 +39,8 @@ import os
 import sys
 
 # The versions and the record format live in `claude/conventions/`, reached relative to this file.
-# `abspath` rather than `realpath` so this works whether the
-# hook was invoked through ~/.claude/hooks or straight out of the checkout.
+# `abspath` rather than `realpath` so this works whether the hook was invoked through ~/.claude/hooks
+# or straight out of the checkout.
 sys.path.insert(0, os.path.join(os.path.dirname(os.path.abspath(__file__)), "..", "conventions"))
 
 try:
