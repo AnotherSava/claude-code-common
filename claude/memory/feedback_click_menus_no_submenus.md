@@ -26,6 +26,8 @@ What the research found: Nielsen Norman Group's menu-design checklist advises cl
 submenus, and advises against multilevel cascading menus, which users "fall out" of. Material Design places a
 cascading menu to the right or left of its parent, wherever there is room, and draws it to the right.
 
+The closing rule covers a page's own menu too: on 2026-11-20 the trips page's Add menu, first built as a native `<details>`, stayed open on Escape and on a click outside, and the user asked for both. `<details>` does neither, so a menu needs a menu component (React Aria's `MenuTrigger` there).
+
 **How to apply:** when designing a per-item menu, start from click-to-open, one column, no submenus; show a short set
 of states as a toggle group, not behind a "current state ›" item. For a menu with more choices than a column holds,
 the research's answer is a submenu that opens on click, to the right, flipping at the edge; the user has not been

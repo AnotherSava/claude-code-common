@@ -20,7 +20,9 @@ between two fields, and over showing the link field at all times. Reading that o
 and dialog is the scheduler session's interpretation, which the user approved saving that day. It is the same
 complaint as a button resizing on press, one level up.
 
-**How to apply:** before revealing anything after a fetch, ask what moves when it appears; if anything does, reserve
+The same holds across a mode switch and for a transient status. On 2026-11-20 the trips page's Edit and Add icons sat after a name that edit mode turns into a field of another width, so they moved at every switch, and a "Saved" note pushed them again; the user asked for placements where nothing jumps and chose the icons pinned at the heading's top right, by the calendar, with the save shown as a border flash.
+
+**How to apply:** anchor a mode toggle where no field's changing width reaches it, and give a transient status no layout of its own. Before revealing anything after a fetch, ask what moves when it appears; if anything does, reserve
 the slot. A form field hidden this way is still submitted and still validated, so until it shows keep it empty
 and leave `required` off it; the learning `react-form-submit-paste-and-hidden-fields.md` has the measurements.
 The same rule for buttons is in [[feedback_no_underline_links]], and for help text and a dialog that has to
