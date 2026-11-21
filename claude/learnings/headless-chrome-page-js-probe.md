@@ -45,6 +45,10 @@ directory of its own, on a page served from loopback with focus emulation switch
 
 - **Keys:** pressing Enter in a text field with `page.keyboard.press` submitted the form around it, and Tab moved
   focus to the next control.
+- **Replacing a field's text:** `page.click(selector, { clickCount: 3 })` did not select the whole value of an
+  input styled `field-sizing: content` (measured 2026-11-20, same setup), so the text typed next went in at the
+  caret and left the old value around it, which then saved. Click the field, then press Ctrl+A
+  (`keyboard.down('Control')`, `press('a')`, `up('Control')`) before typing; that replaced it every time.
 - **A drop:** three `Input.dispatchDragEvent` calls (`dragEnter`, `dragOver`, `drop`) at the field's coordinates,
   each carrying a `text/plain` item in `data.items`, put the text into an input.
 - **The clipboard:** headless Chrome keeps one of its own. Once `browserContext.overridePermissions` had granted
