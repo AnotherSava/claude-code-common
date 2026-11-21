@@ -26,7 +26,7 @@ never the transcript — so the gap is re-derived below rather than taken from w
 
 ## Context
 - Repo root: !`git rev-parse --show-toplevel 2>/dev/null || echo "(not a git repo)"`
-- This repo, commits it is behind its upstream: !`git fetch -q 2>/dev/null || echo "(fetch failed — what follows compares against the last fetch that worked)"; git -c push.default=current log --oneline HEAD..@{push} 2>/dev/null || echo "(no push target on the remote)"; echo "(end of list)"`
+- This repo, commits it is behind its push target: !`git fetch -q "$(git for-each-ref --format='%(push:remotename)' "$(git symbolic-ref -q HEAD)")" 2>/dev/null || echo "(fetch failed — what follows compares against the last fetch that worked)"; git -c push.default=current log --oneline HEAD..@{push} 2>/dev/null || echo "(no push target on the remote)"; echo "(end of list)"`
 - Dotfiles checkout, commits it is behind its upstream: !`git -C ~/.claude/skills fetch -q 2>/dev/null || echo "(fetch failed — what follows compares against the last fetch that worked)"; git -C ~/.claude/skills log --oneline HEAD..@{upstream} 2>/dev/null || echo "(no upstream configured)"; echo "(end of list)"`
 - Record file ignored by: !`git check-ignore -q "$(git rev-parse --show-toplevel 2>/dev/null)/.claude/conventions" && git check-ignore -v "$(git rev-parse --show-toplevel 2>/dev/null)/.claude/conventions" || echo "(not ignored — the record will be tracked, unless Repo root above says this is not a repo at all)"`
 - Install check: !`python ~/.claude/hooks/check-install.py 2>&1 | grep FAIL || echo "(every symlink and git setting resolves)"`
@@ -50,6 +50,8 @@ are what the gate exists to catch. In a fork whose branch tracks the third-party
 `remote.pushDefault` is `origin`, `@{upstream}` lists every third-party commit not yet merged; agterm
 showed 242 with `origin` equal to `HEAD`. The `-c push.default=current` is there because `@{push}`
 does not resolve under `simple` in that setup, the same limit `_pushed_from` in `shared/push.py` names.
+The fetch names the push remote for the same reason: a bare `git fetch` fetches the branch's
+upstream remote, so in that fork it would refresh `upstream` and leave `origin` at its last fetch.
 
 ## What the number means
 
@@ -92,7 +94,7 @@ setting — is enumerated in `~/.claude/conventions/not-versioned.md`. Read it w
   project directories on this machine have no `.git` at all, which is why the session-start notice says
   so rather than staying silent — and that notice is the most likely reason someone typed `/adopt` here.
   Offer `git init` as its own decision, not as part of this walk.
-- **This repo behind its upstream** — if **This repo, commits it is behind its upstream** shows any
+- **This repo behind its push target** — if **This repo, commits it is behind its push target** shows any
   commit line above `(end of list)`, propose the sync and stop. A migration that deletes a file the other
   machine just appended to merges cleanly and loses the append silently; that near-loss is written up in
   `~/.claude/learnings/git-stash-pull-safety.md`, and the tree is dirty by premise here, so follow that
@@ -103,7 +105,7 @@ setting — is enumerated in `~/.claude/conventions/not-versioned.md`. Read it w
   the conflict §4 ends with. The machine the user typed `/adopt` in walks; the other clone takes the
   result through `/pull`, which is work for the session that owns it and never for this one. Before
   walking, find out whether that clone already is: `/repo-status` reports both clones' convention
-  records. It answers a different question from the behind-its-upstream gate, which is about commits and
+  records. It answers a different question from the behind-its-push-target gate, which is about commits and
   has already run by here. A peer clone already ahead on the record, or holding an uncommitted
   adoption, means stopping here and pulling instead. A peer that cannot be reached is not evidence of a
   second walk — say it went unmeasured, and walk.
