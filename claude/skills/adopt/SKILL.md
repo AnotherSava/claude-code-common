@@ -46,12 +46,10 @@ below would otherwise read as still hidden and every later run would loop on a `
 already right.
 
 The repo line compares against the branch this clone pushes to, because the other machine's pushes
-are what the gate exists to catch. In a fork whose branch tracks the third-party `upstream` while
-`remote.pushDefault` is `origin`, `@{upstream}` lists every third-party commit not yet merged; agterm
-showed 242 with `origin` equal to `HEAD`. The `-c push.default=current` is there because `@{push}`
-does not resolve under `simple` in that setup, the same limit `_pushed_from` in `shared/push.py` names.
-The fetch names the push remote for the same reason: a bare `git fetch` fetches the branch's
-upstream remote, so in that fork it would refresh `upstream` and leave `origin` at its last fetch.
+are what the gate exists to catch, and in a triangular fork `@{upstream}` is the third-party project
+instead. The named-remote fetch and `-c push.default=current` both come from
+`~/.claude/learnings/git-fork-push-target.md`, which holds the measurement and the reasons; change the
+recipe there and here together.
 
 ## What the number means
 
