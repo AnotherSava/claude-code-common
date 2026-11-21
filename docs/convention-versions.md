@@ -149,8 +149,8 @@ Three of them are permanent — a repo in any of these states records nothing at
 
 The rest are temporary, and naming what to fix is the whole of the answer:
 
-- **The repo or the dotfiles checkout is behind its upstream.** Pull first, or the walk reasons from a stale version set.
-- **The other machine's clone is already walking**, which shows as a clone ahead on the record or holding an uncommitted adoption. The `/repo-status` run reports both clones' convention records, and it is asked after the upstream sync rather than in place of it — that one is about commits, this one about how far the sequence has run. A peer that cannot be reached is not evidence of a second walk: it goes unmeasured and the walk proceeds.
+- **The repo is behind its push target, or the dotfiles checkout behind its upstream.** Pull first, or the walk reasons from a stale version set. The push target is the branch the clone pushes to, which in a fork that pulls from the third-party project is not its upstream.
+- **The other machine's clone is already walking**, which shows as a clone ahead on the record or holding an uncommitted adoption. The `/repo-status` run reports both clones' convention records, and it is asked after the push-target sync rather than in place of it — that one is about commits, this one about how far the sequence has run. A peer that cannot be reached is not evidence of a second walk: it goes unmeasured and the walk proceeds.
 - **The record file is ignored**, so it would never travel. Fix the `.gitignore` first.
 
 An exempt repo still runs every universal rule, which is the part an exemption cannot reach: it is a statement about the sequence, and those are gated by no number in it.
