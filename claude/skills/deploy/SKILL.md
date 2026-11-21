@@ -182,7 +182,9 @@ the project's Makefile. Write `DEPLOY_TYPE=make` to `config/deploy.env`, and `MA
 target is not `deploy`. When this machine needs a different install location from the Makefile's default, write
 `INSTALL_DIR=<path>` to `config/deploy.local.env`; it is passed to make as `INSTALL_DIR=`, so it only works where
 the Makefile reads that variable. Read the target's recipe before the first run: if it stops, starts or
-relaunches an app with a window, step 4's ask applies. Then go to **step 3**.
+relaunches an app with a window, step 4's ask applies. Make's own output goes to `tmp/deploy-make.log`, and the
+deploy's output carries only a progress line every 20 s, the log's last lines and the verdict, so on a failure read
+that log for the error. Then go to **step 3**.
 
 **Local-install targets (Tauri / IntelliJ / .NET) — items 2–4:**
 
