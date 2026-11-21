@@ -190,18 +190,23 @@ def main() -> int:
             FAILURES.append(f"unknown-type: expected a failure naming rocket, got {code}: {out.strip()}")
 
         if shutil.which("make"):
+            def make_result(code: int, out: str) -> str:
+                """The exit code, make's last line, and whether a done verdict follows it."""
+                lines = out.strip().splitlines()
+                return f"{code} {lines[-2]} {lines[-1].startswith('deploy: done in')}"
+
             write(os.path.join(current, "Makefile"),
                   "INSTALL_DIR := default\ndeploy:\n\t@echo deploy to $(INSTALL_DIR)\nship:\n\t@echo ship $(EXTRA)\n"
                   "broken:\n\t@echo boom; exit 3\n")
             write(os.path.join(current, "config", "deploy.env"), "DEPLOY_TYPE=make\n")
             code, out = deploy(bash, current)
-            check("make", f"{code} {out.strip().splitlines()[-2]} {out.strip().splitlines()[-1].startswith('deploy: done in')}", "0 deploy to default True")
+            check("make", make_result(code, out), "0 deploy to default True")
             write(os.path.join(current, "config", "deploy.local.env"), "INSTALL_DIR=/opt/apps\n")
             code, out = deploy(bash, current)
-            check("make (install-dir)", f"{code} {out.strip().splitlines()[-2]} {out.strip().splitlines()[-1].startswith('deploy: done in')}", "0 deploy to /opt/apps True")
+            check("make (install-dir)", make_result(code, out), "0 deploy to /opt/apps True")
             write(os.path.join(current, "config", "deploy.env"), "DEPLOY_TYPE=make\nMAKE_TARGET=ship\n")
             code, out = deploy(bash, current, "EXTRA=x")
-            check("make (target)", f"{code} {out.strip().splitlines()[-2]} {out.strip().splitlines()[-1].startswith('deploy: done in')}", "0 ship x True")
+            check("make (target)", make_result(code, out), "0 ship x True")
             os.remove(os.path.join(current, "config", "deploy.local.env"))
             write(os.path.join(current, "config", "deploy.env"), "DEPLOY_TYPE=make\nMAKE_TARGET=broken\n")
             code, out = deploy(bash, current)
