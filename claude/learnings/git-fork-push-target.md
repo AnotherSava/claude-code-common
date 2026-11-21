@@ -29,6 +29,14 @@ git -c push.default=current log --oneline HEAD..@{push}     # origin/master in t
 git for-each-ref --format='%(push:remotename)' "$(git symbolic-ref -q HEAD)"   # origin
 ```
 
+Fetch the push remote by name before comparing. A bare `git fetch` fetches the branch's upstream remote, so
+in the fork it refreshes `upstream` and leaves `origin/master` at its last fetch, and the comparison reads a
+stale ref as "up to date":
+
+```sh
+git fetch -q "$(git for-each-ref --format='%(push:remotename)' "$(git symbolic-ref -q HEAD)")"
+```
+
 The `-c push.default=current` form assumes the pushed branch has the local branch's name. That matches what
 `simple` does in a triangular setup. A branch never pushed has no `origin/<branch>` yet, so the range fails to
 resolve; report that as its own case, never as "up to date".
