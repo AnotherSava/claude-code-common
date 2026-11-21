@@ -41,5 +41,8 @@ The `-c push.default=current` form assumes the pushed branch has the local branc
 `simple` does in a triangular setup. A branch never pushed has no `origin/<branch>` yet, so the range fails to
 resolve; report that as its own case, never as "up to date".
 
-Every check written as "behind `@{upstream}`" has the same blind spot in such a fork. The `/adopt` gate and
-`_pushed_from` in `shared/push.py` handle it; check any other before trusting it in a fork.
+Every check written against `@{upstream}` has the same blind spot in such a fork, in both directions.
+`HEAD..@{upstream}` reads unmerged third-party commits as "behind", and `@{upstream}..HEAD` reads every fork
+patch as "unpushed", including those already on `origin`; a history rewrite that trusts the second list
+rewrites pushed commits. The `/adopt` gate and `_pushed_from` in `shared/push.py` handle it; check any other
+before trusting it in a fork.
