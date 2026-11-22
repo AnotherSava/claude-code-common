@@ -358,7 +358,10 @@ Every piece below exists because something simpler was measured not to work; the
   from a `/mnt/d` working directory so the Windows child gets a real `D:\...` path. With a trailing
   `detach` it creates the session and stops before attaching, which is how the Windows dashboard
   starts a session for a project it has a message for and nothing running in; that caller names the
-  project by its Windows path, which must lie under `WSL_PROJECT_ROOT`. With a trailing `shell` it
+  project by its Windows path, which must lie under `WSL_PROJECT_ROOT`. With a trailing `name` it
+  prints the project and then its tmux session name and touches nothing, which is how the Windows
+  dashboard learns which holder session a running agent is in, so it can ask the Mac to open a tab
+  on one a message reached; it parses those two lines. With a trailing `shell` it
   opens a login shell in the project's directory and touches no session, which is what cmd+d runs.
   With a trailing `restart` it fixes what the check found blank: a tmux server that no longer draws
   new panes is stopped and brought back through the holder, with every session that was running

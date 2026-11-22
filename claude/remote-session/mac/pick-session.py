@@ -48,7 +48,8 @@ START_SENTINEL = "\u2026start-a-project"
 # What names the project inside a remote tab's foreground argv: the word after whichever of these
 # the argv carries. Two of them, because agterm names a pane by its process group leader and that
 # is attach.sh, which loops over ssh rather than exec'ing into it — while an ssh run by hand carries
-# the project inside the remote command instead, after cc-session.sh.
+# the project inside the remote command instead, after cc-session.sh. The Claude Code Dashboard keeps
+# the same rule (ATTACH_MARKERS in its terminals/agterm_wire.rs), so the two change together.
 FOREGROUND_MARKERS = ("/attach.sh", "/cc-session.sh")
 # Where a pick leaves the one-shot file that attach.sh reads as "a person asked for this tab".
 START_TOKENS = os.path.join(os.environ.get("XDG_STATE_HOME") or os.path.expanduser("~/.local/state"), "claude-remote-session", "start-tokens")

@@ -58,6 +58,8 @@ fi
 # rather than assumed. So anything outside the set that survives is refused here, at the boundary,
 # rather than half-working further in. pick-session.py's tab match leans on the same restriction: it
 # flattens a tab's argv to words, which recovers the project only because a name cannot hold one.
+# The Mac dashboard refuses the same set before it runs this (`attach_name_ok` in its sync.rs), so
+# a change here changes that copy too.
 case $project in
     *[!A-Za-z0-9._/-]*)
         echo "attach: '$project' has a character that does not survive the Windows shell, so it" >&2

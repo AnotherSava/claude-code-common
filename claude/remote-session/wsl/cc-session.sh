@@ -7,7 +7,7 @@
 # and the interactive desktop both work. Starting it from an ext4 directory instead gets the
 # cmd.exe "UNC paths are not supported" failure.
 #
-# Usage: cc-session.sh <project> <origin> [<start|resume> [check|detach|shell|restart]]
+# Usage: cc-session.sh <project> <origin> [<start|resume> [check|detach|shell|restart|name]]
 #
 # <project> is a directory name under WSL_PROJECT_ROOT, or the project's Windows path (`D:\...`),
 # which must lie under it; the Claude Code Dashboard passes the path, being the one caller that knows
@@ -39,6 +39,12 @@
 # holder need not be up and the third word changes nothing. It is what cmd+d runs in a Mac tab
 # (mac/attach.sh), sent here so the directory is derived and refused in one place: `wsl --cd` handed
 # a path that does not exist opens its shell in `/` and still exits 0.
+#
+# A trailing `name` prints two lines and touches nothing, so the holder need not be up and the
+# second and third words change nothing: the project as an attach takes it, as `detach` prints it,
+# then the tmux session name it runs under. It is how the Windows dashboard learns whether a session
+# it delivered a message to is one of these, and the name a Mac tab attaches to it by, without a
+# second copy of WSL_PROJECT_ROOT or of remote_session_name.
 #
 # A trailing `restart` fixes what a 6 or a 7 reported: a tmux server that no longer draws new panes
 # is stopped, the holder restarted to bring a fresh one up, and every session that was running
@@ -72,11 +78,11 @@ case $mode in
 esac
 check=${4:-}
 case $check in
-    ''|check|detach|shell|restart) ;;
+    ''|check|detach|shell|restart|name) ;;
     *) mode= ;;
 esac
 if [ -z "$project" ] || [ -z "$origin" ] || [ -z "$mode" ]; then
-    echo "usage: cc-session.sh <project> <origin> [<start|resume> [check|detach|shell|restart]]" >&2
+    echo "usage: cc-session.sh <project> <origin> [<start|resume> [check|detach|shell|restart|name]]" >&2
     exit 2
 fi
 
@@ -114,6 +120,10 @@ fi
 # name exactly; without it "cc-games" would also answer for "cc-games-old" and attach the wrong one.
 name=$(remote_session_name "$project")
 session="=$name"
+if [ "$check" = name ]; then
+    printf '%s\n%s\n' "$project" "$name"
+    exit 0
+fi
 
 # Registered under this name by windows/install.ps1's $TaskName.
 holder_task=ClaudeRemoteSessionHolder
