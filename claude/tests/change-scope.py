@@ -2,9 +2,9 @@
 """Cases for `claude/skills/shared/change_scope.py`, the verdict /wrap-up reads before its clean-up passes.
 
 A wrong `SKIP` sends code to a commit that no clean-up pass looked at, and nothing later notices; a wrong `RUN` only
-costs time. So the cases lean on the skips: the polish record the review-auto workflow leaves, and the images that
-decide whether screenshots are checked. Each runs the script for real against a scratch repo and its bare origin,
-sealed from this machine's git config.
+costs time. So the cases lean on the skips: the polish record the review-auto workflow leaves, the SCREENSHOTS flag
+that decides whether screenshots are checked, and the images that set the recommendation when it is unset. Each runs
+the script for real against a scratch repo and its bare origin, sealed from this machine's git config.
 """
 
 from __future__ import annotations
@@ -48,7 +48,7 @@ def main() -> int:
         write(repo, "app.py", "two\n")
         got = verdicts(repo)
         check("a code change with no polish record runs both clean-up passes", (got["clean-code"].startswith("RUN"), got["docs-relevance"].startswith("RUN")), (True, True))
-        check("and skips screenshots when the docs hold no images", got["screenshot-relevance"], "SKIP (the docs hold no images)")
+        check("and asks for SCREENSHOTS, recommending no, when the docs hold no images", got["screenshot-relevance"], "ASK (SCREENSHOTS is unset in .claude/repo-flags; recommend no)")
 
         polish(repo)
         got = verdicts(repo)
@@ -79,10 +79,18 @@ def main() -> int:
         write(repo, "docs/shot.png", "png\n")
         polish(repo)
         got = verdicts(repo)
-        check("screenshots are checked over a polished tree when the docs hold images", (got["clean-code"], got["screenshot-relevance"]), ("SKIP (review-auto polished this tree)", "RUN (code changed, so prose about it may be stale)"))
+        check("the ask recommends yes over a polished tree when the docs hold images", (got["clean-code"], got["screenshot-relevance"]), ("SKIP (review-auto polished this tree)", "ASK (SCREENSHOTS is unset in .claude/repo-flags; recommend yes)"))
         write(repo, "docs/raw/shot.png", "png\n")
         os.remove(os.path.join(repo, "docs", "shot.png"))
-        check("an image under raw/ is not documentation", verdicts(repo)["screenshot-relevance"], "SKIP (the docs hold no images)")
+        check("an image under raw/ is not documentation", verdicts(repo)["screenshot-relevance"], "ASK (SCREENSHOTS is unset in .claude/repo-flags; recommend no)")
+
+        write(repo, ".claude/repo-flags", "SCREENSHOTS=yes\n")
+        check("SCREENSHOTS=yes runs screenshots though the docs hold no images", verdicts(repo)["screenshot-relevance"], "RUN (code changed, so prose about it may be stale)")
+        write(repo, "docs/shot.png", "png\n")
+        write(repo, ".claude/repo-flags", "SCREENSHOTS=no\n")
+        check("SCREENSHOTS=no skips screenshots though the docs hold images", verdicts(repo)["screenshot-relevance"], "SKIP (SCREENSHOTS=no in .claude/repo-flags)")
+        write(repo, ".claude/repo-flags", "SCREENSHOT=no\n")
+        check("a misspelt flag runs the check, naming the refusal", verdicts(repo)["screenshot-relevance"].startswith("RUN (the flags file is refused: "), True)
 
     return report("change-scope tests")
 

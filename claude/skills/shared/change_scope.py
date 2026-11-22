@@ -1,9 +1,9 @@
 #!/usr/bin/env python3
 """Decide whether the pending change set needs /clean-code, /docs-relevance and /screenshot-relevance.
 
-Prints one verdict line per sub-skill, `RUN` or `SKIP`, with the reason and the
-paths behind it. A change set git cannot be read from prints `RUN` for all three and
-says the scope is unmeasured — a gate that could not look must never skip.
+Prints one verdict line per sub-skill, `RUN` or `SKIP`, with the reason and the paths behind it; screenshots
+can also get `ASK`, when the repo has not set SCREENSHOTS in `.claude/repo-flags`. A change set git cannot be
+read from prints `RUN` for all three and says the scope is unmeasured — a gate that could not look must never skip.
 
 The `review-auto` workflow runs the first two itself once its review converges, and
 records the tree it polished. When no code changed since that tree, the clean-code
@@ -22,6 +22,7 @@ sys.path.insert(0, HERE)
 sys.path.insert(0, os.path.join(HERE, "..", "..", "scripts"))
 from git_changeset import changed_paths, git  # noqa: E402  (the shared module's path is set above)
 import review_scope  # noqa: E402  (its path is set above)
+import repo_flags  # noqa: E402  (its path is set above)
 
 CODE_SUFFIXES = {
     ".py", ".pyi", ".ts", ".tsx", ".js", ".jsx", ".mjs", ".cjs", ".rs", ".go", ".java", ".kt",
@@ -36,7 +37,7 @@ DOC_IMAGES = [":/docs/*.png", ":/docs/*.jpg", ":/docs/*.jpeg", ":/docs/*.gif", "
 
 # Paths whose content documents nothing about the code and is never read for staleness.
 INERT_PREFIXES = (".claude/memos/", ".claude/memory/")
-INERT_PATHS = {".claude/conventions"}
+INERT_PATHS = {".claude/conventions", ".claude/repo-flags"}
 
 
 def unpushed_paths() -> tuple[list[str], str | None]:
@@ -196,10 +197,23 @@ def main() -> None:
 
     if not reason:
         print("screenshot-relevance: SKIP (no code and no documentation in the change set)")
-    elif unmeasured or has_doc_images():
+        return
+    try:
+        flag = repo_flags.get(git(["rev-parse", "--show-toplevel"]).strip(), "SCREENSHOTS")
+    except repo_flags.FlagsError as exc:
+        # The skill reads the same file and stops on it there, which is where the user sees why.
+        print(f"screenshot-relevance: RUN (the flags file is refused: {exc})")
+        return
+    except (subprocess.CalledProcessError, OSError):
+        print(f"screenshot-relevance: RUN ({reason}; the repo root could not be read, so SCREENSHOTS is unknown)")
+        return
+    if flag == "no":
+        print("screenshot-relevance: SKIP (SCREENSHOTS=no in .claude/repo-flags)")
+    elif flag == "yes":
         print(f"screenshot-relevance: RUN ({reason})")
     else:
-        print("screenshot-relevance: SKIP (the docs hold no images)")
+        recommend = "yes" if unmeasured or has_doc_images() else "no"
+        print(f"screenshot-relevance: ASK (SCREENSHOTS is unset in .claude/repo-flags; recommend {recommend})")
 
 
 if __name__ == "__main__":

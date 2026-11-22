@@ -9,6 +9,16 @@
 set -u
 
 git rev-parse --git-dir >/dev/null 2>&1 || { echo "release: not a git repo"; exit 0; }
+
+# A repo that is never released says so in .claude/repo-flags. Asked before the fetch, so an opted-out repo
+# costs no network call. A file the reader refuses stops the check with its message: reading it as unset
+# would make the offer the repo asked not to get.
+py=python3; case "$(uname -s)" in MINGW*|MSYS*|CYGWIN*) py=python ;; esac
+releases=$("$py" "$(dirname "$0")/../../shared/repo_flags.py" get "$(git rev-parse --show-toplevel)" RELEASES) || exit 1
+if [ "$releases" = "no" ]; then
+  echo "release: off (RELEASES=no in .claude/repo-flags)"
+  exit 0
+fi
 git fetch --tags --quiet 2>/dev/null || echo "FETCH-FAILED"
 
 tag=$(git describe --tags --abbrev=0 --match 'v*' 2>/dev/null)

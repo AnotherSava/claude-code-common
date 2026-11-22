@@ -6,7 +6,7 @@ description: >-
   TRIGGER when: /wrap-up, or the user is ready to finalize, close out or wrap up the current work.
   DO NOT TRIGGER when: pushing work as-is to test it (/yolo), parking one idea (/memo), or only
   persisting knowledge (/reflect).
-allowed-tools: Bash(python ~/.claude/skills/wrap-up/scripts/session_scan.py:*), Bash(bash ~/.claude/skills/wrap-up/scripts/ship_wrappers.sh), Bash(bash ~/.claude/skills/shared/project_memory.sh), Bash(bash ~/.claude/skills/wrap-up/scripts/release_candidates.sh), Bash(python ~/.claude/skills/memo/memos.py:*), Bash(git rev-parse:*), Bash(git status:*), Bash(git log:*), Bash(python ~/.claude/skills/shared/peer_relay.py:*), Bash(python3 ~/.claude/skills/shared/peer_relay.py:*), Bash(git fetch:*), Bash(git rev-list:*), Bash(git diff:*), Bash(git show:*), Bash(gh issue list:*), Bash(gh run list:*), Bash(gh run watch:*), Bash(gh run view:*), Bash(git apply:*), Bash(python3 ~/.claude/skills/shared/commit.py:*), Bash(python ~/.claude/skills/shared/commit.py:*), Bash(python3 ~/.claude/skills/shared/push.py:*), Bash(python ~/.claude/skills/shared/push.py:*), Bash(python3 ~/.claude/skills/shared/gate_pushed_tree.py:*), Bash(python ~/.claude/skills/shared/gate_pushed_tree.py:*), Bash(python3 ~/.claude/skills/shared/change_scope.py:*), Bash(python ~/.claude/skills/shared/change_scope.py:*), Bash(python3 ~/.claude/skills/shared/peer_repo_changes.py:*), Bash(python ~/.claude/skills/shared/peer_repo_changes.py:*), Bash(python3 ~/.claude/scripts/review_scope.py:*), Bash(python ~/.claude/scripts/review_scope.py:*), Bash(python3 ~/.claude/scripts/review_picker.py:*), Bash(python ~/.claude/scripts/review_picker.py:*), Bash(bash ~/.claude/scripts/audit-skill-tracking.sh), Workflow, Bash(bash ~/.claude/skills/deploy/scripts/run.sh:*), Bash(bash scripts/publish.sh), ListAgents, ToolSearch, SendMessage, Read, Edit, Write, Glob, Grep, Skill
+allowed-tools: Bash(python ~/.claude/skills/wrap-up/scripts/session_scan.py:*), Bash(bash ~/.claude/skills/wrap-up/scripts/ship_wrappers.sh), Bash(bash ~/.claude/skills/shared/project_memory.sh), Bash(bash ~/.claude/skills/wrap-up/scripts/release_candidates.sh), Bash(python3 ~/.claude/skills/shared/repo_flags.py:*), Bash(python ~/.claude/skills/shared/repo_flags.py:*), Bash(python ~/.claude/skills/memo/memos.py:*), Bash(git rev-parse:*), Bash(git status:*), Bash(git log:*), Bash(python ~/.claude/skills/shared/peer_relay.py:*), Bash(python3 ~/.claude/skills/shared/peer_relay.py:*), Bash(git fetch:*), Bash(git rev-list:*), Bash(git diff:*), Bash(git show:*), Bash(gh issue list:*), Bash(gh run list:*), Bash(gh run watch:*), Bash(gh run view:*), Bash(git apply:*), Bash(python3 ~/.claude/skills/shared/commit.py:*), Bash(python ~/.claude/skills/shared/commit.py:*), Bash(python3 ~/.claude/skills/shared/push.py:*), Bash(python ~/.claude/skills/shared/push.py:*), Bash(python3 ~/.claude/skills/shared/gate_pushed_tree.py:*), Bash(python ~/.claude/skills/shared/gate_pushed_tree.py:*), Bash(python3 ~/.claude/skills/shared/change_scope.py:*), Bash(python ~/.claude/skills/shared/change_scope.py:*), Bash(python3 ~/.claude/skills/shared/peer_repo_changes.py:*), Bash(python ~/.claude/skills/shared/peer_repo_changes.py:*), Bash(python3 ~/.claude/scripts/review_scope.py:*), Bash(python ~/.claude/scripts/review_scope.py:*), Bash(python3 ~/.claude/scripts/review_picker.py:*), Bash(python ~/.claude/scripts/review_picker.py:*), Bash(bash ~/.claude/scripts/audit-skill-tracking.sh), Workflow, Bash(bash ~/.claude/skills/deploy/scripts/run.sh:*), Bash(bash scripts/publish.sh), ListAgents, ToolSearch, SendMessage, Read, Edit, Write, Glob, Grep, Skill
 ---
 
 # Wrap Up
@@ -179,6 +179,10 @@ Nothing here asks the user anything; each sub-step's question, if it has one, be
   line rather than a pause. The last two are backgrounded forks that hand back a patch: collect, read and apply each
   as the "For the caller" section of `~/.claude/skills/shared/forked-sandbox.md` says, before drawing the commit plan.
   A capture one reports as pending is a summary line too, run after the answer.
+  `ASK` for screenshots means the repo has not said whether its docs carry screenshots: run no screenshot pass,
+  and make it a summary line asking `yes` or `no`, preset to the value the verdict recommends. Step 8 records the
+  answer with `python ~/.claude/skills/shared/repo_flags.py set . SCREENSHOTS <answer>` and commits
+  `.claude/repo-flags` as its own `chore(repo-flags)` commit; a `yes` takes effect from the next run.
 - **Untracked skills.** `bash ~/.claude/scripts/audit-skill-tracking.sh`; each path it lists is a summary line asking
   keep (un-ignore it) or local (record it in `claude/untracked-skills.local.txt`).
 - **Open issues.** `gh issue list --state open --limit 30`; an issue the change set bears on is a summary line asking
@@ -451,8 +455,12 @@ comes back.
 publish offer is settled; it has to run here rather than in Context, because Context was read before this
 section's commits existed. Offer `/release` when it reports one or more feat/fix commits since the last `v*` tag,
 and list those subjects in the offer so the user judges them — `/release` decides the version and whether a
-change reaches the shipped artifact, so do not pre-judge either here. Say nothing when it reports zero, no tag, or
-not a git repo: a project that has never been tagged takes its first release deliberately, not from a wrap-up.
+change reaches the shipped artifact, so do not pre-judge either here. Say nothing when it reports zero, no tag,
+`off`, or not a git repo: a project that has never been tagged takes its first release deliberately, not from a
+wrap-up, and `off` is the repo's own `RELEASES=no`. When the user declines the offer, ask once whether this repo
+is never released; on a yes, run `python ~/.claude/skills/shared/repo_flags.py set . RELEASES no` from the repo
+root and say the file is uncommitted and goes out with the next commit. A fork whose `v*` tags are upstream's
+releases is the standing case.
 A `FETCH-FAILED` line means a release cut on the other machine may be missing from the count; say so in the
 offer. Withhold it after a `hold`, as with publish: a release tags and pushes on top of
 the work they kept off the remote. Invoke it through the Skill tool, since no wrapper exists for it, and

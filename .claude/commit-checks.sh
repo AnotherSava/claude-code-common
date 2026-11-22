@@ -186,6 +186,10 @@ run "review scope" python3 claude/tests/review-scope.py
 # wrong skip sends code no clean-up pass saw into a commit and nothing later notices, so the cases press on the skips.
 run "change scope" python3 claude/tests/change-scope.py
 
+# The per-repo flags every skill reads through one parser. A flag misread as unset brings back the offer the repo
+# turned off and says nothing, so the refusals and the release check's reading of RELEASES are pinned here.
+run "repo flags" python3 claude/tests/repo-flags.py
+
 # The backstop that warns when an inline workflow fixes findings without rating realism, or reviews code without the
 # saved workflow and so misses the review bookmark. Too quiet and the next such run goes unnoticed; too loud on
 # workflows that review documents or papers and the warning stops being read.

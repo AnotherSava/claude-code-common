@@ -15,6 +15,7 @@ Owns everything from the moment a picture is going to change until the user has 
 ## Context
 - Repo root: !`git rev-parse --show-toplevel 2>/dev/null || pwd`
 - Screenshot manifest: !`R=$(git rev-parse --show-toplevel 2>/dev/null || pwd) && cat "$R/docs/screenshots/screenshots.json" 2>/dev/null || echo MISSING`
+- Screenshots flag (`no`, `yes`, or empty when the repo has not said): !`python ~/.claude/skills/shared/repo_flags.py get "$(git rev-parse --show-toplevel 2>/dev/null || pwd)" SCREENSHOTS 2>&1`
 
 Bare `references/` paths and `scripts/contact-sheet.py` are this skill's own, under `~/.claude/skills/docs-screenshot/`. Every other bare `scripts/` path — the shutter and the framing tools — belongs to the `screenshot` skill, under `~/.claude/skills/screenshot/scripts/`. Every other path is relative to **Repo root**.
 
@@ -23,6 +24,8 @@ Bare `references/` paths and `scripts/contact-sheet.py` are this skill's own, un
 1. **Find the frame's entry and read the manifest reference.** Locate the screenshot in **Screenshot manifest** and read `~/.claude/skills/docs-screenshot/references/screenshot-manifest.md` before writing to it — the schema, `capture.command` and `capture.steps`, and the upkeep rules. When the manifest is `MISSING`, the frame gets an entry as part of filing it, with no `policy` key: that field is the user's to give.
 
    **A direct request is the permission.** When the user asks for a frame and names the state, capture it whatever its `policy` says; a `never` entry stops `screenshot-relevance` from *offering* a replacement, not the user from asking for one. When the request does not name the state and the UI now has several, ask which one before going further.
+
+   **Read Screenshots flag before going further.** `no` means the repo has declined screenshots in its documentation: take nothing there on any skill's initiative, and on a direct request from the user say first that it contradicts the flag and ask whether to set it to `yes`. Empty means the repo has not answered, and an unset key means what `KEYS` in `~/.claude/skills/shared/repo_flags.py` says for every reader: ask the user which value to record. Either answer is written with `python ~/.claude/skills/shared/repo_flags.py set . SCREENSHOTS <value>` from **Repo root**. A `repo_flags:` error line means the file is malformed: stop and report it.
 
 2. **Ask once, before the staging starts.** A capture that takes the machine, as the `screenshot` skill's step 2 defines it, runs from its first such action through the shutter, and needs the user's yes immediately before it runs — never folded into the request that started the work, and never asked a second time between staging and the shutter. Say which app and windows it touches and roughly how long it takes. Which captures take the machine, and which need no ask, is defined in `~/.claude/skills/screenshot/SKILL.md`.
 
