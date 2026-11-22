@@ -19,6 +19,7 @@ from __future__ import annotations
 
 import os
 import re
+import subprocess
 import sys
 
 REL = ".claude/repo-flags"
@@ -85,11 +86,30 @@ def get(root: str, key: str) -> str:
     return _parse(_read_lines(root)).get(key, "")
 
 
+def _refuse_if_ignored(root: str) -> None:
+    """Raise when git would never stage the file, which makes the answer exist on this machine alone.
+
+    A repo that allowlists `.claude/` (`.claude/*` with named exceptions) hides the file without a word,
+    and every reader here still finds it, so the flag looks recorded until the other clone asks again.
+    The verdict is read from `-q`, since `-v` also reports a negation that un-ignores the path; `-v` is
+    asked only to name the rule. `--no-index` judges the ignore rules, not whether the file was ever
+    force-added. Outside a git work tree there is nothing to stage and nothing to refuse.
+    """
+    probe = ["git", "-C", root, "check-ignore", "--no-index"]
+    verdict = subprocess.run([*probe, "-q", REL], capture_output=True, text=True)
+    if verdict.returncode == 0:
+        blame = subprocess.run([*probe, "-v", REL], capture_output=True, text=True).stdout.strip()
+        rule = blame.split("\t", 1)[0] if blame else "an ignore rule"
+        raise FlagsError(f"{REL} is ignored by {rule}, so it would never be committed; "
+                         f"un-ignore it (an allowlisting .gitignore needs `!{REL}`) and set it again")
+
+
 def set_flag(root: str, key: str, value: str) -> None:
     """Record `key=value`, replacing an earlier line for the key in place and keeping every other line."""
     _known(key)
     if value not in VALUES:
         raise FlagsError(f"{key}={value} is neither yes nor no")
+    _refuse_if_ignored(root)
     lines = _read_lines(root)
     _parse(lines)
     entry = f"{key}={value}"

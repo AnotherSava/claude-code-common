@@ -9,6 +9,7 @@ script rather than prose, `wrap-up/scripts/release_candidates.sh`, run for real 
   set          `set` writes a new key, replaces it in place, and keeps comments and other keys
   refusals     an unknown key, a value other than yes or no, a repeated key and a line that is not KEY=value
                each exit 2 naming the line, on `get` and before `set` writes anything
+  ignored      `set` refuses, naming the rule, when git would never stage the file, and writes nothing
   release-off  RELEASES=no makes the release check report `off` and look at no tag
   release-bad  a refused file stops the release check with exit 1 and the reader's message
 """
@@ -63,6 +64,16 @@ def main() -> int:
             check(f"{label} refuses get", (code, out, needle in err and ".claude/repo-flags:" in err), (2, "", True))
             check(f"{label} refuses set and writes nothing", (flags(root, "set", "SCREENSHOTS", "no")[0], contents(root)), (2, text))
         check("an unknown key argument is refused", flags(root, "get", "PUBLISH")[0], 2)
+
+        hidden = os.path.join(scratch, "hidden")
+        subprocess.run(["git", "init", "-q", hidden], check=True)
+        write(hidden, ".gitignore", "!.claude/\n.claude/*\n!.claude/settings.json\n")
+        code, out, err = flags(hidden, "set", "RELEASES", "no")
+        written = os.path.exists(os.path.join(hidden, ".claude", "repo-flags"))
+        check("set refuses a flags file git ignores, naming the rule, and writes nothing",
+              (code, ".gitignore:2:.claude/*" in err, written), (2, True, False))
+        write(hidden, ".gitignore", "!.claude/\n.claude/*\n!.claude/repo-flags\n")
+        check("and writes once the allowlist names it", flags(hidden, "set", "RELEASES", "no")[0], 0)
 
         repo = os.path.join(scratch, "repo")
         subprocess.run(["git", "init", "-q", repo], check=True)
