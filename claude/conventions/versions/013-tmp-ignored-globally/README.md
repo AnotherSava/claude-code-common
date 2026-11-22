@@ -1,5 +1,6 @@
 ---
 title: The agent's tmp/ is ignored by the global excludes file, not by each repo
+asks: never
 ---
 
 ## What changed

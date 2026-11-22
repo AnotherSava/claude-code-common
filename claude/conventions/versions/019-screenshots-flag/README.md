@@ -1,5 +1,6 @@
 ---
 title: Whether a repo's docs carry screenshots is SCREENSHOTS in .claude/repo-flags
+asks: never
 ---
 
 ## What changed

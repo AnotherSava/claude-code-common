@@ -1,5 +1,6 @@
 ---
 title: The memo backlog is a directory, and addressed memos carry their close date
+asks: when both memos.md and memos/ exist, no backlog exists anywhere, a done memo has no commit to date it, or a name opens with a date-shaped non-date
 ---
 
 ## What changed

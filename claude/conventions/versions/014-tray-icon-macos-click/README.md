@@ -2,6 +2,7 @@
 title: A tray icon's left click reaches the app rather than the menu
 rules: tray-icon-macos-click
 optional: forks
+asks: never
 ---
 
 ## What changed

@@ -1,6 +1,7 @@
 ---
 title: Memory files carry frontmatter and bare links
 rules: memory-file-shape
+asks: when a memory file has no frontmatter, memory files have no MEMORY.md, a link names no file or will not parse, or a file is not text
 ---
 
 ## What changed

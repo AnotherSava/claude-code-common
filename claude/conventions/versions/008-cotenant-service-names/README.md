@@ -2,6 +2,7 @@
 title: Compose services carry the project's name
 rules: cotenant-service-names
 optional: forks
+asks: always
 ---
 
 ## What changed

@@ -1,5 +1,6 @@
 ---
 title: The commit gate runs what the deploy runs, and the conventions checker
+asks: when an existing .claude/commit-checks.sh omits a build, lint or test suite the repo has
 ---
 
 ## What changed
@@ -76,6 +77,13 @@ chosen what goes in it. Then put the question with the inventory beside it:
 > What actually gates a commit here — a build, a lint, a test suite, a schema check — and does
 > `.claude/commit-checks.sh` run it? A file that exists but runs nothing is worse than none, because
 > `/yolo` and `/wrap-up` report it green.
+
+The user's standing answer to it is written down in
+`~/.claude/memory/feedback_commit_gate_contents.md`. An
+unattended walk drafts the gate from that answer and the inventory, and lists every command it chose in
+its report for review. It stops at the question only where a gate already exists and leaves out a build,
+lint or test suite the repo has, since that file may record a choice the standing answer does not know
+about.
 
 The inventory informs the answer and does not replace it. A `test` script in a `package.json` says a
 suite exists, never that the suite is what would have caught the last thing to break.

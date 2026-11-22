@@ -2,6 +2,7 @@
 title: Worker hostnames carry the project's name
 rules: cotenant-hostnames
 optional: forks
+asks: always
 ---
 
 ## What changed

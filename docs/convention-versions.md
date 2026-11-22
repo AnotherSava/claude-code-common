@@ -11,7 +11,7 @@ A version is a one-time migration, and running it proves nothing about tomorrow 
 
 ## Catching up
 
-A convention changes here, and the change ships with its version folder, committed alongside. Every other repo is now at least one version behind — a fact derived by comparing the number that repo recorded against the newest one here. Three steps close the gap, and none of them run unattended:
+A convention changes here, and the change ships with its version folder, committed alongside. Every other repo is now at least one version behind — a fact derived by comparing the number that repo recorded against the newest one here. Three steps close the gap, and none of them starts by itself:
 
 1. **The session-start notice says so** in that repo, the next time a session opens there.
 2. **You run `/adopt` there**, in one clone of that repo only. It walks the pending versions in ascending order, one at a time: reading the version's prose in full, performing the migration where it applies, and advancing the number by one.
@@ -23,7 +23,7 @@ No session ever writes to a repo other than its own. `/github-status` reports wh
 
 One number per migration, carried by the folder that holds it — `claude/conventions/versions/NNN-slug/`. That name is the identity, and the number is stored nowhere else, so the two can never disagree.
 
-[What the conventions require](convention-requirements.md) lists the set as it stands — one line per version, and which of them handed a rule to the checker.
+[What the conventions require](convention-requirements.md) lists the set as it stands — one line per version, whether adopting it can stop to ask you something, which of them a fork may decline, and which handed a rule to the checker.
 
 A version is warranted on one narrow test: **a repo already conforming to the previous version must now do something.** Doing something is either performing a migration or taking on a rule it was not being checked against before. Rewording a convention without changing what it requires is neither, and ships without a version.
 
@@ -132,6 +132,8 @@ The walk takes the pending versions in ascending order, one at a time:
 6. **It advances the record by one.**
 
 Then the next version. The number moving one at a time is what makes an interrupted walk safe: a run that stops partway loses nothing, and the next `/adopt` resumes at the first pending version.
+
+A walk nobody is watching runs as `/adopt unattended`. Each version's README declares in its `asks:` frontmatter whether its migration needs you: never, always, or in a named case. The unattended walk adopts versions until the first one whose question applies in this repo, commits what it adopted, and ends with that question and its evidence instead of asking. What it takes on without asking, and what still stops it, is listed in the `## Unattended` section of [`claude/skills/adopt/SKILL.md`](../claude/skills/adopt/SKILL.md).
 
 The walk ends with one commit:
 

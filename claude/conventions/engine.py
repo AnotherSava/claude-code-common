@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
 """The convention engine: the versions on one side, a repo's one-integer record on the other.
 
-    python engine.py versions                  every version: number, title, rules
+    python engine.py versions                  every version: number, title, rules, whether it asks
     python engine.py status <repo-root>        where this repo stands
     python engine.py adopt <repo-root> <n>     write the record
     python engine.py decline <repo-root> <n> <reason>   decline an optional version, in a fork
@@ -83,10 +83,16 @@ REMOTE_URL_RE = re.compile(r"^(?:(?!file:)[a-z][a-z0-9+.-]*://(?:[^@/]+@)?[^/]+/
 # Everything a version's frontmatter may declare. Anything else is refused rather than ignored: a
 # `version:` or `script:` left behind by a port would otherwise sit there reading as authoritative
 # while the folder name and the folder's contents quietly decided both.
-FIELDS = ("title", "rules", "optional")
+FIELDS = ("title", "rules", "optional", "asks")
 # The values `optional:` may take. A fork is the only kind of repo that may decline a version, and a
 # third-party clone adopts nothing at all, so there is no second value yet.
 OPTIONAL_FOR = ("forks",)
+
+# Whether a version's migration needs the user's input: `never`, `always`, or `when <case>` naming
+# the repo state that raises its question. Required on every version, because `/adopt unattended`
+# walks only up to the first version that will ask here, and a version silent on it would read as
+# either answer. The case is prose the walking agent evaluates against the repo; nothing parses it.
+ASKS_KINDS = ("never", "always", "when")
 
 RECORD_HEADER = ("# Convention version this repo has adopted, from the claude dotfiles repo.",
                  "# Written by /adopt. See claude/conventions/ in that repo.")
@@ -119,6 +125,8 @@ class Version(NamedTuple):
     readme: str
     apply: str                # the optional mechanical migration, "" when the prose is the whole of it
     fork_optional: bool       # `optional: forks` — a fork may decline it
+    asks: str                 # one of ASKS_KINDS
+    asks_when: str            # the case that raises the question, "" unless `asks` is "when"
 
 
 class Record(NamedTuple):
@@ -196,8 +204,17 @@ def _version_from(name: str) -> Version:
     optional = data.get("optional", "")
     if optional and optional not in OPTIONAL_FOR:
         raise VersionError(f"{label} declares optional: {optional!r}; the only value is {', '.join(OPTIONAL_FOR)}")
+    declared = data.get("asks", "")
+    asks, _, asks_when = declared.partition(" ")
+    asks_when = asks_when.strip()
+    if asks not in ASKS_KINDS:
+        raise VersionError(f"{label} declares asks: {declared!r}; it is one of never, always, "
+                           f"or `when <case>` naming the repo state that raises the question")
+    if (asks == "when") != bool(asks_when):
+        raise VersionError(f"{label} declares asks: {declared!r}; only `when` takes a case, and it needs one")
     script = os.path.join(folder, "apply.py")
-    return Version(int(match.group(1)), match.group(2), title, _names(data, "rules", label, "rule name"), folder, readme, script if os.path.isfile(script) else "", optional == "forks")
+    return Version(int(match.group(1)), match.group(2), title, _names(data, "rules", label, "rule name"), folder,
+                   readme, script if os.path.isfile(script) else "", optional == "forks", asks, asks_when)
 
 
 def load_versions() -> list[Version]:
@@ -585,7 +602,8 @@ def _versions_or_refuse() -> tuple[list[Version], int]:
 def _listing(version: Version, optional_shown: bool = True) -> str:
     rules = f"  [rules: {', '.join(version.rules)}]" if version.rules else ""
     optional = "  [optional for forks]" if optional_shown and version.fork_optional else ""
-    return f"  v{version.number:<3} {version.slug:<28} {version.title}{rules}{optional}"
+    asks = f"when {version.asks_when}" if version.asks == "when" else version.asks
+    return f"  v{version.number:<3} {version.slug:<28} {version.title}{rules}{optional}\n         asks: {asks}"
 
 
 def cmd_versions() -> int:

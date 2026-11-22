@@ -2,6 +2,7 @@
 title: Raw screenshot captures are committed, and kept off the site
 rules: screenshot-raws-unpublished
 optional: forks
+asks: when the docs site is not Jekyll, or docs/ is not its published source
 ---
 
 ## What changed

@@ -105,8 +105,8 @@ then. So retire a version only when it has stopped being a migration at all — 
 to the memory-cache one, now a universal rule. A version that is merely wrong is superseded by a
 later one.
 
-The folder holds a `README.md` opening with frontmatter — `title` required, `rules` and `optional`
-optional — then four sections, in order:
+The folder holds a `README.md` opening with frontmatter — `title` and `asks` required, `rules` and
+`optional` optional — then four sections, in order:
 
 - `## What changed` — the convention as it now reads, and why it moved.
 - `## Migrating an existing repo` — what an already-conforming repo has to do, addressed to the
@@ -131,6 +131,21 @@ only as a walk reaches the version, so every repo that already adopted it keeps 
 not a fork never reads the field. Removing it does not pass: a decline is checked only when it is
 written, so a fork that already declined the version keeps skipping it, now a required one, and
 nothing reports it. Make a version required again with a later version that tells forks to take it on.
+
+**Write `asks` from the migration's questions, after the sections.** It takes one of three values:
+
+- `never` — no repo's migration needs the user.
+- `always` — every repo where the migration applies gets a question.
+- `when <case>` — a question comes up only in the repo states the case names, on one line, naming
+  every state the README puts to the user.
+
+An unattended walk (`/adopt unattended`) walks on through `never`, stops before `always`, and evaluates
+a `when` case against the repo, so a case that leaves out one of the README's questions sends an
+unattended walk straight into a question nobody is there to answer. Which steps count as a question
+there, and which the walk takes without one, is listed once, in the adopt skill's `## Unattended`;
+write the case against that list. A `## When it does not apply` condition needs nobody. The field
+passes the edit test above for shipped versions: an attended walk does not read it, and a repo that
+adopted the version never walks it again.
 
 The default is prose and nothing else. A version may carry an `apply.py` beside its README where
 the migration is genuinely mechanical and tedious; it takes the repo root, does the work, prints

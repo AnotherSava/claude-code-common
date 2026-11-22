@@ -1,5 +1,6 @@
 ---
 title: The shared screenshot machinery is called from the screenshot skill, not docs-relevance
+asks: never
 ---
 
 ## What changed

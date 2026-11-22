@@ -1,6 +1,7 @@
 ---
 title: A project .gitignore hides only what is this repo's to hide
 rules: gitignore-unhides-committed, gitignore-scope-global
+asks: when every rule hiding a required path lives outside the repo, or core.excludesfile is unset or unreadable
 ---
 
 ## What changed

@@ -471,7 +471,8 @@ def rule_wiring(gate: Gate, versions: list[engine.Version]) -> None:
 
 def requirements_page(gate: Gate, versions: list[engine.Version]) -> None:
     """The requirements page carries one row per version, ticked exactly where the version hands the checker a
-    rule, and in its fork column exactly where the version is optional for forks.
+    rule, in its fork column exactly where the version is optional for forks, and in its asks column with the
+    kind its `asks:` field declares.
 
     Nothing else reads that page, so a version shipped without its row leaves the page describing a
     smaller set than the one every repo is asked to adopt, with nothing reporting it.
@@ -485,11 +486,13 @@ def requirements_page(gate: Gate, versions: list[engine.Version]) -> None:
         return
     rows: dict[int, bool] = {}
     forks: dict[int, bool] = {}
+    asks: dict[int, str] = {}
     for line in lines:
         cells = [cell.strip() for cell in line.strip().strip("|").split("|")]
         if line.startswith("|") and cells[0].startswith("**v") and cells[0].endswith("**") and cells[0][3:-2].isdigit():
             rows[int(cells[0][3:-2])] = cells[-1] == "✓"
             forks[int(cells[0][3:-2])] = cells[-2] == "✓"
+            asks[int(cells[0][3:-2])] = cells[-3]
     for version in versions:
         gate.ok(version.number in rows, f"v{version.number} {version.slug} has a row on the requirements page")
         if version.number in rows:
@@ -500,6 +503,10 @@ def requirements_page(gate: Gate, versions: list[engine.Version]) -> None:
                     f"v{version.number} {version.slug}: the page ticks the fork column exactly when the version "
                     f"is optional for forks", f"the page says {'✓' if forks[version.number] else 'blank'}, "
                     f"`optional:` says {'forks' if version.fork_optional else 'nothing'}")
+            word = "sometimes" if version.asks == "when" else version.asks
+            gate.ok(asks[version.number] == word,
+                    f"v{version.number} {version.slug}: the page's asks column matches the version's `asks:` field",
+                    f"the page says {asks[version.number]!r}, `asks:` says {version.asks!r}")
     for number in sorted(set(rows) - {version.number for version in versions}):
         gate.ok(False, f"the requirements page's v{number} row has a version folder", "no folder carries that number")
 
@@ -1028,15 +1035,34 @@ def fork_cases(gate: Gate, base: str, versions: list[engine.Version]) -> None:
 
     # The `optional:` field takes one value, and a typo is refused rather than read as required.
     scratch = os.path.join(base, "versions-typo")
-    write_file(scratch, "001-typo/README.md", "---\ntitle: a version\noptional: fork\n---\n")
+    write_file(scratch, "001-typo/README.md", "---\ntitle: a version\nasks: never\noptional: fork\n---\n")
     saved, engine.VERSIONS_DIR = engine.VERSIONS_DIR, scratch
     try:
         engine.load_versions()
         gate.ok(False, "an `optional:` value other than forks is refused", "the version set loaded")
-    except engine.VersionError:
-        gate.ok(True, "an `optional:` value other than forks is refused")
+    except engine.VersionError as exc:
+        gate.ok("optional" in str(exc), "an `optional:` value other than forks is refused", str(exc))
     finally:
         engine.VERSIONS_DIR = saved
+
+    # `asks:` is required, since `/adopt unattended` would read a silent version as either answer, and
+    # only `when` carries a case.
+    for slug, asks, accepted in (("asks-missing", None, False), ("asks-typo", "sometimes", False),
+                                 ("asks-when-bare", "when", False), ("asks-never-case", "never a case", False),
+                                 ("asks-when-case", "when the repo has a wrangler.toml", True)):
+        scratch = os.path.join(base, f"versions-{slug}")
+        line = "" if asks is None else f"asks: {asks}\n"
+        write_file(scratch, f"001-{slug}/README.md", f"---\ntitle: a version\n{line}---\n")
+        saved, engine.VERSIONS_DIR = engine.VERSIONS_DIR, scratch
+        label = f"asks: {asks!r} is {'accepted' if accepted else 'refused'}"
+        try:
+            loaded = engine.load_versions()
+            gate.ok(accepted and loaded[0].asks == "when" and loaded[0].asks_when == asks[5:], label,
+                    f"loaded as {loaded[0].asks!r} {loaded[0].asks_when!r}")
+        except engine.VersionError as exc:
+            gate.ok(not accepted and "asks" in str(exc), label, str(exc))
+        finally:
+            engine.VERSIONS_DIR = saved
 
 
 def behind_cases(gate: Gate, base: str) -> None:

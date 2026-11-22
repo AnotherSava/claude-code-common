@@ -1,5 +1,6 @@
 ---
 title: Every memo a checklist split produced sits on the side its marker asked for
+asks: when a checklist has no revision in git, an unlisted memo sits in done/, the clone is shallow, or git will not answer
 ---
 
 ## What changed

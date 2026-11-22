@@ -2,6 +2,7 @@
 title: The docs theme is pinned to a tag
 rules: docs-theme-pinned
 optional: forks
+asks: when the theme key is absent, remote_theme appears twice or nested, or a pinned site lacks jekyll-remote-theme, docs/index.md or docs/pages/
 ---
 
 ## What changed
@@ -41,12 +42,15 @@ Fetch first, and do not run this on a branch behind its upstream: the rewrite to
 merges cleanly against an edit to another, so a stale tree loses nothing visibly
 (`learnings/git-stash-pull-safety.md`).
 
-Four states are a question for the user rather than work to do:
+**A different theme is named** — a gem-based `theme:` such as `jekyll-theme-hacker`, or a
+`remote_theme` from another repository. Move the site to `just-the-docs` first, following the
+`github-pages` skill, which owns the layout: the config, the plugins list, `docs/index.md` and
+`docs/pages/`. Then pin it as above. The move restyles the whole site, so read every page once at the
+new theme before committing, and name in the report any page whose content depended on the old
+theme's layout.
 
-- **A different theme is named.** chrome-assistant sets `theme: jekyll-theme-hacker`, a gem-based
-  theme rather than a remote one. A divergence chosen on purpose and a site nobody has migrated read
-  identically from the file, so ask: is that theme deliberate, or should the site move to
-  `just-the-docs`, which is a rewrite of the whole site's styling and a human's job?
+Three states are a question for the user rather than work to do:
+
 - **No theme key at all.** Neither `remote_theme` nor `theme` appears, so the site is served by
   whatever Jekyll defaults to and there is no line to pin. Ask which theme the site should use.
 - **Two `remote_theme` keys, or one nested under another key.** Which value Jekyll ends up using is

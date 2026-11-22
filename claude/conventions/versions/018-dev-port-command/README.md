@@ -1,5 +1,6 @@
 ---
 title: A dev script resolves its port through the dev-port command, not a copied shim
+asks: when USE_CASE or OWNER differs from what the dev-use-case command derives
 ---
 
 ## What changed

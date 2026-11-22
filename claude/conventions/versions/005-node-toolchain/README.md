@@ -2,6 +2,7 @@
 title: The Node toolchain is declared, enforced and pinned
 rules: node-engines, engine-strict, package-manager-pin
 optional: forks
+asks: when a manifest has no readable .nvmrc beside it, its .nvmrc falls outside its range, a range or packageManager will not parse, engine-strict=false is set, an .npmrc is unreadable, a non-npm manager is pinned, or no single npm version in the repo can be copied
 ---
 
 ## What changed

@@ -1,6 +1,7 @@
 ---
 title: Transcrypt paths normalize line endings
 rules: transcrypt-eol
+asks: when a filter=crypt rule matches a file git stores as binary, or git will not answer
 ---
 
 ## What changed

@@ -2,6 +2,7 @@
 title: A project's deploy settings are one committed file, and no wrapper stands in front of them
 rules: deploy-config-committed
 optional: forks
+asks: when the clones disagree on a deploy key or hold one only on one side, a wrapper line no setting covers, a per-machine wrapper must be deleted, or a windowed target must be relaunched
 ---
 
 ## What changed

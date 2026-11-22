@@ -2,6 +2,7 @@
 title: A project's port comes from the registry at launch, not from a literal in its dev script
 rules: ports-from-registry
 optional: forks
+asks: never
 ---
 
 ## What changed

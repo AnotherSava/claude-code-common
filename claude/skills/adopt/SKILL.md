@@ -19,7 +19,8 @@ for each.
 
 A version is a migration, so the walk performs it. Most versions carry prose rather than a script, and
 reading that prose and doing what it says *is* the adoption. Where a migration deletes or rewrites a
-committed file, the README says what would be lost — show that and get a yes before running it.
+committed file, the README says what would be lost — show that and get a yes before running it. In an
+unattended walk the review of the local commit is that yes, as `## Unattended` says.
 
 The session-start notice that sends the user here is a `systemMessage` — it reaches their screen and
 never the transcript — so the gap is re-derived below rather than taken from what they pasted.
@@ -84,6 +85,39 @@ What can never carry a version at all — agent behaviour, code content, an unbo
 setting — is enumerated in `~/.claude/conventions/not-versioned.md`. Read it when the user asks what
 "current" covers, so the answer is "every versionable convention has been adopted" rather than
 "everything in CLAUDE.md is satisfied here".
+
+## Unattended
+
+An unattended walk, started as `/adopt unattended`, is for a walk nobody is watching. Without that
+argument the walk runs as everything below describes. With it, the walk differs in these places, and
+this list is the one statement of them that `authoring.md` and `docs/convention-versions.md` point to:
+
+- **Each pending version's `asks:` line**, printed under it in **Conventions status**, says whether its
+  migration needs the user. `never` walks on. `always` stops before the version, unless its
+  `## When it does not apply` holds or the repo is already in its shape (sub-steps 2 and 3), which need
+  nobody. `when <case>` stops only where that case holds in this repo: settle it with the evidence the
+  README asks for, exactly as an attended walk would before putting the question.
+- **A stop is a report, not a question.** Record nothing for the stopping version and leave its tree
+  untouched: undo any part of its migration already made, because a half-applied migration commits as
+  if done. Commit the versions adopted before it through §4, then end with the README's question
+  verbatim, the stock-take sub-step 4 would have shown beside it, and the case from `asks:` that held.
+  The walk ends there; the user's answer comes through a later attended `/adopt`.
+- **A rewrite or deletion of a committed file needs no yes.** The commit is local and reviewed before
+  any push, so the review is the yes. List each such change in the report with what the README says it
+  loses. A file git does not track, such as v17's per-machine wrapper, is not covered: git cannot give
+  it back, so deleting one stops the walk as a question does, whatever `asks:` says. Editing an
+  untracked file in place, such as v15 and v17 trimming the per-machine `config/deploy.env`, is not a
+  stop, but git cannot undo it either: list each such edit in the report with the lines it removed,
+  so a later stop can restore them by hand.
+- **A fork's decline offer** (sub-step 2) is a question, so a version marked optional for forks whose
+  migration applies in a fork stops the walk.
+- **Anything the walk would need the screen for**, such as a relaunch Taking Over the Machine covers,
+  is a stop where an attended walk would ask.
+- **An `asks:` line that proves wrong in this repo** (the README asks something its `when` case does
+  not name) is a stop where an attended walk would simply ask. Say so in the report, because the line
+  is fixed in the dotfiles repo.
+
+A §3 failure stops an unattended walk just as it stops an attended one.
 
 ## 0. Gates, before anything is read or run
 
@@ -179,7 +213,8 @@ exception being a declined version taken on later, which §1 describes.
 
 4. **Do the migration.**
    - **Where the README carries a question, take stock of what the repo holds that bears on it, then
-     put it to the user verbatim with those findings beside it.** Look wherever the README says to
+     put it to the user verbatim with those findings beside it** — or, in an unattended walk, end the
+     walk with both as `## Unattended` describes. Look wherever the README says to
      look, and show what you found and where. The question itself stays unedited and unsummarised,
      with nothing added but the repo's name if that is not already obvious. Ask it in plain text below
      the findings, not through AskUserQuestion, whose box covers the text above it
