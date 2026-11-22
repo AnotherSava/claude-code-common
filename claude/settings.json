@@ -301,13 +301,14 @@
         "hooks": [
           {
             "type": "command",
-            "async": true,
-            "command": "python -S \"$HOME/.claude/hooks/model-default-guard.py\""
+            "command": "python -S \"$HOME/.claude/hooks/model-default-guard.py\"",
+            "async": true
           }
         ]
       }
     ]
   },
+  "disableAgentView": true,
   "respondToBashCommands": false,
   "enabledPlugins": {
     "frontend-design@claude-plugins-official": true,
@@ -347,7 +348,6 @@
   },
   "outputStyle": "action-first",
   "awaySummaryEnabled": false,
-  "disableAgentView": true,
   "tui": "fullscreen",
   "skipWorkflowUsageWarning": true,
   "theme": "dark",
