@@ -74,6 +74,20 @@ To keep only the panes that fail, let the pane mark itself as it exits: `{ cmd; 
 
 Measured 2026-10-15 on tmux 3.4. The `=name` row is the dangerous one: a `[ "$(display-message … '#{pane_dead}')" = 1 ]` test built on it decides every pane is alive and raises no error.
 
+An absent session prints empty under `=name:` too, so test `has-session -t =name` before reading a format: an empty `#{session_created}` does arithmetic as 0, which reads as a very old session. On 2026-11-21 that reported an ended session as one that never drew.
+
+## A server that stops drawing new panes
+
+**Probe a fresh pane before trusting a server.** On 2026-11-20 the long-lived holder server (tmux 3.4, up nine days) stopped showing output from any pane created after about 17:20, while panes created earlier kept updating. A `new-session -d … "echo marker; sleep 300"` ran its command, since the pane moved on to `sleep`, but `capture-pane -p` stayed empty. The same test on a separate `-L` server showed the line at once. The cause was not found: it was not file descriptors (45 against a limit of 10240), a Claude update or a hook.
+
+A session created during the stall opened as a blank alternate screen with the cursor at 1,0, and keys changed nothing. The Windows program in it was alive, and its console title still reached `#{pane_title}`.
+
+**A passing probe does not clear a session created during the stall.** The server recovered by itself between 00:09 and 02:02 the next night, same pid, and fresh panes drew again. One session created inside the stall still showed a single character the next morning, beside sessions showing 30 or more lines. Restarting that one session fixed it. The dotfiles repo's remote-session check (`wsl/cc-session.sh`) tests both: a throwaway pane for the server, and a line count for the session being opened.
+
+## Handing an attached client a command to run instead
+
+**`detach-client -t <client-tty> -E '<command>'` replaces a client's view with a command run in the client's own process.** That keeps its terminal and its environment: a variable exported before `tmux attach` was still set inside the command (tmux 3.4, measured 2026-11-20 with a client attached under `script`). It is how a restart can make every open terminal wait and reattach, with nothing on the terminal's side changing. `list-clients -F '#{client_tty}|#{session_name}'` names the clients to hand it to.
+
 ## Driving tmux from a Windows program (no Git Bash in between)
 
 Measured 2026-10-19/20 from a Rust GUI process and from Python `subprocess`, Windows 11, tmux 3.4.
