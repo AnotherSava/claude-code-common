@@ -16,6 +16,10 @@ Both limits scale with the model's context window:
 
 On a 1M-context model both came to 150,000 chars, which implies 3 chars per token. The same formula gives 40,000 per file and 120,000 total on a 200k-context model — derived from the code, not observed. The auto-memory index and managed settings are excluded by path; in the verified case the two `CLAUDE.md` files were the only ones counted.
 
+## Checking which CLAUDE.md a session holds
+
+The "Memory files" row of `/context` shows the CLAUDE.md the session read at startup. Opening `/memory` makes the session re-read it from disk: measured on Claude Code 2.1.322 in November 2026, the row dropped from 32.8k to 9.8k tokens after a CLAUDE.md rewrite, while "Messages" grew by about the difference, which reads as the old text staying in the conversation. A restart or `/clear` is what actually sheds it.
+
 ## Reading the source
 
 The message text and the limit functions are in the bundled `claude.exe` of an npm global install, under `@anthropic-ai/claude-code/bin/`. `grep -a -o -E ".{600}total limit.{300}"` over it lands on the render function, and the limit functions sit beside the `large-memory-files` id. Minified names change every release, so search by the message text rather than by a function name.
