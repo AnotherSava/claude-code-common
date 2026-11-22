@@ -19,8 +19,11 @@ from __future__ import annotations
 
 import os
 import re
-import subprocess
 import sys
+
+# The one "is this path ignored, and by which rule" probe; realpath, since ~/.claude/skills is a link.
+sys.path.insert(0, os.path.join(os.path.dirname(os.path.realpath(__file__)), "..", "..", "conventions", "rules"))
+from _git import GitRefused, git, ignored, rules_for  # noqa: E402 — needs the sys.path line above
 
 REL = ".claude/repo-flags"
 VALUES = ("yes", "no")
@@ -91,17 +94,22 @@ def _refuse_if_ignored(root: str) -> None:
 
     A repo that allowlists `.claude/` (`.claude/*` with named exceptions) hides the file without a word,
     and every reader here still finds it, so the flag looks recorded until the other clone asks again.
-    The verdict is read from `-q`, since `-v` also reports a negation that un-ignores the path; `-v` is
-    asked only to name the rule. `--no-index` judges the ignore rules, not whether the file was ever
-    force-added. Outside a git work tree there is nothing to stage and nothing to refuse.
+    The verdict and the rule's name come from `ignored` and `rules_for` in conventions/rules/_git.py.
+    Outside a git work tree there is nothing to stage and nothing to refuse; a repo git will not speak
+    about at all (dubious ownership) reads the same way here, and git refuses its commit anyway.
     """
-    probe = ["git", "-C", root, "check-ignore", "--no-index"]
-    verdict = subprocess.run([*probe, "-q", REL], capture_output=True, text=True)
-    if verdict.returncode == 0:
-        blame = subprocess.run([*probe, "-v", REL], capture_output=True, text=True).stdout.strip()
-        rule = blame.split("\t", 1)[0] if blame else "an ignore rule"
-        raise FlagsError(f"{REL} is ignored by {rule}, so it would never be committed; "
-                         f"un-ignore it (an allowlisting .gitignore needs `!{REL}`) and set it again")
+    try:
+        inside = git(root, "rev-parse", "--is-inside-work-tree")
+        if inside.returncode != 0 or inside.stdout.strip() != "true":
+            return
+        if not ignored(root, [REL]):
+            return
+        rule = rules_for(root, [REL]).get(REL)
+    except GitRefused as exc:
+        raise FlagsError(f"whether git ignores {REL} is unknown, so nothing was written: {exc}") from exc
+    named = f"{rule.source}:{rule.line_no}:{rule.pattern}" if rule else "an ignore rule"
+    raise FlagsError(f"{REL} is ignored by {named}, so it would never be committed; "
+                     f"un-ignore it (an allowlisting .gitignore needs `!{REL}`) and set it again")
 
 
 def set_flag(root: str, key: str, value: str) -> None:

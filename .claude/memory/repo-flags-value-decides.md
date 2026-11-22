@@ -1,6 +1,6 @@
 ---
 name: repo-flags-value-decides
-description: A repo flag in .claude/repo-flags is decided by its value alone; unset means ask, never a default inferred from another repo property
+description: A repo flag in .claude/repo-flags is decided by its value alone, never a default inferred from another repo property; unset asks, or keeps an existing offer and records a decline (RELEASES)
 metadata:
   type: feedback
 ---
