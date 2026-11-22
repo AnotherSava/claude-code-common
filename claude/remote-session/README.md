@@ -268,6 +268,20 @@ nothing for the tab to wait for; the common one is a project directory that does
 machine, which typing a path into **Start a project…** reaches where picking a row cannot. The
 lines above the message carry the far side's own reason.
 
+**A tab asks whether to restart tmux.** tmux on the Windows machine has stopped drawing new panes,
+so a session opened now would be a blank screen that ignores keys; the lines above list the sessions
+running there. Answering `y` stops that tmux server and restarts the holder, then starts
+every one of those sessions again with its conversation resumed, and the tab opens its own. Every
+other terminal attached to one of them, on either machine, says it is waiting and reattaches by
+itself, except one attached to a session started outside `WSL_PROJECT_ROOT`: that terminal drops to
+its shell, and running `claude` again in that directory reattaches to the recreated session. A
+session started on Windows as `claude` with extra arguments comes back without them. Any
+other answer leaves everything running and stops the tab.
+
+**A tab asks whether to restart its session.** tmux draws again, but this session was created while
+it did not, and it has stayed a blank screen. Answering `y` restarts that one session with its
+conversation resumed, and leaves every other agent running.
+
 **Attaching says the holder is not running.** The scheduled task stopped, most often because you
 logged off and back on without it re-triggering. Start it:
 

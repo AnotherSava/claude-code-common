@@ -282,6 +282,48 @@ while [ "$stop" -eq 0 ]; do
         4)
             # The one refusal that clears without a person, so it is retried from the first pass.
             ;;
+        6|7)
+            # 6: tmux over there no longer draws new panes; 7: it does, but this session never drew.
+            # A restart stops the agents it covers, all of them or this one, and resumes them, so it
+            # is the person's call and never made unasked. A yes restarts, which returns once the
+            # sessions are back, and goes straight round to attach; a restart whose holder did not
+            # come back exits 4 and waits like one. Anything else stops as any other refusal does.
+            # The blank line parts the question from the login banner above it.
+            printf '\n' >&2
+            flush_check_err
+            # An icon in the glyph's place, for a tab strip to show the stop at a glance. ❌ is
+            # outside the dashboard's own glyphs (`terminal_title::status_from_glyph`), so this
+            # still names no row, for the reason tab_title gives; one of those glyphs here would.
+            printf '\033]0;%s ❌ %s\007' "$REMOTE_SESSION_BADGE" "$project"
+            drop_typed_input
+            if [ "$status" -eq 6 ]; then
+                printf '\nRestart tmux on %s now? [y/N] ' "$REMOTE_HOST" >&2
+            else
+                printf '\nRestart the %s session now? [y/N] ' "$project" >&2
+            fi
+            answer=
+            read -r answer </dev/tty || answer=
+            case $answer in
+                y|Y|yes|YES)
+                    restart_status=0
+                    ssh -n -T $ssh_opts "$REMOTE_USER@$REMOTE_HOST" "$remote restart" || restart_status=$?
+                    case $restart_status in
+                        0) continue ;;
+                        # The holder is down, whichever restart ran, so the tab waits as for a
+                        # check's 4; the check's own lines are spent, having been shown above.
+                        4) status=4 check_err= ;;
+                        *)
+                            printf '\nThe restart failed with status %s. The lines above say why.\n' "$restart_status" >&2
+                            exit "$restart_status"
+                            ;;
+                    esac
+                    ;;
+                *)
+                    printf '\nNot restarted. Close this tab, then press cmd+shift+r to try again.\n' >&2
+                    exit "$status"
+                    ;;
+            esac
+            ;;
         255)
             if [ "$settled" -eq 0 ]; then
                 flush_check_err
