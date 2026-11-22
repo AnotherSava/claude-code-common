@@ -41,6 +41,8 @@ import tempfile
 import threading
 import time
 
+from git_scratch import find_bash
+
 HERE = os.path.dirname(os.path.realpath(__file__))
 REPO = os.path.dirname(os.path.dirname(HERE))
 SCRIPT = os.path.join(REPO, "claude", "skills", "deploy", "scripts", "run.sh")
@@ -143,9 +145,8 @@ def deploy(bash: str, project: str, env: dict, args: list[str], expect_failure: 
 
 
 def main() -> int:
-    bash = shutil.which("bash")
+    bash = find_bash("deploy dev server")
     if not bash:
-        print("deploy dev server: NOT RUN — no bash on PATH")
         return 1
 
     scratch = tempfile.mkdtemp(prefix="deploy-dev-server-test.")

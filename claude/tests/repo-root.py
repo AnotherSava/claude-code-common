@@ -35,11 +35,12 @@ Exit:   0 all hold, 1 one does not or a case could not be set up
 
 import os
 import pathlib
-import shutil
 import subprocess
 import sys
 import tempfile
 from typing import List, Optional
+
+from git_scratch import find_bash
 
 HELPER = pathlib.Path(__file__).resolve().parent.parent / "skills" / "shared" / "repo-root.sh"
 
@@ -73,11 +74,8 @@ def main() -> int:
     if not HELPER.is_file():
         print("repo-root tests: NOT COVERED — %s is missing" % HELPER)
         return 1
-    # A bare "bash" handed to CreateProcess finds System32's WSL launcher before Git Bash on PATH;
-    # spawning which()'s result never reaches System32. learnings/windows-spawning-bash.md.
-    bash = shutil.which("bash")
+    bash = find_bash("repo-root tests")
     if not bash:
-        print("repo-root tests: NOT COVERED — no bash on PATH")
         return 1
 
     failures = 0

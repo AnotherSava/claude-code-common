@@ -38,6 +38,8 @@ import subprocess
 import sys
 import tempfile
 
+from git_scratch import find_bash
+
 HERE = os.path.dirname(os.path.realpath(__file__))
 REPO = os.path.dirname(os.path.dirname(HERE))
 HELPER = os.path.join(REPO, "claude", "skills", "shared", "deploy-config.sh")
@@ -120,9 +122,8 @@ def secret_fields(scratch: str) -> None:
 
 
 def main() -> int:
-    bash = shutil.which("bash")
+    bash = find_bash("deploy config")
     if not bash:
-        print("deploy config: NOT RUN — no bash on PATH")
         return 1
     scratch = tempfile.mkdtemp(prefix="deploy-config-test.")
     try:

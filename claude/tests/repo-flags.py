@@ -21,7 +21,7 @@ import subprocess
 import sys
 import tempfile
 
-from git_scratch import check, report, seal, sh, write
+from git_scratch import check, find_bash, report, seal, sh, write
 
 ROOT = os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 FLAGS = os.path.join(ROOT, "claude", "skills", "shared", "repo_flags.py")
@@ -39,6 +39,9 @@ def contents(root: str) -> str:
 
 
 def main() -> int:
+    bash = find_bash("repo-flags tests")
+    if not bash:
+        return 1
     with tempfile.TemporaryDirectory(prefix="repo-flags-test-") as scratch:
         seal(scratch)
         root = os.path.join(scratch, "plain")
@@ -85,7 +88,7 @@ def main() -> int:
         sh(repo, "commit", "-qam", "feat: something users see")
 
         def release() -> tuple[int, str]:
-            done = subprocess.run(["bash", RELEASE], cwd=repo, capture_output=True, text=True, timeout=60)
+            done = subprocess.run([bash, RELEASE.replace(os.sep, "/")], cwd=repo, capture_output=True, text=True, timeout=60)
             return done.returncode, (done.stdout + done.stderr).strip()
 
         code, out = release()
