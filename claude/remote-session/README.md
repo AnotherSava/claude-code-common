@@ -360,6 +360,12 @@ Every piece below exists because something simpler was measured not to work; the
   starts a session for a project it has a message for and nothing running in; that caller names the
   project by its Windows path, which must lie under `WSL_PROJECT_ROOT`. With a trailing `shell` it
   opens a login shell in the project's directory and touches no session, which is what cmd+d runs.
+  With a trailing `restart` it fixes what the check found blank: a tmux server that no longer draws
+  new panes is stopped and brought back through the holder, with every session that was running
+  created again, or a single session that never drew is created again on its own. Either way the
+  terminals attached to those sessions reattach by themselves, except one on a session started
+  outside `WSL_PROJECT_ROOT`, which is only detached. It is what the Mac's attach runs when you
+  answer `y` to its restart question.
 - **`wsl/start-here.sh`** is what the Windows machine's `claude` function runs. It does the same for
   whatever directory you are standing in, which is what makes every session started there
   attachable. Every shell on that machine calls it and nothing else, so no profile carries behaviour
@@ -377,7 +383,7 @@ Every piece below exists because something simpler was measured not to work; the
   command to restore the tab. Each pass asks `cc-session.sh … check` over an ssh with no terminal before
   attaching, because the Windows sshd reports every remote exit as 0 once a terminal is allocated,
   and that check is the only place a refusal — the holder down, a missing directory, a session ended
-  on purpose — can be read.
+  on purpose, a tmux server or a session that has stopped drawing — can be read.
 - **`lib.sh`** holds what more than one piece has to agree on: the config loader, the rule for naming
   a session, the keepalive session's name, the check for whether the holder is up, the read that
   turns a session's attached clients into the machines they are sitting at, the command a new
