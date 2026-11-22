@@ -20,3 +20,4 @@
 - [Remote tabs always recreate](remote-tabs-always-recreate.md) — decided 2026-10-13, no confirmation, except a session ended by a clean exit (2026-10-20); attach-only reconnects, an Enter prompt and picker-side creation were rejected
 - [Auth module is vendored, not packaged](auth-module-vendored-not-packaged.md) — the sign-in module is copied into each app from the skill; a package needs a registry or git and credentials in every Docker build, accepted 2026-11-12
 - [review-auto keeps whole revert and default agents](review-auto-revert-and-agent-type.md) — per-file polish revert declined, slimmer agentType deferred, 2026-11-18; re-raise only with a new measurement
+- [Repo flags: the value decides](repo-flags-value-decides.md) — a `.claude/repo-flags` key decides by its value; unset means ask, never a default from repo properties

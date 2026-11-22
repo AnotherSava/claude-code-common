@@ -11,6 +11,10 @@ before. A reworded guideline is neither. A rule no repo currently violates still
 a rule runs only where the adopted number is at or above the version introducing it — shipped
 without a version, it would be enforced nowhere.
 
+A new home for a setting is owed a version when any repo already states that setting another way, such
+as prose in its `CLAUDE.md`. Search the repos for the old form before deciding: a new key that changes
+nothing while unset does not make the old form go away, and keeping both is two copies of one value.
+
 **One version, one prerequisite.** Scope a version by the condition that decides whether it applies,
 not by topic. Where two changes no-op under the same condition, they are one version: a repo with no
 `package.json` should answer that walk once, not three times, and a repo with a backlog should get
