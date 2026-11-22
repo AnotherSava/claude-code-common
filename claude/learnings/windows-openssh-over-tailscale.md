@@ -87,6 +87,24 @@ ENC=$(printf '%s' "$PS_SCRIPT" | iconv -f UTF-8 -t UTF-16LE | base64 | tr -d '\n
 ssh host "powershell -NoProfile -EncodedCommand $ENC"
 ```
 
+**Or send the script on stdin**, which cmd.exe never parses. Measured 2026-11-20 from the Mac, for both
+shells, with pipes, `$` and tmux `#{...}` formats arriving intact:
+
+```bash
+ssh -T host "wsl -d Ubuntu -- sh -s" <<'EOF'
+tmux list-panes -a -F '#{session_name} #{pane_width}x#{pane_height}' | grep cc-
+EOF
+ssh -T host "powershell -NoProfile -Command -" <<'EOF'
+Get-Process claude | ForEach-Object { "{0} {1}" -f $_.Id,$_.StartTime }
+
+EOF
+```
+
+Leave `-n` off, since it replaces stdin with `/dev/null`. The same `-F '#{...}'` written inline in the
+ssh argument failed with `-F expects an argument`. PowerShell reading `-Command -` runs each complete line as
+it arrives, so a multi-line `foreach { … }` block printed nothing; keep each statement on one line and end the
+script with a blank line.
+
 Two more cleanups for readable output: start the script with `$ProgressPreference = "SilentlyContinue"` or
 PowerShell emits a wall of `#< CLIXML` progress objects onto the stream, and pipe results through `tr -d '\r'`
 locally since every line arrives CRLF.
