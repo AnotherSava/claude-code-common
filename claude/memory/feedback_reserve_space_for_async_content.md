@@ -1,6 +1,6 @@
 ---
 name: feedback_reserve_space_for_async_content
-description: Content that arrives after an async step (a lookup filling a field, a row revealed by a result) must not move other controls or resize its dialog; reserve its space from the start
+description: Content that arrives after an async step (a lookup filling a field, a row revealed by a result), a mode switch (view to edit) or a transient status ("Saved") must not move other controls or resize its dialog; reserve its space from the start, anchor toggles where no changing width reaches them
 metadata:
   type: feedback
 ---
