@@ -21,6 +21,7 @@ Read `~/.claude/skills/shared/bash-rules.md` for bash command constraints.
 - Current branch: !`git branch --show-current 2>/dev/null || echo "(none)"`
 - Commit count: !`git rev-list --count HEAD 2>/dev/null || echo 0`
 - Blocking changes: !`git status --porcelain 2>/dev/null | grep -v '^??' || echo "(none)"`
+- Index file in a repo with no commits: !`git rev-parse -q --verify HEAD >/dev/null 2>&1 && echo "(the repo has commits)" || { test -f "$(git rev-parse --git-path index 2>/dev/null)" && echo PRESENT || echo "(none)"; }`
 - Existing remotes: !`git remote -v 2>/dev/null | grep . || echo "(none)"`
 - LICENSE on disk: !`test -f LICENSE && echo PRESENT || echo MISSING`
 - README opening: !`head -n 5 README.md 2>/dev/null || echo "(no README.md)"`
@@ -90,7 +91,9 @@ The license is a separate question from visibility, not a consequence of it: pri
 
 ## 4. Resolve blockers
 
-**Blocking changes.** If **Blocking changes** is not `(none)`, the rebase in step 7 will fail — `git pull --rebase` refuses with staged or modified tracked files, and on a repo with no commits it aborts with `Updating an unborn branch with changes added to the index`. Untracked (`??`) files are fine and are excluded from that context line already. Show the entries and ask the user to either commit them or unstage with `git reset`. Stop until resolved.
+**Blocking changes.** If **Blocking changes** is not `(none)`, the rebase in step 7 will fail — `git pull --rebase` refuses with staged or modified tracked files, and on a repo with no commits it aborts with `Updating an unborn branch with changes added to the index`. Untracked (`??`) files are fine and are excluded from that context line already. Show the entries and ask the user to either commit them or unstage them. Stop until resolved.
+
+Unstaging differs by whether the repo has commits. With commits, `git reset` is the remedy. With none, `git reset` empties the index but leaves the `.git/index` file in place, and git's unborn-branch test reads the file's presence, not its entry count, so step 7 still aborts with the same error. There the remedy is deleting the file, `rm "$(git rev-parse --git-path index)"`, which drops only the staging and leaves every file on disk. For the same reason, **Index file in a repo with no commits** reading `PRESENT` blocks step 7 even when **Blocking changes** is `(none)`, which is what an earlier `git add` then `git reset` leaves: confirm `git ls-files --stage` prints nothing, then delete the file. With entries still listed, the question above comes first.
 
 **Existing LICENSE.** If **LICENSE on disk** is `PRESENT`, the seeded commit will collide — an add/add merge conflict if the file is committed, or `untracked working tree files would be overwritten` if it isn't. Read the first 10 lines of the local `LICENSE`, show them, and ask via `AskUserQuestion`:
 

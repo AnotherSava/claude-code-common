@@ -41,6 +41,7 @@ Measured against a simulated remote whose only commit adds `LICENSE`:
 | No commits, LICENSE untracked on disk | `error: The following untracked working tree files would be overwritten by merge` |
 | Commits + modified tracked file | `cannot pull with rebase: You have unstaged changes` (exit 128) |
 | No commits + staged index | `fatal: Updating an unborn branch with changes added to the index` (exit 128) |
+| No commits + index emptied by `git reset` | The same error: the zero-entry `.git/index` file still counts. Deleting it lets the pull bring LICENSE in and leaves untracked files alone |
 | Local `master`, remote `main` | Rebase succeeds *onto `master`* — the remote default stays separate, so the first push creates a second branch |
 
 Two rules fall out, both enforced in the skill:
