@@ -280,6 +280,20 @@ What is left is a person at that machine running the command in an ordinary Powe
 the result written to a file this side reads back over SSH per [[feedback_route_output_not_paste]].
 Say that plainly rather than reporting the elevated measurement as though it covered both.
 
+## A Rust build cannot run here
+
+Do not plan to compile a Rust project over SSH to check a Windows-only code path: the toolchain does
+not start. rustup's `cargo.exe` proxy fails at once with `The system cannot execute the specified
+program.`, and `rustup run stable cargo …` gets further, then every `rustc` spawn fails with `The path
+cannot be traversed because it contains an untrusted mount point. (os error 448)`. `rustup show
+active-toolchain` answers normally, so the toolchain is installed and only executing it is refused.
+Measured 2026-11-22 on a scratch copy unpacked under `%TEMP%`, so the clone's location is not the cause.
+
+Batch the check differently: invert the platform gates in a scratch copy and `cargo check` it on the
+machine you are on, or leave the compile to that machine's own session or CI. A `cmd /c` chain that
+echoes `%ERRORLEVEL%` after the build reports the echo's status, so read the log for the compiler's
+own verdict.
+
 ## Probing reachability without fooling yourself
 
 - **zsh has no `/dev/tcp`.** That is a bash feature; `(echo >/dev/tcp/host/port)` under zsh reports every port
