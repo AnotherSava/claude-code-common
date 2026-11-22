@@ -301,7 +301,6 @@ while [ "$stop" -eq 0 ]; do
             else
                 printf '\nRestart the %s session now? [y/N] ' "$project" >&2
             fi
-            answer=
             read -r answer </dev/tty || answer=
             case $answer in
                 y|Y|yes|YES)
