@@ -12,7 +12,7 @@ Measured on Claude Code 2.1.322 (Windows and macOS) in November 2026, with the h
 
 - Every new session starts on the saved model.
 - **Other sessions already open load the changed file too.** A default saved by a mis-click in one session put an unrelated session on the expensive model at its next request after a `/clear`.
-- A `model` key in a project's `.claude/settings.json` outranks the user file. The `/model` command says so when it saves: ".claude\settings.json pins <model> — that applies on restart". That makes a project pin the way to dedicate a folder's sessions to one model.
+- A `model` key in a project's `.claude/settings.json` outranks the user file. The `/model` command says so when it saves: ".claude\settings.json pins <model> — that applies on restart". A project pin dedicates a folder's sessions to one model only where nothing below outranks it.
 - The `ANTHROPIC_MODEL` environment variable and the `--model` flag outrank every settings file for the session they launch.
 - So a project pin is dead wherever the user settings' `env` block sets `ANTHROPIC_MODEL`, as these machines' do: measured 2026-11-22, a shepherd folder pinned to `claude-fable-5-2` in its project settings ran Opus, the env value.
 

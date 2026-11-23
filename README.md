@@ -1262,6 +1262,8 @@ The same `env` block sets `CLAUDE_CODE_DISABLE_MOUSE_CLICKS=1`, which keeps a dr
 
 The same `env` block sets `ANTHROPIC_MODEL=opus`, which picks the model every new session starts on and wins over a `model` key saved in the settings file. A default saved by mistake in `/model` therefore has no effect at launch, while Enter and `s` in the picker still switch the running session. The key is removed from the file after the switch by the [Model Default Guard](#model-default-guard). Changing the default model means changing this value.
 
+The variable outranks a `model` key in a project's `.claude/settings.json` too, so a project pin decides nothing here. Convention v20's `no-model-pin` rule fails the commit gate of a repo whose `.claude/settings.json` carries a `model` key or `env.ANTHROPIC_MODEL`, the second being a pin that would outrank this one.
+
 ### Screenshot capture helper (macOS)
 
 The `screenshot` skill takes every screenshot through a small helper rather than through the agent's own binary. macOS grants Screen Recording to a *binary*, and the agent's is version-named, so granting it there would both go stale on every update and hand whole-display access to every session forever. A purpose-built bundle at a fixed path is granted once and scoped to the one job. Build it once per machine:
