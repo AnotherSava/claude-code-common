@@ -41,6 +41,8 @@ import os
 import re
 from typing import NamedTuple
 
+import _git
+
 # <repo>/claude/conventions/rules -> <repo>/claude/scripts/ingress-lint.py
 INGRESS_LINT = os.path.join(os.path.dirname(os.path.dirname(os.path.dirname(
     os.path.realpath(__file__)))), "scripts", "ingress-lint.py")
@@ -232,19 +234,22 @@ def parse_compose(text: str, path: str) -> tuple[Compose, list[str]]:
 def find_files(root: str) -> tuple[list[str], list[str]]:
     """Every compose file and every `*.caddy` vhost in the repo, absolute, sorted.
 
+    The one exception is the root scratch `tmp/` that `_git.scratch_dir` returns, which the walk
+    skips whole; a compose file under it is a scratch clone's, so its service keys are never read.
+
     A `Caddyfile` is deliberately not a vhost: it is the base config of a proxy the repo owns, it is
     never copied into somebody else's `conf.d`, and its name is fixed by Caddy — so the basename
     rule below has nothing to say about it.
     """
     composes, vhosts = [], []
-    # walk-unfiltered: and it must stay that way. The Node rules narrow their walk to what git does
+    # Not narrowed to what git does not hide, and it must stay that way apart from the scratch `tmp/`
+    # carve-out in `_git.walk_unfiltered`. The Node rules narrow their walk to what git does
     # not hide, because a hidden `package.json` is a scratch clone nobody maintains. The same
     # reasoning inverts here: a `compose.override.yml` or a vhost kept out of git *because it carries
     # host paths* is still the file the box brings up, so its service keys are live on the shared
     # bridge. Narrowing this walk was tried and reverted — it turned a finding into a silent pass on
     # exactly the generic-name collision that cost a commercial site 41 hours.
-    for base, dirs, files in os.walk(root):
-        dirs[:] = sorted(name for name in dirs if name not in SKIP_DIRS)
+    for base, dirs, files in _git.walk_unfiltered(root, SKIP_DIRS):
         for name in sorted(files):
             if COMPOSE_RE.match(name):
                 composes.append(os.path.join(base, name))

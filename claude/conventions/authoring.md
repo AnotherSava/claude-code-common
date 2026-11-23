@@ -193,7 +193,11 @@ Two things every rule has to get right, both already paid for once:
 - **Ask git what it hides.** A `package.json` inside a gitignored `venv/`, or a compose file in a
   scratch `tmp/`, is not something a person maintains — two repos in the fleet had their only
   manifest inside a virtualenv. Use `_git.ignored_untracked(root, paths)`, the index-consulting
-  form, so a force-added file inside an ignored directory still counts. Any git exit outside
+  form, so a force-added file inside an ignored directory still counts. It reports only a hide the
+  repo carries, plus the global excludes' root `/tmp/`, the one machine-level hide every clone
+  shares. The cotenant rules are the exception: a compose or wrangler file git hides can still be
+  the one the box runs, so their walks skip only the root scratch `tmp/`, through
+  `_git.walk_unfiltered`. Any git exit outside
   `{0, 1}` means the question went unanswered: raise. A rule that *enumerates* the files it judges
   asks for the set a commit would carry — `git ls-files --cached --others --exclude-standard` — not
   the index alone, which cannot see a file the migration has just written, since that file is

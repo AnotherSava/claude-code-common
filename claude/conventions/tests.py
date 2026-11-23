@@ -163,7 +163,10 @@ CASES = (
     ),
     Case(
         "node-engines",
-        Tree({"package.json": '{"name": "x", "engines": {"node": ">=24"}}\n', ".nvmrc": "24\n"}),
+        # The scratch clone under tmp/ is hidden only by the global excludes' `/tmp/`, the one
+        # machine-level hide `_git.ignored_untracked` counts as the repo's, so it is not a project here.
+        Tree({"package.json": '{"name": "x", "engines": {"node": ">=24"}}\n', ".nvmrc": "24\n",
+              "tmp/src/package.json": '{"name": "scratch"}\n'}),
         Tree({"package.json": '{"name": "x"}\n', ".nvmrc": "24\n"}),
         Tree({"package.json": '{"name": "x", "engines": {"node": ">=24"}}\n', ".nvmrc": "24\n"}, repo=False),
         "it is outside a work tree, so git will not say which manifests it hides",
@@ -197,8 +200,11 @@ CASES = (
     ),
     Case(
         "cotenant-service-names",
+        # The nameless compose file sits in a scratch clone under the globally ignored tmp/, which the
+        # walk skips (`_git.scratch_dir`); anywhere else it is refused as unmeasurable.
         Tree({"compose.yml": "name: scheduler\nservices:\n  scheduler-app:\n"
-                             "    container_name: scheduler-app\n    image: scheduler:latest\n"}),
+                             "    container_name: scheduler-app\n    image: scheduler:latest\n",
+              "tmp/src/docker-compose.yml": "services:\n  app:\n    image: x\n"}),
         Tree({"compose.yml": "name: scheduler\nservices:\n  app:\n    image: scheduler:latest\n"}),
         # No top-level `name:`, so the prefix every service should carry has no value to check
         # against — the rule refuses rather than judging the keys against a project name it guessed.
@@ -207,9 +213,13 @@ CASES = (
     ),
     Case(
         "cotenant-hostnames",
+        # The generic hostname sits in a scratch clone under the globally ignored tmp/, which the walk
+        # skips (`_git.scratch_dir`).
         Tree({"deploy/notify/wrangler.toml": 'name = "scheduler-notify"\nmain = "worker.js"\n'
                                              'workers_dev = false\n\n[[routes]]\n'
-                                             'pattern = "scheduler-notify.example.com"\ncustom_domain = true\n'}),
+                                             'pattern = "scheduler-notify.example.com"\ncustom_domain = true\n',
+              "tmp/src/wrangler.toml": 'name = "scheduler-notify"\nmain = "worker.js"\n\n[[routes]]\n'
+                                       'pattern = "notify.example.com"\ncustom_domain = true\n'}),
         Tree({"deploy/notify/wrangler.toml": 'name = "scheduler-notify"\nmain = "worker.js"\n\n[[routes]]\n'
                                              'pattern = "notify.example.com"\ncustom_domain = true\n'}),
         # No top-level `name`, so the script this file deploys has no name to judge and the hostname
@@ -363,11 +373,13 @@ def sandbox_git(base: str) -> dict[str, str | None]:
     global excludes file, and every `check-ignore` call consults it — so without this the answers
     depend on whose machine the gate runs on, and the one repo whose `.gitignore` happens to repeat a
     line of the user's own global file would decide whether this passes. The global file written here
-    carries the entries the violating tree for that rule is built to duplicate.
+    carries the entries the violating tree for that rule is built to duplicate, plus the `/tmp/` the
+    dotfiles' `git/gitignore` ships, which the scratch-clone cases for `node-engines` and the two
+    cotenant rules rely on (`_git.GLOBAL_SCRATCH`).
     """
     excludes = os.path.join(base, "global-excludes")
     with open(excludes, "w", encoding="utf-8", newline="\n") as handle:
-        handle.write(".idea/\nThumbs.db\nconfig/deploy.local.env\n/local.env\n")
+        handle.write(".idea/\nThumbs.db\nconfig/deploy.local.env\n/local.env\n/tmp/\n")
     # Forward slashes: a backslash opens an escape inside a git config value, so a Windows path
     # written literally here resolves to a file name nothing on disk has.
     return seal(base, "[core]\n\texcludesfile = " + excludes.replace("\\", "/") + "\n")

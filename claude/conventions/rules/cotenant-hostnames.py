@@ -38,6 +38,8 @@ import os
 import re
 from typing import NamedTuple
 
+import _git
+
 # <repo>/claude/conventions/rules -> <repo>/claude/scripts/ingress-lint.py
 INGRESS_LINT = os.path.join(os.path.dirname(os.path.dirname(os.path.dirname(
     os.path.realpath(__file__)))), "scripts", "ingress-lint.py")
@@ -198,16 +200,19 @@ def parse_wrangler(text: str, path: str) -> tuple[Worker, list[str]]:
 def find_files(root: str) -> tuple[list[str], list[str]]:
     """Every wrangler TOML and every wrangler JSON/JSONC in the repo, absolute, sorted.
 
+    The one exception is the root scratch `tmp/` that `_git.scratch_dir` returns, which the walk
+    skips whole; a wrangler file under it is a scratch clone's, not the deployed tree.
+
     The JSON forms are collected in order to be refused rather than skipped. They are valid wrangler
     config that this reader does not read, and a repo that moved to one would otherwise come back
     clean for the same reason an empty repo does.
     """
     tomls, jsons = [], []
-    # walk-unfiltered, for the reason the compose rule's walk is: a wrangler file kept out of git
-    # because it carries an account id is still the file that deploys, so the hostname it claims is
-    # live in the zone.
-    for base, dirs, files in os.walk(root):
-        dirs[:] = sorted(name for name in dirs if name not in SKIP_DIRS)
+    # Not narrowed to what git does not hide, for the reason the compose rule's walk is: a wrangler
+    # file kept out of git because it carries an account id is still the file that deploys, so the
+    # hostname it claims is live in the zone. The walk skips only the root scratch `tmp/`, in
+    # `_git.walk_unfiltered`.
+    for base, dirs, files in _git.walk_unfiltered(root, SKIP_DIRS):
         for name in sorted(files):
             if TOML_RE.match(name):
                 tomls.append(os.path.join(base, name))

@@ -38,9 +38,12 @@ from __future__ import annotations
 
 import os
 import subprocess
-from typing import NamedTuple
+from typing import Iterator, NamedTuple
 
 GIT_TIMEOUT = 30
+# The global excludes entry `ignored_untracked` treats as the repo's own and `scratch_dir` skips;
+# see their docstrings.
+GLOBAL_SCRATCH = "/tmp/"
 
 
 class GitRefused(Exception):
@@ -128,13 +131,20 @@ def ignored_untracked(root: str, paths: tuple[str, ...] | list[str]) -> set[str]
     strings, since neither spelling nor case decides what is one directory on these two machines
     (learnings/comparing-paths-symlinks-and-case.md).
 
-    And only a hide the *repo* carries is reported, which is the difference between an answer about
-    a commit and an answer about a checkout. The per-clone `.git/info/exclude` and the per-machine
-    global excludes file both return exit 0 exactly like a committed `.gitignore`, so without this
-    two machines derive different sets from one tree. Carried one source further than
-    `source_is_in_repo` goes: that helper answers "is this file in the working tree", while a
+    And only a hide the *repo* carries is reported (one machine-level exception, below), which is
+    the difference between an answer about a commit and an answer about a checkout. The per-clone
+    `.git/info/exclude` and the per-machine global excludes file both return exit 0 exactly like a
+    committed `.gitignore`, so without this two machines derive different sets from one tree.
+    Carried one source further than `source_is_in_repo` goes: that helper answers "is this file in the working tree", while a
     `.gitignore` written and never committed is in the working tree and in no clone, so the cited
     source must also be tracked.
+
+    One machine-level hide counts as the repo's: the global excludes file's root-anchored `/tmp/`,
+    which convention v13 moved there from every project `.gitignore`. That entry comes from the
+    dotfiles repo's committed `git/gitignore`, so both machines carry it, and a repo following v13
+    has no hide of its own left for its scratch `tmp/`. Without it, a scratch clone under `tmp/`
+    counts as a project of the repo's. `GLOBAL_SCRATCH` names the pattern; it changes together with
+    the `/tmp/` line in `git/gitignore`.
     """
     if not paths:
         return set()
@@ -159,16 +169,64 @@ def ignored_untracked(root: str, paths: tuple[str, ...] | list[str]) -> set[str]
         raise GitRefused(f"git hid {len(unattributed)} path(s) and then named no rule for them "
                          f"({', '.join(unattributed[:3])}), so whether the repo or this machine hides them "
                          f"is unknown")
+    scratch = {name for name in hidden if is_global_scratch(rules[name])}
     in_repo = {name for name in hidden if source_is_in_repo(root, rules[name].source)}
     if not in_repo:
-        return set()
+        return scratch
     sources = sorted({rules[name].source for name in in_repo})
     listed = git(root, "ls-files", "-z", "--", *sources)
     if listed.returncode != 0:
         raise GitRefused("git would not say which of the ignore files it cited are tracked, so whether a "
                          "clone hides these paths too was never established")
     tracked = {name for name in listed.stdout.split("\0") if name}
-    return {name for name in in_repo if rules[name].source in tracked}
+    return scratch | {name for name in in_repo if rules[name].source in tracked}
+
+
+def is_global_scratch(rule: Rule) -> bool:
+    """Is this the global excludes file's `/tmp/` entry, the one machine-level hide every clone shares.
+
+    Git prints the global file's path absolute and `.git/info/exclude` repo-relative, so an absolute
+    source is the global file; the per-clone exclude never qualifies.
+    """
+    return os.path.isabs(rule.source.replace("\\", "/")) and rule.pattern == GLOBAL_SCRATCH
+
+
+def scratch_dir(root: str) -> str | None:
+    """The root scratch directory's name when a walk should skip it whole, else None.
+
+    For the rules that walk deliberately unfiltered (cotenant-service-names, cotenant-hostnames),
+    because a file git hides from them can still be the one the box runs. The agent's `tmp/` is the
+    exception: it holds scratch clones, never the deployed tree. It is skipped only when the global
+    `/tmp/` entry is what hides it and git tracks nothing under it, so a repo that commits a root
+    `tmp/` keeps it walked.
+    """
+    name = GLOBAL_SCRATCH.strip("/")
+    if not os.path.isdir(os.path.join(root, name)):
+        return None
+    probe = f"{name}/"
+    if probe not in ignored(root, [probe]):
+        return None
+    rule = rules_for(root, [probe]).get(probe)
+    if rule is None or not is_global_scratch(rule):
+        return None
+    listed = git(root, "ls-files", "-z", "--", probe)
+    if listed.returncode != 0:
+        raise GitRefused(f"git would not say whether it tracks anything under {probe}, so whether that "
+                         f"directory is scratch was never established")
+    return None if listed.stdout else name
+
+
+def walk_unfiltered(root: str, skip_dirs: frozenset[str]) -> Iterator[tuple[str, list[str], list[str]]]:
+    """`os.walk` of `root` that skips only `skip_dirs` and the root scratch directory, never a hidden file.
+
+    The cotenant rules walk unfiltered on purpose: a compose file or wrangler config git hides can
+    still be the one the box runs, so only `scratch_dir`'s `tmp/` is cut from the walk. The pruning
+    is done here, once, because both callers must agree on it.
+    """
+    scratch = scratch_dir(root)
+    for base, dirs, files in os.walk(root):
+        dirs[:] = sorted(name for name in dirs if name not in skip_dirs and not (base == root and name == scratch))
+        yield base, dirs, files
 
 
 def rules_for(root: str, paths: tuple[str, ...] | list[str]) -> dict[str, Rule]:
