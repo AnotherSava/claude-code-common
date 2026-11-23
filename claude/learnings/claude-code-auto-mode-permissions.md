@@ -159,9 +159,10 @@ An app relaunch went the same way. Measured 2026-11-22 in a .NET tray-app repo: 
 delete a deploy wrapper and relaunch the app once, and the user answered `y`. The wrapper deletion went through. The
 next call, `bash ~/.claude/skills/deploy/scripts/run.sh` with its output redirected to a file, was denied as
 "Destructive or Unwanted Actions". The user then ran `! deploy`, and the app relaunched cleanly. Re-measured the
-same day with `sure` answering a plain "May I relaunch it?": the same call was denied for the same reason. So when
-a reply ends by asking to relaunch an app, ask for the act by name ("reply `deploy`"), or hand over `! deploy`
-straight away.
+same day with `sure` answering a plain "May I relaunch it?": the same call was denied for the same reason. Then
+the reply ended with "Reply `deploy` to go ahead", the user typed `deploy`, and the same call ran with no denial
+and the app relaunched; measured that way in two sessions that day. So when a reply ends by asking to relaunch an
+app, ask for the act by name ("reply `deploy`"), or hand over `! deploy` straight away.
 
 ## A denial means the command did NOT run
 
