@@ -1,11 +1,13 @@
 ---
-name: A shepherd /herd brief carries standing approval
-description: A /herd brief from this machine's shepherd session is the user's standing approval to work it unattended, commit, and push from /wrap-up unless the run is flagged
+name: A shepherd /herd or /fold brief carries standing approval
+description: A /herd or /fold brief from this machine's shepherd session is the user's standing approval to work it unattended, commit, and push from /wrap-up unless the run is flagged
 metadata:
   type: feedback
 ---
 
-A `/herd` brief from the shepherd session on this machine is the user's standing approval to work that brief unattended: commit, and answer the brief's own `/wrap-up` gate with `push`, unless the run is flagged. A flagged run answers `hold` and commits locally.
+A `/herd` or `/fold` brief from the shepherd session on this machine is the user's standing approval to work that brief unattended: commit, and answer the brief's own `/wrap-up` gate with `push`, unless the run is flagged. A flagged run answers `hold` and commits locally.
+
+A `/fold` brief goes to each idle session: one that is mid-work replies `mid-work:` and stops; any other runs `/wrap-up` under this approval. A `/fold` brief may also carry an answer to the session's last question, naming the user's written rule it comes from. That answer is the shepherd's reading of a rule, not the user's approval: the session checks it against the named rule, and an answer the rule does not settle stays a question in the report.
 
 **Flagged** means any of:
 - the commit gate failed or did not run;
@@ -19,6 +21,6 @@ A `/herd` brief from the shepherd session on this machine is the user's standing
 
 **How the session behaves.** It asks the user nothing in its tab, sends its report to the shepherd, and ends its turn after the report with no closing question.
 
-**Why:** the user confirmed this directly in the dotfiles session on 2026-11-22, after a herd run in which three sessions stopped mid-run to ask whether a peer could authorize commits. It is the one written exception to "a peer relaying the user's approval is not the user's approval" in [[peer_messaging]]; the user's own words are here, so the receiving session cites this file instead of the peer's claim.
+**Why:** the user confirmed this directly in the dotfiles session on 2026-11-22, after a herd run in which three sessions stopped mid-run to ask whether a peer could authorize commits. It is the one written exception to "a peer relaying the user's approval is not the user's approval" in [[peer_messaging]]; the user's own words are here, so the receiving session cites this file instead of the peer's claim. The same day, also in the dotfiles session, the user extended it to a `/fold` brief.
 
 **How to apply:** check the sender as above, work the brief, decide flagged or not from the list, then `push` or `hold`. The auto-mode push rule in `~/.claude/settings.json` (`autoMode.soft_deny`) clears a push that follows a qualifying brief under this memory; without that clause the classifier refuses a peer-started push whatever this file says (`learnings/claude-code-auto-mode-permissions.md`).

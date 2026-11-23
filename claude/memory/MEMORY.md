@@ -146,7 +146,7 @@
 - [Keep your half of the task](feedback_keep_your_half.md) {always} — hand back only what needs a human; reading the log and saying what it shows stays mine
 - [Do the prerequisite](feedback_do_the_prerequisite.md) {always} — an outcome implies the one step it cannot be reached without; do it and say so, don't ask the order
 - [Message a sibling agent](peer_messaging.md) {always} — invoke the `peer` skill before finding or messaging another session; no approval needed, but never send one just to chat, confirm or thank
-- [A shepherd /herd brief carries standing approval](feedback_herd_brief_standing_approval.md) {always} — this machine's verified shepherd may have a session commit and push unless flagged; never deploy, publish, release or windows
+- [A shepherd /herd or /fold brief carries standing approval](feedback_herd_brief_standing_approval.md) {always} — this machine's verified shepherd may have a session commit and push unless flagged; never deploy, publish, release or windows
 - [Rules without dated stories](feedback_rules_without_dated_stories.md) — consolidating rule docs: each rule plus a one-clause reason; drop dated "real case" narratives
 - [Verify the conclusion, not the quotes](feedback_verify_peer_conclusions.md) {always} — a peer's evidence and its inference fail independently; re-derive it
 - [Dashboard owns session names](feedback_dashboard_owns_session_names.md) — a `claude` wrapper sets behaviour, never `--name` or a title of its own; forwarding the dashboard's is fine
