@@ -145,6 +145,16 @@ CASES = (
         ),
     ),
     Case(
+        "no-model-pin",
+        Tree({".claude/settings.json": '{"env": {"DISABLE_TELEMETRY": "1"}, "permissions": {}}\n'}),
+        Tree({".claude/settings.json": '{"model": "claude-fable-5-2"}\n'}),
+        Tree({".claude/settings.json": '{"model": "opus",\n'}),
+        "the settings file is there and will not parse",
+        also_violating=(
+            Tree({".claude/settings.json": '{"env": {"ANTHROPIC_MODEL": "opus"}}\n'}),
+        ),
+    ),
+    Case(
         "memory-file-shape",
         Tree({".claude/memory/project_thing.md": "---\ntitle: A thing\n---\n\nThe thing.\n",
               ".claude/memory/MEMORY.md": "# Memory index\n\n- [A thing](project_thing.md) — what it says\n"}),

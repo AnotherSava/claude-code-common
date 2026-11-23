@@ -287,3 +287,4 @@
 - [Control names its reach](feedback_list_control_reach.md) — a multi-row action says its extent ("Copy to days below"), sits under the list it edits; cheap undo means overwrite, not guard
 - [Existing component first](feedback_existing_component_first.md) — survey existing components before hand-building a common widget; compose from the library already in use, with evidence
 - [claude-mermaid Windows bug](reference_mermaid_windows_bug.md) — plugin fails with "spawn npx ENOENT"; the fix and the plugin.json redirect workaround are in the learnings
+- [No project model pin](feedback_no_project_model_pin.md) — never pin a model in a project's .claude/settings.json; the user picks it per session, and ANTHROPIC_MODEL outranks it anyway
