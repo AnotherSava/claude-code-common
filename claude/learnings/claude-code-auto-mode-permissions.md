@@ -155,6 +155,14 @@ So for a push, ask the user to reply with the act itself, such as "push", or han
 was measured clearing a bare, non-force `git push` run on its own. A force-push stayed denied after explicit
 approval (see "It judges per COMMAND, not per category"), so plan that one as the user's `!` step.
 
+An app relaunch went the same way. Measured 2026-11-22 in a .NET tray-app repo: Claude asked whether it could
+delete a deploy wrapper and relaunch the app once, and the user answered `y`. The wrapper deletion went through. The
+next call, `bash ~/.claude/skills/deploy/scripts/run.sh` with its output redirected to a file, was denied as
+"Destructive or Unwanted Actions". The user then ran `! deploy`, and the app relaunched cleanly. Re-measured the
+same day with `sure` answering a plain "May I relaunch it?": the same call was denied for the same reason. So when
+a reply ends by asking to relaunch an app, ask for the act by name ("reply `deploy`"), or hand over `! deploy`
+straight away.
+
 ## A denial means the command did NOT run
 
 The check happens before execution. Nothing partial, nothing queued, no side effects.
