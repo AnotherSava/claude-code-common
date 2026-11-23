@@ -181,6 +181,7 @@ Cross-project memories live in `~/.claude/memory/`, indexed once in `~/.claude/m
 - [Keep your half of the task](~/.claude/memory/feedback_keep_your_half.md) — hand back only what needs a human; reading the log and saying what it shows stays mine
 - [Do the prerequisite](~/.claude/memory/feedback_do_the_prerequisite.md) — an outcome implies the one step it cannot be reached without; do it and say so, don't ask the order
 - [Message a sibling agent](~/.claude/memory/peer_messaging.md) — invoke the `peer` skill before finding or messaging another session; no approval needed, but never send one just to chat, confirm or thank
+- [A shepherd /herd brief carries standing approval](~/.claude/memory/feedback_herd_brief_standing_approval.md) — this machine's verified shepherd may have a session commit and push unless flagged; never deploy, publish, release or windows
 - [Verify the conclusion, not the quotes](~/.claude/memory/feedback_verify_peer_conclusions.md) — a peer's evidence and its inference fail independently; re-derive it
 - [Where supplied screenshots land](~/.claude/memory/user_screenshot_location.md) — "see the screenshot" with nothing attached means the newest PNG in `~/Desktop`, or `~/CropStage` on Windows; phone shots arrive by Taildrop in `~/Downloads`
 - [Russian keyboard layout](~/.claude/memory/user_russian_keyboard_layout.md) — a lone Cyrillic letter is the Latin key it sits on: "н" is "y", a yes
