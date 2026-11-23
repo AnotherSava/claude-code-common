@@ -21,7 +21,7 @@ import json
 import os
 
 REL = ".claude/settings.json"
-ENV_KEYS = ("ANTHROPIC_MODEL",)
+ENV_KEY = "ANTHROPIC_MODEL"
 
 
 def check(root: str) -> list[str]:
@@ -37,8 +37,6 @@ def check(root: str) -> list[str]:
     if "model" in data:
         violations.append(f"{REL} pins `model` to {data['model']!r} — delete the key; the model is picked per session")
     env = data.get("env")
-    if isinstance(env, dict):
-        for key in ENV_KEYS:
-            if key in env:
-                violations.append(f"{REL} sets env {key}={env[key]!r} — delete it; the model is picked per session")
+    if isinstance(env, dict) and ENV_KEY in env:
+        violations.append(f"{REL} sets env {ENV_KEY}={env[ENV_KEY]!r} — delete it; the model is picked per session")
     return violations
