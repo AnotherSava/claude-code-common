@@ -881,7 +881,7 @@ When a hook command needs a path outside `~/.claude/` or this repo, reference it
 
 **Currently used env vars** — set these on a fresh machine before the corresponding hooks will work:
 
-- **`CLAUDE_AI_AGENT_DASHBOARD`** — points to a local clone of the `tauri-dashboard` repo. Used by the `Notification`, `UserPromptSubmit`, `Stop`, `SessionEnd`, and `SessionStart` hooks for live session-status updates.
+- **`CLAUDE_AI_AGENT_DASHBOARD`** — points to a local clone of the `tauri-dashboard` repo. Every hook entry in `claude/settings.json` that runs its `integrations/claude_hook.py` reads it: the session-lifecycle and tool events feed live session-status updates, and `PostModelSwitch` tells the dashboard which model a session switched to.
 - **`CLAUDE_LANDLORD`** — points to a local clone of the `landlord` repo, which owns the shared-host tenancy rules [Ingress Lint](#ingress-lint) delegates to. Optional, and only consulted for a repo that publishes a vhost: the lookup falls back to a `landlord` sibling of the repo being linted, which is the layout both machines already have. Unlike `CLAUDE_AI_AGENT_DASHBOARD`, leaving it unset is not free — the tenancy half then reports **NOT CHECKED** rather than passing quietly.
 
 **Set on Windows** (User scope, persistent):

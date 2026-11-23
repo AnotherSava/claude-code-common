@@ -303,6 +303,11 @@
             "type": "command",
             "command": "python -S \"$HOME/.claude/hooks/model-default-guard.py\"",
             "async": true
+          },
+          {
+            "type": "command",
+            "command": "python -S \"$CLAUDE_AI_AGENT_DASHBOARD/integrations/claude_hook.py\"",
+            "async": true
           }
         ]
       }
