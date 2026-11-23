@@ -2,7 +2,7 @@
 title: A project's deploy settings are one committed file, and no wrapper stands in front of them
 rules: deploy-config-committed
 optional: forks
-asks: when the clones disagree on a deploy key or hold one only on one side, a wrapper line no setting covers, a per-machine wrapper must be deleted, or a windowed target must be relaunched
+asks: when the clones disagree on a deploy key or hold one only on one side, a wrapper line no setting covers, or a per-machine wrapper other than the standard pass-through must be deleted
 ---
 
 ## What changed
@@ -71,13 +71,19 @@ session that owns the repo, on one machine; the other clone takes the result thr
      `dotted.path=SECRET_NAME` pairs it wrote.
    - Anything else: stop, show the user the lines, and ask where they belong. Do not drop a step
      because no setting covers it.
-5. **Delete the wrapper on this machine.** It is ignored and nothing regenerates it, so show the user
-   what it held and the setting each line became, then remove `scripts/deploy.sh`.
+5. **Delete the wrapper on this machine.** It is ignored and nothing regenerates it. The standard
+   pass-through the deploy skill generated — its only non-blank lines are `#!/bin/bash` and
+   `bash ~/.claude/skills/deploy/scripts/<target> "$@"`, with `<target>` the script step 3 mapped to
+   `DEPLOY_TYPE` — holds nothing `DEPLOY_TYPE` does not already say, so delete it without asking and
+   name it in the report. Any other wrapper: show the user what it held and the setting each line
+   became, then remove `scripts/deploy.sh`.
 6. **Check `deploy` runs through the new path.** The shell rc's `deploy` function must read
    `deploy() { bash ~/.claude/skills/deploy/scripts/run.sh "$@"; }`; replace an older form. Then run
    `bash ~/.claude/skills/deploy/scripts/run.sh` with output redirected to a file. A dev server is a
    process with no window and runs without asking. A Tauri, IntelliJ or .NET target relaunches an
-   app, so ask the user right before it, as CLAUDE.md's Taking Over the Machine section requires.
+   app, so an attended walk asks the user right before it, as CLAUDE.md's Taking Over the Machine
+   section requires. An unattended walk does not relaunch: it files a memo to run `deploy` once and
+   confirm it reaches the target, and records the version.
 7. **Commit**, through `/adopt`'s own commit step: `config/deploy.env`, the deleted project scripts,
    and the record.
 8. **Hand the other clone its half.** Its untracked `config/deploy.env` blocks the pull that brings

@@ -114,7 +114,9 @@ The folder holds a `README.md` opening with frontmatter — `title` and `asks` r
   the migration deletes or rewrites a committed file, say what would be lost.
 - `## When it does not apply` — each condition that makes the migration a no-op, with the positive
   evidence that settles it. "No `package.json` anywhere" is evidence; "no backlog file" is not
-  evidence that a repo wants no backlog, and that case is a question to the user instead.
+  evidence that a repo wants no backlog. Absence makes a no-op only where every answer to that
+  question leads to the same action, as in v1, which creates no backlog either way; otherwise it is
+  a question to the user.
 - `## Continuing rule` — the rule this version hands to the checker, named, or the words
   `None — this is a one-time migration.`
 

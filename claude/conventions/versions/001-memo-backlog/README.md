@@ -1,6 +1,6 @@
 ---
 title: The memo backlog is a directory, and addressed memos carry their close date
-asks: when both memos.md and memos/ exist, no backlog exists anywhere, a done memo has no commit to date it, or a name opens with a date-shaped non-date
+asks: when both memos.md and memos/ exist, no backlog exists while HEAD still carries memos.md, a done memo has no commit to date it, or a name opens with a date-shaped non-date
 ---
 
 ## What changed
@@ -27,7 +27,9 @@ moment a memo is closed, and every command reads the directory layout only.
 ## Migrating an existing repo
 
 **The prerequisite is one question: does this repo have a backlog at all?** If it does, everything
-below applies to it; if it does not, the questions at the end are the whole of the work. Read both
+below applies to it. If it does not and `HEAD` never carried `.claude/memos.md`, the version is a
+no-op recorded under "When it does not apply"; if `HEAD` still carries the file, the restore
+question near the end is the whole of the work. Read both
 `.claude/memos.md` and `.claude/memos/` before deciding which path you are on — they are mutually
 exclusive in a healthy repo, and holding both is one of the questions.
 
@@ -160,9 +162,6 @@ identical at the new name and gone from the old one.
 - **No backlog anywhere, and `HEAD` still carries `.claude/memos.md`** — the backlog is currently
   nowhere: the file was deleted and nothing replaced it. Restore it with
   `git checkout HEAD -- .claude/memos.md` and start again, or confirm it was emptied deliberately.
-- **No backlog anywhere, and `HEAD` never carried one** — does this repo want a backlog at all?
-  Never create one, because an empty `.claude/memos/` is cruft, and a stray empty directory already
-  on disk is worth deleting either way.
 - **A done memo git has never seen**, on path B. Its close date is unreadable, because the only
   honest source is the commit that put it in `done/` — an mtime is rewritten by a clone, a checkout
   or a rebase and answers when this machine last wrote the file. Print the names and ask: commit the
@@ -172,9 +171,10 @@ identical at the new name and gone from the old one.
   for a real close date or a bare slug. Treating such a name as already-dated would record the repo
   conformant on a name no reader can order, and treating it as undated would prefix a second date.
 
-Each of the first three reads `HEAD`, so a git that will not answer — an ownership refusal, a
-missing binary — belongs in the question rather than folded into "`HEAD` never carried one", which
-would turn a deleted backlog into one that was never kept.
+The deleted-backlog question above and the never-carried case under "When it does not apply" both
+read `HEAD`, so a git that will not answer — an ownership refusal, a missing binary — belongs in the
+question rather than folded into "`HEAD` never carried `.claude/memos.md`", which would turn a
+deleted backlog into one that was never kept.
 
 ## When it does not apply
 
@@ -188,11 +188,14 @@ A `done/` holding no memo at all satisfies the third half on its own. Count the 
 report it alongside, so the reading says a backlog was read and had nothing addressed in it yet.
 
 A directory holding no memo file is not this case. An empty directory is a shell rather than a
-migrated backlog, and it goes to the questions above.
+migrated backlog: delete it, then read the repo as holding no backlog.
 
-Absence is never a reason to skip. A repo holding neither file has not been shown to want no
-backlog — several repos deliberately keep none, and that is indistinguishable from a migration
-nobody ran, so it too goes to the questions above.
+**No backlog anywhere, and `HEAD` never carried `.claude/memos.md`** — `git cat-file -e
+HEAD:.claude/memos.md` fails and neither the file nor a directory with a memo in it is on disk.
+Whether the repo wants a backlog changes nothing here, because the answer is the same either way:
+never create one, since an empty `.claude/memos/` is cruft, and the first `memos.py add` creates the
+directory when one is wanted. Record the version. The case where `HEAD` still carries the file is
+different, a backlog deleted with nothing in its place, and stays with the questions above.
 
 ## Continuing rule
 

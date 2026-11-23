@@ -105,14 +105,17 @@ this list is the one statement of them that `authoring.md` and `docs/convention-
 - **A rewrite or deletion of a committed file needs no yes.** The commit is local and reviewed before
   any push, so the review is the yes. List each such change in the report with what the README says it
   loses. A file git does not track, such as v17's per-machine wrapper, is not covered: git cannot give
-  it back, so deleting one stops the walk as a question does, whatever `asks:` says. Editing an
+  it back, so deleting one stops the walk as a question does, whatever `asks:` says. The exception is
+  a file the README names as holding nothing the migration did not already carry elsewhere, such as
+  v17's standard pass-through wrapper: delete it and name it in the report. Editing an
   untracked file in place, such as v15 and v17 trimming the per-machine `config/deploy.env`, is not a
   stop, but git cannot undo it either: list each such edit in the report with the lines it removed,
   so a later stop can restore them by hand.
 - **A fork's decline offer** (sub-step 2) is a question, so a version marked optional for forks whose
   migration applies in a fork stops the walk.
 - **Anything the walk would need the screen for**, such as a relaunch Taking Over the Machine covers,
-  is a stop where an attended walk would ask.
+  is a stop where an attended walk would ask, unless the README says what an unattended walk does
+  instead, as v17 step 6 does by filing a memo for the relaunch.
 - **An `asks:` line that proves wrong in this repo** (the README asks something its `when` case does
   not name) is a stop where an attended walk would simply ask. Say so in the report, because the line
   is fixed in the dotfiles repo.
