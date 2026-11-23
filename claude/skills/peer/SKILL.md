@@ -39,7 +39,7 @@ Read it in this order:
 
 **An absent row means little on a freshly restarted dashboard**, which refills from session activity rather than on a timer. Check the peer dashboard's uptime on the peer — macOS `ps -o lstart= -p $(lsof -nP -iTCP:9077 -sTCP:LISTEN -t)`, Windows PowerShell `(Get-Process -Id (Get-NetTCPConnection -LocalPort 9077 -State Listen).OwningProcess).StartTime` — and when it is fresh, read the peer's session registry over SSH instead. A 404 from the route means a dashboard older than it.
 
-**What a session is doing right now**: grep the dashboard's `widget.jsonl` (in its app-data directory) for the project's chat id — a recent `classify` line carries a timestamp and that turn's closing message — and run `git -C <repo> status --short`.
+**What a session is doing right now**: grep the dashboard's `widget.jsonl` for the project's chat id — a recent `classify` line carries a timestamp and that turn's closing message — and run `git -C <repo> status --short`. The log is in `com.anothersava.claude-code-dashboard` under the app-data directory, `%APPDATA%` on Windows and `~/Library/Application Support` on macOS. A `com.anothersava.ai-agent-dashboard` folder beside it on Windows is from the app's former name, last written 2026-05-24, and reads as a dashboard that logs nothing. Without the dashboard, `~/.claude/sessions/<pid>.json` gives a live session's `name`, `cwd`, `status` and `sessionId`, and its transcript `~/.claude/projects/<mangled cwd>/<sessionId>.jsonl` holds the last reply and any unanswered question.
 
 ## 2. Send
 
