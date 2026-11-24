@@ -265,6 +265,9 @@ def main() -> int:
         check("the same literal unpinned is reported",
               len(ports.check_repo({"version": 1, "claims": [dict(MACHINE, port=8000, use_case="scanned-dev-server",
                                                                   owner="scanned")]}, scan)[0]), 1)
+        check("a pinned remote-scope claim this repo owns covers its literal",
+              ports.check_repo({"version": 1, "claims": [dict(MACHINE, scope="remote", port=8000, use_case="scanned-test-host",
+                                                              owner="scanned", pinned="the test host's")]}, scan), ([], []))
         check("a literal pinned to another repo is reported",
               len(ports.check_repo({"version": 1, "claims": [dict(MACHINE, port=8000, use_case="other-thing",
                                                                   owner="elsewhere", pinned="theirs")]}, scan)[0]), 1)
@@ -273,6 +276,11 @@ def main() -> int:
         found, _ = ports.check_repo(pinned, scan)
         check("a -p flag with no claim is reported", len(found), 1)
         check("and the message names the file and line", "web/package.json:1" in found[0], True)
+
+        def literal(line: str) -> int | None:
+            return next((int(m.group(1)) for pattern in ports.LITERAL_PATTERNS if (m := pattern.search(line))), None)
+        check("a -p listen address names the port after the colon", literal("busybox httpd -p 127.0.0.1:8099 -h /tmp/www"), 8099)
+        check("a docker -p host:container names the host side", literal("docker run -p 3000:80 image"), 3000)
 
         # The scan reads what the repo would commit, so staging is not what makes a file count — only a
         # gitignored one is nobody's declaration. Why a resolver a migration just added can be untracked

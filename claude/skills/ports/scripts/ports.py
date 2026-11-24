@@ -496,7 +496,8 @@ LAUNCH_GLOBS = (
 # What a port literal looks like in one of those files. Each pattern is a way of telling a process which
 # port to listen on, never a way of telling a reader where to point a browser.
 LITERAL_PATTERNS = (
-    re.compile(r"(?:^|\s)(?:-p|--port)[ =]+(\d{2,5})\b"),
+    # a listen address before the port (`-p 127.0.0.1:8099`) is skipped, or its first octet reads as the port
+    re.compile(r"(?:^|\s)(?:-p|--port)[ =]+(?:(?:\d{1,3}\.){3}\d{1,3}:|localhost:)?(\d{2,5})\b(?!\.)"),
     re.compile(r"^\s*(?:export\s+)?PORT=(\d{2,5})\b"),
     re.compile(r"\b\w*_?port\"?:\s*(\d{2,5})\b"),
     re.compile(r"\"127\.0\.0\.1:(\d{2,5}):\d{2,5}\""),
@@ -694,6 +695,10 @@ def check_repo(data: Dict, repo: Path) -> Tuple[List[str], List[str]]:
         claim = claims.get(port)
         relative = path.relative_to(repo).as_posix()
         if claim is not None and claim.get("pinned") and _owned_by(claim, name):
+            continue
+        # a port on another host (a test server's loopback) is recorded at remote scope, outside the machine map
+        if claim is None and any(c.get("port") == port and c.get("scope") == "remote" and c.get("pinned")
+                                 and _owned_by(c, name) for c in data["claims"]):
             continue
         if claim is None:
             problems.append(f"{relative}:{number} hardcodes port {port}, which no claim records: {line}. Either "

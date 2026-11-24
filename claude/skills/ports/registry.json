@@ -273,6 +273,15 @@
       "notes": "Jellyfin on the other machine. what-is-next dials it; nothing local listens here."
     },
     {
+      "port": 8099,
+      "use_case": "agterm-remote-window-gate-httpd",
+      "owner": "agterm",
+      "scope": "remote",
+      "status": "assigned",
+      "notes": "busybox httpd on the agterm-server test host's loopback, which the remote-window gate opens as a page through a forward",
+      "pinned": "fixed in upstream umputun/agterm's scripts/remote-window-gate.sh, which this fork does not edit"
+    },
+    {
       "port": 8582,
       "use_case": "jsonl-logs-robot-server",
       "owner": "jsonl-logs-intellij-plugin",
