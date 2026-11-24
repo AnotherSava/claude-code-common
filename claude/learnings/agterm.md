@@ -483,10 +483,10 @@ into a session's Claude Code composer and presses Enter only once the composer r
 `agtermctl session tint <red|orange|yellow|green|blue|purple|gray|clear> [--on icon|name|icon,name] --target <id>`
 colours a session's sidebar row. It first shipped in 0.39.0; 0.38 and older refuse the verb. Each session node of
 `tree --json` reports the current value as `tint` (a colour name) and `tintOn` (an array of `"icon"` and
-`"name"`); an untinted session omits both keys rather than carrying `null`. So a writer can compare before writing. The tint persists across an agterm relaunch, so
-a writer that owns it has to clear it too, not only set it. `--on` omitted keeps the current placement, else
-`icon`, and agterm refuses a placement beside `clear`. Measured on 0.40.0: the claude repo's attach tabs read
-`"tint": "gray", "tintOn": ["icon", "name"]`.
+`"name"`); an untinted session omits both keys rather than carrying `null`, so a writer can compare before
+writing. The tint persists across an agterm relaunch, so a writer that owns it has to clear it too, not only set
+it. `--on` omitted keeps the current placement, else `icon`, and agterm refuses a placement beside `clear`.
+Measured on 0.40.0: the claude repo's attach tabs read `"tint": "gray", "tintOn": ["icon", "name"]`.
 
 ## Workspaces belong to a window, and a closed tab leaves a dated record
 
