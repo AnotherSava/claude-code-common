@@ -171,3 +171,12 @@ Measured 2026-10-03: killing the handler dropped the tab and the loop had a repl
 running about 30 seconds later. That is well inside the 75-second probe deadline, so the probes
 were not what noticed; what consumed the rest of the 30 seconds was not measured. The far side's
 tmux still held the session, so the reconnect attached to it.
+
+## When the far machine is the one that went away
+
+A reconnect loop that never gets back in can be a far side that is down, not a socket the sleep
+killed. Measured 2026-11-22: four agterm tabs running the remote-session `attach.sh` all sat at
+`· reconnecting` in their titles. `tailscale status` listed the Windows box as `offline, last seen
+7m ago`, `tailscale ping` got no reply, and `ssh` timed out on port 22. The Mac and the tabs were
+fine, and each loop was still retrying every 60 seconds. Run `tailscale status` first: one line
+tells a down peer from a dead transport, before you read any client-side socket evidence.
