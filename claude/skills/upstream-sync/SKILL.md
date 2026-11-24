@@ -72,7 +72,7 @@ For every fork commit, read its diff beside upstream's diff of the same files an
 | Upstream merged it | `-` in `git cherry` | the rebase drops it; update any memory recording the PR as open |
 | Upstream built the same mechanism | same apply loop, stamp, config key, under upstream's names | shrink the fork commit to what upstream lacks; take upstream's version of the rest |
 | Upstream fixed the reason | the fork patch's symptom is gone upstream | propose dropping it; verify the symptom before saying so |
-| Ordered resources | both sides add numbered patches/migrations | renumber the fork's after upstream's, and amend any doc that says "the final patch" |
+| Ordered resources | both sides add numbered patches/migrations | give the fork's their own series named after the fork owner (`<owner>-NNNN`), sorting after upstream's, so an upstream addition never renames them; amend any doc that says "the final patch" |
 | **Semantic interaction** | no shared lines, but upstream added code or tests in the area the fork patch changes behaviour of | flag it; this is the one that passes the rebase and fails CI |
 
 The last row needs a deliberate search over the lines upstream added, for the symbols the fork patch touches:
@@ -130,6 +130,12 @@ re-measures (rev-list, `git cherry`, merge-tree) before rebasing, since the rang
 2. Update the fork's own record of its patches in the same change: the patches README, the fork memory note,
    and any fork version bump. Commit these through `shared/commit.py`, so the branch carries its own
    description whenever it is pushed.
+   A rebase also orphans the review bookmark (`refs/review/last` is no longer an ancestor of HEAD), so the next
+   `review-auto` run cannot be recorded. Review from the upstream ref, then point the local bookmark at it
+   (`git update-ref refs/review/last <upstream ref> <old bookmark>`) so `review_scope.py mark --base <upstream
+   ref>` and `advance` work. After that, `review_scope.py push` refuses, since origin's old bookmark is not an
+   ancestor of the new one either; once the branch's force push is done, publish the bookmark with
+   `git push --force-with-lease=refs/review/last:<origin's old bookmark> origin refs/review/last:refs/review/last`.
 3. Rebuild whatever the dependency stamps say is stale, then run the project's real gate (its
    `commit-checks.sh` or the build plus tests its CLAUDE.md names). The patch branch is pushed only once it
    is green. When the gate only runs on a machine other than the one holding the patch branch, it goes to
