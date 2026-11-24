@@ -488,6 +488,20 @@ writing. The tint persists across an agterm relaunch, so a writer that owns it h
 it. `--on` omitted keeps the current placement, else `icon`, and agterm refuses a placement beside `clear`.
 Measured on 0.40.0: the claude repo's attach tabs read `"tint": "gray", "tintOn": ["icon", "name"]`.
 
+A writer that compares before writing logs nothing when another process already set the same tint, so its silence
+does not show that it works. To prove it can write, `session tint clear --target <id>` one row and watch the writer
+put it back.
+
+## The per-window snapshot file is rewritten when a session is added
+
+`~/Library/Application Support/agterm/windows/<window-id>.json` is saved on more than a selection change: adding a
+session to the window rewrites it too, a `--no-select` background session included, and the new session's id is in
+the saved file. Measured on 0.40.0, 2026-11-23: after `agtermctl session new --cwd <dir> --no-select`, the window's
+file was rewritten within 0.4–3 s and held the new id once; with nothing happening it went 20 s unwritten. So a
+watcher on that directory learns of a new tab within a few seconds, with no polling of `tree`. The same save fires on
+renames, reorders and selection changes, so compare the set of session ids across writes to tell an addition apart
+rather than reacting to every write.
+
 ## Workspaces belong to a window, and a closed tab leaves a dated record
 
 `session new` places a session with either `--workspace <id|prefix|active>` or `--workspace-name <name>`,
