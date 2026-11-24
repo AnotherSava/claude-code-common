@@ -486,7 +486,8 @@ colours a session's sidebar row. It first shipped in 0.39.0; 0.38 and older refu
 `"name"`); an untinted session omits both keys rather than carrying `null`, so a writer can compare before
 writing. The tint persists across an agterm relaunch, so a writer that owns it has to clear it too, not only set
 it. `--on` omitted keeps the current placement, else `icon`, and agterm refuses a placement beside `clear`.
-Measured on 0.40.0: the claude repo's attach tabs read `"tint": "gray", "tintOn": ["icon", "name"]`.
+Measured on 0.40.0: remote tabs, which the dashboard tints from its `tab_tints` setting, read `"tint": "gray",
+"tintOn": ["icon", "name"]`.
 
 A writer that compares before writing logs nothing when another process already set the same tint, so its silence
 does not show that it works. To prove it can write, `session tint clear --target <id>` one row and watch the writer
