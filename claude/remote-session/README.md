@@ -228,9 +228,8 @@ with transcrypt and plaintext in your working tree. The dashboard's device name 
 rather than a reuse of the ssh alias: they are separate facts that only happen to resemble each
 other, and the roster is matched on it exactly.
 
-The same file sets how each remote tab tints its agterm sidebar row: `REMOTE_TINT_COLOUR` is one of
-agterm's tint colours, and `REMOTE_TINT_ICON` and `REMOTE_TINT_NAME` (`true` or `false`) choose
-where it shows. With no colour, or both parts off, the tabs carry none.
+A remote tab's agterm sidebar tint is not set here: the Mac's dashboard tints every `⇄` tab from
+the `tab_tints` setting in its own config.
 
 A fresh clone reads the file as ciphertext until transcrypt is unlocked there once, which the
 `/transcrypt` skill does. Every script checks for that state by name, so an unlocked-clone failure
