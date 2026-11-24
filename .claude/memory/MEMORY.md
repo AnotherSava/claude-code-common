@@ -20,5 +20,5 @@
 - [Remote tabs always recreate](remote-tabs-always-recreate.md) — decided 2026-10-13, no confirmation, except a session ended by a clean exit (2026-10-20); attach-only reconnects, an Enter prompt and picker-side creation were rejected
 - [Auth module is vendored, not packaged](auth-module-vendored-not-packaged.md) — the sign-in module is copied into each app from the skill; a package needs a registry or git and credentials in every Docker build, accepted 2026-11-12
 - [review-auto keeps whole revert and default agents](review-auto-revert-and-agent-type.md) — per-file polish revert declined, slimmer agentType deferred, 2026-11-18; re-raise only with a new measurement
-- [Repo flags: the value decides](repo-flags-value-decides.md) — a `.claude/repo-flags` key decides by its value, never a default from repo properties; unset asks, or keeps an existing offer and records a decline (`RELEASES`)
+- [Repo flags: the value decides](repo-flags-value-decides.md) — a `.claude/repo-flags` key decides by its value, never a default from repo properties; unset asks, or keeps an existing offer and records the answer after a decline (`RELEASES`)
 - [Model shown by terminal tint](model-shown-by-terminal-tint.md) — non-default model = dashboard tints the terminal row purple; a model status line was tried and dropped 2026-11-23, do not re-propose

@@ -19,6 +19,9 @@ if [ "$releases" = "no" ]; then
   echo "release: off (RELEASES=no in .claude/repo-flags)"
   exit 0
 fi
+# An unset flag is reported so step 9 knows a declined offer may still ask whether the repo is never released;
+# RELEASES=yes says it is released, and the question is not asked again.
+[ -z "$releases" ] && echo "flag: RELEASES unset"
 git fetch --tags --quiet 2>/dev/null || echo "FETCH-FAILED"
 
 tag=$(git describe --tags --abbrev=0 --match 'v*' 2>/dev/null)

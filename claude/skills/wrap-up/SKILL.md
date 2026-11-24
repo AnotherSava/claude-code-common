@@ -457,9 +457,11 @@ section's commits existed. Offer `/release` when it reports one or more feat/fix
 and list those subjects in the offer so the user judges them — `/release` decides the version and whether a
 change reaches the shipped artifact, so do not pre-judge either here. Say nothing when it reports zero, no tag,
 `off`, or not a git repo: a project that has never been tagged takes its first release deliberately, not from a
-wrap-up, and `off` is the repo's own `RELEASES=no`. When the user declines the offer, ask once whether this repo
-is never released; on a yes, run `python ~/.claude/skills/shared/repo_flags.py set . RELEASES no` from the repo
-root and say the file is uncommitted and goes out with the next commit. A fork whose `v*` tags are upstream's
+wrap-up, and `off` is the repo's own `RELEASES=no`. When the user declines the offer and the script
+printed `flag: RELEASES unset`, ask once whether this repo is never released, and record the answer either way
+with `python ~/.claude/skills/shared/repo_flags.py set . RELEASES <no|yes>` from the repo root: `no` stops the
+offers, `yes` keeps them and stops the question. Say the file is uncommitted and goes out with the next commit.
+With `RELEASES=yes` already set, a declined offer asks nothing. A fork whose `v*` tags are upstream's
 releases is the standing case.
 A `FETCH-FAILED` line means a release cut on the other machine may be missing from the count; say so in the
 offer. Withhold it after a `hold`, as with publish: a release tags and pushes on top of

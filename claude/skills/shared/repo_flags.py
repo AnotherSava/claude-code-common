@@ -5,12 +5,12 @@
     repo_flags.py set <repo-root> <KEY> <yes|no>  record an answer, replacing any earlier one for KEY
 
 The answers live in a committed `.claude/repo-flags`, one `KEY=value` per line, `#` starting a comment.
-What a key the file does not name means is stated per key in `KEYS`: either the skill's old default, or that
-the skill asks the user which value to record.
+What a key the file does not name means is stated per key in `KEYS`: the skill's old default, that the
+skill asks the user which value to record, or the old default with a question once the user declines it.
 
 Every read validates the whole file and exits 2 naming the line on an unknown key, a value other than
-yes or no, or a line that is not `KEY=value`. A misspelt key that read as unset would switch nothing
-off and say nothing, which is the failure an opt-out exists to prevent.
+yes or no, a repeated key, or a line that is not `KEY=value`. A misspelt key that read as unset would
+switch nothing off and say nothing, which is the failure an opt-out exists to prevent.
 
 A key belongs in `KEYS` only once a skill reads it, and the reader is named beside it.
 """
@@ -30,7 +30,9 @@ VALUES = ("yes", "no")
 
 # key -> (what an unset key means, what the key decides, who reads it)
 KEYS = {
-    "RELEASES": ("releases are offered", "no: the repo is never released, so /wrap-up makes no release offer",
+    "RELEASES": ("releases are offered, and a declined offer asks which value to record",
+                 "no: the repo is never released, so /wrap-up makes no release offer; "
+                 "yes: releases are offered and a declined one asks nothing",
                  "wrap-up/scripts/release_candidates.sh"),
     "SCREENSHOTS": ("the user is asked which value to record",
                     "yes: the docs keep screenshots and every screenshot pass runs, private repo or not; "

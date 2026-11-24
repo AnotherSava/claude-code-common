@@ -1,6 +1,6 @@
 ---
 name: repo-flags-value-decides
-description: A repo flag in .claude/repo-flags is decided by its value alone, never a default inferred from another repo property; unset asks, or keeps an existing offer and records a decline (RELEASES)
+description: A repo flag in .claude/repo-flags is decided by its value alone, never a default inferred from another repo property; unset asks, or keeps an existing offer and records the answer after a decline (RELEASES)
 metadata:
   type: feedback
 ---
@@ -14,4 +14,5 @@ repo is private or not". The private-repo default was removed for this.
 
 **How to apply:** a new key either asks when it is unset or keeps a skill's existing offer, and only when a
 decline then records the answer. `RELEASES` is the second kind: the release offer still appears, and
-declining it asks whether to write `RELEASES=no`. See [[docs-stay-text-only]].
+declining it while the key is unset asks whether the repo is never released and records `RELEASES=no` or
+`RELEASES=yes` either way; once `yes` is set, a decline asks nothing. See [[docs-stay-text-only]].
