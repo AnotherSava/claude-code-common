@@ -11,6 +11,7 @@ script rather than prose, `wrap-up/scripts/release_candidates.sh`, run for real 
                each exit 2 naming the line, on `get` and before `set` writes anything
   ignored      `set` refuses, naming the rule, when git would never stage the file, and writes nothing
   release-off  RELEASES=no makes the release check report `off` and look at no tag
+  release-ask  an unset RELEASES prints the `flag: RELEASES unset` line /wrap-up asks on, and RELEASES=yes leaves it out
   release-bad  a refused file stops the release check with exit 1 and the reader's message
 """
 
@@ -93,6 +94,11 @@ def main() -> int:
 
         code, out = release()
         check("with no flag the release check counts the feat commit", (code, "1 feat/fix commits since" in out), (0, True))
+        check("and reports the flag as unset", "flag: RELEASES unset" in out, True)
+        write(repo, ".claude/repo-flags", "RELEASES=yes\n")
+        code, out = release()
+        check("RELEASES=yes counts the commit and leaves the unset line out",
+              (code, "1 feat/fix commits since" in out, "flag: RELEASES unset" in out), (0, True, False))
         write(repo, ".claude/repo-flags", "RELEASES=no\n")
         check("RELEASES=no turns the release check off", release(), (0, "release: off (RELEASES=no in .claude/repo-flags)"))
         write(repo, ".claude/repo-flags", "RELEASES=nope\n")
