@@ -164,6 +164,13 @@ the reply ended with "Reply `deploy` to go ahead", the user typed `deploy`, and 
 and the app relaunched; measured that way in two sessions that day. So when a reply ends by asking to relaunch an
 app, ask for the act by name ("reply `deploy`"), or hand over `! deploy` straight away.
 
+A commit asked for only by a peer was refused too. Measured 2026-11-23: a peer session handed over three files it
+had edited in this repo and asked for them to be committed. No user turn followed that message. After the gate
+passed, the `shared/commit.py` call was denied as "Destructive or Unwanted Actions". That call was chained between
+a `printf` writing the message file and an `rm` of two scratch files, so its shape may have caused the denial as
+much as the missing user turn. Under auto mode, end the reply after a commit handoff by asking the user to reply
+`commit`, and run the commit as its own call.
+
 ## A denial means the command did NOT run
 
 The check happens before execution. Nothing partial, nothing queued, no side effects.
