@@ -133,9 +133,8 @@ re-measures (rev-list, `git cherry`, merge-tree) before rebasing, since the rang
    A rebase also orphans the review bookmark (`refs/review/last` is no longer an ancestor of HEAD), so the next
    `review-auto` run cannot be recorded. Review from the upstream ref, then point the local bookmark at it
    (`git update-ref refs/review/last <upstream ref> <old bookmark>`) so `review_scope.py mark --base <upstream
-   ref>` and `advance` work. After that, `review_scope.py push` refuses, since origin's old bookmark is not an
-   ancestor of the new one either; once the branch's force push is done, publish the bookmark with
-   `git push --force-with-lease=refs/review/last:<origin's old bookmark> origin refs/review/last:refs/review/last`.
+   ref>` and `advance` work. The push after the branch's force push then replaces origin's old bookmark, since no
+   branch on origin holds it any more; while one still does, `review_scope.py push` refuses and names it.
 3. Rebuild whatever the dependency stamps say is stale, then run the project's real gate (its
    `commit-checks.sh` or the build plus tests its CLAUDE.md names). The patch branch is pushed only once it
    is green. When the gate only runs on a machine other than the one holding the patch branch, it goes to

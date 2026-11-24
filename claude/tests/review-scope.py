@@ -147,7 +147,7 @@ def main() -> int:
         sh(b, "push", "-q", "origin", "side")
         sh(b, "checkout", "-q", "main")
         sh(b, "update-ref", review_scope.REF, side)
-        check("a local bookmark unrelated to origin's is never pushed over it", review_scope.push(b), f"not pushed: origin's bookmark {published[:12]} is not an ancestor of the local one")
+        check("a local bookmark unrelated to origin's is never pushed over it", review_scope.push(b), f"not pushed: origin's bookmark {published[:12]} is not an ancestor of the local one, and origin's branch main still holds it")
         sh(b, "update-ref", review_scope.REF, published)
         commit(b, "late.txt", "unreviewed\n")
         payload = {"tool_name": "Workflow", "cwd": scratch, "tool_input": {"name": "review-auto", "args": {"scope": "the uncommitted diff", "lenses": [], "repo": b}}}
@@ -190,6 +190,32 @@ def main() -> int:
         check("a hook that fails says so", "review-scope hook failed" in context.get("additionalContext", ""), True)
         check("and strips a bookmark the caller wrote, so the review cannot be recorded", "review_bookmark" in context.get("updatedInput", {}).get("args", {"review_bookmark": 1}), False)
         check("garbage on stdin exits quietly", subprocess.run([sys.executable, "-S", HOOK], input="not json", capture_output=True, text=True, timeout=30).stdout, "")
+
+        # A rebased fork: its branch is force-pushed past origin's bookmark, and the local bookmark is reset onto the
+        # rewritten history. Origin's is replaced only once no branch there can still hold it.
+        f_origin, f, g = (os.path.join(scratch, n) for n in ("f-origin.git", "f", "g"))
+        subprocess.run(["git", "init", "-q", "--bare", f_origin], check=True)
+        subprocess.run(["git", "clone", "-q", f_origin, f], check=True, capture_output=True)
+        base = commit(f, "app.txt", "one\n")
+        old = commit(f, "fork.txt", "patch\n")
+        sh(f, "push", "-q", "-u", "origin", "main")
+        sh(f, "update-ref", review_scope.REF, old)
+        review_scope.push(f)
+        subprocess.run(["git", "clone", "-q", f_origin, g], check=True, capture_output=True)
+        sh(f, "push", "-q", "origin", "main:keep")
+        sh(f, "reset", "-q", "--hard", base)
+        rebased = commit(f, "fork.txt", "patch, rebased\n")
+        sh(f, "push", "-q", "--force", "origin", "main")
+        sh(f, "update-ref", review_scope.REF, rebased)
+        check("a rebased bookmark is not pushed while an origin branch holds the old one", review_scope.push(f), f"not pushed: origin's bookmark {old[:12]} is not an ancestor of the local one, and origin's branch keep still holds it")
+        sh(f, "push", "-q", "origin", ":keep")
+        sh(g, "checkout", "-q", "-b", "other")
+        unseen = commit(g, "other.txt", "built on the old history\n")
+        sh(g, "push", "-q", "origin", "other")
+        check("nor while origin has a branch tip this clone has not fetched", review_scope.push(f), f"not pushed: origin's bookmark {old[:12]} is not an ancestor of the local one, and origin's branch other is at {unseen[:12]}, which this clone has not fetched")
+        sh(f, "push", "-q", "origin", ":other")
+        check("once no origin branch holds the old bookmark, the rebased one replaces it", review_scope.push(f), f"pushed: {review_scope.REF} -> {rebased[:12]}")
+        check("and origin now names it", review_scope._origin_bookmark(f), (rebased, None))
 
         # The polish record /wrap-up reads to skip its own clean-up passes. Skipping on a record that does not cover
         # the change set leaves code nobody cleaned, so most cases try to make `polished_since` answer when it must not.

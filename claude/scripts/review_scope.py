@@ -470,6 +470,26 @@ def stage_reviewed(repo: str, paths: list[str]) -> str:
     return f"staged from reviewed tree {record['tree'][:12]}: {len(staged)} staged, {len(removed)} removed"
 
 
+def _origin_branch_holding(repo: str, sha: str) -> str | None:
+    """Why `sha` may still be on a branch at origin, or None when no branch there holds it. Read from origin itself,
+    since a remote-tracking ref can lag a branch the other machine pushed; a tip this clone lacks counts as holding,
+    because whether it descends from `sha` cannot be told without it."""
+    try:
+        listed = _git(repo, "ls-remote", "--heads", REMOTE, timeout=NETWORK_TIMEOUT)
+    except subprocess.TimeoutExpired:
+        return f"`git ls-remote --heads {REMOTE}` timed out"
+    if listed.returncode != 0:
+        return f"`git ls-remote --heads {REMOTE}` failed: {listed.stderr.strip()}"
+    for line in listed.stdout.splitlines():
+        tip, ref = line.split()
+        branch = ref.removeprefix("refs/heads/")
+        if _resolve(repo, tip) is None:
+            return f"origin's branch {branch} is at {tip[:12]}, which this clone has not fetched"
+        if _is_ancestor(repo, sha, tip):
+            return f"origin's branch {branch} still holds it"
+    return None
+
+
 def push(repo: str) -> str:
     if not _has_remote(repo):
         return "not pushed: no origin remote"
@@ -485,9 +505,15 @@ def push(repo: str) -> str:
     remote = _resolve(repo, FETCHED)
     if remote == bookmark:
         return "up to date"
+    lease = []
     if remote and not _is_ancestor(repo, remote, bookmark):
-        return f"not pushed: origin's bookmark {remote[:12]} is not an ancestor of the local one"
-    done = _git(repo, "push", REMOTE, f"{REF}:{REF}", timeout=NETWORK_TIMEOUT)
+        holder = _origin_branch_holding(repo, remote)
+        if holder:
+            return f"not pushed: origin's bookmark {remote[:12]} is not an ancestor of the local one, and {holder}"
+        # A rebased branch force-pushed past origin's bookmark leaves it naming history no origin branch holds any
+        # more, so replacing it loses no review anyone can build on. The lease refuses if it moved since the fetch.
+        lease = [f"--force-with-lease={REF}:{remote}"]
+    done = _git(repo, "push", *lease, REMOTE, f"{REF}:{REF}", timeout=NETWORK_TIMEOUT)
     if done.returncode != 0:
         return f"not pushed: {done.stderr.strip()}"
     return f"pushed: {REF} -> {bookmark[:12]}"
