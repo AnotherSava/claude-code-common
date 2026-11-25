@@ -7,8 +7,8 @@ metadata:
 
 A Claude session on a model other than the default (`ANTHROPIC_MODEL` in `claude/settings.json`) is marked by the
 dashboard tinting its sidebar row purple in agterm, and in agwinterm once that fork has a tint command. The model tint
-wins over the remote-tab tint from the dashboard's `tab_tints` setting, and the dashboard writes both. This repo's part is the `PostModelSwitch` entry
-that runs the dashboard's `claude_hook.py`.
+wins over the remote-tab tint from the dashboard's `tab_tints` setting, and the dashboard writes both. This repo's part
+is the `PostModelSwitch` entry that runs the dashboard's `claude_hook.py`.
 
 **Why:** a model status line was built and tried on 2026-11-23 and dropped. Under the fullscreen renderer a status line
 that prints nothing still keeps an empty row (`learnings/claude-code-status-line.md`), and the user tried the classic
