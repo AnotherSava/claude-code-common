@@ -480,12 +480,15 @@ into a session's Claude Code composer and presses Enter only once the composer r
 
 ## `session tint`: a coloured sidebar row, read back from `tree`
 
-`agtermctl session tint <red|orange|yellow|green|blue|purple|gray|clear> [--on icon|name|icon,name] --target <id>`
-colours a session's sidebar row. It first shipped in 0.39.0; 0.38 and older refuse the verb. Each session node of
-`tree --json` reports the current value as `tint` (a colour name) and `tintOn` (an array of `"icon"` and
-`"name"`); an untinted session omits both keys rather than carrying `null`, so a writer can compare before
-writing. The tint persists across an agterm relaunch, so a writer that owns it has to clear it too, not only set
-it. `--on` omitted keeps the current placement, else `icon`, and agterm refuses a placement beside `clear`.
+`agtermctl session tint <colour|#rrggbb|clear> [--on icon|name|icon,name] --target <id>`
+colours a session's sidebar row. It first shipped in 0.39.0; 0.38 and older refuse the verb. The named colours are
+red, orange, yellow, green, blue, purple and gray; 0.41.0 added teal, pink, brown, indigo, mint and any `#rrggbb`
+hex. The 0.41.0 additions are reported by the Mac's agterm session, not measured, and what `tree` reports as
+`tint` for a hex value is unchecked. Each session node of `tree --json` reports the current value as `tint` (a
+colour name) and `tintOn` (an array of `"icon"` and `"name"`); an untinted session omits both keys rather than
+carrying `null`, so a writer can compare before writing. The tint persists across an agterm relaunch, so a writer
+that owns it has to clear it too, not only set it. `--on` omitted keeps the current placement, else `icon`, and
+agterm refuses a placement beside `clear`.
 Measured on 0.40.0: remote tabs, which the dashboard tints from its `tab_tints` setting, read `"tint": "gray",
 "tintOn": ["icon", "name"]`.
 
