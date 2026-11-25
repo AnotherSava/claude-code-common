@@ -250,3 +250,14 @@ not. **Settle it by invoking one skill carrying a `$(…)` probe from the same c
 comparing** — one run each, and the answer holds for every skill in the directory. Until then, prefer the
 plain argument and expect a probe that loads for you to be refused for somebody else.
 
+
+## A skill invoked again in the same session runs no Context line
+
+Run every Context value a step depends on yourself when a skill is invoked a second time in one session and the
+tool answers `Skill /<name> is already loaded above; instructions unchanged.` That answer re-renders nothing: no `!`
+line runs, so the Context values in view are the ones from the earlier load, however long ago it was.
+
+Measured 2026-11-25 with `/pull`. Its first two invocations in a session re-ran Context, Fetch included. The third,
+about 13 hours later, got the `already loaded` answer, so its Fetch line never ran and the only Context values in
+view were the second load's. Behaving as if the Context section had just run would have measured the remote against a ref
+nobody fetched. What decides between a fresh load and `already loaded` was not identified.
