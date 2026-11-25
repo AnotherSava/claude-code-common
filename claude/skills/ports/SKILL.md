@@ -120,6 +120,8 @@ anything:
   number the registry owns, and the copy the process reads. Allowed once the registry records it as
   `pinned`: a number fixed by an outside party, a default compiled into a binary, a vendor's own port,
   or a literal in a file no launch path ever runs — a recipe a person follows by hand.
+  A literal for a port on another host, such as a test server's loopback, is allowed by a pinned
+  `--scope remote` claim the repo owns instead, since the machine map does not hold that number.
 - **An unpinned port the registry assigns this repo that no launch-determining file asks for.** The
   resolver is looked for in the same files as the literal above, because a marker counted anywhere in the
   tree is also counted in the sentence a CLAUDE.md writes about this skill. An absent literal
