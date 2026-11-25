@@ -110,7 +110,9 @@ This is the part the script cannot do. Find the consumer, then decide where it b
   swapped and compressed pages: on 2026-11-13 a desktop app showed 460 MB RSS while `top` gave it 23 GB,
   plus 25 GB compressed in its two WebKit webviews. That filled 30 GB of swap and left 2.3 GiB free.
   Relaunching the app returned about 20 GB. WebKit webviews are reparented to launchd, so tie them to their
-  app by start time (`ps -o etime`), not by PPID.
+  app by start time (`ps -o etime`), not by PPID. When such an app grows back after a relaunch,
+  tracing the growth to what it pushes into its webviews is in
+  `learnings/webview-push-payload-memory-growth.md`.
 - **A container's "disk full" under colima is the VM's disk, not the Mac's**, so it is out of scope here;
   measuring and freeing it is in `learnings/colima-vm-disk-io-errors.md`.
 - **The scheduled half only measures.** `--alarm` reads `df` and sends one Telegram message below
