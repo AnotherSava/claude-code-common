@@ -107,7 +107,7 @@ Before building scan agents under `claude/agents/`, read the SKILL.md frontmatte
 | Field | Effect |
 |---|---|
 | `context: fork` | Runs the skill in a forked subagent |
-| `model` | Sets that subagent's model |
+| `model` | Sets the skill's model, forked or inline (`claude-code-model-default-persistence.md`) |
 | `effort` | `low` … `max`, overriding the session's level |
 | `background` | Defaults to `true`, so forks run concurrently and report when done. Needs 2.1.218+ |
 | `user-invocable: false` | Hides it from the `/` menu while leaving it callable by Claude |

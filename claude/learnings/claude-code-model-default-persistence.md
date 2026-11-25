@@ -15,6 +15,9 @@ Measured on Claude Code 2.1.322 (Windows and macOS) in November 2026, with the h
 - A `model` key in a project's `.claude/settings.json` outranks the user file. The `/model` command says so when it saves: ".claude\settings.json pins <model> — that applies on restart". A project pin dedicates a folder's sessions to one model only where nothing below outranks it.
 - The `ANTHROPIC_MODEL` environment variable and the `--model` flag outrank every settings file for the session they launch.
 - So a project pin is dead wherever the user settings' `env` block sets `ANTHROPIC_MODEL`, as these machines' do: measured 2026-11-22, a shepherd folder pinned to `claude-fable-5-2` in its project settings ran Opus, the env value.
+- A `model:` line in a skill's frontmatter moves that skill onto its model, inline or forked, even where `ANTHROPIC_MODEL` is set. Measured 2026-11-25 on Windows: a throwaway project skill carrying `model: claude-fable-5-2`, run with `MSYS_NO_PATHCONV=1 claude -p "/probe" --output-format json`, listed only `claude-fable-5-2` under `modelUsage`, both without `context: fork` and with it.
+- Read the model a run used from `modelUsage` in the JSON output, never from the reply. In the inline run above the reply said `claude-opus-5-5`, the session model its system prompt names, while every token was billed to Fable.
+- From Git Bash, prefix `claude -p "/<skill>"` with `MSYS_NO_PATHCONV=1`. Without it the prompt arrives as `C:/Program Files/Git/<skill>`, so no skill runs as a command and the model answers from the skill file it reads instead. A run made that way showed only Opus under `modelUsage` and looked like proof that the field does nothing.
 
 ## Hooks cannot stop the save
 

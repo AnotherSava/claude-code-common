@@ -89,7 +89,8 @@ Those three fields describe what a skill *is*. A further set decides where it ex
 |---|---|
 | `context: fork` | Runs the skill in a forked subagent. **Not** a fork of the conversation: it starts fresh with this file and CLAUDE.md, so a skill whose input is the conversation cannot use it |
 | `agent` | Which subagent type serves the fork — the route to a definition carrying `isolation: worktree`, which SKILL.md has no field for |
-| `model`, `effort` | The fork's model and reasoning level, so a mechanical pass need not run at the session's level |
+| `model` | The skill's model, inline or forked, even where `ANTHROPIC_MODEL` is set (`~/.claude/learnings/claude-code-model-default-persistence.md`), so a mechanical pass need not run on the session's model |
+| `effort` | The fork's reasoning level, so a mechanical pass need not run at the session's level |
 | `background` | Defaults to `true`, so a fork runs concurrently and reports when it finishes |
 | `user-invocable: false` | Hides it from the `/` menu while leaving Claude able to invoke it — the honest setting for a skill only another skill calls |
 | `disable-model-invocation: true` | The mirror: keeps it in the `/` menu and stops Claude choosing it |
