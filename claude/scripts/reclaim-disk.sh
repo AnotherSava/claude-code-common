@@ -107,6 +107,8 @@ GIT=/usr/bin/git
 FIND=/usr/bin/find
 DATE=/bin/date
 STAT=/usr/bin/stat
+SYSCTL=/usr/sbin/sysctl
+TOP=/usr/bin/top
 
 # The volume every path below lives on. /System/Volumes/Data is the writable
 # one; `/` is the sealed system snapshot and reports its own numbers.
@@ -489,6 +491,22 @@ rule_running_state() {
   return 0
 }
 
+# Swap lives in the separate VM APFS volume, which shares the container's free
+# space with Data, so no directory rule ever sees it. Twice (2026-11-13 and
+# 2026-11-25) a full swap of 30+ GB was most of the shortage while this report
+# listed only a few GiB, and it was found by hand. Only quitting the holder
+# gives it back, so it is a RUNNING row naming the top holders. `top` rather
+# than `ps` RSS, which leaves out swapped and compressed pages.
+rule_swap() {
+  local used holders
+  used="$("$SYSCTL" -n vm.swapusage 2>/dev/null | awk '{for(i=1;i<NF;i++) if($i=="used") print $(i+2)}')"
+  [ -n "$used" ] || { log "RUNNING  [swap] unmeasured — sysctl vm.swapusage gave no answer"; return 0; }
+  holders="$("$TOP" -l 1 -o mem -n 3 -stats pid,command,mem,cmprs 2>/dev/null \
+    | awk '/^PID/{f=1; next} f && NF>=4{c=$2; for(i=3;i<=NF-2;i++) c=c" "$i
+        printf "%s%s (pid %s) %s + %s compressed", sep, c, $1, $(NF-1), $NF; sep="; "}')"
+  log "RUNNING  [swap] $used used — freed only by quitting a holder; top memory: ${holders:-unmeasured}"
+}
+
 # ---- the alarm ---------------------------------------------------------------
 
 notify_telegram() {
@@ -653,6 +671,7 @@ rule_cargo
 rule_scratch_clones
 rule_dead_caches
 rule_running_state
+rule_swap
 
 end_kib="$(free_kib)" || end_kib="$start_kib"
 log "---- $n_free FREE $(gib "$total_free_kib") + $n_apparent clone(s) $(gib "$total_apparent_kib") apparent | REBUILD $(gib "$total_rebuild_kib") (costs a cold build) | $n_refused refused ----"

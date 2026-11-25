@@ -106,11 +106,14 @@ This is the part the script cannot do. Find the consumer, then decide where it b
   `sysctl vm.swapusage` and `diskutil apfs list` (the `VM` role's Capacity Consumed). On 2026-10-22
   it held about 17 GiB with two VMs and an Android emulator running, against 5.2 GiB free. Only quitting
   memory-heavy processes or a restart gives it back, so report it to the user and delete nothing for it.
+  The report's `[swap]` row prints the swap in use and the three processes `top` ranks highest by memory.
   Find the holder with `top -l 1 -o mem -stats pid,command,mem,cmprs`, not `ps` RSS, which leaves out
   swapped and compressed pages: on 2026-11-13 a desktop app showed 460 MB RSS while `top` gave it 23 GB,
   plus 25 GB compressed in its two WebKit webviews. That filled 30 GB of swap and left 2.3 GiB free.
   Relaunching the app returned about 20 GB. WebKit webviews are reparented to launchd, so tie them to their
-  app by start time (`ps -o etime`), not by PPID. When such an app grows back after a relaunch,
+  app by start time (`ps -o etime`), not by PPID. A tray app can ignore `osascript -e 'quit app "…"'`
+  and leave the call hanging: on 2026-11-25 the dashboard did, and `kill -TERM <pid>` ended it and its
+  webviews within seconds. When such an app grows back after a relaunch,
   tracing the growth to what it pushes into its webviews is in
   `learnings/webview-push-payload-memory-growth.md`.
 - **A container's "disk full" under colima is the VM's disk, not the Mac's**, so it is out of scope here;
