@@ -174,9 +174,11 @@ grep-driven reasoning.
   tmux 3.4's default. With one client at 120 columns and one at 200, both drew at 120, which that
   rule gives when the narrow client was used last. By the manual, typing in the wider one widens the
   window again and leaves the narrow client showing part of it; that direction was not measured.
-- **A detached session is created at tmux's 80x24 default** and a TUI draws itself once at that size.
-  Pass `-x`/`-y` at creation so the first attaching client does not inherit a layout built for a
-  terminal nobody is using.
+- **A detached session is created at tmux's 80x24 default** when no client is attached anywhere,
+  and a TUI draws itself once at that size. `-x`/`-y` at creation do not fix it alone: while any
+  client is attached they are ignored and the window takes the newest client's size, which was 1x1
+  on 2026-11-25. Resize the window after creating it and unset its `window-size` override, as
+  [wsl-tmux-from-git-bash.md](wsl-tmux-from-git-bash.md) describes.
 
 With Claude Code's agent view enabled and one viewer enough, `claude --bg` plus `claude attach` needs
 no WSL, no tmux and no scheduled task. This dotfiles repo's `settings.json` sets

@@ -145,7 +145,9 @@ closes, as described under reconnects.
 
 Both clients draw the same session, so both see every keystroke either of you types. tmux sizes a
 shared window to the client with the **most recent activity** (`window-size latest`, its default,
-which nothing here changes). Once a 120-column agterm tab attaches or is typed in, a 200-column
+which nothing here leaves changed: tmux ignores a detached `new-session`'s size while any client is
+attached, so a new session's window is resized to the size asked for and then handed back to
+`latest`). Once a 120-column agterm tab attaches or is typed in, a 200-column
 Windows terminal also renders at 120; typing in the wider one widens the window again, and the
 narrow one then shows only part of it. When one client detaches, the window takes the size of the
 one that is left.
@@ -279,7 +281,9 @@ other answer leaves everything running and stops the tab.
 
 **A tab asks whether to restart its session.** tmux draws again, but this session was created while
 it did not, and it has stayed a blank screen. Answering `y` restarts that one session with its
-conversation resumed, and leaves every other agent running.
+conversation resumed, and leaves every other agent running. A session whose window is one line high,
+as under a background tab that stays a 1x1 client, is never asked about: one line proves nothing, and
+the attach resizes it.
 
 **Attaching says the holder is not running.** The scheduled task stopped, most often because you
 logged off and back on without it re-triggering. Start it:

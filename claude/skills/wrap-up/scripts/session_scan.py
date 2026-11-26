@@ -207,7 +207,7 @@ def _can_make_step_8(name: str) -> bool:
 
 
 def _reached_step_8(items: list[dict[str, Any]], index: int) -> bool:
-    """Whether the /wrap-up command at index made a STEP_8_RE call before a later command ended the search (see SKILLS_DIR)."""
+    """Whether the /wrap-up command at index made a STEP_8_CALL_RE call before a later command ended the search (see SKILLS_DIR)."""
     for later in items[index + 1:]:
         if later["kind"] == "command" and (later["text"] == "clear" or _can_make_step_8(later["text"])):
             return False
