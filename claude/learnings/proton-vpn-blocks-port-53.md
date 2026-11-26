@@ -74,7 +74,33 @@ exit the client or stop its service.
   value, so they are never touched, reordered or rewritten. Longest-suffix match also means Tailscale's
   specific rules keep beating Proton's `.`.
 - **Names inside your own tailnet keep resolving** — `tailscaled` answers those from its netmap with no
-  upstream query.
+  upstream query. That holds only while Tailscale's own forward NRPT rule for the tailnet's
+  `.<tailnet>.ts.net` suffix exists; see the next section for when it went missing.
+
+## When Tailscale fails to write its DNS config, Proton's `.` rule takes every name
+
+Measured 2026-11-25 with Proton VPN 5.1.9 and Tailscale 1.104.5. `tailscale status` carried the
+health line `Tailscale failed to set the DNS configuration of your device: The process cannot access
+the file because it is being used by another process.`, and the NRPT held only Tailscale's reverse
+`in-addr.arpa` and `ip6.arpa` rules beside Proton's `.` → `10.2.0.1`. The forward rule for the
+tailnet's own suffix was gone, so even this machine's own MagicDNS name and a bare peer name went to
+Proton's resolver: `Resolve-DnsName <node>.<tailnet>.ts.net -NoHostsFile` timed out, and `ssh <peer>`
+failed with `Could not resolve hostname`. The data plane was fine: the same URL fetched with
+`curl --resolve <host>:443:<tailnet IP>` answered 200. Symptoms that point here are
+`tailnet_publish.py` reporting that its URL "did not return this file" while the loopback file server
+answers, and the transcript-history script marking the other machine `NOT COVERED` with an ssh exit
+255.
+
+On this machine Tailscale's MagicDNS names come from the section it writes into the hosts file
+between `# TailscaleHostsSectionStart` and its end marker, one line per node; the NRPT carried no
+forward rule for the tailnet suffix even once everything worked. That section was missing while the
+error stood, the hosts file last written three days earlier, the day Tailscale had been stuck
+starting ([tailscale-windows-stuck-starting.md](tailscale-windows-stuck-starting.md)). So the file the
+write was refused on was most likely the hosts file, though the error names none.
+
+**Fix:** `tailscale set --accept-dns=false`, then `tailscale set --accept-dns=true`. No elevation is
+needed, the VPN can stay connected, and the health line clears. Within seconds the hosts section was
+back and the names resolved: own node, peers by FQDN and bare name, and the published URL answered 200.
 - **What dies is every lookup `tailscaled` must forward.** Split-DNS zones pointed at a peer's resolver, and
   `*.ts.net` names outside your own tailnet (that split route targets Tailscale's public `ts.net`
   authoritative server on port 53). `net/dns/resolver/forwarder.go` sends upstream queries from tailscaled's
