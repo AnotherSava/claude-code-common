@@ -214,20 +214,26 @@ def _supersedes(repo: str, local: str | None, remote: str | None) -> bool:
     return bool(remote) and (not local or (local != remote and _is_ancestor(repo, local, remote)))
 
 
-def _coverage(repo: str, sync: str, head: str | None, bookmark: str | None) -> tuple[str | None, list[str], str | None]:
-    """The base a review diffs from, the commits it adds past the bookmark, and why there is no base when there is
-    none. Both `plan` and `status` call this, so the line `status` prints cannot promise a coverage `plan` refuses."""
+def _coverage(repo: str, sync: str, head: str | None, bookmark: str | None) -> tuple[str | None, list[str], str | None, str | None]:
+    """The base a review diffs from, the commits it adds past the bookmark, why there is no base when there is none,
+    and the upstream the base was taken from (None when a bookmark gave it, or the branch has none). Both `plan` and
+    `status` call this, so the line `status` prints cannot promise a coverage `plan` refuses.
+
+    With no bookmark the base is where HEAD forks from its upstream, so commits not yet pushed are in the first review;
+    a stale tracking ref only widens that. A branch with no upstream starts from HEAD."""
     if sync not in ("ok", "local-only"):
-        return None, [], f"Origin's review bookmark could not be read ({sync}), so the commits it would add are unknown."
+        return None, [], f"Origin's review bookmark could not be read ({sync}), so the commits it would add are unknown.", None
     if head is None:
-        return None, [], "The repo has no commits yet."
+        return None, [], "The repo has no commits yet.", None
     if bookmark and not _is_ancestor(repo, bookmark, head):
         return None, [], (f"The review bookmark {bookmark[:12]} is not an ancestor of HEAD, so history was rewritten "
-                          f"after the last review and the unreviewed range is unknown.")
-    if not bookmark:
-        return head, [], None
-    log = _git(repo, "log", "--format=%h %s", f"{bookmark}..{head}").stdout.splitlines()
-    return bookmark, [line for line in log if line.strip()], None
+                          f"after the last review and the unreviewed range is unknown."), None
+    upstream = None if bookmark else _resolve(repo, "@{upstream}")
+    base = bookmark or (_git(repo, "merge-base", upstream, head).stdout.strip() if upstream else head)
+    if not base:
+        return None, [], f"HEAD shares no history with its upstream {upstream[:12]}, so the unpushed range is unknown.", upstream
+    log = _git(repo, "log", "--format=%h %s", f"{base}..{head}").stdout.splitlines()
+    return base, [line for line in log if line.strip()], None, upstream
 
 
 def plan(repo: str) -> dict:
@@ -236,7 +242,7 @@ def plan(repo: str) -> dict:
     status = _sync(repo)
     head = _resolve(repo, "HEAD")
     bookmark = _resolve(repo, REF)
-    base, commits, problem = _coverage(repo, status, head, bookmark)
+    base, commits, problem, _ = _coverage(repo, status, head, bookmark)
     return {"repo": repo, "head": head, "bookmark": bookmark, "sync": status, "base": base, "commits": commits, "problem": problem}
 
 
@@ -248,8 +254,9 @@ def scope_text(found: dict) -> str:
     if not found["commits"]:
         return ""
     base = found["base"][:12]
+    since = "since the last review" if found["bookmark"] else "not yet pushed, with no review recorded"
     listing = "\n".join(f"  {line}" for line in found["commits"])
-    return (f"\n\nAlso in scope: everything since the last review, which these {len(found['commits'])} commit(s) added "
+    return (f"\n\nAlso in scope: everything {since}, which these {len(found['commits'])} commit(s) added "
             f"without one:\n{listing}\nRead the whole range as one change: `git -C {repo} diff {base}` for tracked files "
             f"and `git -C {repo} ls-files --others --exclude-standard` for untracked ones. A file the uncommitted diff "
             f"does not touch is still in scope when that range does.")
@@ -275,8 +282,9 @@ def _read_record(repo: str) -> dict | None:
 def polished_since(repo: str) -> dict | None:
     """The paths changed since the workflow polished a tree, or None when no polished review covers the change set.
 
-    A review launched with no bookmark scopes from HEAD, so commits not yet on a remote that precede its base were
-    never in it; the record then covers only part of what /wrap-up is about to send, and nothing may be skipped on it.
+    A review launched with no bookmark on a branch with no upstream scopes from HEAD, so commits not yet on a remote
+    that precede its base were never in it; the record then covers only part of what /wrap-up is about to send, and
+    nothing may be skipped on it.
     Commits the bookmark already holds were reviewed by an earlier run. A deletion is left out of `changed`, since
     neither skipped pass can review a path that no longer exists, and so is a mode change with the content intact,
     which leaves nothing for either pass to read."""
@@ -558,7 +566,7 @@ def status(repo: str) -> str:
         remote, error, bookmark, sync = _origin_view(repo, local)
         parts.append(f"origin unreadable: {error}" if error else f"origin {_short(remote)} ({'agree' if remote == local else 'differ'})")
     head = _resolve(repo, "HEAD")
-    parts.append(_coverage_part(repo, sync, head, bookmark, "it" if bookmark == local else f"origin's {(bookmark or '')[:12]}"))
+    parts.append(_coverage_part(repo, sync, head, bookmark, "it" if bookmark == local else f"origin's {(bookmark or '')[:12]}", False))
     parts += _record_part(repo, head)
     return "review bookmark: " + " · ".join(parts)
 
@@ -577,15 +585,22 @@ def _origin_view(repo: str, local: str | None) -> tuple[str | None, str | None, 
     return remote, None, (remote if _supersedes(repo, local, remote) else local), "ok"
 
 
-def _coverage_part(repo: str, sync: str, head: str | None, bookmark: str | None, called: str) -> str:
+def _coverage_part(repo: str, sync: str, head: str | None, bookmark: str | None, called: str, pushing: bool) -> str:
     """What the next review covers from `bookmark`, named `called` in the sentence. `status` and `forecast` both end
-    on it, so the line before a push and the line after it count the same way."""
-    _, commits, problem = _coverage(repo, sync, head, bookmark)
+    on it, so the line before a push and the line after it count the same way. With no bookmark the count runs from
+    the upstream, which the push `forecast` precedes (`pushing`) moves to HEAD: the line then counts as `status` will
+    after it, and names the commits the push sends out of the next review's reach."""
+    _, commits, problem, upstream = _coverage(repo, sync, head, bookmark)
     if problem:
         return f"the next review has no base to record: {problem}"
-    if bookmark is None:
-        return "no bookmark, so the next review starts from HEAD"
-    return f"{len(commits)} commit(s) on HEAD past {called}, which the next review covers"
+    if bookmark:
+        return f"{len(commits)} commit(s) on HEAD past {called}, which the next review covers"
+    if upstream is None:
+        return "no bookmark and no upstream, so the next review starts from HEAD and unpushed commits are outside it"
+    if pushing and commits:
+        return (f"0 commit(s) on HEAD past its upstream (no bookmark) once this push moves it to HEAD, so the "
+                f"{len(commits)} commit(s) it sends are outside the next review")
+    return f"{len(commits)} commit(s) on HEAD past its upstream (no bookmark), which the next review covers"
 
 
 def _record_part(repo: str, head: str | None) -> list[str]:
@@ -627,7 +642,7 @@ def forecast(repo: str, publish: bool) -> str:
             branch = _git(repo, "symbolic-ref", "--quiet", "--short", "HEAD").stdout.strip()
             _, refusal = _replacement(repo, local, remote, (branch, head) if branch and head else None)
             outcome = f"origin stays at {_short(remote)}: {refusal}" if refusal else f"origin moves to {_short(local)} (from {_short(remote)})"
-    parts = [outcome, _coverage_part(repo, sync, head, after, _short(after))] + _record_part(repo, head)
+    parts = [outcome, _coverage_part(repo, sync, head, after, _short(after), True)] + _record_part(repo, head)
     return "review bookmark after this push: " + " · ".join(parts)
 
 

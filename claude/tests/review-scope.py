@@ -55,11 +55,24 @@ def main() -> int:
         first = commit(a, "app.txt", "one\n")
         sh(a, "push", "-q", "-u", "origin", "main")
 
-        check("status with no bookmark anywhere", review_scope.status(a), "review bookmark: local none · origin none (agree) · no bookmark, so the next review starts from HEAD")
-        check("forecast with no bookmark anywhere", review_scope.forecast(a, True), "review bookmark after this push: none on either side, so nothing is published · no bookmark, so the next review starts from HEAD")
+        check("status with no bookmark anywhere", review_scope.status(a), "review bookmark: local none · origin none (agree) · 0 commit(s) on HEAD past its upstream (no bookmark), which the next review covers")
+        check("forecast with no bookmark anywhere", review_scope.forecast(a, True), "review bookmark after this push: none on either side, so nothing is published · 0 commit(s) on HEAD past its upstream (no bookmark), which the next review covers")
         found = review_scope.plan(a)
-        check("with no bookmark anywhere the base is HEAD", (found["base"], found["commits"], found["problem"]), (first, [], None))
+        check("with no bookmark and nothing unpushed the base is HEAD", (found["base"], found["commits"], found["problem"]), (first, [], None))
         check("and nothing is added to the scope", review_scope.scope_text(found), "")
+
+        # With no bookmark, a commit made before the review and not yet pushed is still in its scope.
+        unpushed = commit(a, "app.txt", "two\n")
+        found = review_scope.plan(a)
+        check("with no bookmark the base is the upstream, so an unpushed commit is in scope", (found["base"], len(found["commits"])), (first, 1))
+        check("and the scope names it as unpushed work", "everything not yet pushed, with no review recorded" in review_scope.scope_text(found), True)
+        check("status counts it past the upstream", review_scope.status(a).endswith("1 commit(s) on HEAD past its upstream (no bookmark), which the next review covers"), True)
+        check("forecast says the push takes it out of the next review", review_scope.forecast(a, True).endswith("0 commit(s) on HEAD past its upstream (no bookmark) once this push moves it to HEAD, so the 1 commit(s) it sends are outside the next review"), True)
+        sh(a, "branch", "-q", "--unset-upstream")
+        check("a branch with no upstream starts from HEAD", review_scope.plan(a)["base"], unpushed)
+        check("and status says unpushed commits are outside it", review_scope.status(a).endswith("no bookmark and no upstream, so the next review starts from HEAD and unpushed commits are outside it"), True)
+        sh(a, "reset", "-q", "--hard", first)
+        sh(a, "branch", "-q", "--set-upstream-to=origin/main")
 
         # A same-size edit whose stat matches the index entry is caught only through racy-git detection, which compares
         # the entry's mtime with the index file's; pinning both to one instant makes the race happen on every run. The
@@ -272,8 +285,10 @@ def main() -> int:
         sh(p, "commit", "-qam", "polished")
         check("committing the polished tree keeps it covered", review_scope.polished_since(p)["changed"], [])
 
-        # A review launched with no bookmark scopes from HEAD, so an unpushed commit before its base was never in it.
+        # A review launched with no bookmark on a branch with no upstream scopes from HEAD, so an unpushed commit before
+        # its base was never in it.
         commit(p, "early.py", "unreviewed\n")
+        sh(p, "branch", "-q", "--unset-upstream")
         found = review_scope.plan(p)
         review_scope.mark(p, found["base"], None, True)
         check("an unpushed commit the review never covered skips nothing", review_scope.polished_since(p), None)
