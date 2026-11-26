@@ -12,6 +12,8 @@ enters through the second, so a defect in either reaches every project on both m
   crlf            a value saved by a Windows editor loses its trailing carriage return
   expand          %APP_CONFIG% and its %APPDATA% alias become the same per-OS directory
   install-dir     INSTALL_DIR wins when set, and the per-OS default applies when it is not
+  legacy-bare     a repo below 017 with a wrapper and no config/deploy.env runs the wrapper
+  legacy-unconfigured  one with neither is told it has no deploy configured
   legacy          a repo below convention 017 runs its own scripts/deploy.sh with the arguments
   legacy-none     a repo below 017 with no wrapper dispatches on DEPLOY_TYPE like an adopted one
   declined        a fork whose record declines 017 runs its wrapper, though its number is above 17
@@ -152,6 +154,17 @@ def main() -> int:
         write(os.path.join(project, "config", "deploy.local.env"), "INSTALL_DIR=%APP_CONFIG%/plugins\n")
         check("install-dir set", helper(bash, project, "deploy_install_dir myapp", env),
               helper(bash, project, 'deploy_expand "%APP_CONFIG%/plugins"', env))
+
+        # 017 is what introduces config/deploy.env, so a repo below it usually has only the wrapper.
+        bare = os.path.join(scratch, "legacy-bare")
+        git_repo(bare)
+        write(os.path.join(bare, ".claude", "conventions"), "# header\n12\n")
+        write(os.path.join(bare, "scripts", "deploy.sh"), 'echo "wrapper ran with: $*"\n')
+        code, out = deploy(bash, bare, "0")
+        check("legacy-bare", f"{code} {out.strip()}", "0 wrapper ran with: 0")
+        os.remove(os.path.join(bare, "scripts", "deploy.sh"))
+        code, out = deploy(bash, bare, "0")
+        check("legacy-unconfigured", (code, "has no deploy configured" in out), (1, True))
 
         legacy = os.path.join(scratch, "legacy")
         git_repo(legacy)

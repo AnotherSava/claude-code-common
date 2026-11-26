@@ -14,13 +14,9 @@ SKILLS="$(cd "$(dirname "${BASH_SOURCE[0]}")/../.." && pwd)"
 source "$SKILLS/shared/deploy-config.sh"
 REPO="$DEPLOY_REPO_DIR"
 
-if [ ! -f "$REPO/config/deploy.env" ]; then
-    echo "deploy: no config/deploy.env in $REPO or above it, so this project has no deploy configured. Run /deploy to set it up."
-    exit 1
-fi
-
 # The engine answers, since it owns the record format: exit 1 for a repo below 017 and for a fork that declined
-# it, both of which keep their wrapper, and 0 for an adopted repo or one the conventions do not govern.
+# it, both of which keep their wrapper, and 0 for an adopted repo or one the conventions do not govern. It is asked
+# before config/deploy.env is looked for, since 017 is what introduces that file: a repo below it has none.
 "$DEPLOY_PY" "$SKILLS/../conventions/engine.py" behind "$REPO" 17 >/dev/null
 case $? in
     0) ;;
@@ -29,6 +25,11 @@ case $? in
        "$DEPLOY_PY" "$SKILLS/../conventions/engine.py" behind "$REPO" 17
        exit 1 ;;
 esac
+
+if [ ! -f "$REPO/config/deploy.env" ]; then
+    echo "deploy: no config/deploy.env in $REPO or above it, so this project has no deploy configured. Run /deploy to set it up."
+    exit 1
+fi
 
 type="$(deploy_get DEPLOY_TYPE)"
 if [ -z "$type" ]; then
