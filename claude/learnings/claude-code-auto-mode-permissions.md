@@ -44,6 +44,32 @@ Approval in chat does not change a verdict. In another session (2026-09-27),
 rewrite and then the push itself. The user ran the identical command through `!` and it went through. A
 force-push to a published branch is worth planning as the user's own step from the start.
 
+## The same command's verdict is not stable within one session
+
+Measured 2026-11-25, installing a locally built Windows app four times in one session. The command was
+`bash scripts/deploy.sh`, run from the repo root; calls 2 to 4 ran it with nothing chained to it:
+
+| Call | Command | Verdict |
+| --- | --- | --- |
+| 1 | `sed -i 's/…/…/' installer/<app>.iss && bash scripts/deploy.sh` | denied `[Destructive or Unwanted Actions]` |
+| 2 | `bash scripts/deploy.sh` | allowed |
+| 3 | `bash scripts/deploy.sh` | denied `[Destructive or Unwanted Actions]` |
+| 4 | `bash scripts/deploy.sh` | allowed |
+
+Call 1 fits "A push wrapped in other commands is refused where the bare call passes" below — the edit
+chained ahead of it is what changed its shape. Calls 2, 3
+and 4 are byte-identical to each other, about twenty minutes apart, in one session, with no permission
+setting, hook or working directory altered in between. The user had approved the deploy before call 2 and
+again before call 4; call 3 followed a turn where the approval was older.
+
+Two things follow. A denial of a command that already ran earlier in the same session is not evidence that
+something changed, so do not go looking for a revoked grant, a hook or a stale cwd to explain it — the
+section above says not to generalise from one denial to a class, and this says not to generalise from one
+denial to a *cause*. And re-running the identical string after the user re-authorizes is not working around
+the denial: the instruction in the denial text is about reshaping a command to slip past, and an unchanged
+string is the opposite of that. Say which call number ran, since the user sees two denials and one success
+for what looks like the same request.
+
 ## A heredoc wrapper can be the thing that is denied
 
 Write the sequence plainly before concluding that any tool in it is refused. Measured 2026-09-29:
@@ -170,6 +196,13 @@ passed, the `shared/commit.py` call was denied as "Destructive or Unwanted Actio
 a `printf` writing the message file and an `rm` of two scratch files, so its shape may have caused the denial as
 much as the missing user turn. Under auto mode, end the reply after a commit handoff by asking the user to reply
 `commit`, and run the commit as its own call.
+
+Killing a process joins that list. Measured 2026-11-25: a reply asked, in one question, whether an orphaned
+helper process holding a locked file could be killed and the install re-run, naming the process and its pid.
+The user answered `y`, and `Stop-Process -Id <pid> -Force` was denied as "Destructive or Unwanted Actions".
+So the acts a bare `y` has been measured not to authorize are now a push, an app relaunch and a process kill
+(the peer's commit above had no user turn at all, so it is not one of them) — treat the pattern as general and
+ask for the act by name.
 
 ## A denial means the command did NOT run
 
