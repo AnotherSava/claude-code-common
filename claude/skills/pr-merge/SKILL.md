@@ -1,7 +1,7 @@
 ---
 name: pr-merge
 description: Merge a PR locally with fast-forward to preserve GPG-signed commits, then clean up.
-allowed-tools: Bash(git status:*), Bash(git log:*), Bash(git diff:*), Bash(git fetch:*), Bash(git checkout:*), Bash(git rebase:*), Bash(git merge:*), Bash(git push:*), Bash(git branch:*), Bash(git rev-parse:*), Bash(git symbolic-ref:*), Bash(git stash:*), Bash(git remote:*), Bash(gh pr:*), Bash(python ~/.claude/skills/shared/push.py:*), Bash(python3 ~/.claude/skills/shared/push.py:*), Bash(python ~/.claude/scripts/review_scope.py status), Bash(python3 ~/.claude/scripts/review_scope.py status), Read
+allowed-tools: Bash(git status:*), Bash(git log:*), Bash(git diff:*), Bash(git fetch:*), Bash(git checkout:*), Bash(git rebase:*), Bash(git merge:*), Bash(git push:*), Bash(git branch:*), Bash(git rev-parse:*), Bash(git symbolic-ref:*), Bash(git stash:*), Bash(git remote:*), Bash(gh pr:*), Bash(python ~/.claude/skills/shared/push.py:*), Bash(python3 ~/.claude/skills/shared/push.py:*), Bash(python ~/.claude/scripts/review_scope.py status), Bash(python3 ~/.claude/scripts/review_scope.py status), Bash(python ~/.claude/scripts/review_scope.py forecast), Bash(python3 ~/.claude/scripts/review_scope.py forecast), Read
 ---
 
 # Merge PR Locally (Preserving GPG Signatures)
@@ -91,7 +91,9 @@ be fast-forwardable. If not, rebase first.
    ```
    git checkout <branch-name>
    git rebase main
+   python ~/.claude/scripts/review_scope.py forecast
    git push --force-with-lease origin <branch-name>
+   python ~/.claude/scripts/review_scope.py status
    git checkout main
    git merge <branch-name> --ff-only
    ```
@@ -113,9 +115,11 @@ be fast-forwardable. If not, rebase first.
    gh pr close <number>
    ```
 
-2. Delete the remote PR branch:
+2. Delete the remote PR branch, bracketed by the bookmark's forecast and status as `~/.claude/skills/shared/review-bookmark-status.md` describes for any push outside `push.py` (the rebase's force push above too):
    ```
+   python ~/.claude/scripts/review_scope.py forecast
    git push origin --delete <branch-name>
+   python ~/.claude/scripts/review_scope.py status
    ```
 
 3. Delete the local PR branch:

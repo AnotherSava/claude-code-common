@@ -68,8 +68,9 @@ final report, not into a question.
    their own instruction in its output. Then run `python3 ~/.claude/scripts/review_scope.py advance`.
 
 6. **Push:** `python3 ~/.claude/skills/shared/push.py --caller yolo`. It gates the published state (skipping a tree
-   step 4 passed), pushes, publishes the review bookmark, asks the other machine to pull, lists CI runs when the
-   repo has workflows, and ends on the bookmark's status line.
+   step 4 passed), forecasts where the review bookmark will stand, pushes, publishes the bookmark, asks the other
+   machine to pull, lists CI runs when the repo has workflows, and ends on the bookmark's status line. Report both
+   bookmark lines.
 
 7. **Watch CI and hand off other repos** as the "After the push" section of `shared/sync-and-push.md` describes.
 

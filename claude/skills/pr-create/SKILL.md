@@ -1,7 +1,7 @@
 ---
 name: pr-create
 description: Prepare commits for the current feature branch, push, and create or update a PR to main.
-allowed-tools: Bash(git status:*), Bash(git log:*), Bash(git diff:*), Bash(git reset --soft:*), Bash(python ~/.claude/skills/shared/commit.py:*), Bash(python3 ~/.claude/skills/shared/commit.py:*), Bash(git push:*), Bash(git rev-parse:*), Bash(git branch:*), Bash(git fetch:*), Bash(git checkout:*), Bash(git merge:*), Bash(git rebase:*), Bash(gh pr create:*), Bash(gh pr view:*), Bash(gh pr edit:*), Bash(ls:*), Bash(python ~/.claude/skills/shared/gate_pushed_tree.py:*), Bash(python3 ~/.claude/skills/shared/gate_pushed_tree.py:*), Bash(python ~/.claude/scripts/review_scope.py status), Bash(python3 ~/.claude/scripts/review_scope.py status), Read, Glob, Grep
+allowed-tools: Bash(git status:*), Bash(git log:*), Bash(git diff:*), Bash(git reset --soft:*), Bash(python ~/.claude/skills/shared/commit.py:*), Bash(python3 ~/.claude/skills/shared/commit.py:*), Bash(git push:*), Bash(git rev-parse:*), Bash(git branch:*), Bash(git fetch:*), Bash(git checkout:*), Bash(git merge:*), Bash(git rebase:*), Bash(gh pr create:*), Bash(gh pr view:*), Bash(gh pr edit:*), Bash(ls:*), Bash(python ~/.claude/skills/shared/gate_pushed_tree.py:*), Bash(python3 ~/.claude/skills/shared/gate_pushed_tree.py:*), Bash(python ~/.claude/scripts/review_scope.py status), Bash(python3 ~/.claude/scripts/review_scope.py status), Bash(python ~/.claude/scripts/review_scope.py forecast), Bash(python3 ~/.claude/scripts/review_scope.py forecast), Read, Glob, Grep
 ---
 
 # Create PR for Plan-Based Changes
@@ -51,10 +51,12 @@ If the rebase produces conflicts, stop and ask the user to resolve them.
 
 ### Step 4: Push and create/update PR
 
-1. Push the branch. Gate the published state first, then use `--force-with-lease` if the remote branch already exists (commits were reset and recommitted):
+1. Push the branch. Gate the published state first, then use `--force-with-lease` if the remote branch already exists (commits were reset and recommitted), with the review bookmark's forecast before the push and its status after, as `~/.claude/skills/shared/review-bookmark-status.md` describes:
    ```
    python ~/.claude/skills/shared/gate_pushed_tree.py --caller pr-create
+   python ~/.claude/scripts/review_scope.py forecast
    git push -u origin <branch-name> --force-with-lease
+   python ~/.claude/scripts/review_scope.py status
    ```
    Use `python3` on macOS. For a new remote branch, a regular push works too — `--force-with-lease` is safe either way.
 

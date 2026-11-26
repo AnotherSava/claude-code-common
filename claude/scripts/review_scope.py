@@ -21,7 +21,8 @@ Several moments act on it, and each belongs to a different caller:
   commit since the review's base whose tree is exactly the recorded one, so an edit made after the review and committed with it leaves the bookmark where
   it was, while one committed after it does not hold it back. `push` then publishes it.
 
-`status`, run at the end of every skill that pushes, reports where all of that stands and changes none of it.
+`forecast`, run just before every push, says where the bookmark will stand once the push is done, and `status`,
+run after it and at the end of every skill that pushes, reports where it stands. Neither changes anything.
 
 Between `mark` and `advance`, `/wrap-up`'s change_scope.py reads the record through `polished_since` to skip the
 `/clean-code` and `/docs-relevance` passes the workflow already ran. `snapshot` and `revert` serve the workflow's
@@ -206,7 +207,8 @@ def _sync(repo: str) -> str:
 
 def _supersedes(repo: str, local: str | None, remote: str | None) -> bool:
     """Whether origin's bookmark replaces the local one: it exists, and the local one is absent or older. `_sync`
-    applies this and `status` predicts it, so the count `status` prints is the one the next `plan` covers."""
+    applies this and `_origin_view` predicts it, so the count `status` and `forecast` print is the one the next `plan`
+    covers."""
     return bool(remote) and (not local or (local != remote and _is_ancestor(repo, local, remote)))
 
 
@@ -470,24 +472,42 @@ def stage_reviewed(repo: str, paths: list[str]) -> str:
     return f"staged from reviewed tree {record['tree'][:12]}: {len(staged)} staged, {len(removed)} removed"
 
 
-def _origin_branch_holding(repo: str, sha: str) -> str | None:
+def _origin_branch_holding(repo: str, sha: str, sending: tuple[str, str] | None = None) -> str | None:
     """Why `sha` may still be on a branch at origin, or None when no branch there holds it. Read from origin itself,
     since a remote-tracking ref can lag a branch the other machine pushed; a tip this clone lacks counts as holding,
-    because whether it descends from `sha` cannot be told without it."""
+    because whether it descends from `sha` cannot be told without it. `sending` is a branch push not made yet, as
+    (branch, commit): it replaces that branch's tip, since a force push drops what the old tip held."""
     try:
         listed = _git(repo, "ls-remote", "--heads", REMOTE, timeout=NETWORK_TIMEOUT)
     except subprocess.TimeoutExpired:
         return f"`git ls-remote --heads {REMOTE}` timed out"
     if listed.returncode != 0:
         return f"`git ls-remote --heads {REMOTE}` failed: {listed.stderr.strip()}"
-    for line in listed.stdout.splitlines():
-        tip, ref = line.split()
-        branch = ref.removeprefix("refs/heads/")
+    current = {ref.removeprefix("refs/heads/"): tip for tip, ref in (line.split() for line in listed.stdout.splitlines())}
+    tips = {**current, sending[0]: sending[1]} if sending else current
+    for branch, tip in tips.items():
         if _resolve(repo, tip) is None:
             return f"origin's branch {branch} is at {tip[:12]}, which this clone has not fetched"
         if _is_ancestor(repo, sha, tip):
-            return f"origin's branch {branch} still holds it"
+            return f"origin's branch {branch} still holds it" if current.get(branch) == tip else "the branch this push sends holds it"
     return None
+
+
+def _unpublished(repo: str, sha: str, *sending: str) -> bool:
+    """Whether `sha` holds commits no remote branch has, counting the revs in `sending` as pushed already. Pushing
+    the ref uploads the commit it names, so `push` waits until a branch push has published that commit."""
+    return bool(_git(repo, "rev-list", sha, "--not", "--remotes", *sending).stdout.strip())
+
+
+def _replacement(repo: str, local: str, remote: str | None, sending: tuple[str, str] | None = None) -> tuple[bool, str | None]:
+    """Whether replacing origin's bookmark `remote` by `local` rewinds it, so its push needs a lease, and why it must
+    not be replaced at all, or None. Only a rewind can be refused, and only while an origin branch still holds
+    `remote` once the branch push in `sending` is done. Both `push` and `forecast` call this, so the line printed
+    before a push cannot promise a replacement `push` refuses."""
+    if not remote or _is_ancestor(repo, remote, local):
+        return False, None
+    holder = _origin_branch_holding(repo, remote, sending)
+    return True, (f"origin's bookmark {remote[:12]} is not an ancestor of the local one, and {holder}" if holder else None)
 
 
 def push(repo: str) -> str:
@@ -496,76 +516,127 @@ def push(repo: str) -> str:
     bookmark = _resolve(repo, REF)
     if bookmark is None:
         return "not pushed: no bookmark yet"
-    # Pushing the ref uploads the commit it names, so it waits until a branch push has published that commit.
-    if _git(repo, "rev-list", bookmark, "--not", "--remotes").stdout.strip():
+    if _unpublished(repo, bookmark):
         return "not pushed: the bookmarked commit is not on any remote branch yet"
     status = _sync(repo)
     if status != "ok":
         return f"not pushed: {status}"
+    # `_sync` moves the local bookmark up to a newer one on origin, which then has nothing to push.
+    bookmark = _resolve(repo, REF)
     remote = _resolve(repo, FETCHED)
     if remote == bookmark:
         return "up to date"
-    lease = []
-    if remote and not _is_ancestor(repo, remote, bookmark):
-        holder = _origin_branch_holding(repo, remote)
-        if holder:
-            return f"not pushed: origin's bookmark {remote[:12]} is not an ancestor of the local one, and {holder}"
-        # A rebased branch force-pushed past origin's bookmark leaves it naming history no origin branch holds any
-        # more, so replacing it loses no review anyone can build on. The lease refuses if it moved since the fetch.
-        lease = [f"--force-with-lease={REF}:{remote}"]
+    rewinds, refusal = _replacement(repo, bookmark, remote)
+    if refusal:
+        return f"not pushed: {refusal}"
+    # A rebased branch force-pushed past origin's bookmark leaves it naming history no origin branch holds any more,
+    # so replacing it loses no review anyone can build on. The lease refuses if it moved since the fetch.
+    lease = [f"--force-with-lease={REF}:{remote}"] if rewinds else []
     done = _git(repo, "push", *lease, REMOTE, f"{REF}:{REF}", timeout=NETWORK_TIMEOUT)
     if done.returncode != 0:
         return f"not pushed: {done.stderr.strip()}"
     return f"pushed: {REF} -> {bookmark[:12]}"
 
 
+def _short(sha: str | None) -> str:
+    return sha[:12] if sha else "none"
+
+
 def status(repo: str) -> str:
-    """One line for the end of every report that pushes: where the bookmark stands locally and on origin, how many
-    commits on HEAD the next review covers, and whether a recorded review is still waiting or why `advance` would
-    refuse it. It reads origin with `ls-remote` and changes nothing, so it can follow a failed `advance` or `push`
-    without disturbing either."""
+    """One line for just after a push and the end of every report that pushes: where the bookmark stands locally and
+    on origin, how many commits on HEAD the next review covers, and whether a recorded review is still waiting or why
+    `advance` would refuse it. It reads origin with `ls-remote` and changes nothing, so it can follow a failed
+    `advance` or `push` without disturbing either."""
     local = _resolve(repo, REF)
-    parts = [f"local {local[:12] if local else 'none'}"]
+    parts = [f"local {_short(local)}"]
     bookmark, sync = local, "local-only"
     if not _has_remote(repo):
         parts.append("no origin remote")
     else:
-        remote, error = _origin_bookmark(repo)
-        if error:
-            parts.append(f"origin unreadable: {error}")
-            sync = error
-        else:
-            parts.append(f"origin {remote[:12] if remote else 'none'} ({'agree' if remote == local else 'differ'})")
-            sync = "ok"
-            if remote and remote != local:
-                fetched = _resolve(repo, remote)
-                if fetched is None:
-                    sync = f"origin's bookmark {remote[:12]} is not in this clone yet"
-                elif _supersedes(repo, local, fetched):
-                    bookmark = fetched
+        remote, error, bookmark, sync = _origin_view(repo, local)
+        parts.append(f"origin unreadable: {error}" if error else f"origin {_short(remote)} ({'agree' if remote == local else 'differ'})")
     head = _resolve(repo, "HEAD")
-    base, commits, problem = _coverage(repo, sync, head, bookmark)
-    if problem:
-        parts.append(f"the next review has no base to record: {problem}")
-    elif bookmark is None:
-        parts.append("no bookmark, so the next review starts from HEAD")
-    else:
-        past = "it" if bookmark == local else f"origin's {bookmark[:12]}"
-        parts.append(f"{len(commits)} commit(s) on HEAD past {past}, which the next review covers")
-    record = _read_record(repo)
-    if record:
-        reviewed, refusal = _advance_target(repo, record, head)
-        parts.append(f"a recorded review of tree {record['tree'][:12]} cannot advance: {refusal}" if refusal else f"a recorded review ending at {reviewed[:12]} awaits `advance`")
+    parts.append(_coverage_part(repo, sync, head, bookmark, "it" if bookmark == local else f"origin's {(bookmark or '')[:12]}"))
+    parts += _record_part(repo, head)
     return "review bookmark: " + " · ".join(parts)
+
+
+def _origin_view(repo: str, local: str | None) -> tuple[str | None, str | None, str | None, str]:
+    """Origin's bookmark as `ls-remote` lists it, why origin could not be read (or None), the bookmark the next review
+    counts from, and the sync state `_coverage` takes: `ok`, the read error, or a sentence saying origin's bookmark is
+    not in this clone yet. The push's own `_sync`, or failing that the next `plan`'s, takes origin's bookmark when it
+    supersedes the local one. `status` and `forecast` both call this on a repo with an origin remote, so the lines
+    around a push count from the same bookmark."""
+    remote, error = _origin_bookmark(repo)
+    if error:
+        return None, error, local, error
+    if remote and _resolve(repo, remote) is None:
+        return remote, None, local, f"origin's bookmark {remote[:12]} is not in this clone yet"
+    return remote, None, (remote if _supersedes(repo, local, remote) else local), "ok"
+
+
+def _coverage_part(repo: str, sync: str, head: str | None, bookmark: str | None, called: str) -> str:
+    """What the next review covers from `bookmark`, named `called` in the sentence. `status` and `forecast` both end
+    on it, so the line before a push and the line after it count the same way."""
+    _, commits, problem = _coverage(repo, sync, head, bookmark)
+    if problem:
+        return f"the next review has no base to record: {problem}"
+    if bookmark is None:
+        return "no bookmark, so the next review starts from HEAD"
+    return f"{len(commits)} commit(s) on HEAD past {called}, which the next review covers"
+
+
+def _record_part(repo: str, head: str | None) -> list[str]:
+    """A recorded review still waiting, and whether `advance` would take it, or nothing when none is recorded."""
+    record = _read_record(repo)
+    if not record:
+        return []
+    reviewed, refusal = _advance_target(repo, record, head)
+    return [f"a recorded review of tree {record['tree'][:12]} cannot advance: {refusal}" if refusal else f"a recorded review ending at {reviewed[:12]} awaits `advance`"]
+
+
+def forecast(repo: str, publish: bool) -> str:
+    """One line for just before a push: where the bookmark will stand once the push is done. The branch push is taken
+    to send HEAD to origin's branch of the same name, replacing its tip as a force push would. `publish` says the
+    caller runs `push` after it, as shared/push.py does; without it origin's bookmark stays where it is. It reads
+    origin with `ls-remote` and changes nothing, like `status`, which reports the same things after the push."""
+    local = _resolve(repo, REF)
+    head = _resolve(repo, "HEAD")
+    after, sync = local, "local-only"
+    if not _has_remote(repo):
+        outcome = f"stays at {_short(local)}: no origin remote to publish it to"
+    else:
+        remote, error, after, sync = _origin_view(repo, local)
+        if error:
+            outcome = f"unknown, since origin could not be read: {error}"
+        elif sync != "ok":
+            outcome = f"{sync}, so whether it replaces local {_short(local)} is unknown"
+        elif remote is None and local is None:
+            outcome = "none on either side, so nothing is published"
+        elif local == remote:
+            outcome = f"stays at {_short(local)}, where local and origin already agree"
+        elif after == remote:
+            outcome = f"stays at origin's {_short(remote)}" + (f", which replaces the older local {_short(local)}" if local else "")
+        elif not publish:
+            outcome = f"origin stays at {_short(remote)}: this push does not publish the local {_short(local)}"
+        elif _unpublished(repo, local, *([head] if head else [])):
+            outcome = f"origin stays at {_short(remote)}: the bookmarked commit {_short(local)} is on no branch this push sends"
+        else:
+            branch = _git(repo, "symbolic-ref", "--quiet", "--short", "HEAD").stdout.strip()
+            _, refusal = _replacement(repo, local, remote, (branch, head) if branch and head else None)
+            outcome = f"origin stays at {_short(remote)}: {refusal}" if refusal else f"origin moves to {_short(local)} (from {_short(remote)})"
+    parts = [outcome, _coverage_part(repo, sync, head, after, _short(after))] + _record_part(repo, head)
+    return "review bookmark after this push: " + " · ".join(parts)
 
 
 def main() -> int:
     parser = argparse.ArgumentParser(description=__doc__.splitlines()[0])
-    parser.add_argument("command", choices=["scope", "mark", "advance", "push", "status", "snapshot", "pack", "revert", "layout", "stage-reviewed"])
+    parser.add_argument("command", choices=["scope", "mark", "advance", "push", "status", "forecast", "snapshot", "pack", "revert", "layout", "stage-reviewed"])
     parser.add_argument("--repo", default=".")
     parser.add_argument("--base")
     parser.add_argument("--tree")
     parser.add_argument("--polished", action="store_true")
+    parser.add_argument("--publish", action="store_true", help="forecast: the caller runs `push` after its branch push")
     parser.add_argument("paths", nargs="*")
     opts = parser.parse_args()
     repo = toplevel(opts.repo)
@@ -602,6 +673,8 @@ def main() -> int:
             print(stage_reviewed(repo, opts.paths))
         elif opts.command == "status":
             print(status(repo))
+        elif opts.command == "forecast":
+            print(forecast(repo, opts.publish))
         else:
             print(push(repo))
     except (RuntimeError, OSError, subprocess.SubprocessError, ValueError, KeyError) as error:

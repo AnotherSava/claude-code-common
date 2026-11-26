@@ -27,11 +27,12 @@ What is asserted, both ways:
                          has since gained the call fails, so the list cannot rot into prose
   the script             the path every caller spells actually exists
   the push step          a skill pushing through shared/push.py counts as notifying and reporting the
-                         bookmark, and push.py itself must call the notifier and `review_scope.py status`
+                         bookmark, and push.py itself must call the notifier, `review_scope.py forecast`
+                         before the push and `review_scope.py status` after it
   bookmark state         every skill the clear condition names, exempt or not, either pushes through
                          shared/push.py or closes its report as
                          shared/review-bookmark-status.md describes, and that file runs
-                         `review_scope.py status`, since a push is where the review bookmark is
+                         `review_scope.py forecast` and `review_scope.py status`, since a push is where the review bookmark is
                          published or fails to be, and a failure line printed mid-report is missed
 
 A clear condition this file cannot parse stops the run rather than reporting a pass. A check that
@@ -58,6 +59,7 @@ CALL = "notify_peer_pull.py"
 # either would count a document that mentions the notice as one that sends it.
 INVOCATION = "python ~/.claude/skills/shared/notify_peer_pull.py"
 STATUS = "python ~/.claude/scripts/review_scope.py status"
+FORECAST = "python ~/.claude/scripts/review_scope.py forecast"
 # One file holds the closing step so its wording cannot drift between the skills that push; each skill
 # points at it, and the file itself is what has to run STATUS.
 STATUS_STEP = "~/.claude/skills/shared/review-bookmark-status.md"
@@ -151,18 +153,22 @@ def main() -> int:
 
     try:
         with open(STATUS_FILE, encoding="utf-8") as handle:
-            if STATUS not in handle.read():
+            text = handle.read()
+            if STATUS not in text:
                 fail(f"{STATUS_STEP} never runs `{STATUS}`, so no pushing skill's report says whether the review "
                      "bookmark moved")
+            if FORECAST not in text:
+                fail(f"{STATUS_STEP} never runs `{FORECAST}`, so a push outside shared/push.py says nothing about "
+                     "where the review bookmark will stand before it goes")
     except OSError:
         fail(f"every pushing skill points at {STATUS_STEP}, and it does not exist")
 
     try:
         with open(PUSH_SCRIPT, encoding="utf-8") as handle:
             script = handle.read()
-        if CALL not in script or 'REVIEW_SCOPE, "status"' not in script:
-            fail(f"shared/push.py no longer calls {CALL} and `review_scope.py status`, so every skill pushing through it "
-                 "skips one of the duties this check exists for")
+        if CALL not in script or '_review_scope(repo, "status")' not in script or '_review_scope(repo, "forecast"' not in script:
+            fail(f"shared/push.py no longer calls {CALL}, `review_scope.py forecast` and `review_scope.py status`, so every "
+                 "skill pushing through it skips one of the duties this check exists for")
     except OSError:
         fail("skills push through shared/push.py, and it does not exist")
 

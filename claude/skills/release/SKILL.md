@@ -1,7 +1,7 @@
 ---
 name: release
 description: Tag a new version, push to trigger CI, monitor the build, and verify the GitHub release
-allowed-tools: AskUserQuestion, Read, Edit, Bash(git status --porcelain), Bash(git branch --show-current), Bash(git rev-parse *), Bash(git fetch origin *), Bash(git rev-list *), Bash(git describe --tags *), Bash(git log *), Bash(git tag *), Bash(git push origin *), Bash(python ~/.claude/skills/shared/commit.py:*), Bash(python3 ~/.claude/skills/shared/commit.py:*), Bash(python ~/.claude/skills/shared/push.py:*), Bash(python3 ~/.claude/skills/shared/push.py:*), Bash(python ~/.claude/scripts/review_scope.py status), Bash(python3 ~/.claude/scripts/review_scope.py status), Bash(gh run list *), Bash(gh run watch *), Bash(gh run view *), Bash(gh release view *), Bash(gh release edit *), Bash(gh release create *), Bash(gh repo view *), Bash(node -p *), Bash(sed *), Bash(ls *), Bash(test *), Bash(grep *)
+allowed-tools: AskUserQuestion, Read, Edit, Bash(git status --porcelain), Bash(git branch --show-current), Bash(git rev-parse *), Bash(git fetch origin *), Bash(git rev-list *), Bash(git describe --tags *), Bash(git log *), Bash(git tag *), Bash(git push origin *), Bash(python ~/.claude/skills/shared/commit.py:*), Bash(python3 ~/.claude/skills/shared/commit.py:*), Bash(python ~/.claude/skills/shared/push.py:*), Bash(python3 ~/.claude/skills/shared/push.py:*), Bash(python ~/.claude/scripts/review_scope.py status), Bash(python3 ~/.claude/scripts/review_scope.py status), Bash(python ~/.claude/scripts/review_scope.py forecast), Bash(python3 ~/.claude/scripts/review_scope.py forecast), Bash(gh run list *), Bash(gh run watch *), Bash(gh run view *), Bash(gh release view *), Bash(gh release edit *), Bash(gh release create *), Bash(gh repo view *), Bash(node -p *), Bash(sed *), Bash(ls *), Bash(test *), Bash(grep *)
 ---
 
 # Release
@@ -93,7 +93,7 @@ For Chrome extension:
 - Edit `manifest.json` `"version"` field → new version
 - Edit `package.json` `"version"` field → new version
 - Commit: write `chore: bump version to X.Y.Z` to a file under `tmp/`, then `python ~/.claude/skills/shared/commit.py -F <file> manifest.json package.json` (`python3` on macOS). It stages exactly those paths, checks the message, scans what they add and signs the commit; exit 1 is a refusal to read and settle, never to route around with `git commit`.
-- Push: `python ~/.claude/skills/shared/push.py --caller release`. It gates the tree the push would publish (fix a failure in a further commit), pushes, publishes the review bookmark, asks the other machine to pull, and ends on the bookmark's status line.
+- Push: `python ~/.claude/skills/shared/push.py --caller release`. It gates the tree the push would publish (fix a failure in a further commit), forecasts the review bookmark, pushes, publishes the bookmark, asks the other machine to pull, and ends on the bookmark's status line.
 
 For Tauri, bump **all five** version references so they stay in sync (the bundle version comes from `tauri.conf.json`; the others must match):
 - Edit `src-tauri/tauri.conf.json` `"version"` field → new version
@@ -102,7 +102,7 @@ For Tauri, bump **all five** version references so they stay in sync (the bundle
 - Edit `src-tauri/Cargo.lock` — the package's own entry (find the `[[package]]` block whose `name` matches the crate, bump its `version`; leave dependency entries untouched)
 - Regenerate `package-lock.json` with `npm install --package-lock-only` (run it *after* editing `package.json`; it rewrites the root `"version"` and the mirrored one under `packages.""`, touching nothing else when dependencies are unchanged). Skip only if the project has no `package-lock.json`. This one is easy to miss because nothing fails without it: `npm ci` compares dependency specifiers, not the root version, so a stale value survives release after release in silence — one project's lockfile sat five versions behind before anyone noticed.
 - Commit: write `chore: bump version to X.Y.Z` to a file under `tmp/`, then `python ~/.claude/skills/shared/commit.py -F <file> src-tauri/tauri.conf.json package.json package-lock.json src-tauri/Cargo.toml src-tauri/Cargo.lock` (`python3` on macOS). It stages exactly those paths, checks the message, scans what they add and signs the commit; exit 1 is a refusal to read and settle, never to route around with `git commit`.
-- Push: `python ~/.claude/skills/shared/push.py --caller release`. It gates the tree the push would publish (fix a failure in a further commit), pushes, publishes the review bookmark, asks the other machine to pull, and ends on the bookmark's status line.
+- Push: `python ~/.claude/skills/shared/push.py --caller release`. It gates the tree the push would publish (fix a failure in a further commit), forecasts the review bookmark, pushes, publishes the bookmark, asks the other machine to pull, and ends on the bookmark's status line.
 
 Use the Edit tool — do not regenerate any file. Read `Cargo.lock` before editing it (Edit requires a prior Read).
 
@@ -179,8 +179,13 @@ Only after the user confirms:
 
 ```bash
 git tag vX.Y.Z
+python ~/.claude/scripts/review_scope.py forecast
 git push origin vX.Y.Z
+python ~/.claude/scripts/review_scope.py status
 ```
+
+Report the forecast and status lines around the tag push as `~/.claude/skills/shared/review-bookmark-status.md`
+describes (`python3` on macOS).
 
 The tag push triggers the project's CI workflow (`.github/workflows/build.yml` or equivalent), which builds the artifact(s) and creates the GitHub Release.
 

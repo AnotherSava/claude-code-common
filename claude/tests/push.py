@@ -64,14 +64,30 @@ def main() -> int:
         code, lines = run(repo, "fail")
         check("a failing gate refuses", (code, any(line.startswith("NOT PUSHED") for line in lines)), (1, True))
         check("and nothing reaches origin", sh(origin, "rev-parse", "main"), before)
+        check("and no forecast is printed for a push that never runs", [line for line in lines if line.startswith("review bookmark")], [])
 
         code, lines = run(repo)
         check("a passing gate pushes", (code, sh(origin, "rev-parse", "main")), (0, sh(repo, "rev-parse", "HEAD")))
+        forecast = [i for i, line in enumerate(lines) if line.startswith("review bookmark after this push:")]
+        pushed = [i for i, line in enumerate(lines) if line.startswith("pushed: ")]
+        check("the bookmark forecast comes before the push", bool(forecast and pushed and forecast[0] < pushed[0]), True)
         check("the bookmark status is the last line", lines[-1].startswith("review bookmark:") if lines else False, True)
         check("the peer notice is reported", any(line.startswith("peer-pull:") for line in lines), True)
         check("a repo without workflows says nothing about CI", [line for line in lines if line.startswith("ci:")], [])
         code, lines = run(repo)
         check("a push that moves nothing asks no peer to pull", (code, [line for line in lines if line.startswith("peer-pull:")]), (0, ["peer-pull: not sent — the push moved nothing, so there is nothing to pull"]))
+
+        # Git refuses a push origin is ahead of; the report still ends on where the bookmark stands, so the forecast
+        # printed before it is not left reading as the outcome.
+        origin, behind = clone(scratch, "rejected")
+        other = os.path.join(scratch, "rejected-other")
+        subprocess.run(["git", "clone", "-q", origin, other], check=True, capture_output=True)
+        commit(other, "other.txt", "ahead\n")
+        sh(other, "push", "-q")
+        commit(behind, "app.txt", "diverged\n")
+        code, lines = run(behind)
+        check("a push git refuses exits 1", (code, any(line.startswith("NOT PUSHED: git push failed") for line in lines)), (1, True))
+        check("and still ends on the bookmark status", lines[-1].startswith("review bookmark:") if lines else False, True)
 
         origin, fresh = clone(scratch, "first", push_first=False)
         code, lines = run(fresh)

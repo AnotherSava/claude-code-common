@@ -56,6 +56,7 @@ def main() -> int:
         sh(a, "push", "-q", "-u", "origin", "main")
 
         check("status with no bookmark anywhere", review_scope.status(a), "review bookmark: local none · origin none (agree) · no bookmark, so the next review starts from HEAD")
+        check("forecast with no bookmark anywhere", review_scope.forecast(a, True), "review bookmark after this push: none on either side, so nothing is published · no bookmark, so the next review starts from HEAD")
         found = review_scope.plan(a)
         check("with no bookmark anywhere the base is HEAD", (found["base"], found["commits"], found["problem"]), (first, [], None))
         check("and nothing is added to the scope", review_scope.scope_text(found), "")
@@ -89,12 +90,16 @@ def main() -> int:
         check("committing exactly the reviewed tree, untracked file included, advances", review_scope.advance(a), f"advanced: {review_scope.REF} -> {reviewed[:12]}")
         check("and consumes the record", review_scope.advance(a), "not advanced: no completed review is recorded")
         check("status before the bookmark is pushed", review_scope.status(a), f"review bookmark: local {reviewed[:12]} · origin none (differ) · 0 commit(s) on HEAD past it, which the next review covers")
+        # Its commit is not on origin yet, but the branch push about to run sends HEAD, which holds it.
+        check("forecast counts the commit the branch push sends", review_scope.forecast(a, True), f"review bookmark after this push: origin moves to {reviewed[:12]} (from none) · 0 commit(s) on HEAD past {reviewed[:12]}, which the next review covers")
+        check("a push that does not publish the bookmark leaves origin's where it is", review_scope.forecast(a, False).startswith(f"review bookmark after this push: origin stays at none: this push does not publish the local {reviewed[:12]}"), True)
 
         check("the bookmark is not pushed before its commit is", review_scope.push(a), "not pushed: the bookmarked commit is not on any remote branch yet")
         sh(a, "push", "-q")
         check("once the commit is on origin it is", review_scope.push(a), f"pushed: {review_scope.REF} -> {reviewed[:12]}")
         check("a second push is a no-op", review_scope.push(a), "up to date")
         check("status once both agree", review_scope.status(a), f"review bookmark: local {reviewed[:12]} · origin {reviewed[:12]} (agree) · 0 commit(s) on HEAD past it, which the next review covers")
+        check("forecast once both agree", review_scope.forecast(a, True).startswith(f"review bookmark after this push: stays at {reviewed[:12]}, where local and origin already agree · 0 commit(s)"), True)
 
         write(a, "app.txt", "three\n")
         review(a)
@@ -123,6 +128,9 @@ def main() -> int:
         sh(a, "pull", "-q")
         newer = sh(b, "rev-parse", "HEAD")
         check("status counts from origin's newer bookmark, as the next plan will", f"· 0 commit(s) on HEAD past origin's {newer[:12]}, which the next review covers" in review_scope.status(a), True)
+        check("forecast takes origin's newer bookmark over the older local one", review_scope.forecast(a, True).startswith(f"review bookmark after this push: stays at origin's {newer[:12]}, which replaces the older local {reviewed[:12]} · 0 commit(s) on HEAD past {newer[:12]}, which the next review covers"), True)
+        check("and the push it forecast finds nothing to publish", (review_scope.push(a), bookmark(a)), ("up to date", newer))
+        sh(a, "update-ref", review_scope.REF, reviewed)
         check("the first machine picks it up at its next plan", review_scope.plan(a)["base"], sh(b, "rev-parse", "HEAD"))
         check("an older local bookmark never overwrites origin's newer one", review_scope.push(a), "up to date")
 
@@ -136,6 +144,7 @@ def main() -> int:
         sh(b, "remote", "set-url", "origin", os.path.join(scratch, "gone.git"))
         found = review_scope.plan(b)
         check("an unreadable origin gives no base, since its bookmark may be newer", (found["base"], "could not be read" in (found["problem"] or "")), (None, True))
+        check("an unreadable origin leaves the forecast unknown", review_scope.forecast(b, True).startswith("review bookmark after this push: unknown, since origin could not be read"), True)
 
         # The hook, fed the payload PreToolUse delivers.
         sh(b, "remote", "set-url", "origin", origin)
@@ -148,6 +157,12 @@ def main() -> int:
         sh(b, "checkout", "-q", "main")
         sh(b, "update-ref", review_scope.REF, side)
         check("a local bookmark unrelated to origin's is never pushed over it", review_scope.push(b), f"not pushed: origin's bookmark {published[:12]} is not an ancestor of the local one, and origin's branch main still holds it")
+        check("and the forecast says so before the push", review_scope.forecast(b, True).startswith(f"review bookmark after this push: origin stays at {published[:12]}: origin's bookmark {published[:12]} is not an ancestor of the local one, and origin's branch main still holds it"), True)
+        sh(b, "checkout", "-q", "-b", "unpushed", first)
+        unpushed = commit(b, "unpushed.txt", "never pushed\n")
+        sh(b, "checkout", "-q", "main")
+        sh(b, "update-ref", review_scope.REF, unpushed)
+        check("a bookmark on a commit the push does not send is forecast to stay unpublished", f"origin stays at {published[:12]}: the bookmarked commit {unpushed[:12]} is on no branch this push sends" in review_scope.forecast(b, True), True)
         sh(b, "update-ref", review_scope.REF, published)
         commit(b, "late.txt", "unreviewed\n")
         payload = {"tool_name": "Workflow", "cwd": scratch, "tool_input": {"name": "review-auto", "args": {"scope": "the uncommitted diff", "lenses": [], "repo": b}}}
@@ -208,14 +223,24 @@ def main() -> int:
         sh(f, "push", "-q", "--force", "origin", "main")
         sh(f, "update-ref", review_scope.REF, rebased)
         check("a rebased bookmark is not pushed while an origin branch holds the old one", review_scope.push(f), f"not pushed: origin's bookmark {old[:12]} is not an ancestor of the local one, and origin's branch keep still holds it")
+        check("nor forecast to be", f"origin stays at {old[:12]}: origin's bookmark {old[:12]} is not an ancestor of the local one, and origin's branch keep still holds it" in review_scope.forecast(f, True), True)
         sh(f, "push", "-q", "origin", ":keep")
         sh(g, "checkout", "-q", "-b", "other")
         unseen = commit(g, "other.txt", "built on the old history\n")
         sh(g, "push", "-q", "origin", "other")
         check("nor while origin has a branch tip this clone has not fetched", review_scope.push(f), f"not pushed: origin's bookmark {old[:12]} is not an ancestor of the local one, and origin's branch other is at {unseen[:12]}, which this clone has not fetched")
         sh(f, "push", "-q", "origin", ":other")
+        check("the forecast before that push names the replacement", review_scope.forecast(f, True).startswith(f"review bookmark after this push: origin moves to {rebased[:12]} (from {old[:12]})"), True)
         check("once no origin branch holds the old bookmark, the rebased one replaces it", review_scope.push(f), f"pushed: {review_scope.REF} -> {rebased[:12]}")
         check("and origin now names it", review_scope._origin_bookmark(f), (rebased, None))
+        # The order upstream-sync documents: the forecast runs before the force push, while the branch it rewrites
+        # still holds origin's bookmark.
+        sh(f, "reset", "-q", "--hard", base)
+        again = commit(f, "fork.txt", "patch, rebased again\n")
+        sh(f, "update-ref", review_scope.REF, again)
+        check("a forecast before the force push counts the rewritten branch as dropping origin's bookmark", review_scope.forecast(f, True).startswith(f"review bookmark after this push: origin moves to {again[:12]} (from {rebased[:12]})"), True)
+        sh(f, "push", "-q", "--force-with-lease=main:origin/main", "origin", "main")
+        check("and the push after it does what the forecast said", review_scope.push(f), f"pushed: {review_scope.REF} -> {again[:12]}")
 
         # The polish record /wrap-up reads to skip its own clean-up passes. Skipping on a record that does not cover
         # the change set leaves code nobody cleaned, so most cases try to make `polished_since` answer when it must not.
@@ -299,6 +324,7 @@ def main() -> int:
         sh(r, "add", "app.txt", "memory.md")
         sh(r, "commit", "-qm", "follow-up")
         check("status names the reviewed commit a waiting review would advance to", f"a recorded review ending at {reviewed_commit[:12]} awaits `advance`" in review_scope.status(r), True)
+        check("and so does the forecast", f"a recorded review ending at {reviewed_commit[:12]} awaits `advance`" in review_scope.forecast(r, True), True)
         check("advance moves to the reviewed commit, past which the follow-up waits", review_scope.advance(r), f"advanced: {review_scope.REF} -> {reviewed_commit[:12]}, with 1 follow-up commit(s) after it for the next review")
         check("layout has nothing to split once the record is consumed", review_scope.layout(r), {"applies": False, "why": "no completed review is recorded"})
 

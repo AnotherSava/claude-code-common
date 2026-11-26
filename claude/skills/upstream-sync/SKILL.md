@@ -140,7 +140,8 @@ re-measures (rev-list, `git cherry`, merge-tree) before rebasing, since the rang
    is green. When the gate only runs on a machine other than the one holding the patch branch, it goes to
    the live session there (the `peer` skill), not skipped. That session can only build what is pushed, so
    push the rebased branch to a scratch branch on the fork for it, and delete the scratch branch once it
-   reports.
+   reports. Both pushes report the review bookmark's forecast before and status after, as
+   `~/.claude/skills/shared/review-bookmark-status.md` describes.
 4. A semantic interaction from step 3 that the gate confirms is fixed in the fork's patch, not by editing
    upstream's code. Upstream tests asserting upstream's behaviour get a one-line skip naming the fork patch,
    so each future sync conflicts on one line. Ask before skipping.
@@ -150,11 +151,11 @@ re-measures (rev-list, `git cherry`, merge-tree) before rebasing, since the rang
    `push.py`: `/wrap-up`'s sync reads the rebased branch as diverged.
 
 **Pushing a rebased fork needs a force push.** `shared/push.py` runs a plain push, which is refused. Propose
-`git push --force-with-lease=<branch>:<remote>/<branch> <remote> <branch>` and run it only on a yes, then do
-by hand what `push.py` does after a push, as `shared/sync-and-push.md`'s "After the push" lists. Query CI with an
-explicit `--repo <fork owner>/<name>`: in a fork `gh` resolves to upstream by default. A macOS job cancelled
-after ~15 minutes without a step is runner shortage, so the run measured nothing; say so instead of
-calling it green or red.
+`git push --force-with-lease=<branch>:<remote>/<branch> <remote> <branch>` and run it only on a yes, doing
+by hand what `push.py` does around a push, as `shared/sync-and-push.md`'s "After the push" lists, the
+bookmark's forecast before it included. Query CI with an explicit `--repo <fork owner>/<name>`: in a fork
+`gh` resolves to upstream by default. A macOS job cancelled after ~15 minutes without a step is runner
+shortage, so the run measured nothing; say so instead of calling it green or red.
 
 Never tag or release from the fork: version tags are upstream's.
 

@@ -1,6 +1,6 @@
 #!/usr/bin/env python3
-"""Publish the current branch: gate the tree a push would send, push, publish the review bookmark, ask the other
-machine to pull, and end on the bookmark's state.
+"""Publish the current branch: gate the tree a push would send, forecast the review bookmark, push, publish the
+bookmark, ask the other machine to pull, and end on the bookmark's state.
 
 Every skill that pushes the default branch calls this one script, so the steps that must follow a push cannot be left
 out by one of them. `/pr-create` is the exception: it force-pushes a feature branch with `--force-with-lease`, which
@@ -9,14 +9,16 @@ this script has no mode for, so a step added here does not reach that push.
 In order:
 
 1. `gate_pushed_tree.py` over the state the push would publish; a failing gate refuses the push.
-2. `git push`, or `git push -u origin HEAD` when the branch tracks nothing yet, reading from git's report where the
+2. `review_scope.py forecast --publish`: where the bookmark will stand once steps 3 and 4 are done.
+3. `git push`, or `git push -u origin HEAD` when the branch tracks nothing yet, reading from git's report where the
    pushed branch stood before it (`none` for a new branch).
-3. `review_scope.py push`, so the other machine's next review starts from this bookmark.
-4. `notify_peer_pull.py`, asking the other machine's session on this project to `/pull`, unless the push moved
+4. `review_scope.py push`, so the other machine's next review starts from this bookmark.
+5. `notify_peer_pull.py`, asking the other machine's session on this project to `/pull`, unless the push moved
    nothing.
-5. The CI runs the push started, when the repo has workflows: their ids and the command to watch each. A repo
+6. The CI runs the push started, when the repo has workflows: their ids and the command to watch each. A repo
    without `.github/workflows/` has no CI, and says nothing about it.
-6. `review_scope.py status`, last, so whether the bookmark moved is read at the end of the report.
+7. `review_scope.py status`, last, so whether the bookmark moved is read at the end of the report. A push git
+   refuses ends on it too, so a forecast is never the last word on a push that did not happen.
 
 Exit codes: 0 pushed, 1 refused (gate failed, or git refused the push), 2 could not run.
 """
@@ -40,6 +42,13 @@ def _run(*cmd: str, cwd: str) -> subprocess.CompletedProcess:
 
 def _git(repo: str, *args: str) -> subprocess.CompletedProcess:
     return _run("git", *args, cwd=repo)
+
+
+def _review_scope(repo: str, *args: str) -> str:
+    """The line a `review_scope.py` command printed, or its failure: an empty line in place of a bookmark report would
+    read as one with nothing to say."""
+    done = _run(sys.executable, REVIEW_SCOPE, *args, cwd=repo)
+    return done.stdout.strip() or f"review_scope.py {args[0]} printed nothing (exit {done.returncode}): {done.stderr.strip()}"
 
 
 def _ci_runs(repo: str, sha: str, remote_url: str) -> list[str]:
@@ -106,19 +115,21 @@ def push(repo: str, caller: str) -> int:
         print("NOT PUSHED: the gate failed over the state the push would publish")
         return 1
 
+    print(_review_scope(repo, "forecast", "--publish"))
     upstream = _git(repo, "rev-parse", "@{upstream}")
     pushed = _git(repo, "push", "--porcelain") if upstream.returncode == 0 else _git(repo, "push", "--porcelain", "-u", "origin", "HEAD")
     if pushed.returncode != 0:
         print(f"NOT PUSHED: git push failed:\n{pushed.stderr.strip()}")
+        print(_review_scope(repo, "status"))
         return 1
     head = _git(repo, "rev-parse", "HEAD").stdout.strip()
     before = _pushed_from(pushed.stdout, head)
     print(f"pushed: {before[:12] if before != 'none' else 'none'}..{head[:12]}")
 
-    for line in (_run(sys.executable, REVIEW_SCOPE, "push", cwd=repo).stdout.strip(),
+    for line in (_review_scope(repo, "push"),
                  _run(sys.executable, os.path.join(HERE, "notify_peer_pull.py"), before, caller, cwd=repo).stdout.strip(),
                  *_ci_runs(repo, head, _pushed_to(pushed.stdout)),
-                 _run(sys.executable, REVIEW_SCOPE, "status", cwd=repo).stdout.strip()):
+                 _review_scope(repo, "status")):
         if line:
             print(line)
     return 0
