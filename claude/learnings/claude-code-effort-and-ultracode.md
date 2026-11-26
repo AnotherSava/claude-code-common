@@ -22,7 +22,12 @@ value for that key, so a config that looks like it pins the top level does not. 
 ## Precedence, strongest first
 
 1. **`CLAUDE_CODE_EFFORT_LEVEL=<level>`** — an env var override. While it is set, `/effort` refuses to
-   change the level and tells you to clear it first.
+   change the level and tells you to clear it first. Still so in 2.1.322, whose binary answers a pick with
+   *"Not applied: CLAUDE_CODE_EFFORT_LEVEL=… overrides effort this session"*. The values `unset` and `auto`
+   are not levels: both resolve to no level, and the binary's schema text lists
+   `CLAUDE_CODE_EFFORT_LEVEL=unset` among the cases where no effort parameter is sent at all. So this env
+   var cannot serve as a default the way `ANTHROPIC_MODEL` does for the model, which `/model` can still
+   switch away from mid-session.
 2. **`claude --effort <level>`** — that invocation only.
 3. **`/effort <level>`** — live, mid-session. Its own help: *"`/effort` controls how long Claude thinks
    before answering. `high` for tricky bugs, `low` when you just need a quick edit."* In its slider,
@@ -85,6 +90,10 @@ the CLI reports `Effort not supported` and sends none.
   `unrestricted`. A value in any settings file overrides the `/config` row and hides it.
 - **`alwaysThinkingEnabled`** — `false` disables thinking outright; effort is then moot.
 - **`fastMode`** — orthogonal. Same model, faster output; `/fast` toggles it.
+- **`maxEffortLevel`** (2.1.322; absent from the 2.1.251 read) — a ceiling rather than a default. Its schema
+  text: anything above it, whether an `/effort` or `/model` pick, `--effort`, `CLAUDE_CODE_EFFORT_LEVEL` or a
+  model default, is clamped to it on every provider. It also exists per model under `modelSettings`, where
+  within one file it replaces the top-level value for that model.
 
 ## Reading the settings schema out of the binary
 

@@ -351,6 +351,7 @@
       }
     }
   },
+  "effortLevel": "high",
   "outputStyle": "action-first",
   "awaySummaryEnabled": false,
   "tui": "fullscreen",

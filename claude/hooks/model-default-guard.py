@@ -1,13 +1,14 @@
 #!/usr/bin/env python3
-"""PostModelSwitch: take a saved model or effort default back out of the user settings file.
+"""PostModelSwitch: take a saved model or per-model effort default back out of the user settings file.
 
 Enter in the `/model` picker saves the pick as the default for new sessions, where `s` would apply it to
 this session only, and the two keys sit next to each other. A misclick on Enter writes `model`, and with
 it `modelSettings`, into `~/.claude/settings.json`, which is a symlink into the dotfiles repo, so the
-default changes on both machines once the file is committed or synced. The keys are kept out on purpose:
-the user picks the effort level from the usage budget left, and the model is pinned by `ANTHROPIC_MODEL`
-in the same file's `env` block, which wins over `model` at launch. This hook removes all three keys
-(`model`, `modelSettings` and the older `effortLevel`) whenever any of them appears after a switch.
+default changes on both machines once the file is committed or synced. The model is pinned by
+`ANTHROPIC_MODEL` in the same file's `env` block, which wins over `model` at launch. The standing effort
+default is the committed top-level `effortLevel`, and a saved `modelSettings` entry would override it for
+its model, since within one file the per-model value wins. This hook removes `model` and `modelSettings`
+whenever either appears after a switch, and leaves `effortLevel` alone.
 
 Measured on Claude Code 2.1.322: the save is on disk before this event fires, and rewriting the file
 leaves the saving session on its pick and other open sessions where they were. The event does not fire
@@ -26,7 +27,7 @@ import sys
 from datetime import datetime
 from pathlib import Path
 
-GUARDED = ("model", "modelSettings", "effortLevel")
+GUARDED = ("model", "modelSettings")
 LOG_PATH = Path.home() / ".claude" / "model-default-guard.log"
 
 
