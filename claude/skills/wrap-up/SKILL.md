@@ -3,7 +3,8 @@ name: wrap-up
 description: >-
   Close out a section of work with one approval: review, transcript check, /reflect draft, commits and
   push, then offer deploy, publish and release.
-  TRIGGER when: /wrap-up, or the user is ready to finalize, close out or wrap up the current work.
+  TRIGGER when: /wrap-up, the user is ready to finalize, close out or wrap up the current work, or you
+  are about to offer to commit and push finished work.
   DO NOT TRIGGER when: pushing work as-is to test it (/yolo), parking one idea (/memo), or only
   persisting knowledge (/reflect).
 allowed-tools: Bash(python ~/.claude/skills/wrap-up/scripts/session_scan.py:*), Bash(bash ~/.claude/skills/wrap-up/scripts/ship_wrappers.sh), Bash(bash ~/.claude/skills/shared/project_memory.sh), Bash(bash ~/.claude/skills/wrap-up/scripts/release_candidates.sh), Bash(python3 ~/.claude/skills/shared/repo_flags.py:*), Bash(python ~/.claude/skills/shared/repo_flags.py:*), Bash(python ~/.claude/skills/memo/memos.py:*), Bash(git rev-parse:*), Bash(git status:*), Bash(git log:*), Bash(python ~/.claude/skills/shared/peer_relay.py:*), Bash(python3 ~/.claude/skills/shared/peer_relay.py:*), Bash(git fetch:*), Bash(git rev-list:*), Bash(git diff:*), Bash(git show:*), Bash(gh issue list:*), Bash(gh run list:*), Bash(gh run watch:*), Bash(gh run view:*), Bash(git apply:*), Bash(python3 ~/.claude/skills/shared/commit.py:*), Bash(python ~/.claude/skills/shared/commit.py:*), Bash(python3 ~/.claude/skills/shared/push.py:*), Bash(python ~/.claude/skills/shared/push.py:*), Bash(python3 ~/.claude/skills/shared/gate_pushed_tree.py:*), Bash(python ~/.claude/skills/shared/gate_pushed_tree.py:*), Bash(python3 ~/.claude/skills/shared/change_scope.py:*), Bash(python ~/.claude/skills/shared/change_scope.py:*), Bash(python3 ~/.claude/skills/shared/peer_repo_changes.py:*), Bash(python ~/.claude/skills/shared/peer_repo_changes.py:*), Bash(python3 ~/.claude/scripts/review_scope.py:*), Bash(python ~/.claude/scripts/review_scope.py:*), Bash(python3 ~/.claude/scripts/review_picker.py:*), Bash(python ~/.claude/scripts/review_picker.py:*), Bash(bash ~/.claude/scripts/audit-skill-tracking.sh), Workflow, Bash(bash ~/.claude/skills/deploy/scripts/run.sh:*), Bash(bash scripts/publish.sh), ListAgents, ToolSearch, SendMessage, Read, Edit, Write, Glob, Grep, Skill
@@ -83,7 +84,8 @@ Then launch the saved `review-auto` workflow in fix mode, building its args as
 fixing, and its default cap is only a guard against a fixer and reviewers that never settle. It reviews everything since the last recorded review —
 the working tree and every commit `/yolo` pushed since — and runs in the background, so do steps 3 to 5 while it
 works and collect its result before step 6. Skip it only when there is nothing since the bookmark at all
-(`review_scope.py status` reports 0 commits past it and the tree is clean).
+(`review_scope.py status` reports 0 commits past it, or past the upstream when there is no bookmark, and the tree is
+clean). A status of "no bookmark and no upstream" is not 0 commits: run the review.
 
 ### 3. Read the whole conversation
 
@@ -395,7 +397,8 @@ blocking privacy finding stops here and goes to the user with the finding, since
 covered content that must not be published. Any other refusal is yours to fix and retry. Then
 `python3 ~/.claude/scripts/review_scope.py advance`. The session scan reads a `commit.py`, `push.py` or
 `review_scope.py advance` call as the sign this run finished and bounds the next run's window, so renaming one of
-them means changing `STEP_8_RE` in `scripts/session_scan.py` too.
+them means changing `STEP_8_SCRIPTS` in `scripts/session_scan.py` too. It counts only a call run as `python` or
+`python3` plus the path, so run these as written, never through another wrapper.
 
 **Push**, unless the answer was `hold` or the page's push flag was off: `python3 ~/.claude/skills/shared/push.py --caller wrap-up`. Report its lines,
 then watch CI and hand off files written in other repos as the "After the push" section of `shared/sync-and-push.md`

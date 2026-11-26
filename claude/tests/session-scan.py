@@ -75,6 +75,10 @@ def main() -> int:
         window, body = scan(home, "f", [command("clear"), said("user", "first task"), command("wrap-up"), said("assistant", "summary one"), said("user", "wait, fix X first"), said("user", "second task"), command("wrap-up")])
         check("an earlier /wrap-up that never reached step 8 is not a boundary", (window, "first task" in body, "second task" in body), ("window: whole transcript", True, True))
 
+        read_only = [ran("cd ~/.claude && sed -n '1,30p' skills/shared/commit.py"), ran('grep -n "review_scope.py advance" skills/wrap-up/SKILL.md')]
+        window, body = scan(home, "r", [command("clear"), said("user", "first task"), command("wrap-up"), said("user", "stop"), *read_only, said("user", "second task"), command("wrap-up")])
+        check("reading commit.py or grepping for the advance after an interrupted /wrap-up does not finish it", (window, "first task" in body), ("window: whole transcript", True))
+
         window, body = scan(home, "g", [command("clear"), said("user", "first task"), command("wrap-up"), said("user", "stop"), command("yolo"), COMMITTED, said("user", "second task"), command("wrap-up")])
         check("a commit made by a later command does not finish an earlier /wrap-up", (window, "first task" in body), ("window: whole transcript", True))
 

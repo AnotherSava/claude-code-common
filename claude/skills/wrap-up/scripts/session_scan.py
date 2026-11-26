@@ -45,7 +45,13 @@ DECISION_TOOLS = ("AskUserQuestion", "ExitPlanMode")
 
 # The shell calls /wrap-up's step 8 makes once the user has answered its summary. These are the commands
 # claude/skills/wrap-up/SKILL.md step 8 names; change both together.
-STEP_8_RE = re.compile(r"shared/(?:commit|push)\.py|review_scope\.py advance")
+STEP_8_SCRIPTS = r"shared/(?:commit|push)\.py|review_scope\.py advance"
+STEP_8_RE = re.compile(STEP_8_SCRIPTS)
+# A Bash command counts only when it runs one of them: an interpreter in command position, at the start or after a
+# separator. Matched anywhere, a `sed -n` or `grep` reading commit.py after an interrupted /wrap-up made that run look
+# finished and clipped the next digest to it (2026-11-25). A SKILL.md is still matched by STEP_8_RE, since a skill
+# such as upstream-sync names shared/commit.py in prose and still commits through it.
+STEP_8_CALL_RE = re.compile(rf"(?:^|[;&|(])\s*python3?\s+\S*(?:{STEP_8_SCRIPTS.replace(' ', r'\s+')})", re.M)
 
 # The skills beside this one. Only a skill whose SKILL.md makes a STEP_8_RE call can own the commit that follows it, so
 # only such a command ends the search for an earlier /wrap-up's step 8: a built-in (/login, /mcp, /model), a plugin
@@ -167,7 +173,7 @@ def _read_items(path: str) -> tuple[list[dict[str, Any]], dict[str, Any]]:
                         items.append(_command_item(stamp, tool_input["skill"], str(tool_input.get("args") or ""), "claude"))
                         continue
                     command = tool_input.get("command") if name == "Bash" else None
-                    items.append({"kind": "tool", "ts": stamp, "text": _summarize_tool(name, tool_input), "step_8": isinstance(command, str) and bool(STEP_8_RE.search(command))})
+                    items.append({"kind": "tool", "ts": stamp, "text": _summarize_tool(name, tool_input), "step_8": isinstance(command, str) and bool(STEP_8_CALL_RE.search(command))})
                 continue
             if block_type == "tool_result":
                 if block.get("tool_use_id") in decision_ids:
