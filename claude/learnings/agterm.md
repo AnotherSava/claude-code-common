@@ -491,8 +491,10 @@ than carrying `null`, so a writer can compare before writing. The tint persists 
 writer that owns it has to clear it too, not only set it. `--on` omitted keeps the current placement, else
 `icon`, and agterm refuses a placement beside `clear`. Measured on 0.44.1 against a throwaway session (2026-11-25):
 the five 0.41.0 names are accepted, `1E90FF` reads back as `#1e90ff`, `#abc` is refused, a first tint with no
-`--on` reads `"tintOn": ["icon"]`, and after `--on name` a later tint without `--on` keeps `["name"]`. That a hex
-ignores light and dark mode is read from agterm's source (`SidebarTint.swift`) and not observed.
+`--on` reads `"tintOn": ["icon"]`, and after `--on name` a later tint without `--on` keeps `["name"]`. Three
+claims are read from agterm's source (`SidebarTint.swift`) and not observed: that a hex ignores light and dark
+mode, that `tintOn` is the same for a name and a hex, and that the five names and hex arrived in 0.41.0 rather
+than earlier.
 Measured on 0.40.0: remote tabs, which the dashboard tints from its `tab_tints` setting, read `"tint": "gray",
 "tintOn": ["icon", "name"]`.
 
