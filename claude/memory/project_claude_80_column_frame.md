@@ -11,9 +11,11 @@ wider pane (lines ending around column 80, fragments pasted beside them), that i
 WSL `~/tmux-size.log` for that session (logging hooks in WSL `~/.tmux.conf` write it), then resize.
 
 The likely remedy is in place: `remote_session_create` in `claude/remote-session/lib.sh`, which
-both `start-here.sh` and `cc-session.sh` call, creates the session at the attaching terminal's size
-(`stty size` → `new-session -x/-y`) instead of tmux's 80x24, so a recurrence means that was not the
-cause. The full record — what was measured, what was ruled
+both `start-here.sh` and `cc-session.sh` call, sizes the new window to the attaching terminal with
+`resize-window -x C -y R` and then `set-option -wu window-size` (e3b2a21, 2026-11-25). The earlier
+`new-session -x/-y` (e721f9e) never sized the window while any client was attached to the server,
+since tmux 3.4 then applies those flags only to the session's default size. Only a recurrence after
+e3b2a21 weighs against the creation path. The full record — what was measured, what was ruled
 out — is the agwinterm repo's project memory `claude-80-column-frame.md`; route the occurrence to
 a live agwinterm session if one exists (the `peer` skill). agwinterm itself was measured not at
 fault.
