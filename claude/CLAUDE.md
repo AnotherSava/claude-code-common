@@ -61,6 +61,7 @@ When a problem resists the first attempt or two, search the web for the root cau
 - When non-trivial work is finished and the user pivots to an unrelated feature, ask whether to commit it first. Finishing a task alone is not a trigger.
 - A file this task changes in a *different* repository is reported, at the moment of the write, to the session that owns that repo (the `peer` skill), and never committed here. Committing it goes through the handoff step of `/yolo` and `/wrap-up`.
 - Follow `~/.claude/skills/shared/commit-message-rules.md`.
+- An offer to commit and push is an offer to run `/wrap-up`, or `/yolo` when the point is to test now. Never hand-roll it: `shared/commit.py` is the one place a commit is made, and a bare `git commit` skips the confidentiality scan and the signature.
 - Prefer `git status --short` over `git diff --stat`, which omits untracked files.
 - **After an idle gap of roughly 30 minutes or more**, before touching anything run `git fetch || echo FETCH-FAILED`, then `git log --oneline HEAD..@{upstream}`. Empty output means current only when `FETCH-FAILED` did not print. When the remote is ahead, read the incoming commit messages first and propose a rebase rather than running one. Re-verify anything decided before the gap.
 
