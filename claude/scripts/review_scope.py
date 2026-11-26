@@ -192,6 +192,8 @@ def _sync(repo: str) -> str:
     if error:
         return error
     if origin_sha is None:
+        # A copy fetched before origin's bookmark was deleted would read in `push` as origin still holding it.
+        _git(repo, "update-ref", "-d", FETCHED)
         return "ok"
     try:
         fetched = _git(repo, "fetch", "--no-tags", REMOTE, f"+{REF}:{FETCHED}", timeout=NETWORK_TIMEOUT)

@@ -241,6 +241,10 @@ def main() -> int:
         check("a forecast before the force push counts the rewritten branch as dropping origin's bookmark", review_scope.forecast(f, True).startswith(f"review bookmark after this push: origin moves to {again[:12]} (from {rebased[:12]})"), True)
         sh(f, "push", "-q", "--force-with-lease=main:origin/main", "origin", "main")
         check("and the push after it does what the forecast said", review_scope.push(f), f"pushed: {review_scope.REF} -> {again[:12]}")
+        # Origin's bookmark deleted by hand after this clone fetched it: the fetched copy must not stand in for it.
+        sh(f_origin, "update-ref", "-d", review_scope.REF)
+        check("a bookmark deleted on origin is forecast to be published again", review_scope.forecast(f, True).startswith(f"review bookmark after this push: origin moves to {again[:12]} (from none)"), True)
+        check("and the push publishes it, where a stale fetched copy would read as up to date", review_scope.push(f), f"pushed: {review_scope.REF} -> {again[:12]}")
 
         # The polish record /wrap-up reads to skip its own clean-up passes. Skipping on a record that does not cover
         # the change set leaves code nobody cleaned, so most cases try to make `polished_since` answer when it must not.
