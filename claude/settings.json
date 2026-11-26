@@ -351,8 +351,8 @@
       }
     }
   },
-  "effortLevel": "high",
   "outputStyle": "action-first",
+  "effortLevel": "high",
   "awaySummaryEnabled": false,
   "tui": "fullscreen",
   "skipWorkflowUsageWarning": true,
