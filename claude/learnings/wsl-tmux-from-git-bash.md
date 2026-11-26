@@ -45,6 +45,16 @@ set-hook -g window-resized 'run-shell -b "echo \$(date +%H:%M:%S.%N) WINDOW #{se
   terminal it answers terminfo's 80 (and `lines` 24) instead of failing, so a "no terminal, skip
   the flags" guard built on it never fires. Measured 2026-10-11 from a 137x41 pane and from a call
   with stdin at `/dev/null`.
+- **`-x`/`-y` on `new-session -d` are ignored while any client is attached to the server**: the
+  window still takes the most recently active client's size, and the flags only set the session's
+  `default-size` option. Measured 2026-11-25: asked for 80x5 it came up 1x1, the newest client
+  being a terminal tab opened in the background and left at 1x1; asked for 120x40 a few minutes
+  later it came up 147x51, the size of the client used last by then. So any check that creates a
+  pane and reads it back sees whatever size the newest client has.
+- **To force the size and still follow clients**, run `tmux resize-window -t =<name>: -x C -y R`,
+  then `tmux set-option -wu -t =<name>: window-size`. The resize makes the window `manual`;
+  unsetting that per-window override returns it to `latest` while it keeps the size, and the next
+  client that attaches resizes it as before (measured the same day: 120x40 held, option `latest`).
 
 ## Windows programs inside a tmux pane
 

@@ -155,6 +155,7 @@ tmux_draws_new_panes() {
     probe="liveness-probe-$$"
     marker="cc-session-liveness-$$-$(date +%s%N)"
     tmux new-session -d -s "$probe" -x 80 -y 5 "printf '%s\\n' $marker; sleep 5"
+    remote_session_size_window "$probe" 80 5
     drawn=
     for _ in 1 2 3 4 5 6 7 8 9 10; do
         if tmux capture-pane -p -t "=$probe:" 2>/dev/null | grep -qF "$marker"; then
@@ -210,8 +211,14 @@ reattach_clients() {  # [<session name>]
 # The has-session comes first because display-message on a missing session prints nothing and exits
 # 0 (tmux 3.4, measured 2026-11-21), which once passed the age test and reported a session that
 # had ended as one that never drew.
+# A window one line high can show no more than one line however well it draws, so it proves nothing
+# and the attach goes ahead: with window-size `latest` the attaching client resizes it and the TUI
+# redraws. Measured 2026-11-25: a dashboard tab agwinterm opens unselected stays a 1x1 client, so its
+# session's window was 1x1 and reported here as never drawn, though resized to 147x51 it showed the
+# interface whole. A restart would not have helped, since the background tab reattaches at 1x1.
 session_shows_nothing() {
     tmux has-session -t "$session" 2>/dev/null || return 1
+    [ "$(tmux display-message -p -t "$session:" '#{window_height}')" -gt 1 ] || return 1
     session_created=$(tmux display-message -p -t "$session:" '#{session_created}')
     [ $(( $(date +%s) - session_created )) -ge 30 ] || return 1
     [ "$(tmux capture-pane -p -t "$session:" | grep -c '[^[:space:]]' || true)" -le 1 ]

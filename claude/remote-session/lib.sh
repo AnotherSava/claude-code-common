@@ -103,12 +103,29 @@ remote_session_create() {
     remote_session_create_command="if { $3
 }; then mkdir -p \"\$(dirname $remote_session_create_marker)\" && : > $remote_session_create_marker; else remote_session_status=\$?; tmux set-option -p remain-on-exit on; exit \"\$remote_session_status\"; fi"
     if remote_session_create_size=$(stty size 2>/dev/null) && [ -n "$remote_session_create_size" ]; then
-        tmux new-session -d -s "$1" -x "${remote_session_create_size#* }" -y "${remote_session_create_size% *}" -c "$2" "$remote_session_create_command"
+        remote_session_create_cols=${remote_session_create_size#* } remote_session_create_rows=${remote_session_create_size% *}
     elif [ $# -ge 5 ]; then
-        tmux new-session -d -s "$1" -x "$4" -y "$5" -c "$2" "$remote_session_create_command"
+        remote_session_create_cols=$4 remote_session_create_rows=$5
     else
         tmux new-session -d -s "$1" -c "$2" "$remote_session_create_command"
+        return
     fi
+    tmux new-session -d -s "$1" -x "$remote_session_create_cols" -y "$remote_session_create_rows" -c "$2" "$remote_session_create_command"
+    remote_session_size_window "$1" "$remote_session_create_cols" "$remote_session_create_rows"
+}
+
+# Gives a detached session's window the size asked for: remote_session_size_window <name> <cols> <rows>.
+#
+# Under window-size `latest` a detached new-session ignores -x and -y while any client is attached
+# anywhere, and takes the size of the most recently active one. Measured 2026-11-25 on tmux 3.4: a
+# session asked for at 80x5 came up 1x1 while the newest client was a 1x1 agwinterm tab opened
+# unselected, and minutes later one asked for at 120x40 came up 147x51, the Mac's size. resize-window
+# sets the size and marks the window manual; unsetting that per-window override returns it to
+# `latest`, which keeps the size until a client attaches and resizes it as before. cc-session.sh's
+# tmux_draws_new_panes calls this too, since its probe at 1x1 cannot show the marker it looks for.
+remote_session_size_window() {
+    tmux resize-window -t "=$1:" -x "$2" -y "$3"
+    tmux set-option -wu -t "=$1:" window-size
 }
 
 # Where a session that ended with exit 0 is recorded: remote_session_ended_marker <name>.
