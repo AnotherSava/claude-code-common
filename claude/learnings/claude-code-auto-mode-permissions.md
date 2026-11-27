@@ -270,6 +270,12 @@ classifier, and is refused once when a hook rewrites it. The mechanics, measured
 2026-11-13 to 2026-11-16, are in the findings log of `~/.claude/skills/hooks/SKILL.md`, which also records 2.1.318
 and earlier running such calls rewritten with no refusal.
 
+A resend that passes can still start a broken run. Measured 2026-11-26: a `review-auto` launch by name was refused
+this way, the exact resend was admitted, and the run died in its `requireArgs` check with zero agents, because the
+script received `args` as a JSON string; the failed run's `<recovery>` line printed it quoted. Resuming by name with
+`resumeFromRunId` and the original `args` as an object, without the hook's additions, let the hook rewrite them
+again, and that run started its agents.
+
 ## `dangerouslyDisableSandbox: true` is not a skeleton key
 
 The Bash tool's `dangerouslyDisableSandbox` runs the command unsandboxed, and it does change the outcome for
