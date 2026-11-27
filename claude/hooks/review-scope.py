@@ -9,10 +9,10 @@ step can record what it covered. The rewrite goes back as `updatedInput`, so the
 leave the range out.
 
 The repo is `args.repo` when the call names one, else the project directory. A non-git directory, an unreadable
-args object, any other workflow, and a call already carrying this hook's rewrite pass through untouched. When no
-base can be trusted (origin unreadable, history rewritten past the bookmark) the scope says so and no
-`review_bookmark` is passed, so that review can never be recorded as covering a range it did not see. The script
-never raises and exits 0 on every path.
+args object, any other workflow, and a call already carrying this hook's rewrite, with args as an object, pass through
+untouched. When no base can be trusted (origin unreadable, history rewritten past the bookmark) the scope says so
+and no `review_bookmark` is passed, so that review can never be recorded as covering a range it did not see. The
+script never raises and exits 0 on every path.
 """
 from __future__ import annotations
 
@@ -34,7 +34,8 @@ def main() -> int:
     if not isinstance(tool_input, dict) or tool_input.get("name") != review_scope.WORKFLOW:
         return 0
     args = tool_input.get("args")
-    if isinstance(args, str):
+    as_string = isinstance(args, str)
+    if as_string:
         try:
             args = json.loads(args)
         except ValueError:
@@ -60,7 +61,8 @@ def main() -> int:
     # A call auto mode's classifier decides, which is one no allow rule admits, gets no verdict once this hook has
     # rewritten it, and the model is told to send the rewrite back as written. That resend has to come through
     # unchanged for the review to cover what runs, so a scope already ending in this text keeps one copy of it, and a
-    # call carrying everything this hook would write is let be.
+    # call carrying everything this hook would write is let be. Args sent as a JSON string are always rewritten as an
+    # object, since review-auto.js `requireArgs` throws on a string and the run would die with zero agents.
     text = review_scope.scope_text(found)
     called = args["scope"].removesuffix(text)
     widened = {**args, "scope": called + text}
@@ -69,7 +71,7 @@ def main() -> int:
         # `called` is the scope before widening, which review-auto.js quotes in a fix-diff round: there the appended
         # commit list would read as an instruction to re-review the whole range.
         widened["review_bookmark"] = {"repo": repo, "base": found["base"], "tree": tree, "called": called}
-    if widened == args:
+    if widened == args and not as_string:
         return 0
     note = (f"The review-scope hook widened this review: {len(found['commits'])} commit(s) since the last review were added to its scope."
             if found["commits"] else None)

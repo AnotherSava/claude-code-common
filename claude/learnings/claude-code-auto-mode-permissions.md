@@ -261,7 +261,8 @@ call the list can admit, such as an Edit outside the protected paths.
 
 "The server-side auto mode classifier gave no verdict for Workflow: a hook changed this call's input after auto
 mode reviewed it" judges nothing about the action, and says so. Issue the call once more with exactly the input it
-quotes, and nothing else in that response; a second refusal is final, and the user decides from there. The resend
+quotes, and nothing else in that response, sending any object it quotes, such as a Workflow call's `args`, as an
+object and not as a JSON string (see below). A second refusal is final, and the user decides from there. The resend
 passes only when the hook leaves its own rewrite unchanged. The refusal comes only where the classifier is what
 decides the call; one an allow rule admits runs rewritten with no refusal. A skill's `allowed-tools` is such a rule
 for as long as its grant lasts (see "A skill's `allowed-tools` grant lasts one turn"), so a Workflow call a skill
@@ -275,6 +276,8 @@ this way, the exact resend was admitted, and the run died in its `requireArgs` c
 script received `args` as a JSON string; the failed run's `<recovery>` line printed it quoted. Resuming by name with
 `resumeFromRunId` and the original `args` as an object, without the hook's additions, let the hook rewrite them
 again, and that run started its agents.
+The hook in `review-scope.py` rewrites `args` sent as a string back into an object, so a stringified resend of its
+output is refused a second time instead of starting a run that dies.
 
 ## `dangerouslyDisableSandbox: true` is not a skeleton key
 
